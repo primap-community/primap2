@@ -66,9 +66,12 @@ Ready to contribute? Here's how to set up `primap2` for local development.
 
 3. Install your local copy into a virtualenv. Assuming you have virtualenvwrapper installed, this is how you set up your fork for local development::
 
-    $ mkvirtualenv primap2
     $ cd primap2/
+    $ python3 -m venv venv
+    $ source venv/bin/activate
     $ python setup.py develop
+    $ python3 -m pip install -r requirements_dev.txt
+    $ pre-commit install
 
 4. Create a branch for local development::
 
@@ -116,10 +119,9 @@ Deploying
 ---------
 
 A reminder for the maintainers on how to deploy.
-Make sure all your changes are committed (including an entry in HISTORY.rst).
+Make sure all your changes are committed (including an entry in CHANGELOG.rst).
 Then run::
 
 $ bump2version patch # possible: major / minor / patch
 $ git push
 $ git push --tags
-

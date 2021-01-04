@@ -22,7 +22,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath(".."))
 
-import primap2
+import primap2  # noqa: E402
 
 # -- General configuration ---------------------------------------------
 

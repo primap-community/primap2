@@ -1,11 +1,7 @@
 #!/usr/bin/env python
-
-"""Tests for `primap2` package."""
+"""TODO: Tests for `primap2` package."""
 
 import pytest
-
-
-from primap2 import primap2
 
 
 @pytest.fixture

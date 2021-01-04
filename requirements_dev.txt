@@ -7,7 +7,7 @@ tox
 coverage
 Sphinx
 twine
-
+pre-commit
 pytest~=6.2.1
 pytest-runner
 setuptools~=51.1.1
