@@ -48,4 +48,4 @@ Once you have a copy of the source, you can install it with:
 
 
 .. _Github repo: https://github.com/pik-primap/primap2
-.. _tarball: https://github.com/mikapfl/pik-primap/tarball/master
+.. _tarball: https://github.com/pik-primap/pik-primap/tarball/master
