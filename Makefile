@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help
+.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit
 .DEFAULT_GOAL := help
 
 define BROWSER_PYSCRIPT
@@ -83,3 +83,11 @@ dist: clean ## builds source and wheel package
 
 install: clean ## install the package to the active Python's site-packages
 	python setup.py install
+
+virtual-environment: ## setup a virtual environment for development
+	python3 -m venv venv
+	venv/bin/python -m pip install -r requirements_dev.txt
+	venv/bin/python -m pip install -e .
+
+install-pre-commit: ## install the pre-commit hooks
+	pre-commit install

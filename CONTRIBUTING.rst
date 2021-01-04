@@ -64,14 +64,13 @@ Ready to contribute? Here's how to set up `primap2` for local development.
 
     $ git clone git@github.com:your_name_here/primap2.git
 
-3. Install your local copy into a virtualenv. Assuming you have virtualenvwrapper installed, this is how you set up your fork for local development::
+3. Create a virtual environment for development, start using it, and install
+   pre-commit hooks::
 
     $ cd primap2/
-    $ python3 -m venv venv
+    $ make virtual-environment
     $ source venv/bin/activate
-    $ python setup.py develop
-    $ python3 -m pip install -r requirements_dev.txt
-    $ pre-commit install
+    $ make pre-commit-install
 
 4. Create a branch for local development::
 
@@ -79,14 +78,10 @@ Ready to contribute? Here's how to set up `primap2` for local development.
 
    Now you can make your changes locally.
 
-5. When you're done making changes, check that your changes pass flake8 and the
-   tests, including testing other Python versions with tox::
+5. When you're done making changes, check that your changes pass the tests
+   defined in the pre-commit hooks::
 
-    $ flake8 primap2 tests
-    $ python setup.py test or pytest
-    $ tox
-
-   To get flake8 and tox, just pip install them into your virtualenv.
+    $ make lint
 
 6. Commit your changes and push your branch to GitHub::
 
