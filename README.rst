@@ -5,9 +5,10 @@ PRIMAP2
 
 .. image:: https://img.shields.io/pypi/v/primap2.svg
         :target: https://pypi.python.org/pypi/primap2
+        :alt: PyPI status
 
-.. image:: https://readthedocs.org/projects/primap2/badge/?version=latest
-        :target: https://primap2.readthedocs.io/en/latest/?badge=latest
+.. image:: https://readthedocs.org/projects/primap2/badge/?version=main
+        :target: https://primap2.readthedocs.io/en/main/?badge=main
         :alt: Documentation Status
 
 
