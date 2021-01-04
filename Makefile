@@ -47,8 +47,8 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr htmlcov/
 	rm -fr .pytest_cache
 
-lint: ## check style with flake8
-	flake8 primap2 tests
+lint: ## check style with pre-commit hooks
+	pre-commit run --all-files
 
 test: ## run tests quickly with the default Python
 	pytest
