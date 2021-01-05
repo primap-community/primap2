@@ -47,8 +47,8 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr htmlcov/
 	rm -fr .pytest_cache
 
-lint: ## check style with pre-commit hooks
-	pre-commit run --all-files
+lint: venv ## check style with pre-commit hooks
+	venv/bin/pre-commit run --all-files
 
 test: ## run tests quickly with the default Python
 	pytest
@@ -76,18 +76,21 @@ servedocs: docs ## compile the docs watching for changes
 release: dist ## package and upload a release
 	twine upload dist/*
 
-dist: clean ## builds source and wheel package
-	python setup.py sdist
-	python setup.py bdist_wheel
+dist: clean venv ## builds source and wheel package
+	venv/bin/python setup.py sdist
+	venv/bin/python setup.py bdist_wheel
 	ls -l dist
 
 install: clean ## install the package to the active Python's site-packages
 	python setup.py install
 
-virtual-environment: ## setup a virtual environment for development
-	python3 -m venv venv
+virtual-environment: venv ## setup a virtual environment for development
+
+venv: requirements_dev.txt setup.py
+	[ -d venv ] || python3 -m venv venv
 	venv/bin/python -m pip install -r requirements_dev.txt
 	venv/bin/python -m pip install -e .
+	touch venv
 
-install-pre-commit: ## install the pre-commit hooks
-	pre-commit install
+install-pre-commit: venv ## install the pre-commit hooks
+	venv/bin/pre-commit install
