@@ -5,8 +5,8 @@ Installation
 ============
 
 
-Stable release
---------------
+Releases
+--------
 
 To install PRIMAP2, run this command in your terminal:
 
@@ -15,7 +15,7 @@ To install PRIMAP2, run this command in your terminal:
     $ pip install primap2
 
 This is the preferred method to install PRIMAP2, as it will always install the
-most recent stable release.
+most recent release.
 
 If you don't have `pip`_ installed, this `Python installation guide`_ can guide
 you through the process.

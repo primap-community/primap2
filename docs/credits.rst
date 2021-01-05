@@ -1,5 +1,8 @@
-.. include:: ../AUTHORS.rst
+=======
+Credits
+=======
 
+.. include:: ../AUTHORS.rst
 
 Used Libraries
 --------------
