@@ -70,7 +70,7 @@ Ready to contribute? Here's how to set up `primap2` for local development.
     $ cd primap2/
     $ make virtual-environment
     $ source venv/bin/activate
-    $ make pre-commit-install
+    $ make install-pre-commit
 
 4. Create a branch for local development::
 
