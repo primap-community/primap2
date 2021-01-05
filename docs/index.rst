@@ -10,7 +10,7 @@ Welcome to PRIMAP2's documentation!
    usage
    modules
    contributing
-   authors
+   credits
    history
 
 Indices and tables

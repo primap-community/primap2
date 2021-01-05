@@ -6,8 +6,9 @@ flake8
 tox
 coverage
 Sphinx
+sphinx-rtd-theme
 twine
 pre-commit
-pytest~=6.2.1
+pytest
 pytest-runner
-setuptools~=51.1.1
+setuptools
