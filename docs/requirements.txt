@@ -1,0 +1,8 @@
+ipykernel
+nbsphinx
+xarray
+pint
+pint_xarray
+numpy
+pandas
+openscm_units

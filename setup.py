@@ -9,7 +9,14 @@ with open("README.rst") as readme_file:
 with open("CHANGELOG.rst") as history_file:
     history = history_file.read()
 
-requirements = []
+requirements = [
+    "xarray",
+    "pint",
+    "pint_xarray",
+    "numpy",
+    "pandas",
+    "openscm_units",
+]
 
 setup_requirements = [
     "pytest-runner",

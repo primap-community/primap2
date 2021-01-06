@@ -7,7 +7,8 @@ Welcome to PRIMAP2's documentation!
 
    readme
    installation
-   data_format
+   data_format_examples
+   data_format_details
    modules
    contributing
    credits

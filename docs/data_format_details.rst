@@ -1,11 +1,6 @@
-===========
-Data Format
-===========
-
-In PRIMAP2, data is handled in `xarray datasets <https://xarray.pydata.org/en/stable/data-structures.html#dataset>`_
-with defined coordinates and metadata.
-If you are not familiar with xarray data structures, we recommend reading
-`xarray's own primer <https://xarray.pydata.org/en/stable/data-structures.html>`_ first.
+===================
+Data format details
+===================
 
 Coordinates
 -----------
@@ -19,13 +14,14 @@ The coordinates are:
 ===============  =====================  ========  ===========================================  ===================================
 coordinate       coordinate key         required  notes                                        attrs
 ---------------  ---------------------  --------  -------------------------------------------  -----------------------------------
-time             time                   ✓         for periods, the *start* of the period
-area             area (<category-set>)  ✓         must be a pre-defined category set           'area': 'area (<category set>)'
-category         category (<c-set>)     ✗         primary category                             'cat': 'category (<c-set>)'
-sec. categories  <type> (<c-set>)       ✗         there can be multiple                        'sec_cats': ['<type> (<c-set>)', …]
-scenario         scenario (<c-set>)     ✗                                                      'scen': 'scenario (<c-set>)'
-provenance       provenance             ✗         values are measured, projected, and derived
-model            model                  ✗         model should be from a predefined list
+time             time                   ✗         for periods, the *start* of the period
+area             area (<category-set>)  ✗         must be a pre-defined category set           'area': 'area (<category set>)'
+category         category (<c-set>)               primary category                             'cat': 'category (<c-set>)'
+sec. categories  <type> (<c-set>)                 there can be multiple                        'sec_cats': ['<type> (<c-set>)', …]
+scenario         scenario (<c-set>)                                                            'scen': 'scenario (<c-set>)'
+provenance       provenance                       values are measured, projected, and derived
+model            model                            model should be from a predefined list
+source           source                 ✗         a short source identifier
 ===============  =====================  ========  ===========================================  ===================================
 
 For some coordinates, the meaning of the data is directly visible from the data type
@@ -38,6 +34,7 @@ category.
 In this case, the used category-set is included directly in the coordinate key in
 brackets, and a translation from a generic name to the coordinate key is included in the
 ``attrs``.
+
 Most commonly, data have either no category (for example, population data) or one
 primary category (for example, most CO2 emissions data).
 Therefore, the primary category is not required, and if it is used, it is specifically

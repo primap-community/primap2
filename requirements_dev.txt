@@ -12,3 +12,6 @@ pre-commit
 pytest
 pytest-runner
 setuptools
+nbsphinx
+ipykernel
+jupyter
