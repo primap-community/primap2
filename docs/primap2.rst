@@ -4,10 +4,10 @@ primap2 package
 Submodules
 ----------
 
-primap2.primap2 module
-----------------------
+primap2.data\_format module
+---------------------------
 
-.. automodule:: primap2.primap2
+.. automodule:: primap2.data_format
    :members:
    :undoc-members:
    :show-inheritance:
