@@ -48,6 +48,15 @@ Therefore, it is possible to include arbitrary secondary categories, where the
 dimension key is then formed from the dimension or type (<type> in the table) and the
 category-set (for example, ``animal (FAOSTAT)``)
 
+Additional Coordinates
+----------------------
+
+Besides the coordinates defining dimensions, additional coordinates can be given, for
+example to supply category names for the categories. Additional coordinates are not
+required to have unique values.
+The name of additional coordinates is not allowed to contain spaces, replace them
+preferably with ``_``.
+
 Data Variables
 --------------
 
@@ -89,12 +98,12 @@ The other attributes with metadata about the dataset as a whole are:
 ===========  =======================================  ============================================
 attribute    description                              data type
 -----------  ---------------------------------------  --------------------------------------------
-reference    citable reference describing the data    ``dict`` with defined keys
+reference    citable reference describing the data    ``str`` starting with ``doi:`` or free-form
 rights       license or other usage restrictions      free-form ``str``
 contact      who can answer questions about the data  usually email address, but free-form ``str``
 description  human-readable description               free-form ``str``
 ===========  =======================================  ============================================
 
 All of these attributes are optional.
-The reference is a ``dict`` with optionally the keys ``doi`` containing a DOI of a
-publication, and/or ``publication`` containing a free-form reference.
+If the ``reference`` starts with ``doi:``, it is a doi, otherwise it is a free-form
+literature reference.

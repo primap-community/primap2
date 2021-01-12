@@ -1,8 +1,23 @@
+import pathlib
+import typing
+
 import pint
 import pint_xarray  # noqa: F401
 import xarray as xr
 from loguru import logger
 from openscm_units import unit_registry as ureg
+
+
+def save(ds: xr.Dataset, file_name: typing.Union[str, pathlib.Path]):
+    """Save the dataset to disk."""
+    ds.pint.dequantify().to_netcdf(file_name, engine="netcdf4")
+
+
+def load(file_name: typing.Union[str, pathlib.Path]) -> xr.Dataset:
+    """Load a dataset from disk."""
+    return xr.open_dataset(file_name, engine="netcdf4").pint.quantify(
+        unit_registry=ureg
+    )
 
 
 def split_dim_name(dim_name: str) -> (str, str):
@@ -25,17 +40,30 @@ def ensure_valid(ds: xr.Dataset):
         raise ValueError("ds is not an xr.Dataset")
 
     ensure_valid_dimensions(ds)
+    ensure_valid_coordinates(ds)
     ensure_valid_coordinate_values(ds)
     ensure_valid_data_variables(ds)
     ensure_valid_attributes(ds)
 
 
+def ensure_valid_coordinates(ds: xr.Dataset):
+    additional_coords = set(ds.coords) - set(ds.dims)
+    for coord in additional_coords:
+        if " " in coord:
+            logger.error(
+                f"Additional coordinate name {coord!r} contains a space, "
+                f"replace it with an underscore."
+            )
+            raise ValueError(f"Coord key {coord!r} contains a space")
+
+
 def ensure_valid_attributes(ds: xr.Dataset):
-    if "reference" in ds.attrs:
-        unknown_keys = set(ds.attrs["reference"].keys()) - {"doi", "publication"}
-        if unknown_keys:
-            logger.error(f"Invalid keys {unknown_keys!r} in reference metadata.")
-            raise ValueError(f"reference contains invalid keys {unknown_keys!r}")
+    try:
+        reference = ds.attrs["reference"]
+        if not reference.startswith("doi:"):
+            logger.info(f"Reference information is not a DOI: {reference!r}")
+    except KeyError:
+        pass
 
     try:
         contact = ds.attrs["contact"]

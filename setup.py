@@ -17,6 +17,8 @@ requirements = [
     "pandas",
     "openscm_units",
     "loguru",
+    "scipy",
+    "netCDF4",
 ]
 
 setup_requirements = [
