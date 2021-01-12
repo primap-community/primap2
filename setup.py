@@ -25,14 +25,10 @@ setup_requirements = [
     "pytest-runner",
 ]
 
-test_requirements = [
-    "pytest>=3",
-]
-
 setup(
     author="Mika Pflüger",
     author_email="mika.pflueger@pik-potsdam.de",
-    python_requires=">=3.5",
+    python_requires=">=3.6",
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: Developers",
@@ -53,8 +49,6 @@ setup(
     name="primap2",
     packages=find_packages(include=["primap2", "primap2.*"]),
     setup_requires=setup_requirements,
-    test_suite="tests",
-    tests_require=test_requirements,
     url="https://github.com/pik-primap/primap2",
     version="0.1.0",
     zip_safe=False,
