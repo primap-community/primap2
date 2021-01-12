@@ -6,3 +6,4 @@ pint_xarray
 numpy
 pandas
 openscm_units
+loguru
