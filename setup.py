@@ -16,6 +16,7 @@ requirements = [
     "numpy",
     "pandas",
     "openscm_units",
+    "loguru",
 ]
 
 setup_requirements = [

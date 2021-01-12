@@ -59,7 +59,7 @@ attribute    content                                                            
 -----------  ------------------------------------------------------------------------  ----------------------------
 entity       what gas emission or other entity is measured                             yes
 gwp_context  which global warming potential context was used for calculating the data  if a gwp was used
-unit         in which unit the data is given                                           if dataset is not quantified
+units        in which units the data is given                                          if dataset is not quantified
 ===========  ========================================================================  ============================
 
 Additional rules:
