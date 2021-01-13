@@ -95,14 +95,16 @@ The metadata about the dimensions is described above in the paragraph concerning
 dimensions.
 The other attributes with metadata about the dataset as a whole are:
 
-===========  =======================================  ============================================
-attribute    description                              data type
------------  ---------------------------------------  --------------------------------------------
-reference    citable reference describing the data    ``str`` starting with ``doi:`` or free-form
-rights       license or other usage restrictions      free-form ``str``
-contact      who can answer questions about the data  usually email address, but free-form ``str``
-description  human-readable description               free-form ``str``
-===========  =======================================  ============================================
+===========  ========================================  ============================================
+attribute    description                               data type
+-----------  ----------------------------------------  --------------------------------------------
+references   citable reference(s) describing the data  ``str`` starting with ``doi:`` or free-form
+rights       license or other usage restrictions       free-form ``str``
+contact      who can answer questions about the data   usually email address, but free-form ``str``
+title        a succinct description                    free-form ``str``
+comment      longer form description                   free-form ``str``
+institution  where the data originates                 free-form ``str``
+===========  ========================================  ============================================
 
 All of these attributes are optional.
 If the ``reference`` starts with ``doi:``, it is a doi, otherwise it is a free-form
