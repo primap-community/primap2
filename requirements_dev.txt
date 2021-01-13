@@ -11,6 +11,7 @@ twine
 pre-commit
 pytest
 pytest-runner
+pytest-cov
 setuptools
 nbsphinx
 ipykernel

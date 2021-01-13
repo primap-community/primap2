@@ -31,4 +31,8 @@ jobs:
         pip install .
     - name: Test with pytest
       run: |
-        pytest
+        pytest --cov=openscm_units --cov-report=xml
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        file: ./coverage.xml
