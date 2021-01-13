@@ -134,9 +134,7 @@ def test_valid_ds_pass(minimal_ds, opulent_ds):
     primap2.ensure_valid(opulent_ds)
 
 
-@pytest.mark.xfail
 def test_io_roundtrip(minimal_ds, opulent_ds):
-    # fails due to https://github.com/pydata/xarray/issues/4798
     with tempfile.TemporaryDirectory() as tempdir:
         tpath = pathlib.Path(tempdir)
         primap2.save(minimal_ds, tpath / "minimal.nc")

@@ -10,12 +10,12 @@ from openscm_units import unit_registry as ureg
 
 def save(ds: xr.Dataset, file_name: typing.Union[str, pathlib.Path]):
     """Save the dataset to disk."""
-    ds.pint.dequantify().to_netcdf(file_name, engine="netcdf4")
+    ds.pint.dequantify().to_netcdf(file_name, engine="h5netcdf")
 
 
 def load(file_name: typing.Union[str, pathlib.Path]) -> xr.Dataset:
     """Load a dataset from disk."""
-    return xr.open_dataset(file_name, engine="netcdf4").pint.quantify(
+    return xr.open_dataset(file_name, engine="h5netcdf").pint.quantify(
         unit_registry=ureg
     )
 

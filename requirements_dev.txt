@@ -17,4 +17,5 @@ ipykernel
 jupyter
 loguru
 scipy
-netCDF4
+h5netcdf
+h5py<3
