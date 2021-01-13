@@ -39,7 +39,7 @@ setup(
         "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
+        #        "Programming Language :: Python :: 3.9",
     ],
     description="The next generation of the PRIMAP climate policy analysis suite.",
     install_requires=requirements,
