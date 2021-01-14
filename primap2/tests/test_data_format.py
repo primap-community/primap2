@@ -51,6 +51,7 @@ def opulent_ds():
         "area (ISO3)": np.array(["COL", "ARG", "MEX", "BOL"]),
         "category (IPCC 2006)": np.array(["0", "1", "2", "3", "4", "5", "1.A", "1.B"]),
         "animal (FAOSTAT)": np.array(["cow", "swine", "goat"]),
+        "product (FAOSTAT)": np.array(["milk", "meat"]),
         "scenario (FAOSTAT)": np.array(["highpop", "lowpop"]),
         "provenance": np.array(["projected"]),
         "model": np.array(["FANCYFAO"]),
@@ -70,14 +71,17 @@ def opulent_ds():
         attrs={
             "area": "area (ISO3)",
             "cat": "category (IPCC 2006)",
-            "sec_cats": [
-                "animal (FAOSTAT)",
-            ],
+            "sec_cats": ["animal (FAOSTAT)", "product (FAOSTAT)"],
             "scen": "scenario (FAOSTAT)",
-            "reference": "doi:10.1012",
+            "references": "doi:10.1012",
             "rights": "Use however you want.",
             "contact": "lol_no_one_will_answer@example.com",
-            "description": "GHG inventory data ...",
+            "title": "Completely invented GHG inventory data",
+            "comment": "GHG inventory data ...",
+            "institution": "PIK",
+            "history": """2021-01-14 14:50 data invented
+                2021-01-14 14:51 additional processing step
+                """,
         },
     )
 

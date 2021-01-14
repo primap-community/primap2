@@ -73,10 +73,13 @@ def ensure_valid_attributes(ds: xr.Dataset):
         pass
 
     valid_attr_keys = {
-        "reference",
+        "references",
         "rights",
         "contact",
-        "description",
+        "title",
+        "comment",
+        "institution",
+        "history",
         "area",
         "cat",
         "sec_cats",

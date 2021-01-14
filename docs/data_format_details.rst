@@ -104,8 +104,11 @@ contact      who can answer questions about the data   usually email address, bu
 title        a succinct description                    free-form ``str``
 comment      longer form description                   free-form ``str``
 institution  where the data originates                 free-form ``str``
+history      processing steps done on the data         ``str`` with specific rules (see text)
 ===========  ========================================  ============================================
 
 All of these attributes are optional.
-If the ``reference`` starts with ``doi:``, it is a doi, otherwise it is a free-form
-literature reference.
+If the ``references`` field starts with ``doi:``, it is a doi, otherwise it is a
+free-form literature reference.
+In the ``history`` field, an audit trail of modifications can be stored. Steps are
+separated by a newline character, and processing steps should append to the field.
