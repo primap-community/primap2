@@ -147,3 +147,99 @@ def test_io_roundtrip(minimal_ds, opulent_ds, caplog):
         primap2.ensure_valid(primap2.load(tpath / "minimal.nc"))
         primap2.ensure_valid(primap2.load(tpath / "opulent.nc"))
     assert not caplog.records
+
+
+def test_required_dimension_missing(caplog):
+    ds = xr.Dataset(
+        {
+            "area (ISO3)": ["a"],
+            "time": pd.date_range("2000-01-01", "2020-01-01", freq="AS"),
+        },
+        attrs={"area": "area (ISO3)"},
+    ).pint.quantify(unit_registry=ureg)
+
+    with pytest.raises(ValueError, match=r"'source' not in dims"):
+        primap2.ensure_valid(ds)
+
+    assert "ERROR" in caplog.text
+    assert "'source' not found in dims, but is required." in caplog.text
+
+
+def test_required_coordinate_missing(minimal_ds, caplog):
+    ds = minimal_ds.copy()
+    del ds["source"]
+    with pytest.raises(ValueError, match=r"dim 'source' has no coord"):
+        primap2.ensure_valid(ds)
+
+    assert "ERROR" in caplog.text
+    assert "No coord found for dimension 'source'." in caplog.text
+
+
+def test_dimension_metadata_missing(minimal_ds, caplog):
+    ds = minimal_ds.copy()
+    del ds.attrs["area"]
+    with pytest.raises(ValueError, match=r"'area' not in attrs"):
+        primap2.ensure_valid(ds)
+
+    assert "ERROR" in caplog.text
+    assert (
+        "'area' not found in attrs, required dimension is therefore undefined."
+        in caplog.text
+    )
+
+
+def test_dimension_metadata_wrong(minimal_ds, caplog):
+    ds = minimal_ds.copy()
+    ds.attrs["area"] = "asdf"
+    with pytest.raises(ValueError, match=r"'area' dimension not in dims"):
+        primap2.ensure_valid(ds)
+
+    assert "ERROR" in caplog.text
+    assert "'asdf' defined as 'area' dimension, but not found in dims." in caplog.text
+
+
+def test_wrong_provenance_value(opulent_ds, caplog):
+    ds = opulent_ds.copy()
+    ds["provenance"] = ["asdf"]
+    with pytest.raises(ValueError, match=r"Invalid provenance: \{'asdf'\}"):
+        primap2.ensure_valid(ds)
+
+    assert "ERROR" in caplog.text
+    assert "provenance contains invalid values: {'asdf'}" in caplog.text
+
+
+def test_additional_dimension(minimal_ds: xr.Dataset, caplog):
+    ds = minimal_ds.expand_dims({"addl_dim": ["a", "b", "c"]})
+    primap2.ensure_valid(ds)
+
+    assert "WARNING" in caplog.text
+    assert (
+        "Dimension(s) {'addl_dim'} unknown, likely a typo or missing in sec_cats."
+        in caplog.text
+    )
+
+
+def test_wrong_dimension_key(minimal_ds, caplog):
+    ds = minimal_ds.rename_dims({"area (ISO3)": "asdf"})
+    ds.attrs["area"] = "asdf"
+    with pytest.raises(
+        ValueError, match=r"'asdf' not in the format 'dim \(category_set\)'"
+    ):
+        primap2.ensure_valid(ds)
+
+    assert "ERROR" in caplog.text
+    assert "'asdf' not in the format 'dim (category_set)'." in caplog.text
+
+
+def test_additional_coordinate_space(opulent_ds: xr.Dataset, caplog):
+    ds = opulent_ds.rename({"category_names": "category names"})
+    with pytest.raises(
+        ValueError, match=r"Coord key 'category names' contains a space"
+    ):
+        primap2.ensure_valid(ds)
+
+    assert "ERROR" in caplog.text
+    assert (
+        "Additional coordinate name 'category names' contains a space,"
+        " replace it with an underscore." in caplog.text
+    )

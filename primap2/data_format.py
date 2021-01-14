@@ -40,10 +40,18 @@ def ensure_valid(ds: xr.Dataset):
         raise ValueError("ds is not an xr.Dataset")
 
     ensure_valid_dimensions(ds)
+    ensure_no_dimension_without_coordinates(ds)
     ensure_valid_coordinates(ds)
     ensure_valid_coordinate_values(ds)
     ensure_valid_data_variables(ds)
     ensure_valid_attributes(ds)
+
+
+def ensure_no_dimension_without_coordinates(ds: xr.Dataset):
+    for dim in ds.dims:
+        if dim not in ds.coords:
+            logger.error(f"No coord found for dimension {dim!r}.")
+            raise ValueError(f"dim {dim!r} has no coord")
 
 
 def ensure_valid_coordinates(ds: xr.Dataset):
