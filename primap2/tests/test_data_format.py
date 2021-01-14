@@ -258,6 +258,17 @@ def test_missing_optional_dim(minimal_ds, caplog):
     assert "'missing' defined as scen, but not found in dims." in caplog.text
 
 
+def test_sec_cat_without_primary_cat(minimal_ds, caplog):
+    ds = minimal_ds.expand_dims({"something (cset)": ["a", "b", "c"]})
+    ds.attrs["sec_cats"] = ["something (cset)"]
+    primap2.ensure_valid(ds)
+    assert "WARNING" in caplog.text
+    assert (
+        "Secondary category defined, but no primary category defined, weird."
+        in caplog.text
+    )
+
+
 def test_additional_coordinate_space(opulent_ds: xr.Dataset, caplog):
     ds = opulent_ds.rename({"category_names": "category names"})
     with pytest.raises(
