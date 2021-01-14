@@ -3,3 +3,4 @@
 * maybe history attribute like cfconventions.
 * look if we can re-purpose some parts of https://github.com/xarray-contrib/cf-xarray .
 * finish adopting CF global attributes.
+* move API into an xarray extension under the name ds.pr.
