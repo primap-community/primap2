@@ -112,3 +112,7 @@ If the ``references`` field starts with ``doi:``, it is a doi, otherwise it is a
 free-form literature reference.
 In the ``history`` field, an audit trail of modifications can be stored. Steps are
 separated by a newline character, and processing steps should append to the field.
+
+These attributes describing the data set contents are inspired by the
+`CF conventions <https://cfconventions.org/Data/cf-conventions/cf-conventions-1.8/cf-conventions.html#description-of-file-contents>`_
+for the description of file contents.
