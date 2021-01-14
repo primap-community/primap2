@@ -356,3 +356,33 @@ def test_weird_variable_name(minimal_ds, caplog):
     primap2.ensure_valid(minimal_ds)
     assert "INFO" in caplog.text
     assert "The name 'weird_name' is not in standard format 'CO2'." in caplog.text
+
+
+def test_missing_gwp_in_variable_name(minimal_ds, caplog):
+    minimal_ds["SF6_gwp"] = minimal_ds["SF6 (SARGWP100)"]
+    primap2.ensure_valid(minimal_ds)
+    assert "WARNING" in caplog.text
+    assert "'SF6_gwp' has a gwp_context in attrs, but not in its name." in caplog.text
+
+
+def test_weird_contact(minimal_ds, caplog):
+    caplog.set_level(logging.INFO)
+    minimal_ds.attrs["contact"] = "i_am_not_an_email"
+    primap2.ensure_valid(minimal_ds)
+    assert "INFO" in caplog.text
+    assert "Contact information is not an email address" in caplog.text
+
+
+def test_weird_references(minimal_ds, caplog):
+    caplog.set_level(logging.INFO)
+    minimal_ds.attrs["references"] = "i_am_not_a_doi"
+    primap2.ensure_valid(minimal_ds)
+    assert "INFO" in caplog.text
+    assert "Reference information is not a DOI" in caplog.text
+
+
+def test_nonstandard_attribute(minimal_ds, caplog):
+    minimal_ds.attrs["i_am_not_standard"] = ""
+    primap2.ensure_valid(minimal_ds)
+    assert "WARNING" in caplog.text
+    assert "Unknown metadata in attrs: {'i_am_not_standard'}, typo?" in caplog.text

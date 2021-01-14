@@ -67,7 +67,7 @@ def ensure_valid_coordinates(ds: xr.Dataset):
 
 def ensure_valid_attributes(ds: xr.Dataset):
     try:
-        reference = ds.attrs["reference"]
+        reference = ds.attrs["references"]
         if not reference.startswith("doi:"):
             logger.info(f"Reference information is not a DOI: {reference!r}")
     except KeyError:
