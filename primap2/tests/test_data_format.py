@@ -128,16 +128,18 @@ def opulent_ds():
     return opulent
 
 
-def test_valid_ds_pass(minimal_ds, opulent_ds):
+def test_valid_ds_pass(minimal_ds, opulent_ds, caplog):
     """Valid datasets should pass inspection."""
     primap2.ensure_valid(minimal_ds)
     primap2.ensure_valid(opulent_ds)
+    assert not caplog.records
 
 
-def test_io_roundtrip(minimal_ds, opulent_ds):
+def test_io_roundtrip(minimal_ds, opulent_ds, caplog):
     with tempfile.TemporaryDirectory() as tempdir:
         tpath = pathlib.Path(tempdir)
         primap2.save(minimal_ds, tpath / "minimal.nc")
         primap2.save(opulent_ds, tpath / "opulent.nc")
         primap2.ensure_valid(primap2.load(tpath / "minimal.nc"))
         primap2.ensure_valid(primap2.load(tpath / "opulent.nc"))
+    assert not caplog.records

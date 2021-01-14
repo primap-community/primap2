@@ -108,10 +108,12 @@ def ensure_valid_data_variables(ds: xr.Dataset):
             raise ValueError(f"units missing for {key!r}")
 
         try:
-            # if the entity is a gas, the dimensions should be compatible with an
-            # emission rate
+            # if the entity is a gas and it is not converted to a gwp, the dimensions
+            # should be compatible with an emission rate
             unit_entity = ureg(entity)
-            if not units.is_compatible_with(unit_entity * ureg.Gg / ureg.year):
+            if "gwp_context" not in ds[key].attrs and not units.is_compatible_with(
+                unit_entity * ureg.Gg / ureg.year
+            ):
                 logger.warning(
                     f"{key!r} has a unit of {units}, which is not "
                     f"compatible with an emission rate."
@@ -187,15 +189,16 @@ def ensure_valid_dimensions(ds: xr.Dataset):
             )
             raise ValueError(f"{req_dim!r} dimension not in dims")
 
-        required_indirect_dims_long.append(req_dim)
+        required_indirect_dims_long.append(ds.attrs[req_dim])
 
     included_optional_dims = []
     for opt_dim in optional_indirect_dims:
         if opt_dim in ds.attrs:
-            included_optional_dims.append(opt_dim)
-            if ds.attrs[opt_dim] not in ds.dims:
+            long_name = ds.attrs[opt_dim]
+            included_optional_dims.append(long_name)
+            if long_name not in ds.dims:
                 logger.error(
-                    f"{ds.attrs[opt_dim]} defined as {opt_dim}, but not found in dims."
+                    f"{long_name!r} defined as {opt_dim}, but not found in dims."
                 )
                 raise ValueError(f"{opt_dim!r} not in dims")
 
