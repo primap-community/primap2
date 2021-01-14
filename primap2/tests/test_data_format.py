@@ -242,6 +242,22 @@ def test_not_one_source(minimal_ds: xr.Dataset, caplog):
     assert "Exactly one source required per data set." in caplog.text
 
 
+def test_missing_sec_cat(minimal_ds, caplog):
+    minimal_ds.attrs["sec_cats"] = ["missing"]
+    with pytest.raises(ValueError, match="Secondary category 'missing' not in dims"):
+        primap2.ensure_valid(minimal_ds)
+    assert "ERROR" in caplog.text
+    assert "Secondary category 'missing' defined, but not found in dims." in caplog.text
+
+
+def test_missing_optional_dim(minimal_ds, caplog):
+    minimal_ds.attrs["scen"] = "missing"
+    with pytest.raises(ValueError, match="'scen' not in dims"):
+        primap2.ensure_valid(minimal_ds)
+    assert "ERROR" in caplog.text
+    assert "'missing' defined as scen, but not found in dims." in caplog.text
+
+
 def test_additional_coordinate_space(opulent_ds: xr.Dataset, caplog):
     ds = opulent_ds.rename({"category_names": "category names"})
     with pytest.raises(

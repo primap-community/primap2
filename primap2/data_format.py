@@ -33,7 +33,7 @@ def split_dim_name(dim_name: str) -> (str, str):
 
 def ensure_valid(ds: xr.Dataset):
     """Test if ds is a valid primap2 data set, logging any deviations or non-standard
-    properties. If ds violates any hard requirement of primap2 data sets, a ValueError
+    properties. If ds violates any hard requirement of primap2 data sets, an exception
     is raised, otherwise the function simply returns."""
     if not isinstance(ds, xr.Dataset):
         logger.error("object is not an xarray Dataset.")
