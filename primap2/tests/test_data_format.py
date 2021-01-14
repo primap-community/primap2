@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """Tests for the ``primap2`` package - data format tests."""
-import pathlib
-import tempfile
+import logging
 
 import numpy as np
 import pandas as pd
+import pint
 import pint_xarray
 import pytest
 import xarray as xr
@@ -132,20 +132,26 @@ def opulent_ds():
     return opulent
 
 
+def test_something_else_entirely(caplog):
+    with pytest.raises(ValueError, match=r"ds is not an xr.Dataset"):
+        primap2.ensure_valid("asdf")
+    assert "ERROR" in caplog.text
+    assert "object is not an xarray Dataset." in caplog.text
+
+
 def test_valid_ds_pass(minimal_ds, opulent_ds, caplog):
-    """Valid datasets should pass inspection."""
+    caplog.set_level(logging.INFO)
     primap2.ensure_valid(minimal_ds)
     primap2.ensure_valid(opulent_ds)
     assert not caplog.records
 
 
-def test_io_roundtrip(minimal_ds, opulent_ds, caplog):
-    with tempfile.TemporaryDirectory() as tempdir:
-        tpath = pathlib.Path(tempdir)
-        primap2.save(minimal_ds, tpath / "minimal.nc")
-        primap2.save(opulent_ds, tpath / "opulent.nc")
-        primap2.ensure_valid(primap2.load(tpath / "minimal.nc"))
-        primap2.ensure_valid(primap2.load(tpath / "opulent.nc"))
+def test_io_roundtrip(minimal_ds, opulent_ds, caplog, tmp_path):
+    caplog.set_level(logging.INFO)
+    primap2.save(minimal_ds, tmp_path / "minimal.nc")
+    primap2.save(opulent_ds, tmp_path / "opulent.nc")
+    primap2.ensure_valid(primap2.load(tmp_path / "minimal.nc"))
+    primap2.ensure_valid(primap2.load(tmp_path / "opulent.nc"))
     assert not caplog.records
 
 
@@ -160,27 +166,22 @@ def test_required_dimension_missing(caplog):
 
     with pytest.raises(ValueError, match=r"'source' not in dims"):
         primap2.ensure_valid(ds)
-
     assert "ERROR" in caplog.text
     assert "'source' not found in dims, but is required." in caplog.text
 
 
 def test_required_coordinate_missing(minimal_ds, caplog):
-    ds = minimal_ds.copy()
-    del ds["source"]
+    del minimal_ds["source"]
     with pytest.raises(ValueError, match=r"dim 'source' has no coord"):
-        primap2.ensure_valid(ds)
-
+        primap2.ensure_valid(minimal_ds)
     assert "ERROR" in caplog.text
     assert "No coord found for dimension 'source'." in caplog.text
 
 
 def test_dimension_metadata_missing(minimal_ds, caplog):
-    ds = minimal_ds.copy()
-    del ds.attrs["area"]
+    del minimal_ds.attrs["area"]
     with pytest.raises(ValueError, match=r"'area' not in attrs"):
-        primap2.ensure_valid(ds)
-
+        primap2.ensure_valid(minimal_ds)
     assert "ERROR" in caplog.text
     assert (
         "'area' not found in attrs, required dimension is therefore undefined."
@@ -189,21 +190,17 @@ def test_dimension_metadata_missing(minimal_ds, caplog):
 
 
 def test_dimension_metadata_wrong(minimal_ds, caplog):
-    ds = minimal_ds.copy()
-    ds.attrs["area"] = "asdf"
+    minimal_ds.attrs["area"] = "asdf"
     with pytest.raises(ValueError, match=r"'area' dimension not in dims"):
-        primap2.ensure_valid(ds)
-
+        primap2.ensure_valid(minimal_ds)
     assert "ERROR" in caplog.text
     assert "'asdf' defined as 'area' dimension, but not found in dims." in caplog.text
 
 
 def test_wrong_provenance_value(opulent_ds, caplog):
-    ds = opulent_ds.copy()
-    ds["provenance"] = ["asdf"]
+    opulent_ds["provenance"] = ["asdf"]
     with pytest.raises(ValueError, match=r"Invalid provenance: \{'asdf'\}"):
-        primap2.ensure_valid(ds)
-
+        primap2.ensure_valid(opulent_ds)
     assert "ERROR" in caplog.text
     assert "provenance contains invalid values: {'asdf'}" in caplog.text
 
@@ -211,7 +208,6 @@ def test_wrong_provenance_value(opulent_ds, caplog):
 def test_additional_dimension(minimal_ds: xr.Dataset, caplog):
     ds = minimal_ds.expand_dims({"addl_dim": ["a", "b", "c"]})
     primap2.ensure_valid(ds)
-
     assert "WARNING" in caplog.text
     assert (
         "Dimension(s) {'addl_dim'} unknown, likely a typo or missing in sec_cats."
@@ -226,9 +222,24 @@ def test_wrong_dimension_key(minimal_ds, caplog):
         ValueError, match=r"'asdf' not in the format 'dim \(category_set\)'"
     ):
         primap2.ensure_valid(ds)
-
     assert "ERROR" in caplog.text
     assert "'asdf' not in the format 'dim (category_set)'." in caplog.text
+
+
+def test_not_one_source(minimal_ds: xr.Dataset, caplog):
+    ds = minimal_ds.loc[{"source": "RAND2020"}]
+    ds["source"] = []
+    with pytest.raises(ValueError, match=r"Exactly one source required"):
+        primap2.ensure_valid(ds)
+    assert "ERROR" in caplog.text
+    assert "Exactly one source required per data set." in caplog.text
+
+    caplog.clear()
+    ds["source"] = ["a", "b"]
+    with pytest.raises(ValueError, match=r"Exactly one source required"):
+        primap2.ensure_valid(ds)
+    assert "ERROR" in caplog.text
+    assert "Exactly one source required per data set." in caplog.text
 
 
 def test_additional_coordinate_space(opulent_ds: xr.Dataset, caplog):
@@ -237,9 +248,111 @@ def test_additional_coordinate_space(opulent_ds: xr.Dataset, caplog):
         ValueError, match=r"Coord key 'category names' contains a space"
     ):
         primap2.ensure_valid(ds)
-
     assert "ERROR" in caplog.text
     assert (
         "Additional coordinate name 'category names' contains a space,"
         " replace it with an underscore." in caplog.text
     )
+
+
+def test_missing_entity(minimal_ds, caplog):
+    del minimal_ds["CO2"].attrs["entity"]
+    with pytest.raises(ValueError, match="entity missing for 'CO2'"):
+        primap2.ensure_valid(minimal_ds)
+    assert "ERROR" in caplog.text
+    assert "'CO2' has no entity declared in attributes." in caplog.text
+
+
+def test_weird_entity(minimal_ds, caplog):
+    minimal_ds["CO2"].attrs["entity"] = "carbondioxide"
+    primap2.ensure_valid(minimal_ds)
+    assert "WARNING" in caplog.text
+    assert "entity 'carbondioxide' of 'CO2' is unknown." in caplog.text
+
+
+def test_missing_gwp_context(minimal_ds, caplog):
+    del minimal_ds["SF6 (SARGWP100)"].attrs["gwp_context"]
+    primap2.ensure_valid(minimal_ds)
+    assert "WARNING" in caplog.text
+    assert (
+        "'SF6 (SARGWP100)' has the dimension [CO2 * mass / time], but is not CO2. "
+        "gwp_context missing?" in caplog.text
+    )
+
+
+def test_wrong_units(minimal_ds, caplog):
+    deq = minimal_ds.pint.dequantify()
+    deq["CO2"].attrs["units"] = "kg CO2"
+    req = deq.pint.quantify(unit_registry=ureg)
+    primap2.ensure_valid(req)
+    assert "WARNING" in caplog.text
+    assert (
+        "'CO2' has a unit of CO2 * kilogram, which is not compatible with an emission "
+        "rate." in caplog.text
+    )
+
+
+def test_unquantified(minimal_ds, caplog):
+    deq = minimal_ds.pint.dequantify()
+    primap2.ensure_valid(deq)
+    assert not caplog.records
+
+
+def test_multi_units(minimal_ds, caplog):
+    minimal_ds["CO2"].attrs["units"] = "kg CO2 / year"
+    with pytest.raises(ValueError, match="data already has units"):
+        primap2.ensure_valid(minimal_ds)
+    assert "ERROR" in caplog.text
+    assert "'units' in variable attrs, but data is quantified already." in caplog.text
+
+
+def test_invalid_units(minimal_ds, caplog):
+    deq = minimal_ds.pint.dequantify()
+    deq["CO2"].attrs["units"] = "i_am_not_a_unit"
+    with pytest.raises(pint.UndefinedUnitError):
+        primap2.ensure_valid(deq)
+
+
+def test_invalid_gwp_context(minimal_ds, caplog):
+    minimal_ds["SF6 (SARGWP100)"].attrs["gwp_context"] = "i_am_not_a_gwp_context"
+    with pytest.raises(
+        ValueError,
+        match=r"Invalid gwp_context 'i_am_not_a_gwp_context' for 'SF6 \(SARGWP100\)'",
+    ):
+        primap2.ensure_valid(minimal_ds)
+    assert "ERROR" in caplog.text
+    assert (
+        "gwp_context 'i_am_not_a_gwp_context' for 'SF6 (SARGWP100)' is not valid."
+        in caplog.text
+    )
+
+
+def test_extraneous_gwp_context(minimal_ds, caplog):
+    minimal_ds["SF6"].attrs["gwp_context"] = "SARGWP100"
+    with pytest.raises(
+        ValueError, match=r"SF6 has wrong dimensionality for gwp_context."
+    ):
+        primap2.ensure_valid(minimal_ds)
+    assert "ERROR" in caplog.text
+    assert (
+        "'SF6' is a global warming potential, but the dimension is not "
+        "[CO2 * mass / time]." in caplog.text
+    )
+
+
+def test_missing_unit(minimal_ds, caplog):
+    minimal_ds["CO2"] = (minimal_ds["CO2"].dims, minimal_ds["CO2"].pint.magnitude)
+    minimal_ds["CO2"].attrs["entity"] = "CO2"
+    with pytest.raises(ValueError, match=r"units missing for 'CO2'"):
+        primap2.ensure_valid(minimal_ds)
+    assert "ERROR" in caplog.text
+    assert "'CO2' has no units." in caplog.text
+
+
+def test_weird_variable_name(minimal_ds, caplog):
+    caplog.set_level(logging.INFO)
+    minimal_ds["weird_name"] = minimal_ds["CO2"]
+    minimal_ds["weird_name"].attrs["entity"] = "CO2"
+    primap2.ensure_valid(minimal_ds)
+    assert "INFO" in caplog.text
+    assert "The name 'weird_name' is not in standard format 'CO2'." in caplog.text

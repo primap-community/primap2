@@ -99,70 +99,99 @@ def ensure_valid_attributes(ds: xr.Dataset):
 
 
 def ensure_valid_data_variables(ds: xr.Dataset):
-    try:
-        # ensure that units are attached
-        ds = ds.pint.quantify()
-    except ValueError:  # raised by pint when units attached and in attrs
-        logger.error("'units' in variable attrs, but data in quantified already.")
-        raise
+    ds = ensure_units_exist(ds)
 
     for key in ds:
-        if "entity" not in ds[key].attrs:
-            logger.error(f"{key!r} has no entity declared in attributes.")
-            raise ValueError(f"entity missing for {key!r}")
+        da = ds[key]
+        ensure_entity_and_units_exist(key, da)
+        ensure_entity_and_units_valid(key, da)
+        ensure_variable_name(key, da)
 
-        units = ds[key].pint.units
-        entity = ds[key].attrs["entity"]
+        if "gwp_context" in da.attrs:
+            ensure_gwp_context_valid(key, da)
+        else:
+            ensure_not_gwp(key, da)
 
-        if units is None:
-            logger.error(f"{key!r} has no units.")
-            raise ValueError(f"units missing for {key!r}")
 
-        try:
-            # if the entity is a gas and it is not converted to a gwp, the dimensions
-            # should be compatible with an emission rate
-            unit_entity = ureg(entity)
-            if "gwp_context" not in ds[key].attrs and not units.is_compatible_with(
-                unit_entity * ureg.Gg / ureg.year
-            ):
-                logger.warning(
-                    f"{key!r} has a unit of {units}, which is not "
-                    f"compatible with an emission rate."
-                )
-        except pint.UndefinedUnitError:
-            if entity not in ("population",) and "(" not in entity:
-                logger.warning(f"entity {entity!r} of {key!r} is unknown.")
+def ensure_entity_and_units_exist(key: str, da: xr.DataArray):
+    if "entity" not in da.attrs:
+        logger.error(f"{key!r} has no entity declared in attributes.")
+        raise ValueError(f"entity missing for {key!r}")
 
-        if "gwp_context" in ds[key].attrs:
-            if units.dimensionality != {"[carbon]": 1, "[mass]": 1, "[time]": -1}:
-                logger.error(
-                    f"{key!r} is a global warming potential, but "
-                    f"the dimension is not [CO2 * mass / time]."
-                )
-                raise ValueError(f"{key} has wrong dimensionality for gwp_context.")
+    if da.pint.units is None:
+        logger.error(f"{key!r} has no units.")
+        raise ValueError(f"units missing for {key!r}")
 
-            gwp_context = ds[key].attrs["gwp_context"]
-            try:
-                with ureg.context(gwp_context):
-                    pass
-            except KeyError:
-                logger.error(f"gwp_context {gwp_context!r} for {key!r} is not valid.")
-                raise ValueError(f"Invalid gwp_context {gwp_context!r} for {key!r}.")
 
-            if "(" not in key or not key.endswith(")"):
-                logger.warning(
-                    f"{key!r} has a gwp_context in attrs, but not in its " f"name."
-                )
+def ensure_units_exist(ds: xr.Dataset) -> xr.Dataset:
+    try:
+        # ensure that units are attached
+        return ds.pint.quantify(unit_registry=ureg)
+    except ValueError:  # raised by pint when units attached and in attrs
+        logger.error("'units' in variable attrs, but data is quantified already.")
+        raise
 
-        if (
-            units.dimensionality == {"[carbon]": 1, "[mass]": 1, "[time]": -1}
-            and entity != "CO2"
-            and "gwp_context" not in ds[key].attrs
+
+def ensure_entity_and_units_valid(key: str, da: xr.DataArray):
+    entity = da.attrs["entity"]
+    units = da.pint.units
+    try:
+        # if the entity is a gas and it is not converted to a gwp, the dimensions
+        # should be compatible with an emission rate
+        unit_entity = ureg(entity)
+        if "gwp_context" not in da.attrs and not units.is_compatible_with(
+            unit_entity * ureg.Gg / ureg.year
         ):
             logger.warning(
-                f"{key!r} has the dimension [CO2 * mass / time], but is "
-                f"not CO2. gwp_context missing?"
+                f"{key!r} has a unit of {units}, which is not "
+                f"compatible with an emission rate."
             )
+    except pint.UndefinedUnitError:
+        if entity not in ("population",) and "(" not in entity:
+            logger.warning(f"entity {entity!r} of {key!r} is unknown.")
+
+
+def ensure_gwp_context_valid(key: str, da: xr.DataArray):
+    units = da.pint.units
+    gwp_context = da.attrs["gwp_context"]
+
+    if units.dimensionality != {"[carbon]": 1, "[mass]": 1, "[time]": -1}:
+        logger.error(
+            f"{key!r} is a global warming potential, but the dimension is not "
+            f"[CO2 * mass / time]."
+        )
+        raise ValueError(f"{key} has wrong dimensionality for gwp_context.")
+
+    try:
+        with ureg.context(gwp_context):
+            pass
+    except KeyError:
+        logger.error(f"gwp_context {gwp_context!r} for {key!r} is not valid.")
+        raise ValueError(f"Invalid gwp_context {gwp_context!r} for {key!r}")
+
+    if "(" not in key or not key.endswith(")"):
+        logger.warning(f"{key!r} has a gwp_context in attrs, but not in its " f"name.")
+
+
+def ensure_not_gwp(key: str, da: xr.DataArray):
+    if (
+        da.pint.units.dimensionality == {"[carbon]": 1, "[mass]": 1, "[time]": -1}
+        and da.attrs["entity"] != "CO2"
+    ):
+        logger.warning(
+            f"{key!r} has the dimension [CO2 * mass / time], but is "
+            f"not CO2. gwp_context missing?"
+        )
+
+
+def ensure_variable_name(key: str, da: xr.DataArray):
+    if "gwp_context" in da.attrs:
+        common_name = f"{da.attrs['entity']} ({da.attrs['gwp_context']})"
+    else:
+        common_name = da.attrs["entity"]
+
+    if common_name != key:
+        logger.info(f"The name {key!r} is not in standard format {common_name!r}.")
 
 
 def ensure_valid_coordinate_values(ds: xr.Dataset):

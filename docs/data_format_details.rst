@@ -46,7 +46,10 @@ However, some data sets have more than one categorization, for example the FAO l
 emissions data, that are categorized according to agricultural sector and animal type.
 Therefore, it is possible to include arbitrary secondary categories, where the
 dimension key is then formed from the dimension or type (<type> in the table) and the
-category-set (for example, ``animal (FAOSTAT)``)
+category-set (for example, ``animal (FAOSTAT)``).
+
+Additional rules:
+* The size of the ``source`` dimension must be exactly 1.
 
 Additional Coordinates
 ----------------------
@@ -83,7 +86,7 @@ Additional rules:
   For storage, the dataset should not be quantified, but for calculations the dataset
   should be quantified using pint_xarray.
 
-The Name of the data variable should be the entity, and if it has a gwp_context, the
+The name of the data variable should be the entity, and if it has a gwp_context, the
 gwp_context in parentheses, separated from the entity by a space.
 
 Dataset Attributes
