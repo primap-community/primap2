@@ -53,7 +53,7 @@ setup(
     url="https://github.com/pik-primap/primap2",
     # fmt: off
     # bump2version needs single quotes
-    version='0.2.0',
+    version='0.2.1',
     # fmt: on
     zip_safe=False,
 )

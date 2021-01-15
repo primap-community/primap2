@@ -4,7 +4,7 @@ __author__ = """Mika Pflüger"""
 __email__ = "mika.pflueger@pik-potsdam.de"
 # fmt: off
 # bump2version wants single quotes
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 # fmt: on
 
 import pint
