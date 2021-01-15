@@ -1,2 +1,3 @@
-* look if we can re-purpose some parts of https://github.com/xarray-contrib/cf-xarray .
+* https://github.com/xarray-contrib/cf-xarray is an example wrapping large parts of
+  xarray's API with relatively little work. Could be an option if users like that.
 * move API into an xarray extension under the name ds.pr.
