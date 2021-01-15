@@ -5,7 +5,7 @@ import pint
 import xarray as xr
 from loguru import logger
 
-from ._unit_registry import ureg
+from ._units import ureg
 
 
 def open_dataset(

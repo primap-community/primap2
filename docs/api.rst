@@ -12,6 +12,8 @@ Dataset
 
     Dataset.pr.ensure_valid
     Dataset.pr.to_netcdf
+    Dataset.pr.quantify
+    Dataset.pr.dequantify
 
 .. currentmodule:: primap2
 

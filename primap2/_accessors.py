@@ -2,11 +2,12 @@
 
 import xarray as xr
 
-from . import _data_format
+from ._data_format import DatasetDataFormatAccessor
+from ._units import DatasetUnitAccessor
 
 
 @xr.register_dataset_accessor("pr")
-class PRIMAP2Accessor(_data_format.DatasetDataFormatAccessor):
+class PRIMAP2Accessor(DatasetDataFormatAccessor, DatasetUnitAccessor):
     """Collection of methods useful for climate policy analysis."""
 
     def __init__(self, ds: xr.Dataset):

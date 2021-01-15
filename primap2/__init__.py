@@ -9,4 +9,4 @@ import pint_xarray
 
 from . import _accessors
 from ._data_format import open_dataset
-from ._unit_registry import ureg
+from ._units import ureg

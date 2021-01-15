@@ -44,6 +44,6 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
 KIND, either express or implied. See the License for the specific language governing
 permissions and limitations under the License.
 
-PRIMAP2 incorporates parts of xarray, which is available under the Apache License,
-Version 2.0 as well. The full text of the xarray copyright statement is included in the
-licenses directory.
+PRIMAP2 incorporates parts of xarray and pint_xarray, which are available under the
+Apache License, Version 2.0 as well. The full text of the xarray copyright statement is
+included in the licenses directory.

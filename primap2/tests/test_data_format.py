@@ -32,7 +32,7 @@ def minimal_ds():
             for ent in ("CO2", "SF6", "CH4")
         },
         attrs={"area": "area (ISO3)"},
-    ).pint.quantify(unit_registry=ureg)
+    ).pr.quantify()
 
     with ureg.context("SARGWP100"):
         minimal["SF6 (SARGWP100)"] = minimal["SF6"].pint.to("CO2 Gg / year")
@@ -161,7 +161,7 @@ def test_required_dimension_missing(caplog):
             "time": pd.date_range("2000-01-01", "2020-01-01", freq="AS"),
         },
         attrs={"area": "area (ISO3)"},
-    ).pint.quantify(unit_registry=ureg)
+    ).pr.quantify()
 
     with pytest.raises(ValueError, match=r"'source' not in dims"):
         ds.pr.ensure_valid()
@@ -309,7 +309,7 @@ def test_missing_gwp_context(minimal_ds, caplog):
 def test_wrong_units(minimal_ds, caplog):
     deq = minimal_ds.pint.dequantify()
     deq["CO2"].attrs["units"] = "kg CO2"
-    req = deq.pint.quantify(unit_registry=ureg)
+    req = deq.pr.quantify()
     req.pr.ensure_valid()
     assert "WARNING" in caplog.text
     assert (
