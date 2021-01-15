@@ -2,7 +2,10 @@
 
 __author__ = """Mika Pflüger"""
 __email__ = "mika.pflueger@pik-potsdam.de"
-__version__ = "0.1.0"
+# fmt: off
+# bump2version wants single quotes
+__version__ = '0.1.0'
+# fmt: on
 
 import pint
 import pint_xarray
