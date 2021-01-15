@@ -9,10 +9,10 @@ Welcome to PRIMAP2's documentation!
    installation
    data_format_examples
    data_format_details
-   modules
    contributing
    credits
-   history
+   api
+   changelog
 
 Indices and tables
 ==================

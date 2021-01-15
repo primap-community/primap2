@@ -1,23 +1,144 @@
 import pathlib
-import typing
+from typing import Iterable, Mapping, Optional, Union
 
 import pint
-import pint_xarray  # noqa: F401
 import xarray as xr
 from loguru import logger
-from openscm_units import unit_registry as ureg
+
+from ._unit_registry import ureg
 
 
-def save(ds: xr.Dataset, file_name: typing.Union[str, pathlib.Path]):
-    """Save the dataset to disk."""
-    ds.pint.dequantify().to_netcdf(file_name, engine="h5netcdf")
+def open_dataset(
+    filename_or_obj,
+    group: Optional[str] = None,
+    autoclose: Optional[bool] = None,
+    chunks: Optional[Union[int, dict]] = None,
+    cache: Optional[bool] = None,
+    drop_variables: Optional[Union[str, Iterable]] = None,
+    backend_kwargs: Optional[dict] = None,
+) -> xr.Dataset:
+    """Open and decode a dataset from a file or file-like object.
+
+    Parameters
+    ----------
+    filename_or_obj : str, Path, file-like or DataStore
+        Strings and Path objects are interpreted as a path to a netCDF file
+        or an OpenDAP URL and opened with h5py. Byte-strings or file-like
+        objects are also supported.
+    group : str, optional
+        Path to the netCDF4 group in the given file to open.
+    autoclose : bool, optional
+        If True, automatically close files to avoid OS Error of too many files
+        being open.  However, this option doesn't work with streams, e.g.,
+        BytesIO.
+    chunks : int or dict, optional
+        If chunks is provided, it is used to load the new dataset into dask
+        arrays. ``chunks={}`` loads the dataset with dask using a single
+        chunk for all arrays.
+    cache : bool, optional
+        If True, cache data loaded from the underlying datastore in memory as
+        NumPy arrays when accessed to avoid reading from the underlying data-
+        store multiple times. Defaults to True unless you specify the `chunks`
+        argument to use dask, in which case it defaults to False. Does not
+        change the behavior of coordinates corresponding to dimensions, which
+        always load their data from disk into a ``pandas.Index``.
+    drop_variables: str or iterable, optional
+        A variable or list of variables to exclude from being parsed from the
+        dataset. This may be useful to drop variables with problems or
+        inconsistent values.
+    backend_kwargs: dict, optional
+        A dictionary of keyword arguments to pass on to the backend. This
+        may be useful when backend options would improve performance or
+        allow user control of dataset processing.
+
+    Returns
+    -------
+    dataset : Dataset
+        The newly created dataset.
+
+    Notes
+    -----
+    ``open_dataset`` opens the file with read-only access. When you modify
+    values of a Dataset, even one linked to files on disk, only the in-memory
+    copy you are manipulating in xarray is modified: the original file on disk
+    is never touched.
+    """
+    return xr.open_dataset(
+        filename_or_obj=filename_or_obj,
+        group=group,
+        autoclose=autoclose,
+        chunks=chunks,
+        cache=cache,
+        drop_variables=drop_variables,
+        backend_kwargs=backend_kwargs,
+        engine="h5netcdf",
+    ).pint.quantify(unit_registry=ureg)
 
 
-def load(file_name: typing.Union[str, pathlib.Path]) -> xr.Dataset:
-    """Load a dataset from disk."""
-    return xr.open_dataset(file_name, engine="h5netcdf").pint.quantify(
-        unit_registry=ureg
-    )
+class DatasetDataFormatAccessor:
+    """MixIn class which provides functions for checking the data format and saving
+    of Datasets."""
+
+    _ds: xr.Dataset = None
+
+    def ensure_valid(self) -> None:
+        """Ensure this is a valid primap2 data set.
+
+        Logs any deviations or non-standard properties. If the dataset violates any
+        hard requirements of primap2 data sets, an exception is raised, otherwise the
+        function simply returns.
+        """
+        if not isinstance(self._ds, xr.Dataset):
+            logger.error("object is not an xarray Dataset.")
+            raise ValueError("ds is not an xr.Dataset")
+
+        ensure_valid_dimensions(self._ds)
+        ensure_no_dimension_without_coordinates(self._ds)
+        ensure_valid_coordinates(self._ds)
+        ensure_valid_coordinate_values(self._ds)
+        ensure_valid_data_variables(self._ds)
+        ensure_valid_attributes(self._ds)
+
+    def to_netcdf(
+        self,
+        path: Union[pathlib.Path, str],
+        mode: str = "w",
+        group: Optional[str] = None,
+        encoding: Mapping = None,
+    ) -> Union[bytes, None]:
+        """Write dataset contents to a netCDF file.
+
+        Parameters
+        ----------
+        path : str or Path
+            Path to which to save this dataset.
+        mode : {"w", "a"}, default: "w"
+            Write ('w') or append ('a') mode. If mode='w', any existing file at
+            this location will be overwritten. If mode='a', existing variables
+            will be overwritten.
+        group : str, optional
+            Path to the netCDF4 group in the given file to open. The group(s)
+            will be created if necessary.
+        encoding : dict, optional
+            Nested dictionary with variable names as keys and dictionaries of
+            variable specific encodings as values, e.g.,
+            ``{"my_variable": {"dtype": "int16", "scale_factor": 0.1,
+            "zlib": True}, ...}``
+
+            This supports both the NetCDF4-style compression
+            encoding parameters ``{"zlib": True, "complevel": 9}`` and the h5py
+            ones ``{"compression": "gzip", "compression_opts": 9}``.
+            This allows using any compression plugin installed in the HDF5
+            library, e.g. LZF.
+        """
+        return self._ds.pint.dequantify().to_netcdf(
+            path=path,
+            mode=mode,
+            group=group,
+            encoding=encoding,
+            engine="h5netcdf",
+            format="NETCDF4",
+        )
 
 
 def split_dim_name(dim_name: str) -> (str, str):
@@ -29,22 +150,6 @@ def split_dim_name(dim_name: str) -> (str, str):
         logger.error(f"{dim_name!r} not in the format 'dim (category_set)'.")
         raise ValueError(f"{dim_name!r} not in the format 'dim (category_set)'")
     return dim, category_set[:-1]
-
-
-def ensure_valid(ds: xr.Dataset):
-    """Test if ds is a valid primap2 data set, logging any deviations or non-standard
-    properties. If ds violates any hard requirement of primap2 data sets, an exception
-    is raised, otherwise the function simply returns."""
-    if not isinstance(ds, xr.Dataset):
-        logger.error("object is not an xarray Dataset.")
-        raise ValueError("ds is not an xr.Dataset")
-
-    ensure_valid_dimensions(ds)
-    ensure_no_dimension_without_coordinates(ds)
-    ensure_valid_coordinates(ds)
-    ensure_valid_coordinate_values(ds)
-    ensure_valid_data_variables(ds)
-    ensure_valid_attributes(ds)
 
 
 def ensure_no_dimension_without_coordinates(ds: xr.Dataset):

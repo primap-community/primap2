@@ -63,9 +63,6 @@ coverage: venv ## check code coverage quickly with the default Python
 	ls htmlcov/index.html
 
 docs: ## generate Sphinx HTML documentation, including API docs
-	rm -f docs/primap2.rst
-	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ primap2
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 

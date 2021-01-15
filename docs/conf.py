@@ -20,6 +20,8 @@
 import os
 import sys
 
+import sphinx_autosummary_accessors
+
 sys.path.insert(0, os.path.abspath(".."))
 
 import primap2  # noqa: E402
@@ -36,12 +38,13 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
     "sphinx.ext.mathjax",
-    "sphinx_rtd_theme",
+    "numpydoc",
     "nbsphinx",
+    "sphinx_autosummary_accessors",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ["_templates"]
+templates_path = ["_templates", sphinx_autosummary_accessors.templates_path]
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -83,6 +86,9 @@ pygments_style = "sphinx"
 
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
+
+# Generate autosummary stubs automatically
+autosummary_generate = True
 
 
 # -- Options for HTML output -------------------------------------------
