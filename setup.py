@@ -51,9 +51,6 @@ setup(
     packages=find_packages(include=["primap2", "primap2.*"]),
     setup_requires=setup_requirements,
     url="https://github.com/pik-primap/primap2",
-    # fmt: off
-    # bump2version needs single quotes
-    version='0.2.1',
-    # fmt: on
+    version="0.2.1",
     zip_safe=False,
 )
