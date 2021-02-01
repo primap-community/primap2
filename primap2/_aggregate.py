@@ -26,9 +26,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         xr.Dataset
         """
-        return self._ds.map(
-            lambda x: DataArrayAggregationAccessor(x).fill_all_na(dim=dim, value=value)
-        )
+        return self._ds.map(lambda x: x.pr.fill_all_na(dim=dim, value=value))
 
     def sum_skip_allna(
         self,
