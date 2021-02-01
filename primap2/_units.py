@@ -3,13 +3,13 @@ import pint_xarray
 import xarray as xr
 from openscm_units import unit_registry as ureg
 
+from . import _accesor_base
+
 pint_xarray.accessors.setup_registry(ureg)
 
 
-class DatasetUnitAccessor:
+class DatasetUnitAccessor(_accesor_base.BaseDatasetAccessor):
     """MixIn class which provides functions for unit handling."""
-
-    _ds: xr.Dataset
 
     def quantify(self, units=None, **unit_kwargs) -> xr.Dataset:
         """Attaches units to each variable in the Dataset.

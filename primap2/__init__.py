@@ -7,6 +7,6 @@ __version__ = "0.2.1"
 import pint
 import pint_xarray
 
-from . import _accessors
+from . import accessors
 from ._data_format import open_dataset
 from ._units import ureg

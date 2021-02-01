@@ -1,10 +1,11 @@
 import pathlib
-from typing import Iterable, Mapping, Optional, Union
+from typing import Hashable, Iterable, Mapping, Optional, Tuple, Union
 
 import pint
 import xarray as xr
 from loguru import logger
 
+from . import _accesor_base
 from ._units import ureg
 
 
@@ -75,11 +76,9 @@ def open_dataset(
     ).pint.quantify(unit_registry=ureg)
 
 
-class DatasetDataFormatAccessor:
+class DatasetDataFormatAccessor(_accesor_base.BaseDatasetAccessor):
     """MixIn class which provides functions for checking the data format and saving
     of Datasets."""
-
-    _ds: xr.Dataset = None
 
     def ensure_valid(self) -> None:
         """Ensure this is a valid primap2 data set.
@@ -111,7 +110,7 @@ class DatasetDataFormatAccessor:
         Parameters
         ----------
         path : str or Path
-            Path to which to save this dataset.
+            File path to which to save this dataset.
         mode : {"w", "a"}, default: "w"
             Write ('w') or append ('a') mode. If mode='w', any existing file at
             this location will be overwritten. If mode='a', existing variables
@@ -141,7 +140,7 @@ class DatasetDataFormatAccessor:
         )
 
 
-def split_dim_name(dim_name: str) -> (str, str):
+def split_dim_name(dim_name: str) -> Tuple[str, str]:
     """Split a dimension name composed of the dimension, and the category set in
     parentheses into its parts."""
     try:
@@ -210,15 +209,15 @@ def ensure_valid_data_variables(ds: xr.Dataset):
         da = ds[key]
         ensure_entity_and_units_exist(key, da)
         ensure_entity_and_units_valid(key, da)
-        ensure_variable_name(key, da)
+        ensure_variable_name(str(key), da)
 
         if "gwp_context" in da.attrs:
-            ensure_gwp_context_valid(key, da)
+            ensure_gwp_context_valid(str(key), da)
         else:
             ensure_not_gwp(key, da)
 
 
-def ensure_entity_and_units_exist(key: str, da: xr.DataArray):
+def ensure_entity_and_units_exist(key: Hashable, da: xr.DataArray):
     if "entity" not in da.attrs:
         logger.error(f"{key!r} has no entity declared in attributes.")
         raise ValueError(f"entity missing for {key!r}")
@@ -237,7 +236,7 @@ def ensure_units_exist(ds: xr.Dataset) -> xr.Dataset:
         raise
 
 
-def ensure_entity_and_units_valid(key: str, da: xr.DataArray):
+def ensure_entity_and_units_valid(key: Hashable, da: xr.DataArray):
     entity = da.attrs["entity"]
     units = da.pint.units
     try:
@@ -278,7 +277,7 @@ def ensure_gwp_context_valid(key: str, da: xr.DataArray):
         logger.warning(f"{key!r} has a gwp_context in attrs, but not in its " f"name.")
 
 
-def ensure_not_gwp(key: str, da: xr.DataArray):
+def ensure_not_gwp(key: Hashable, da: xr.DataArray):
     if (
         da.pint.units.dimensionality == {"[carbon]": 1, "[mass]": 1, "[time]": -1}
         and da.attrs["entity"] != "CO2"
