@@ -84,7 +84,7 @@ virtual-environment: venv ## setup a virtual environment for development
 
 venv: requirements_dev.txt setup.py
 	[ -d venv ] || python3 -m venv venv
-	venv/bin/python -m pip install -r requirements_dev.txt
+	venv/bin/python -m pip install -r requirements_dev.txt --upgrade
 	venv/bin/python -m pip install -e .
 	touch venv
 
