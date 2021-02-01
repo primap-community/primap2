@@ -22,3 +22,5 @@ h5netcdf
 h5py<3
 git+https://github.com/keewis/sphinx-autosummary-accessors
 numpydoc
+xarray
+mypy

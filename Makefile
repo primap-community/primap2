@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit
+.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit stubs
 .DEFAULT_GOAL := help
 
 define BROWSER_PYSCRIPT
@@ -90,3 +90,9 @@ venv: requirements_dev.txt setup.py
 
 install-pre-commit: venv ## install the pre-commit hooks
 	venv/bin/pre-commit install
+
+stubs: venv ## generate directory with xarray stubs with inserted primap2 stubs
+	rm -rf stubs
+	mkdir -p stubs
+	venv/bin/stubgen -p xarray -o stubs
+	(cd stubs; patch -s -p0 < ../primap-stubs.patch)
