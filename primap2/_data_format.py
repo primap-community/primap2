@@ -1,5 +1,5 @@
 import pathlib
-from typing import Hashable, Iterable, Mapping, Optional, Tuple, Union
+from typing import IO, Hashable, Iterable, Mapping, Optional, Tuple, Union
 
 import pint
 import xarray as xr
@@ -10,7 +10,7 @@ from ._units import ureg
 
 
 def open_dataset(
-    filename_or_obj,
+    filename_or_obj: Union[str, pathlib.Path, IO],
     group: Optional[str] = None,
     autoclose: Optional[bool] = None,
     chunks: Optional[Union[int, dict]] = None,
@@ -22,7 +22,7 @@ def open_dataset(
 
     Parameters
     ----------
-    filename_or_obj : str, Path, file-like or DataStore
+    filename_or_obj : str, Path, file-like, or DataStore
         Strings and Path objects are interpreted as a path to a netCDF file
         or an OpenDAP URL and opened with h5py. Byte-strings or file-like
         objects are also supported.

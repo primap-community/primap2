@@ -131,8 +131,7 @@ def opulent_ds():
 
 def test_something_else_entirely(caplog):
     with pytest.raises(ValueError, match=r"ds is not an xr.Dataset"):
-        something_else = primap2._data_format.DatasetDataFormatAccessor()
-        something_else._ds = "asdf"
+        something_else = primap2._data_format.DatasetDataFormatAccessor(ds="asdf")
         something_else.ensure_valid()
     assert "ERROR" in caplog.text
     assert "object is not an xarray Dataset." in caplog.text

@@ -3,7 +3,6 @@ import xarray as xr
 import primap2 as pr
 
 ds = xr.Dataset()
-ds.pr: pr.accessors.PRIMAP2DatasetAccessor
 
 ds.pr.ensure_valid(asdf="fdsa")
 ds.pr.ensure_valid_wr()
