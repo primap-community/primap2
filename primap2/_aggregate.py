@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Union
+from typing import Dict, Optional, Sequence, Union
 
 import numpy as np
 import xarray as xr
@@ -62,6 +62,91 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             dim=dim,
             skipna=False,
             keep_attrs=True,
+        )
+
+    def gas_basket_contents_sum(
+        self,
+        *,
+        basket: str,
+        basket_contents: Sequence[str],
+        sel: Optional[Dict] = None,
+    ) -> xr.DataArray:
+        """The sum of gas basket contents converted using the global warming potential
+        of the gas basket.
+
+        Parameters
+        ----------
+        basket: str
+          The name of the gas basket for which values are known at higher temporal
+          resolution and/or for a wider range. A value from `ds.keys()`.
+        basket_contents: list of str
+          The name of the gases in the gas basket. The sum of all basket_contents
+          equals the basket. Values from `ds.keys()`.
+        sel: Selection dict, optional
+          If the downscaling should only be done on a subset of the Dataset while
+          retaining all other values unchanged, give a selection dictionary. The
+          downscaling will be done on `ds.loc[sel]`.
+
+        Returns
+        -------
+        summed : xr.DataArray
+        """
+        if sel is not None:
+            ds_sel = self._ds.loc[sel]
+        else:
+            ds_sel = self._ds
+
+        basket_contents_converted = xr.Dataset()
+        basket_da = ds_sel[basket]
+        for var in basket_contents:
+            da: xr.DataArray = ds_sel[var]
+            basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=basket_da)
+
+        basket_contents_converted_da: xr.DataArray = basket_contents_converted.to_array(
+            "entity"
+        )
+
+        da = basket_contents_converted_da.pr.sum_skip_allna(
+            dim="entity",
+            skipna_evaluation_dims=["date"],
+        )
+        da.attrs["gwp_context"] = basket_da["gwp_context"]
+        da.attrs["entity"] = basket_da["entity"]
+        return da
+
+    def fill_na_gas_basket_from_contents(
+        self,
+        *,
+        basket: str,
+        basket_contents: Sequence[str],
+        sel: Optional[Dict] = None,
+    ) -> xr.DataArray:
+        """Fill NA values in a gas basket using the sum of its contents.
+
+        To calculate the sum of the gas basket contents, the global warming potential
+        context defined on the gas basket will be used.
+
+        Parameters
+        ----------
+        basket: str
+          The name of the gas basket for which values are known at higher temporal
+          resolution and/or for a wider range. A value from `ds.keys()`.
+        basket_contents: list of str
+          The name of the gases in the gas basket. The sum of all basket_contents
+          equals the basket. Values from `ds.keys()`.
+        sel: Selection dict, optional
+          If the downscaling should only be done on a subset of the Dataset while
+          retaining all other values unchanged, give a selection dictionary. The
+          downscaling will be done on `ds.loc[sel]`.
+
+        Returns
+        -------
+        filled : xr.DataArray
+        """
+        return self._ds[basket].fillna(
+            self.gas_basket_contents_sum(
+                basket=basket, basket_contents=basket_contents, sel=sel
+            )
         )
 
 
