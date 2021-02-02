@@ -2,6 +2,13 @@
 Changelog
 =========
 
+unreleased
+----------
+* Add functions for downscaling and aggregation of gas baskets and categorical baskets.
+* Add functions, docs, and tests for basic GWP handling.
+* Add Makefile target to generate patched stub files for xarray containing the primap2
+  API.
+
 0.2.0
 -----
 * Add documentation.
