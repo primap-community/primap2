@@ -88,7 +88,19 @@ class DatasetUnitAccessor(_accesor_base.BaseDatasetAccessor):
         """
         return self._ds.pint.quantify(unit_registry=ureg, units=units, **unit_kwargs)
 
-    dequantify = pint_xarray.accessors.PintDatasetAccessor.dequantify
+    def dequantify(self) -> xr.Dataset:
+        """Removes units from the Dataset and its coordinates.
+
+        Will replace ``.attrs['units']`` on each variable with a string
+        representation of the ``pint.Unit`` instance.
+
+        Returns
+        -------
+        dequantified : Dataset
+            Dataset whose data variables are unitless, and of the type
+            that was previously wrapped by ``pint.Quantity``.
+        """
+        return self._ds.pint.dequantify()
 
 
 class DataArrayUnitAccessor(_accesor_base.BaseDataArrayAccessor):
@@ -152,7 +164,19 @@ class DataArrayUnitAccessor(_accesor_base.BaseDataArrayAccessor):
         """
         return self._da.pint.quantify(unit_registry=ureg, units=units, **unit_kwargs)
 
-    dequantify = pint_xarray.accessors.PintDataArrayAccessor.dequantify
+    def dequantify(self) -> xr.DataArray:
+        """Removes units from the DataArray and its coordinates.
+
+        Will replace ``.attrs['units']`` on each variable with a string
+        representation of the ``pint.Unit`` instance.
+
+        Returns
+        -------
+        dequantified : DataArray
+            DataArray whose array data is unitless, and of the type
+            that was previously wrapped by `pint.Quantity`.
+        """
+        return self._da.pint.dequantify()
 
     def convert_to_gwp(
         self, gwp_context: str, units: Union[str, pint.unit.Unit]
@@ -163,7 +187,7 @@ class DataArrayUnitAccessor(_accesor_base.BaseDataArrayAccessor):
         ----------
         gwp_context: str
             The global warming potential context to use for the conversion, as
-            understood by openscm_units.
+            understood by ``openscm_units``.
         units: str or pint unit
             The units in which the global warming potential is given after the
             conversion.
@@ -184,11 +208,12 @@ class DataArrayUnitAccessor(_accesor_base.BaseDataArrayAccessor):
         with ureg.context(gwp_context):
             da = self._da.pint.to(units)
         da.attrs["gwp_context"] = gwp_context
+        da.name = f"{da.attrs['entity']} ({da.attrs['gwp_context']})"
         return da
 
     def convert_to_gwp_like(self, like: xr.DataArray) -> xr.DataArray:
-        """Convert to a global warming potential in the units of `like` using the
-        context of `like`.
+        """Convert to a global warming potential in the units of a reference array
+        using the ``gwp_context`` of the reference array.
 
         Parameters
         ----------
@@ -205,7 +230,7 @@ class DataArrayUnitAccessor(_accesor_base.BaseDataArrayAccessor):
 
     @property
     def gwp_context(self) -> pint.Context:
-        """The pint conversion context for this DataArray, directly usable in for
+        """The pint conversion context for this DataArray, directly usable for
         conversions.
 
         Examples
@@ -222,18 +247,20 @@ class DataArrayUnitAccessor(_accesor_base.BaseDataArrayAccessor):
     def convert_to_mass(
         self, gwp_context: Optional[str] = None, entity: Optional[str] = None
     ) -> xr.DataArray:
-        """Convert a global warming potential to a mass of a greenhouse gas.
+        """Convert a global warming potential of a greenhouse gas to a mass.
 
         Parameters
         ----------
         gwp_context: str, optional
             The global warming potential context to be used for the conversion.
             It must be one of the global warming potential contexts understood by
-            openscm_units. If omitted, the global warming potential given in the attrs
-            is used.
+            ``openscm_units``. If omitted, the global warming potential context used to
+            calculate the global warming potential originally is used, so you should
+            only need to provide an explicit gwp_context in exceptional cases.
         entity: str, optional
             The entity into which the global warming potential should be converted.
-            If omitted, the entity given in the attrs is used.
+            If omitted, the original entity is used, so you should only need to provide
+            an explicit entity in exceptional cases.
 
         Returns
         -------
@@ -265,4 +292,5 @@ class DataArrayUnitAccessor(_accesor_base.BaseDataArrayAccessor):
         if "gwp_context" in da.attrs:
             del da.attrs["gwp_context"]
         da.attrs["entity"] = entity
+        da.name = entity
         return da

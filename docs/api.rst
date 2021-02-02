@@ -1,20 +1,5 @@
-.. currentmodule:: xarray
-
 API
 ===
-
-Dataset
--------
-
-.. autosummary::
-   :toctree: generated/
-   :template: autosummary/accessor_method.rst
-
-    Dataset.pr.ensure_valid
-    Dataset.pr.to_netcdf
-    Dataset.pr.quantify
-    Dataset.pr.dequantify
-
 .. currentmodule:: primap2
 
 Top-level API
@@ -25,3 +10,51 @@ Top-level API
 
     open_dataset
     ureg
+
+.. currentmodule:: xarray
+
+DataArray
+---------
+
+.. _daattr:
+
+Attributes
+~~~~~~~~~~
+
+.. autosummary::
+   :toctree: generated/
+   :template: autosummary/accessor_attribute.rst
+
+    DataArray.pr.gwp_context
+
+.. _dameth:
+
+Methods
+~~~~~~~
+
+.. autosummary::
+   :toctree: generated/
+   :template: autosummary/accessor_method.rst
+
+    DataArray.pr.quantify
+    DataArray.pr.dequantify
+    DataArray.pr.convert_to_gwp
+    DataArray.pr.convert_to_gwp_like
+    DataArray.pr.convert_to_mass
+
+Dataset
+-------
+
+.. _dsmeth:
+
+Methods
+~~~~~~~
+
+.. autosummary::
+   :toctree: generated/
+   :template: autosummary/accessor_method.rst
+
+    Dataset.pr.ensure_valid
+    Dataset.pr.to_netcdf
+    Dataset.pr.quantify
+    Dataset.pr.dequantify

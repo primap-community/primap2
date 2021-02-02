@@ -62,7 +62,7 @@ coverage: venv ## check code coverage quickly with the default Python
 	venv/bin/coverage html
 	ls htmlcov/index.html
 
-docs: ## generate Sphinx HTML documentation, including API docs
+docs: venv ## generate Sphinx HTML documentation, including API docs
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 
