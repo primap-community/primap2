@@ -201,7 +201,7 @@ class DataArrayUnitAccessor(_accesor_base.BaseDataArrayAccessor):
             and self._da.attrs["gwp_context"] != gwp_context
         ):
             raise ValueError(
-                f'Incompatible gwp conversions: {self._da.attrs["gwp_context"]!r}'
+                f"Incompatible gwp conversions: {self._da.attrs['gwp_context']!r}"
                 f" != {gwp_context!r}."
             )
 
