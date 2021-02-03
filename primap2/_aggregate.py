@@ -154,9 +154,10 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
     def fill_all_na(self, dim: Union[Sequence[str], str], value=0) -> xr.DataArray:
         """Fill NA values only where all values along the dimension(s) dim are NA.
 
-        Example: having a data array with dimensions ``time`` and ``positions``,
-        filling it along ``time`` will only fill those values where all time-points are
-        NA.
+        Example: having a data array with dimensions ``time`` and ``position``,
+        filling it along ``time`` will only fill those values where all points that
+        differ only in their ``time`` are NA, i.e. those points where all points with
+        the same ``position`` are NA.
 
         Parameters
         ----------

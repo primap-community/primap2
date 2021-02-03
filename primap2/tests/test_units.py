@@ -3,13 +3,14 @@
 
 import pytest
 import xarray as xr
+import xarray.testing
 
 from .utils import allclose, assert_equal
 
 
 def test_roundtrip_quantify(opulent_ds: xr.Dataset):
     roundtrip = opulent_ds.pr.dequantify().pr.quantify()
-    assert roundtrip == opulent_ds
+    xarray.testing.assert_identical(roundtrip, opulent_ds)
 
 
 def test_roundtrip_quantify_da(opulent_ds: xr.Dataset):
