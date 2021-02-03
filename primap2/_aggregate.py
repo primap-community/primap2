@@ -8,7 +8,7 @@ from ._accesor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 
 class DatasetAggregationAccessor(BaseDatasetAccessor):
     def fill_all_na(self, dim: Union[Sequence[str], str], value=0) -> xr.Dataset:
-        """Fill NA values only where all values along the dimension(s) dim are NA.
+        """Fill NA values only where all values along the specified dimension(s) are NA.
 
         Example: if you have a Dataset with dimensions ``time`` and ``positions``,
         filling it along ``time`` will only fill those values where all time-points are
@@ -24,11 +24,11 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         Returns
         -------
-        xr.Dataset
+        filled : xr.Dataset
         """
         return self._ds.map(lambda x: x.pr.fill_all_na(dim=dim, value=value))
 
-    def sum_skip_allna(
+    def sum_skip_all_na(
         self,
         dim: str,
         skipna_evaluation_dims: Optional[Union[Sequence[str], str]] = None,
@@ -40,7 +40,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         Example: If you have a Dataset with the dimensions ``time`` and ``position``,
         summing over ``time`` with the evaluation dimension ``position`` will skip only
-        those values where _all_ values with the same ``position`` are NA in a
+        those values where all values with the same ``position`` are NA in a
         DataArray.
 
         Parameters
@@ -53,7 +53,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         Returns
         -------
-        xr.Dataset
+        summed : xr.Dataset
         """
         if skipna_evaluation_dims is None:
             skipna_evaluation_dims = set(self._ds.dims) - {dim}
@@ -106,7 +106,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             "entity"
         )
 
-        da = basket_contents_converted_da.pr.sum_skip_allna(
+        da = basket_contents_converted_da.pr.sum_skip_all_na(
             dim="entity",
             skipna_evaluation_dims=["date"],
         )
@@ -152,7 +152,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
 class DataArrayAggregationAccessor(BaseDataArrayAccessor):
     def fill_all_na(self, dim: Union[Sequence[str], str], value=0) -> xr.DataArray:
-        """Fill NA values only where all values along the dimension(s) dim are NA.
+        """Fill NA values only where all values along the specified dimension(s) are NA.
 
         Example: having a data array with dimensions ``time`` and ``position``,
         filling it along ``time`` will only fill those values where all points that
@@ -169,11 +169,11 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
         Returns
         -------
-        xr.DataArray
+        filled : xr.DataArray
         """
         return self._da.where(~np.isnan(self._da).all(dim=dim), value)
 
-    def sum_skip_allna(
+    def sum_skip_all_na(
         self,
         dim: str,
         skipna_evaluation_dims: Optional[Union[Sequence[str], str]] = None,
@@ -185,7 +185,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
         Example: If you have a data array with the dimensions ``time`` and ``position``,
         summing over ``time`` with the evaluation dimension ``position`` will skip only
-        those values where _all_ values with the same ``position`` are NA.
+        those values where all values with the same ``position`` are NA.
 
         Parameters
         ----------
@@ -197,7 +197,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
         Returns
         -------
-        xr.DataArray
+        summed : xr.DataArray
         """
         if skipna_evaluation_dims is None:
             skipna_evaluation_dims = set(self._da.dims) - {dim}

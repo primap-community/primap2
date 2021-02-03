@@ -57,7 +57,7 @@ def test_sum_skip_allna():
         coords=coords,
     )
 
-    a = da.pr.sum_skip_allna(dim="a")
+    a = da.pr.sum_skip_all_na(dim="a")
     a_expected = xr.DataArray(
         data=[
             [np.nan, np.nan, np.nan],
@@ -67,20 +67,20 @@ def test_sum_skip_allna():
     )
     assert np.allclose(a, a_expected, equal_nan=True)
 
-    b = da.pr.sum_skip_allna(dim="b", skipna_evaluation_dims="a")
+    b = da.pr.sum_skip_all_na(dim="b", skipna_evaluation_dims="a")
     b_expected = xr.DataArray(
         data=[[0, 1, 2], [0, 1, 2]], coords=[coords[0], coords[2]]
     )
     assert np.allclose(b, b_expected, equal_nan=True)
 
-    c = da.pr.sum_skip_allna(dim="b", skipna_evaluation_dims="c")
+    c = da.pr.sum_skip_all_na(dim="b", skipna_evaluation_dims="c")
     c_expected = xr.DataArray(
         data=[[np.nan, 1, 2], [np.nan, 1, 2]], coords=[coords[0], coords[2]]
     )
     assert np.allclose(c, c_expected, equal_nan=True)
 
     ds = xr.Dataset({"1": da, "2": da.copy()})
-    dss = ds.pr.sum_skip_allna(dim="a")
+    dss = ds.pr.sum_skip_all_na(dim="a")
     dss_expected = xr.Dataset(
         {
             "1": xr.DataArray(

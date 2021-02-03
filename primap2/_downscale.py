@@ -72,7 +72,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket_ds = ds_sel.loc[{dimension: basket}]
 
         if skip_all_na:
-            basket_sum = basket_contents_ds.pr.sum_skip_allna(
+            basket_sum = basket_contents_ds.pr.sum_skip_all_na(
                 dim=dimension,
                 skipna_evaluation_dims="date",
             )
@@ -167,7 +167,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
 
         da_basket_contents: xr.DataArray = basket_contents_converted.to_array("entity")
         if skip_all_na:
-            basket_sum = da_basket_contents.pr.sum_skip_allna(
+            basket_sum = da_basket_contents.pr.sum_skip_all_na(
                 dim="entity",
                 skipna_evaluation_dims="date",
             )
@@ -269,7 +269,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket_da = da_sel.loc[{dimension: basket}]
 
         if skip_all_na:
-            basket_sum: xr.DataArray = basket_contents_da.pr.sum_skip_allna(
+            basket_sum: xr.DataArray = basket_contents_da.pr.sum_skip_all_na(
                 dim=dimension, skipna_evaluation_dims="date"
             )
         else:

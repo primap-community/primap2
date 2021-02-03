@@ -41,6 +41,8 @@ Methods
     DataArray.pr.convert_to_gwp
     DataArray.pr.convert_to_gwp_like
     DataArray.pr.convert_to_mass
+    DataArray.pr.fill_all_na
+    DataArray.pr.sum_skip_all_na
 
 Dataset
 -------
@@ -58,3 +60,5 @@ Methods
     Dataset.pr.to_netcdf
     Dataset.pr.quantify
     Dataset.pr.dequantify
+    Dataset.pr.fill_all_na
+    Dataset.pr.sum_skip_all_na
