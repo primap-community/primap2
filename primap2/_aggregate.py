@@ -69,7 +69,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         *,
         basket: str,
         basket_contents: Sequence[str],
-        sel: Optional[Dict] = None,
+        skipna_evaluation_dims: Sequence[str] = ("time",),
     ) -> xr.DataArray:
         """The sum of gas basket contents converted using the global warming potential
         of the gas basket.
@@ -82,24 +82,20 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         basket_contents: list of str
           The name of the gases in the gas basket. The sum of all basket_contents
           equals the basket. Values from `ds.keys()`.
-        sel: Selection dict, optional
-          If the downscaling should only be done on a subset of the Dataset while
-          retaining all other values unchanged, give a selection dictionary. The
-          downscaling will be done on `ds.loc[sel]`.
+        skipna_evaluation_dims: list of str, optional
+          Dimensions which should be evaluated to determine if NA values should be
+          skipped entirely if missing fully. By default, the ``time`` dimension
+          is evaluated, so that NA values are skipped if the whole time series is NA.
 
         Returns
         -------
         summed : xr.DataArray
         """
-        if sel is not None:
-            ds_sel = self._ds.loc[sel]
-        else:
-            ds_sel = self._ds
 
         basket_contents_converted = xr.Dataset()
-        basket_da = ds_sel[basket]
+        basket_da = self._ds[basket]
         for var in basket_contents:
-            da: xr.DataArray = ds_sel[var]
+            da: xr.DataArray = self._ds[var]
             basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=basket_da)
 
         basket_contents_converted_da: xr.DataArray = basket_contents_converted.to_array(
@@ -108,10 +104,11 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         da = basket_contents_converted_da.pr.sum_skip_all_na(
             dim="entity",
-            skipna_evaluation_dims=["date"],
+            skipna_evaluation_dims=skipna_evaluation_dims,
         )
-        da.attrs["gwp_context"] = basket_da["gwp_context"]
-        da.attrs["entity"] = basket_da["entity"]
+        da.attrs["gwp_context"] = basket_da.attrs["gwp_context"]
+        da.attrs["entity"] = basket_da.attrs["entity"]
+        da.name = basket_da.name
         return da
 
     def fill_na_gas_basket_from_contents(
@@ -119,7 +116,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         *,
         basket: str,
         basket_contents: Sequence[str],
-        sel: Optional[Dict] = None,
+        sel: Optional[Dict[str, Sequence]] = None,
+        skipna_evaluation_dims: Sequence[str] = ("time",),
     ) -> xr.DataArray:
         """Fill NA values in a gas basket using the sum of its contents.
 
@@ -135,17 +133,34 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           The name of the gases in the gas basket. The sum of all basket_contents
           equals the basket. Values from `ds.keys()`.
         sel: Selection dict, optional
-          If the downscaling should only be done on a subset of the Dataset while
+          If the filling should only be done on a subset of the Dataset while
           retaining all other values unchanged, give a selection dictionary. The
-          downscaling will be done on `ds.loc[sel]`.
+          filling will be done on `ds.loc[sel]`.
+        skipna_evaluation_dims: list of str, optional
+          Dimensions which should be evaluated to determine if NA values should be
+          skipped entirely if missing fully. By default, the ``time`` dimension
+          is evaluated, so that NA values are skipped if the whole time series is NA.
 
         Returns
         -------
         filled : xr.DataArray
         """
+        if sel is None:
+            ds_sel = self._ds
+        else:
+            ds_sel: xr.Dataset = self._ds.loc[sel]
+            if ds_sel.dims.keys() != self._ds.dims.keys():
+                raise ValueError(
+                    "The dimension of the selection doesn't match the dimension of the "
+                    "orginal dataset. Likely you used a selection casting to a scalar "
+                    "dimension, like sel={'axis': 'value'}. Please use "
+                    "sel={'axis': ['value']} instead."
+                )
         return self._ds[basket].fillna(
-            self.gas_basket_contents_sum(
-                basket=basket, basket_contents=basket_contents, sel=sel
+            ds_sel.pr.gas_basket_contents_sum(
+                basket=basket,
+                basket_contents=basket_contents,
+                skipna_evaluation_dims=skipna_evaluation_dims,
             )
         )
 
@@ -171,7 +186,10 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         -------
         filled : xr.DataArray
         """
-        return self._da.where(~np.isnan(self._da).all(dim=dim), value)
+        if not dim:
+            return self._da
+        else:
+            return self._da.where(~np.isnan(self._da).all(dim=dim), value)
 
     def sum_skip_all_na(
         self,

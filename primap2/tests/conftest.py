@@ -138,3 +138,41 @@ def opulent_ds():
     opulent["SF6 (SARGWP100)"].attrs["gwp_context"] = "SARGWP100"
 
     return opulent
+
+
+@pytest.fixture
+def empty_ds():
+    """An empty hull of a dataset with missing data."""
+    time = pd.date_range("2000-01-01", "2020-01-01", freq="AS")
+    area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
+    coords = {
+        "time": time,
+        "area (ISO3)": area_iso3,
+        "source": ["RAND2020"],
+    }
+    dims = ["time", "area (ISO3)", "source"]
+    empty = xr.Dataset(
+        {
+            ent: xr.DataArray(
+                data=np.zeros((len(time), len(area_iso3), 1), dtype=np.float),
+                coords=coords,
+                dims=dims,
+                attrs={"units": f"{ent} Gg / year", "entity": ent},
+            )
+            for ent in ("CO2", "SF6", "CH4")
+        },
+        attrs={"area": "area (ISO3)"},
+    ).pr.quantify()
+
+    empty["KYOTOGHG"] = xr.DataArray(
+        data=np.zeros((len(time), len(area_iso3), 1), dtype=np.float),
+        coords=coords,
+        dims=dims,
+        attrs={
+            "units": "CO2 Gg / year",
+            "entity": "KYOTOGHG",
+            "gwp_context": "AR4GWP100",
+        },
+    ).pr.quantify()
+
+    return empty

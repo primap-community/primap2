@@ -11,7 +11,7 @@ def allclose(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
     return np.allclose(a.pint.magnitude, b.pint.magnitude, *args, **kwargs)
 
 
-def assert_equal(a: xr.DataArray, b: xr.DataArray):
-    assert allclose(a, b)
+def assert_equal(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
+    assert allclose(a, b, *args, **kwargs)
     assert a.attrs == b.attrs
     assert a.name == b.name
