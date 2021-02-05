@@ -3,7 +3,6 @@ bump2version
 wheel
 watchdog
 flake8
-tox
 coverage
 Sphinx
 sphinx-rtd-theme
@@ -24,3 +23,4 @@ git+https://github.com/keewis/sphinx-autosummary-accessors
 numpydoc
 xarray
 mypy
+bottleneck

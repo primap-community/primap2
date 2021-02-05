@@ -43,6 +43,7 @@ Methods
     DataArray.pr.convert_to_mass
     DataArray.pr.fill_all_na
     DataArray.pr.sum_skip_all_na
+    DataArray.pr.downscale_timeseries
 
 Dataset
 -------
@@ -64,3 +65,5 @@ Methods
     Dataset.pr.sum_skip_all_na
     Dataset.pr.gas_basket_contents_sum
     Dataset.pr.fill_na_gas_basket_from_contents
+    Dataset.pr.downscale_timeseries
+    Dataset.pr.downscale_gas_timeseries

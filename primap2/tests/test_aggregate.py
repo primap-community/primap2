@@ -117,7 +117,9 @@ def test_gas_basket_contents_sum(empty_ds):
     empty_ds["CH4"].loc[{"area (ISO3)": "COL"}] = np.nan * ureg("Gg CH4 / year")
 
     summed = empty_ds.pr.gas_basket_contents_sum(
-        basket="KYOTOGHG", basket_contents=["CO2", "SF6", "CH4"]
+        basket="KYOTOGHG",
+        basket_contents=["CO2", "SF6", "CH4"],
+        skipna_evaluation_dims=("time",),
     )
     expected = empty_ds["KYOTOGHG"].copy()
     sf6 = 22_800
@@ -129,7 +131,6 @@ def test_gas_basket_contents_sum(empty_ds):
     summed = empty_ds.pr.gas_basket_contents_sum(
         basket="KYOTOGHG",
         basket_contents=["CO2", "SF6", "CH4"],
-        skipna_evaluation_dims=[],
     )
     expected = empty_ds["KYOTOGHG"].copy()
     expected[:] = (1 + sf6 + ch4) * ureg("Gg CO2 / year")
@@ -149,7 +150,9 @@ def test_fill_na_gas_basket_from_contents(empty_ds):
     )
 
     filled = empty_ds.pr.fill_na_gas_basket_from_contents(
-        basket="KYOTOGHG", basket_contents=["CO2", "SF6", "CH4"]
+        basket="KYOTOGHG",
+        basket_contents=["CO2", "SF6", "CH4"],
+        skipna_evaluation_dims=("time",),
     )
     expected = empty_ds["KYOTOGHG"].copy()
     sf6 = 22_800
@@ -164,6 +167,7 @@ def test_fill_na_gas_basket_from_contents(empty_ds):
         basket="KYOTOGHG",
         basket_contents=["CO2", "SF6", "CH4"],
         sel={"area (ISO3)": ["BOL"]},
+        skipna_evaluation_dims=("time",),
     )
     expected = empty_ds["KYOTOGHG"].copy()
     expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (1 + sf6 + ch4) * ureg(
@@ -178,4 +182,5 @@ def test_fill_na_gas_basket_from_contents(empty_ds):
             basket="KYOTOGHG",
             basket_contents=["CO2", "SF6", "CH4"],
             sel={"area (ISO3)": "BOL"},
+            skipna_evaluation_dims=("time",),
         )

@@ -20,6 +20,7 @@ requirements = [
     "scipy",
     "h5netcdf",
     "h5py<3",
+    "bottleneck",
 ]
 
 setup_requirements = [

@@ -1,9 +1,44 @@
+import typing
 from typing import Dict, Optional, Sequence, Union
 
 import numpy as np
 import xarray as xr
 
 from ._accesor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+
+DatasetOrDataArray = typing.TypeVar("DatasetOrDataArray", xr.Dataset, xr.DataArray)
+
+
+def select_no_scalar_dimension(
+    obj: DatasetOrDataArray, sel: Dict[str, Sequence]
+) -> DatasetOrDataArray:
+    """Select but raise an error if the selection produces a new scalar dimensions.
+
+    This can be used to guard against later broadcasting of the selection.
+
+    Parameters
+    ----------
+    obj: xr.Dataset or xr.DataArray
+    sel: selection dictionary
+
+    Returns
+    -------
+    selection : same type as obj
+    """
+    if sel is None:
+        return obj
+    else:
+        sele: DatasetOrDataArray = obj.loc[sel]
+        sdims = sele.dims if isinstance(sele.dims, tuple) else sele.dims.keys()
+        odims = obj.dims if isinstance(obj.dims, tuple) else obj.dims.keys()
+        if sdims != odims:
+            raise ValueError(
+                "The dimension of the selection doesn't match the dimension of the "
+                "orginal dataset. Likely you used a selection casting to a scalar "
+                "dimension, like sel={'axis': 'value'}. Please use "
+                "sel={'axis': ['value']} instead."
+            )
+        return sele
 
 
 class DatasetAggregationAccessor(BaseDatasetAccessor):
@@ -69,7 +104,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         *,
         basket: str,
         basket_contents: Sequence[str],
-        skipna_evaluation_dims: Sequence[str] = ("time",),
+        skipna_evaluation_dims: Sequence[str] = tuple(),
     ) -> xr.DataArray:
         """The sum of gas basket contents converted using the global warming potential
         of the gas basket.
@@ -84,8 +119,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           equals the basket. Values from `ds.keys()`.
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
-          skipped entirely if missing fully. By default, the ``time`` dimension
-          is evaluated, so that NA values are skipped if the whole time series is NA.
+          skipped entirely if missing fully. By default, no NA values are skipped.
 
         Returns
         -------
@@ -117,7 +151,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         basket: str,
         basket_contents: Sequence[str],
         sel: Optional[Dict[str, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[str] = ("time",),
+        skipna_evaluation_dims: Sequence[str] = tuple(),
     ) -> xr.DataArray:
         """Fill NA values in a gas basket using the sum of its contents.
 
@@ -138,24 +172,13 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           filling will be done on `ds.loc[sel]`.
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
-          skipped entirely if missing fully. By default, the ``time`` dimension
-          is evaluated, so that NA values are skipped if the whole time series is NA.
+          skipped entirely if missing fully. By default, no NA values are skipped.
 
         Returns
         -------
         filled : xr.DataArray
         """
-        if sel is None:
-            ds_sel = self._ds
-        else:
-            ds_sel: xr.Dataset = self._ds.loc[sel]
-            if ds_sel.dims.keys() != self._ds.dims.keys():
-                raise ValueError(
-                    "The dimension of the selection doesn't match the dimension of the "
-                    "orginal dataset. Likely you used a selection casting to a scalar "
-                    "dimension, like sel={'axis': 'value'}. Please use "
-                    "sel={'axis': ['value']} instead."
-                )
+        ds_sel = select_no_scalar_dimension(self._ds, sel)
         return self._ds[basket].fillna(
             ds_sel.pr.gas_basket_contents_sum(
                 basket=basket,
