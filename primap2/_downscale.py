@@ -2,9 +2,96 @@ from typing import Dict, Optional, Sequence
 
 import xarray as xr
 
-from ._accesor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._aggregate import select_no_scalar_dimension
 from ._units import ureg
+
+
+class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
+    def downscale_timeseries(
+        self,
+        *,
+        dim: str,
+        basket: str,
+        basket_contents: Sequence[str],
+        check_consistency: bool = True,
+        sel: Optional[Dict[str, Sequence]] = None,
+        skipna_evaluation_dims: Sequence[str] = tuple(),
+    ) -> xr.DataArray:
+        """Downscale timeseries along a dimension using a basket defined on a
+        broader timeseries.
+
+        This is useful if you have data for many points in time for a total, for example
+        the entire Energy sector, and higher-resolution data (e.g. fossil and non-fossil
+        energies separately) for only a few points in time. In the example, the Energy
+        sector is the ``basket`` and fossil and non-fossil energies are the basket
+        contents.
+        From any time points where all the basket contents are known, the
+        relative shares of the basket contents are determined, and then interpolated
+        linearly and extrapolated constantly to the full timeseries. The shares are then
+        used to downscale the basket to its contents, which is used to fill gaps in the
+        timeseries of the basket contents.
+
+        Parameters
+        ----------
+        dim: str
+          The name of the dimension which contains the basket and its contents, has to
+          be one of the dimensions in ``ds.dims``.
+        basket: str
+          The name of the super-category for which values are known at higher temporal
+          resolution and/or for a wider range. A value from ``ds[dimension]``.
+        basket_contents: list of str
+          The name of the sub-categories. The sum of all sub-categories equals the
+          basket. Values from ``ds[dimension]``.
+        check_consistency: bool, default True
+          If for all points where the basket and all basket_contents are defined,
+          it should be checked if the sum of the basket_contents actually equals
+          the basket. A ``ValueError`` is raised if the consistency check fails.
+        sel: Selection dict, optional
+          If the downscaling should only be done on a subset of the Dataset while
+          retaining all other values unchanged, give a selection dictionary. The
+          downscaling will be done on ``ds.loc[sel]``.
+        skipna_evaluation_dims: list of str, optional
+          Dimensions which should be evaluated to determine if NA values should be
+          skipped entirely if missing fully. By default, no NA values are skipped.
+
+        Returns
+        -------
+        downscaled: xr.DataArray
+        """
+        da_sel = select_no_scalar_dimension(self._da, sel)
+
+        basket_contents_da = da_sel.loc[{dim: basket_contents}]
+        basket_da = da_sel.loc[{dim: basket}]
+
+        basket_sum = basket_contents_da.pr.sum_skip_all_na(
+            dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
+        )
+
+        if check_consistency:
+            deviation: xr.DataArray = abs(basket_da / basket_sum - 1)
+            devmax = deviation.max()
+            if devmax > 0.01:
+                raise ValueError(
+                    f"Sum of the basket_contents {basket_contents!r} deviates"
+                    f" {devmax * 100} % from the basket"
+                    f" {basket!r}, which is more than the allowed 1 %. "
+                    "To continue regardless, set check_consistency=False."
+                )
+
+        # inter- and extrapolate
+        shares: xr.DataArray = (
+            (basket_contents_da / basket_sum)
+            .pint.to("")
+            .pint.dequantify()
+            .interpolate_na(dim="time", method="linear")
+            .ffill(dim="time")
+            .bfill(dim="time")
+        )
+
+        downscaled: xr.DataArray = basket_da * shares
+
+        return self._da.fillna(downscaled)
 
 
 class DatasetDownscalingAccessor(BaseDatasetAccessor):
@@ -192,90 +279,3 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                 )
 
         return self._ds.fillna(downscaled_converted)
-
-
-class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
-    def downscale_timeseries(
-        self,
-        *,
-        dim: str,
-        basket: str,
-        basket_contents: Sequence[str],
-        check_consistency: bool = True,
-        sel: Optional[Dict[str, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[str] = tuple(),
-    ) -> xr.DataArray:
-        """Downscale timeseries along a dimension using a basket defined on a
-        broader timeseries.
-
-        This is useful if you have data for many points in time for a total, for example
-        the entire Energy sector, and higher-resolution data (e.g. fossil and non-fossil
-        energies separately) for only a few points in time. In the example, the Energy
-        sector is the ``basket`` and fossil and non-fossil energies are the basket
-        contents.
-        From any time points where all the basket contents are known, the
-        relative shares of the basket contents are determined, and then interpolated
-        linearly and extrapolated constantly to the full timeseries. The shares are then
-        used to downscale the basket to its contents, which is used to fill gaps in the
-        timeseries of the basket contents.
-
-        Parameters
-        ----------
-        dim: str
-          The name of the dimension which contains the basket and its contents, has to
-          be one of the dimensions in ``ds.dims``.
-        basket: str
-          The name of the super-category for which values are known at higher temporal
-          resolution and/or for a wider range. A value from ``ds[dimension]``.
-        basket_contents: list of str
-          The name of the sub-categories. The sum of all sub-categories equals the
-          basket. Values from ``ds[dimension]``.
-        check_consistency: bool, default True
-          If for all points where the basket and all basket_contents are defined,
-          it should be checked if the sum of the basket_contents actually equals
-          the basket. A ``ValueError`` is raised if the consistency check fails.
-        sel: Selection dict, optional
-          If the downscaling should only be done on a subset of the Dataset while
-          retaining all other values unchanged, give a selection dictionary. The
-          downscaling will be done on ``ds.loc[sel]``.
-        skipna_evaluation_dims: list of str, optional
-          Dimensions which should be evaluated to determine if NA values should be
-          skipped entirely if missing fully. By default, no NA values are skipped.
-
-        Returns
-        -------
-        downscaled: xr.DataArray
-        """
-        da_sel = select_no_scalar_dimension(self._da, sel)
-
-        basket_contents_da = da_sel.loc[{dim: basket_contents}]
-        basket_da = da_sel.loc[{dim: basket}]
-
-        basket_sum = basket_contents_da.pr.sum_skip_all_na(
-            dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
-        )
-
-        if check_consistency:
-            deviation: xr.DataArray = abs(basket_da / basket_sum - 1)
-            devmax = deviation.max()
-            if devmax > 0.01:
-                raise ValueError(
-                    f"Sum of the basket_contents {basket_contents!r} deviates"
-                    f" {devmax * 100} % from the basket"
-                    f" {basket!r}, which is more than the allowed 1 %. "
-                    "To continue regardless, set check_consistency=False."
-                )
-
-        # inter- and extrapolate
-        shares: xr.DataArray = (
-            (basket_contents_da / basket_sum)
-            .pint.to("")
-            .pint.dequantify()
-            .interpolate_na(dim="time", method="linear")
-            .ffill(dim="time")
-            .bfill(dim="time")
-        )
-
-        downscaled: xr.DataArray = basket_da * shares
-
-        return self._da.fillna(downscaled)

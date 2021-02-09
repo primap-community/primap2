@@ -9,7 +9,7 @@ Welcome to PRIMAP2's documentation!
    installation
    data_format_examples
    data_format_details
-   contributing
+   development
    credits
    api
    changelog

@@ -8,6 +8,8 @@ unreleased
 * Add functions, docs, and tests for basic GWP handling.
 * Add Makefile target to generate patched stub files for xarray containing the primap2
   API.
+* Add development documentation detailing the structure of the repository and the tools
+  used to development of PRIMAP2.
 
 0.2.0
 -----

@@ -4,7 +4,7 @@ from typing import Dict, Optional, Sequence, Union
 import numpy as np
 import xarray as xr
 
-from ._accesor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 
 DatasetOrDataArray = typing.TypeVar("DatasetOrDataArray", xr.Dataset, xr.DataArray)
 
@@ -39,6 +39,68 @@ def select_no_scalar_dimension(
                 "sel={'axis': ['value']} instead."
             )
         return sele
+
+
+class DataArrayAggregationAccessor(BaseDataArrayAccessor):
+    def fill_all_na(self, dim: Union[Sequence[str], str], value=0) -> xr.DataArray:
+        """Fill NA values only where all values along the specified dimension(s) are NA.
+
+        Example: having a data array with dimensions ``time`` and ``position``,
+        filling it along ``time`` will only fill those values where all points that
+        differ only in their ``time`` are NA, i.e. those points where all points with
+        the same ``position`` are NA.
+
+        Parameters
+        ----------
+        dim: str or list of str
+          Dimension(s) to evaluate. NA values are only filled if all values along these
+          dimension(s) are also NA.
+        value: optional
+          Fill value to use. Default: 0.
+
+        Returns
+        -------
+        filled : xr.DataArray
+        """
+        if not dim:
+            return self._da
+        else:
+            return self._da.where(~np.isnan(self._da).all(dim=dim), value)
+
+    def sum_skip_all_na(
+        self,
+        dim: str,
+        skipna_evaluation_dims: Optional[Union[Sequence[str], str]] = None,
+    ) -> xr.DataArray:
+        """Sum while skipping NA values if all the values are NA.
+
+        The sum is evaluated along the dimension ``dim`` while skipping only those NA
+        values where all values along the ``skipna_evaluation_dims`` are NA.
+
+        Example: If you have a data array with the dimensions ``time`` and ``position``,
+        summing over ``time`` with the evaluation dimension ``position`` will skip only
+        those values where all values with the same ``position`` are NA.
+
+        Parameters
+        ----------
+        dim: str
+          Evaluation dimension to sum over.
+        skipna_evaluation_dims: str or list of str, optional
+          Dimension(s) to evaluate along to determine if values should be skipped.
+          If omitted, all other dimensions are used.
+
+        Returns
+        -------
+        summed : xr.DataArray
+        """
+        if skipna_evaluation_dims is None:
+            skipna_evaluation_dims = set(self._da.dims) - {dim}
+
+        return self.fill_all_na(dim=skipna_evaluation_dims, value=0).sum(
+            dim=dim,
+            skipna=False,
+            keep_attrs=True,
+        )
 
 
 class DatasetAggregationAccessor(BaseDatasetAccessor):
@@ -185,66 +247,4 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 basket_contents=basket_contents,
                 skipna_evaluation_dims=skipna_evaluation_dims,
             )
-        )
-
-
-class DataArrayAggregationAccessor(BaseDataArrayAccessor):
-    def fill_all_na(self, dim: Union[Sequence[str], str], value=0) -> xr.DataArray:
-        """Fill NA values only where all values along the specified dimension(s) are NA.
-
-        Example: having a data array with dimensions ``time`` and ``position``,
-        filling it along ``time`` will only fill those values where all points that
-        differ only in their ``time`` are NA, i.e. those points where all points with
-        the same ``position`` are NA.
-
-        Parameters
-        ----------
-        dim: str or list of str
-          Dimension(s) to evaluate. NA values are only filled if all values along these
-          dimension(s) are also NA.
-        value: optional
-          Fill value to use. Default: 0.
-
-        Returns
-        -------
-        filled : xr.DataArray
-        """
-        if not dim:
-            return self._da
-        else:
-            return self._da.where(~np.isnan(self._da).all(dim=dim), value)
-
-    def sum_skip_all_na(
-        self,
-        dim: str,
-        skipna_evaluation_dims: Optional[Union[Sequence[str], str]] = None,
-    ) -> xr.DataArray:
-        """Sum while skipping NA values if all the values are NA.
-
-        The sum is evaluated along the dimension ``dim`` while skipping only those NA
-        values where all values along the ``skipna_evaluation_dims`` are NA.
-
-        Example: If you have a data array with the dimensions ``time`` and ``position``,
-        summing over ``time`` with the evaluation dimension ``position`` will skip only
-        those values where all values with the same ``position`` are NA.
-
-        Parameters
-        ----------
-        dim: str
-          Evaluation dimension to sum over.
-        skipna_evaluation_dims: str or list of str, optional
-          Dimension(s) to evaluate along to determine if values should be skipped.
-          If omitted, all other dimensions are used.
-
-        Returns
-        -------
-        summed : xr.DataArray
-        """
-        if skipna_evaluation_dims is None:
-            skipna_evaluation_dims = set(self._da.dims) - {dim}
-
-        return self.fill_all_na(dim=skipna_evaluation_dims, value=0).sum(
-            dim=dim,
-            skipna=False,
-            keep_attrs=True,
         )

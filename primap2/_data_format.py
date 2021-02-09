@@ -5,7 +5,7 @@ import pint
 import xarray as xr
 from loguru import logger
 
-from . import _accesor_base
+from . import _accessor_base
 from ._units import ureg
 
 
@@ -76,7 +76,7 @@ def open_dataset(
     ).pint.quantify(unit_registry=ureg)
 
 
-class DatasetDataFormatAccessor(_accesor_base.BaseDatasetAccessor):
+class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
     """MixIn class which provides functions for checking the data format and saving
     of Datasets."""
 
