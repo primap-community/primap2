@@ -49,6 +49,7 @@ dimension key is then formed from the dimension or type (<type> in the table) an
 category-set (for example, ``animal (FAOSTAT)``).
 
 Additional rules:
+
 * The size of the ``source`` dimension must be exactly 1.
 
 Additional Coordinates
