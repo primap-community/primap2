@@ -10,6 +10,9 @@ unreleased
   API.
 * Add development documentation detailing the structure of the repository and the tools
   used to development of PRIMAP2.
+* Add selection and indexing which understands dimension names like ``area`` in addition
+  to the full dimension key including the category set like ``area (ISO3)``. Works with
+  ``ds.pr[key]`` and ``ds.pr.loc[selection]`` as well as ``da.pr.loc[selection]``.
 
 0.2.0
 -----
