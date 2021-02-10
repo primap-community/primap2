@@ -10,7 +10,7 @@ import xarray.testing
     [
         ("time", "time"),
         ("area", "area (ISO3)"),
-        ("category", "category (FAOSTAT)"),
+        ("category", "category (IPCC 2006)"),
         ("animal", "animal (FAOSTAT)"),
         ("product", "product (FAOSTAT)"),
         ("scenario", "scenario (FAOSTAT)"),
@@ -35,6 +35,25 @@ def test_pr_loc_select(opulent_ds):
         }
     ]
     sel = opulent_ds.loc[
+        {
+            "time": slice("2002", "2005"),
+            "area (ISO3)": ["COL", "ARG"],
+            "animal (FAOSTAT)": "cow",
+        }
+    ]
+    xr.testing.assert_identical(sel_pr, sel)
+
+
+def test_pr_loc_select_da(opulent_ds):
+    da = opulent_ds["CO2"]
+    sel_pr = da.pr.loc[
+        {
+            "time": slice("2002", "2005"),
+            "area": ["COL", "ARG"],
+            "animal": "cow",
+        }
+    ]
+    sel = da.loc[
         {
             "time": slice("2002", "2005"),
             "area (ISO3)": ["COL", "ARG"],
