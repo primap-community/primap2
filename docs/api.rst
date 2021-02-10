@@ -25,6 +25,7 @@ Attributes
    :toctree: generated/
    :template: autosummary/accessor_attribute.rst
 
+    DataArray.pr.loc
     DataArray.pr.gwp_context
 
 .. _dameth:
@@ -48,6 +49,17 @@ Methods
 Dataset
 -------
 
+.. _dsattr:
+
+Attributes
+~~~~~~~~~~
+
+.. autosummary::
+   :toctree: generated/
+   :template: autosummary/accessor_attribute.rst
+
+    Dataset.pr.loc
+
 .. _dsmeth:
 
 Methods
@@ -67,3 +79,4 @@ Methods
     Dataset.pr.fill_na_gas_basket_from_contents
     Dataset.pr.downscale_timeseries
     Dataset.pr.downscale_gas_timeseries
+    Dataset.pr.__getitem__
