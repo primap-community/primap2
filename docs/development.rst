@@ -109,8 +109,8 @@ repository, it is easiest if everybody just creates their branches for developme
 their own fork.
 
 Members of the pik-primap team can also push directly to the main PRIMAP2 branch, which
-is mostly useful for changes you don't need to discuss and review with the other team
-members - accepting your own pull requests is a bit of pointless busywork.
+should only be used for small self-contained changes.
+If in doubt, use a branch and send a pull request.
 
 Code format
 -----------
