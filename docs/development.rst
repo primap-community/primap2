@@ -151,8 +151,8 @@ they are committed. All the configured checks and fixes are listed in the
 - ``black``: formats all python files using black.
 - ``flake8`` and ``doc8``: static analysis for unused imports and variables etc.
   Sometimes, it is unavoidable to trigger flake8 errors, in that case add a comment of
-  the form ``# noqa: E501`` after the offending line (using the error code that flake8
-  reports).
+  the form ``# noqa: E501`` at the end of the offending line (using the error code that
+  flake8 reports).
 - ``isort``: automatically sorts imports according to PEP8, so you don't have to.
 
 At any time, you can run all the checks using::
@@ -165,7 +165,7 @@ many problems are fixed automatically, you can run ``make lint`` twice or retry 
 commit and see if everything is fixed automatically already.
 
 If you find additional pre-commit hooks that might be worth to include, simply add them
-to ``.pre-commit-config.yaml`` and submit a PR.
+to ``.pre-commit-config.yaml`` and submit a pull request.
 
 Repo structure
 --------------
@@ -215,23 +215,26 @@ Note that the DataArray or Dataset to be operated on is not passed to the functi
 a separate argument, instead it is available as ``self._ds`` for Datasets or
 ``self._da`` for DataArrays.
 
-If none of the existing "functionality packages" fits your envisioned function, add a
-new python file with the following content::
+If none of the existing "functionality packages" fits your envisioned function, add
+a new "functionality package".
+To do this, you first need to think of a succinct description of the topic of your
+package, a few words only, for example "aggregate", or "data format".
+Then, add a new python file ``primap2/_my_topic.py`` (note the leading underscore)
+with the following content::
 
     from . import _accessor_base
 
-    class DataArrayTopicAccessor(_accessor_base.BaseDataArrayAccessor):
+    class DataArrayMyTopicAccessor(_accessor_base.BaseDataArrayAccessor):
         def my_function(self, *, arguments):
             """Does really nice things on a data array."""
             return self._da
 
-    class DatasetTopicAccessor(_accessor_base.BaseDatasetAccessor):
+    class DatasetMyTopicAccessor(_accessor_base.BaseDatasetAccessor):
         def my_function(self, *, arguments):
             """Does really nice things on a data set."""
             return self._ds
 
-Replace "Topic" with a succinct description of your functionality package (the
-file name of the python file you are adding is usually a sensible choice), and
+Replace ``MyTopic`` in the class names with your chosen topic and
 ``my_function`` with a more descriptive, unique name.
 If you are only writing functions for either DataArrays or Datasets, you can delete
 the other Accessor class.
@@ -246,7 +249,7 @@ Ideally, you also add tests for your new functionality, and all tests for the fi
 documentation section below to document your code.
 
 Within methods defined on Accessor classes, you can use any other PRIMAP2 functionality
-as you would use it also outside simply via ``self._ds.pr.other_function``.
+via ``self._ds.pr.other_function`` just like outside of PRIMAP2.
 
 Documentation
 -------------
@@ -263,8 +266,9 @@ in files in the ``docs/`` directory and included into the documentation by addin
 file to ``docs/index.rst``.
 If you have a part of the documentation which is using python examples a lot, it might
 be a good idea to write the documentation as an ipython notebook instead.
-Add the notebook in the ``docs/`` folder and write and run it. Before regenerating the
-docs or committing to git, please empty all output cells (from the jupyter menu)
+Add the notebook in the ``docs/`` folder and write and run it.
+Before regenerating the docs or committing to git, please empty all output cells (from
+the jupyter menu).
 The notebook will be run automatically when compiling the documentation, ensuring that
 the output is always up-to-date.
 
@@ -340,7 +344,7 @@ Pycharm integration
 
 Developing PRIMAP2 with Pycharm works best if you:
 
-1. Set the development virtual environmentas the python
+1. Set the development virtual environment as the python
    project interpreter in ``File | Settings | Project | Python interpreter`` by
    selecting ``venv/bin/python`` as the Python interpreter.
    This ensures that you use the same python version and packages in Pycharm and e.g.
