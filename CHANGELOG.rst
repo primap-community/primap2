@@ -2,6 +2,10 @@
 Changelog
 =========
 
+0.3.1
+-----
+* Re-release 0.3.0 to trigger zenodo.
+
 0.3.0
 -----
 * Add functions for downscaling and aggregation of gas baskets and categorical baskets.

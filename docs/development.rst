@@ -396,4 +396,6 @@ Then run::
     $ git push
     $ git push --tags
 
-TODO: how to deploy to PyPI.
+Then, go to github and make a release from the tag. That will automatically trigger
+a release on zenodo. Use the new DOI from zenodo to update the citation information and
+zenodo DOI badge.
