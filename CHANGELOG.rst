@@ -2,7 +2,7 @@
 Changelog
 =========
 
-unreleased
+0.3.0
 ----------
 * Add functions for downscaling and aggregation of gas baskets and categorical baskets.
 * Add functions, docs, and tests for basic GWP handling.

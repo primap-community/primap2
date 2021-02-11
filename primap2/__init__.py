@@ -2,7 +2,7 @@
 
 __author__ = """Mika Pflüger"""
 __email__ = "mika.pflueger@pik-potsdam.de"
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 import pint_xarray
 
