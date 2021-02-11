@@ -396,6 +396,15 @@ Then run::
     $ git push
     $ git push --tags
 
-Then, go to github and make a release from the tag. That will automatically trigger
-a release on zenodo. Use the new DOI from zenodo to update the citation information and
-zenodo DOI badge.
+Then, go to github and make a release from the tag.
+Use "Version x.y.z" as the release title, and the changelog entries as the release
+description.
+Creating the github release will automatically trigger
+a release on zenodo.
+Use the new DOI from zenodo to update the citation information and
+zenodo DOI badge in the README.rst. Commit your changes.
+Upload the release to pyPI::
+
+    $ make release
+
+To prepare for future development, add a new "unreleased" section to CHANGELOG.rst.
