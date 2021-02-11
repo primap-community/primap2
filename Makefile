@@ -69,8 +69,8 @@ docs: venv ## generate Sphinx HTML documentation, including API docs
 servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
-release: dist ## package and upload a release
-	twine upload dist/*
+release: venv dist ## package and upload a release
+	venv/bin/twine upload dist/*
 
 dist: clean venv ## builds source and wheel package
 	venv/bin/python setup.py sdist
