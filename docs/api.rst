@@ -59,6 +59,14 @@ Attributes
    :template: autosummary/accessor_attribute.rst
 
     Dataset.pr.loc
+    Dataset.pr.references
+    Dataset.pr.rights
+    Dataset.pr.contact
+    Dataset.pr.title
+    Dataset.pr.comment
+    Dataset.pr.institution
+    Dataset.pr.history
+    Dataset.pr.source
 
 .. _dsmeth:
 

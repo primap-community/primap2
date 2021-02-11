@@ -14,6 +14,7 @@ unreleased
   to the full dimension key including the category set like ``area (ISO3)``. Works with
   ``ds.pr[key]`` and ``ds.pr.loc[selection]`` as well as ``da.pr.loc[selection]``.
 * Add usage documentation for all currently included functionality.
+* Access metadata easily via properties like ``ds.pr.references``.
 
 0.2.0
 -----
