@@ -13,6 +13,7 @@ unreleased
 * Add selection and indexing which understands dimension names like ``area`` in addition
   to the full dimension key including the category set like ``area (ISO3)``. Works with
   ``ds.pr[key]`` and ``ds.pr.loc[selection]`` as well as ``da.pr.loc[selection]``.
+* Add usage documentation for all currently included functionality.
 
 0.2.0
 -----
