@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Tests for _units.py"""
 
+import numpy as np
 import pytest
 import xarray as xr
 import xarray.testing
@@ -27,6 +28,20 @@ def test_convert_to_gwp(opulent_ds: xr.Dataset):
 
     da_converted_like = da.pr.convert_to_gwp_like(da_expected)
     assert_equal(da_converted_like, da_expected)
+
+
+def test_convert_to_gwp_like_missing(opulent_ds: xr.Dataset):
+    da: xr.DataArray = opulent_ds["SF6"]
+    da_gwp = da.pr.convert_to_gwp("SARGWP100", "CO2 Gg / year")
+
+    del da_gwp.attrs["gwp_context"]
+    with pytest.raises(ValueError, match="reference array has no gwp_context"):
+        da.pr.convert_to_gwp_like(da_gwp)
+
+    da_gwp = xr.full_like(da_gwp, np.nan)
+    da_gwp.attrs["gwp_context"] = "SARGWP100"
+    with pytest.raises(ValueError, match="reference array has no units attached"):
+        da.pr.convert_to_gwp_like(da_gwp)
 
 
 def test_convert_to_gwp_incompatible(opulent_ds: xr.Dataset):
