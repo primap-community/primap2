@@ -388,7 +388,8 @@ Deploying
 .. highlight:: shell
 
 A reminder for the maintainers on how to deploy.
-Make sure all your changes are committed (including an entry in CHANGELOG.rst).
+Make sure all your changes are committed (including replacing the unreleased entry in
+CHANGELOG.rst with your target version number).
 Then run::
 
     $ bump2version patch # possible: major / minor / patch
