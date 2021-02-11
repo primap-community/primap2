@@ -2,6 +2,9 @@
 Changelog
 =========
 
+unreleased
+----------
+
 0.3.1
 -----
 * Re-release 0.3.0 to trigger zenodo.

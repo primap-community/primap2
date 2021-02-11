@@ -407,4 +407,5 @@ Upload the release to pyPI::
 
     $ make release
 
-To prepare for future development, add a new "unreleased" section to CHANGELOG.rst.
+To prepare for future development, add a new "unreleased" section to CHANGELOG.rst,
+and commit the result.
