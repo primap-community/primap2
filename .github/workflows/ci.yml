@@ -31,7 +31,7 @@ jobs:
         pip install .
     - name: Test with pytest
       run: |
-        pytest --cov=primap2 --cov-report=xml
+        pytest --xdoc --cov=primap2 --cov-report=xml
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
       with:

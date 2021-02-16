@@ -51,7 +51,7 @@ lint: venv ## check style with pre-commit hooks
 	venv/bin/pre-commit run --all-files
 
 test: venv ## run tests quickly with the default Python
-	venv/bin/pytest
+	venv/bin/pytest  --xdoc
 
 test-all: ## run tests on every Python version with tox
 	tox

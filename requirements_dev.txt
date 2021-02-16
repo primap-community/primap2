@@ -24,3 +24,4 @@ numpydoc
 xarray
 mypy
 bottleneck
+xdoctest

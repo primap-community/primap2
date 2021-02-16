@@ -41,6 +41,135 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             overwrite current values for existing keys. If ``existing="fillna"``, the
             new values only overwrite NaN values for existing keys.
 
+        Examples
+        --------
+        >>> import pandas as pd
+        >>> import xarray as xr
+        >>> import numpy as np
+        >>> da = xr.DataArray(
+        ...     [[0.0, 1.0, 2.0, 3.0], [2.0, 3.0, 4.0, 5.0]],
+        ...     coords=[
+        ...         ("area (ISO3)", ["COL", "MEX"]),
+        ...         ("time", pd.date_range("2000", "2003", freq="AS")),
+        ...     ],
+        ... )
+        >>> da
+        <xarray.DataArray (area (ISO3): 2, time: 4)>
+        array([[0., 1., 2., 3.],
+               [2., 3., 4., 5.]])
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+
+        Setting an existing value
+
+        >>> da.pr.set("area", "COL", np.array([0.5, 0.6, 0.7, 0.8]))
+        Traceback (most recent call last):
+        ...
+        ValueError: Values {'COL'} for 'area (ISO3)' already exist. Use existing='ove...
+        >>> da.pr.set(
+        ...     "area", "COL", np.array([0.5, 0.6, 0.7, 0.8]), existing="overwrite"
+        ... )
+        <xarray.DataArray (area (ISO3): 2, time: 4)>
+        array([[0.5, 0.6, 0.7, 0.8],
+               [2. , 3. , 4. , 5. ]])
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) object 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+
+        Introducing a new value uses the same syntax
+
+        >>> da.pr.set("area", "ARG", np.array([0.5, 0.6, 0.7, 0.8]))
+        <xarray.DataArray (area (ISO3): 3, time: 4)>
+        array([[0.5, 0.6, 0.7, 0.8],
+               [0. , 1. , 2. , 3. ],
+               [2. , 3. , 4. , 5. ]])
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) object 'ARG' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+
+        You can also mix existing and new values
+
+        >>> da.pr.set(
+        ...     "area",
+        ...     ["COL", "ARG"],
+        ...     np.array([[0.5, 0.6, 0.7, 0.8], [5, 6, 7, 8]]),
+        ...     existing="overwrite",
+        ... )
+        <xarray.DataArray (area (ISO3): 3, time: 4)>
+        array([[5. , 6. , 7. , 8. ],
+               [0.5, 0.6, 0.7, 0.8],
+               [2. , 3. , 4. , 5. ]])
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) object 'ARG' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+
+        If you want to use broadcasting or have more dimensions, the dimensions of your
+        input can't be determined automatically anymore. Use the value_dims parameter
+        to supply this information.
+
+        >>> da.pr.set(
+        ...     "area",
+        ...     ["COL", "ARG"],
+        ...     np.array([0.5, 0.6, 0.7, 0.8]),
+        ...     existing="overwrite",
+        ... )
+        Traceback (most recent call last):
+        ...
+        ValueError: Could not automatically determine value dimensions, please use th...
+        >>> da.pr.set(
+        ...     "area",
+        ...     ["COL", "ARG"],
+        ...     np.array([0.5, 0.6, 0.7, 0.8]),
+        ...     value_dims=["time"],
+        ...     existing="overwrite",
+        ... )
+        <xarray.DataArray (area (ISO3): 3, time: 4)>
+        array([[0.5, 0.6, 0.7, 0.8],
+               [0.5, 0.6, 0.7, 0.8],
+               [2. , 3. , 4. , 5. ]])
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) object 'ARG' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+
+        Instead of overwriting existing values, you can also choose to only fill missing
+        values.
+
+        >>> da.pr.loc[{"area": "COL", "time": "2001"}] = np.nan
+        >>> da
+        <xarray.DataArray (area (ISO3): 2, time: 4)>
+        array([[ 0., nan,  2.,  3.],
+               [ 2.,  3.,  4.,  5.]])
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+        >>> da.pr.set(
+        ...     "area",
+        ...     ["COL", "ARG"],
+        ...     np.array([0.5, 0.6, 0.7, 0.8]),
+        ...     value_dims=["time"],
+        ...     existing="fillna",
+        ... )
+        <xarray.DataArray (area (ISO3): 3, time: 4)>
+        array([[0.5, 0.6, 0.7, 0.8],
+               [0. , 0.6, 2. , 3. ],
+               [2. , 3. , 4. , 5. ]])
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) object 'ARG' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+
+        Because you can also supply a DataArray as a value, it is easy to define values
+        using arithmetic from existing values
+
+        >>> da.pr.set("area", "ARG", da.pr.loc[{"area": "COL"}] * 2)
+        <xarray.DataArray (area (ISO3): 3, time: 4)>
+        array([[ 0., nan,  4.,  6.],
+               [ 0., nan,  2.,  3.],
+               [ 2.,  3.,  4.,  5.]])
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) object 'ARG' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+
         Returns
         -------
         da : xr.DataArray

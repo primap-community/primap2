@@ -105,8 +105,8 @@ class TestDASetter:
         assert_elementwise_equal(actual, expected)
 
         # with non-scalar dimension
-        actual = da.pr.set("area", "CUB", 2 * da.pr.loc[{"area": ["COL"]}])
-        assert_elementwise_equal(actual, expected)
+        with pytest.raises(KeyError, match="not all values found in index"):
+            da.pr.set("area", "CUB", 2 * da.pr.loc[{"area": ["COL"]}])
 
     def test_mixed_from_data_array_overwrite(
         self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit

@@ -65,14 +65,14 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         --------
         >>> da = xr.DataArray(
         ...     data=[0.4, 0.9, 1.7, 4.8, 3.2, 9.1],
-        ...     dims="frequency",
+        ...     dims=["wavelength"],
         ...     coords={"wavelength": [1e-4, 2e-4, 4e-4, 6e-4, 1e-3, 2e-3]},
         ... )
-        >>> da.pr.quantify(units="Hz")
-        <xarray.DataArray (frequency: 6)>
-        Quantity([ 0.4,  0.9,  1.7,  4.8,  3.2,  9.1], 'Hz')
+        >>> da.pint.quantify(units="Hz")
+        <xarray.DataArray (wavelength: 6)>
+        <Quantity([0.4 0.9 1.7 4.8 3.2 9.1], 'hertz')>
         Coordinates:
-        * wavelength  (wavelength) np.array 1e-4, 2e-4, 4e-4, 6e-4, 1e-3, 2e-3
+          * wavelength  (wavelength) float64 0.0001 0.0002 0.0004 0.0006 0.001 0.002
         """
         return self._da.pint.quantify(unit_registry=ureg, units=units, **unit_kwargs)
 
@@ -151,8 +151,12 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Examples
         --------
-        >>> with ds['KYOTOGHG'].pr.gwp_context:
-        ...    ds['NOx'].pint.to('Gg CO2 / year')
+        >>> import primap2
+        >>> import primap2.tests
+        >>> ds = primap2.tests.minimal_ds()
+        >>> with ds["SF6 (SARGWP100)"].pr.gwp_context:
+        ...     ds["CH4"].pint.to("Gg CO2 / year")
+        ...
 
         Returns
         -------
@@ -259,29 +263,40 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
 
         Examples
         --------
+        >>> import xarray as xr
+        >>> import primap2
         >>> ds = xr.Dataset(
-        ...     {"a": ("x", [0, 3, 2], {"units": "m"}), "b": ("x", 5, -2, 1)},
+        ...     {"a": ("x", [0, 3, 2], {"units": "m"}), "b": ("x", [5, -2, 1])},
         ...     coords={"x": [0, 1, 2], "u": ("x", [-1, 0, 1], {"units": "s"})},
         ... )
+        >>> ds
+        <xarray.Dataset>
+        Dimensions:  (x: 3)
+        Coordinates:
+          * x        (x) int64 0 1 2
+            u        (x) int64 -1 0 1
+        Data variables:
+            a        (x) int64 0 3 2
+            b        (x) int64 5 -2 1
 
         >>> ds.pr.quantify()
         <xarray.Dataset>
         Dimensions:  (x: 3)
         Coordinates:
           * x        (x) int64 0 1 2
-            u        (x) int64 <Quantity([-1  0  1], 'second')>
+            u        (x) int64 [s] -1 0 1
         Data variables:
-            a        (x) int64 <Quantity([0 3 2], 'meter')>
+            a        (x) int64 [m] 0 3 2
             b        (x) int64 5 -2 1
         >>> ds.pr.quantify({"b": "dm"})
         <xarray.Dataset>
         Dimensions:  (x: 3)
         Coordinates:
           * x        (x) int64 0 1 2
-            u        (x) int64 <Quantity([-1  0  1], 'second')>
+            u        (x) int64 [s] -1 0 1
         Data variables:
-            a        (x) int64 <Quantity([0 3 2], 'meter')>
-            b        (x) int64 <Quantity([ 5 -2  1], 'decimeter')>
+            a        (x) int64 [m] 0 3 2
+            b        (x) int64 [dm] 5 -2 1
         """
         return self._ds.pint.quantify(unit_registry=ureg, units=units, **unit_kwargs)
 
