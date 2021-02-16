@@ -9,7 +9,7 @@ import xarray as xr
 
 from primap2 import ureg
 
-from .utils import assert_elementwise_equal
+from .utils import assert_ds_elementwise_equal, assert_elementwise_equal
 
 
 @pytest.fixture
@@ -227,3 +227,39 @@ def test_da_setter_overspecifiec(da: xr.DataArray, ts: np.ndarray):
             value_dims=["area", "time", "source"],
             existing="overwrite",
         )
+
+
+class TestDsSetter:
+    def test_new(self, minimal_ds: xr.Dataset):
+        actual = minimal_ds.pr.set(
+            "area", "CUB", minimal_ds.pr.loc[{"area": "COL"}] * 2
+        )
+        expected = minimal_ds.reindex(
+            {"area (ISO3)": list(minimal_ds["area (ISO3)"].values) + ["CUB"]}
+        )
+        expected.pr.loc[{"area": "CUB"}] = expected.pr.loc[{"area": "COL"}] * 2
+        assert_ds_elementwise_equal(actual, expected)
+
+    def test_existing_default(self, minimal_ds: xr.Dataset):
+        with pytest.raises(ValueError):
+            minimal_ds.pr.set("area", "COL", minimal_ds.pr.loc[{"area": "COL"}] * 2)
+
+    def test_existing_overwrite(self, minimal_ds: xr.Dataset):
+        actual = minimal_ds.pr.set(
+            "area", "COL", minimal_ds.pr.loc[{"area": "COL"}] * 2, existing="overwrite"
+        )
+        expected = minimal_ds
+        expected.pr.loc[{"area": "COL"}] *= 2
+        assert_ds_elementwise_equal(actual, expected)
+
+    def test_existing_fillna(self, minimal_ds: xr.Dataset):
+        minimal_ds["CO2"].pr.loc[{"area": "COL", "time": "2001"}] = np.nan
+        actual = minimal_ds.pr.set(
+            "area", "COL", minimal_ds.pr.loc[{"area": "MEX"}], existing="fillna"
+        )
+        expected = minimal_ds.fillna(minimal_ds.pr.loc[{"area": "MEX"}])
+        assert_ds_elementwise_equal(actual, expected)
+
+    def test_existing_wrong_type(self, minimal_ds: xr.Dataset):
+        with pytest.raises(TypeError):
+            minimal_ds.pr.set("area", "COL", np.zeros((3, 4)))
