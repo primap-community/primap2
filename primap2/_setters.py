@@ -29,8 +29,9 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             Keys in the dimension which should be set. Key values which are missing
             in the dimension are inserted. The handling of key values which already
             exist in the dimension is determined by the ``existing`` parameter.
-        value: xr.DataArray or np.ndarray which can be broadcast to ``da[{dim: key}]``
+        value: xr.DataArray or np.ndarray
             Values that will be inserted at the positions specified by ``key``.
+            ``value`` needs to be broadcastable to ``da[{dim: key}]``.
         value_dims: list of str, optional
             Specifies the dimensions of ``value``. If ``value`` is not a DataArray
             and ``da[{dim: key}]`` is higher-dimensional, it is necessary to specify
@@ -159,7 +160,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
           * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
 
         Because you can also supply a DataArray as a value, it is easy to define values
-        using arithmetic from existing values
+        from existing values using arithmetic
 
         >>> da.pr.set("area", "ARG", da.pr.loc[{"area": "COL"}] * 2)
         <xarray.DataArray (area (ISO3): 3, time: 4)>
