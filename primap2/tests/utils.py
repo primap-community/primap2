@@ -15,3 +15,9 @@ def assert_equal(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
     assert allclose(a, b, *args, **kwargs)
     assert a.attrs == b.attrs
     assert a.name == b.name
+
+
+def assert_elementwise_equal(a: xr.DataArray, b: xr.DataArray):
+    assert np.all(a == b)
+    assert a.attrs == b.attrs
+    assert a.name == b.name

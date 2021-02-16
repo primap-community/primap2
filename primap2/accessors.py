@@ -10,6 +10,7 @@ from ._alias_selection import (
 from ._data_format import DatasetDataFormatAccessor
 from ._downscale import DataArrayDownscalingAccessor, DatasetDownscalingAccessor
 from ._metadata import DatasetMetadataAccessor
+from ._setters import DataArraySettersAccessor
 from ._units import DataArrayUnitAccessor, DatasetUnitAccessor
 
 
@@ -30,6 +31,7 @@ class PRIMAP2DataArrayAccessor(
     DataArrayAggregationAccessor,
     DataArrayAliasSelectionAccessor,
     DataArrayDownscalingAccessor,
+    DataArraySettersAccessor,
     DataArrayUnitAccessor,
 ):
     """Collection of methods useful for climate policy analysis."""
