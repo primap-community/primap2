@@ -45,6 +45,7 @@ Methods
     DataArray.pr.fill_all_na
     DataArray.pr.sum_skip_all_na
     DataArray.pr.downscale_timeseries
+    DataArray.pr.set
 
 Dataset
 -------
