@@ -175,7 +175,7 @@ class TestDASetter:
             ["a3", "a4", "a5"],
             xr.DataArray(
                 np.ones((3, 4, 5)),
-                coords=[("a", ["a3", "a4", "a5"]), mda["b"], mda["c"]],
+                coords=[("a", ["a3", "a4", "a5"]), mda["b"], mda["c"]],  # type: ignore
             ),
             existing="overwrite",
         )
@@ -189,7 +189,11 @@ class TestDASetter:
             ["a3", "a4", "a5"],
             xr.DataArray(
                 np.ones((4, 4, 5)),
-                coords=[("a", ["a2", "a3", "a4", "a5"]), mda["b"], mda["c"]],
+                coords=[
+                    ("a", ["a2", "a3", "a4", "a5"]),
+                    mda["b"],
+                    mda["c"],
+                ],  # type: ignore
             ),
             existing="overwrite",
         )
@@ -237,7 +241,10 @@ class TestDsSetter:
         expected = minimal_ds.reindex(
             {"area (ISO3)": list(minimal_ds["area (ISO3)"].values) + ["CUB"]}
         )
-        expected.pr.loc[{"area": "CUB"}] = expected.pr.loc[{"area": "COL"}] * 2
+        for key in expected.keys():
+            expected[key] = expected[key].fillna(
+                expected[key].pr.loc[{"area": "COL"}] * 2
+            )
         assert_ds_elementwise_equal(actual, expected)
 
     def test_existing_default(self, minimal_ds: xr.Dataset):

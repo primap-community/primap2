@@ -85,7 +85,7 @@ def test_wrong_provenance_value(opulent_ds, caplog):
 
 
 def test_additional_dimension(minimal_ds: xr.Dataset, caplog):
-    ds = minimal_ds.expand_dims({"addl_dim": ["a", "b", "c"]})
+    ds = minimal_ds.expand_dims({"addl_dim": ["a", "b", "c"]})  # type: ignore
     ds.pr.ensure_valid()
     assert "WARNING" in caplog.text
     assert (

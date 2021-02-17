@@ -28,4 +28,3 @@ def assert_ds_elementwise_equal(a: xr.Dataset, b: xr.Dataset):
     for key in a.keys():
         assert_elementwise_equal(a[key], b[key])
     assert a.attrs == b.attrs
-    assert a.name == b.name

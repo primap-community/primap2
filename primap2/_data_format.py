@@ -161,12 +161,19 @@ def ensure_no_dimension_without_coordinates(ds: xr.Dataset):
 def ensure_valid_coordinates(ds: xr.Dataset):
     additional_coords = set(ds.coords) - set(ds.dims)
     for coord in additional_coords:
-        if " " in coord:
+        if not isinstance(coord, str):
             logger.error(
-                f"Additional coordinate name {coord!r} contains a space, "
-                f"replace it with an underscore."
+                f"Additional coordinate name {coord!r} is of type {type(coord)}, but "
+                f"only strings are allowed."
             )
-            raise ValueError(f"Coord key {coord!r} contains a space")
+            raise ValueError(f"Coord key {coord!r} is not a string")
+        else:
+            if " " in coord:
+                logger.error(
+                    f"Additional coordinate name {coord!r} contains a space, "
+                    f"replace it with an underscore."
+                )
+                raise ValueError(f"Coord key {coord!r} contains a space")
 
 
 def ensure_valid_attributes(ds: xr.Dataset):
@@ -206,7 +213,7 @@ def ensure_valid_data_variables(ds: xr.Dataset):
     ds = ensure_units_exist(ds)
 
     for key in ds:
-        da = ds[key]
+        da: xr.DataArray = ds[key]  # type: ignore
         ensure_entity_and_units_exist(key, da)
         ensure_entity_and_units_valid(key, da)
         ensure_variable_name(str(key), da)

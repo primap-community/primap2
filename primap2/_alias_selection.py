@@ -7,27 +7,17 @@ import xarray as xr
 
 from . import _accessor_base
 
-
-@typing.overload
-def translate(item: str, translations: typing.Dict[str, str]) -> str:
-    ...
+KeyT = typing.TypeVar("KeyT", str, typing.Mapping[typing.Hashable, typing.Any])
 
 
-@typing.overload
-def translate(
-    item: typing.Mapping[str, typing.Any], translations: typing.Dict[str, str]
-) -> typing.Mapping[str, typing.Any]:
-    ...
-
-
-def translate(item, translations):
+def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) -> KeyT:
     if isinstance(item, str):
         if item in translations:
             return translations[item]
         else:
             return item
     else:
-        sel = {}
+        sel: typing.Dict[typing.Hashable, typing.Hashable] = {}
         for key in item:
             if key in translations:
                 sel[translations[key]] = item[key]
@@ -46,10 +36,12 @@ class DataArrayAliasLocIndexer:
     def __init__(self, da: xr.DataArray):
         self._da = da
 
-    def __getitem__(self, item: typing.Mapping[str, typing.Any]) -> xr.DataArray:
+    def __getitem__(
+        self, item: typing.Mapping[typing.Hashable, typing.Any]
+    ) -> xr.DataArray:
         return self._da.loc[translate(item, self._da.pr.dim_alias_translations)]
 
-    def __setitem__(self, key: typing.Mapping[str, typing.Any], value):
+    def __setitem__(self, key: typing.Mapping[typing.Hashable, typing.Any], value):
         self._da.loc.__setitem__(
             translate(key, self._da.pr.dim_alias_translations), value
         )
@@ -57,7 +49,7 @@ class DataArrayAliasLocIndexer:
 
 class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
     @property
-    def dim_alias_translations(self) -> typing.Dict[str, str]:
+    def dim_alias_translations(self) -> typing.Dict[typing.Hashable, str]:
         """Translate a shortened dimension alias to a full dimension name.
 
         For example, if the full dimension name is ``area (ISO3)``, the alias ``area``
@@ -70,11 +62,12 @@ class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
         """
         # we have to do string parsing because the Dataset's attrs are not available
         # in the DataArray context
-        ret = {}
+        ret: typing.Dict[typing.Hashable, str] = {}
         for dim in self._da.dims:
-            if " (" in dim:
-                key: str = dim.split("(")[0][:-1]
-                ret[key] = dim
+            if isinstance(dim, str):
+                if " (" in dim:
+                    key: str = dim.split("(")[0][:-1]
+                    ret[key] = dim
         return ret
 
     @property
@@ -95,13 +88,15 @@ class DatasetAliasLocIndexer:
     def __init__(self, ds: xr.Dataset):
         self._ds = ds
 
-    def __getitem__(self, item: typing.Mapping[str, typing.Any]) -> xr.Dataset:
+    def __getitem__(
+        self, item: typing.Mapping[typing.Hashable, typing.Any]
+    ) -> xr.Dataset:
         return self._ds.loc[translate(item, self._ds.pr.dim_alias_translations)]
 
 
 class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
     @property
-    def dim_alias_translations(self) -> typing.Dict[str, str]:
+    def dim_alias_translations(self) -> typing.Dict[typing.Hashable, str]:
         """Translate a shortened dimension alias to a full dimension name.
 
         For example, if the full dimension name is ``area (ISO3)``, the alias ``area``
@@ -112,7 +107,9 @@ class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
         translations : dict
             A mapping of all dimension aliases to full dimension names.
         """
-        ret = {"area": self._ds.attrs["area"]}  # required key
+        ret: typing.Dict[typing.Hashable, str] = {
+            "area": self._ds.attrs["area"]
+        }  # required key
         for key, abbrev in [("category", "cat"), ("scenario", "scen")]:
             if abbrev in self._ds.attrs:
                 ret[key] = self._ds.attrs[abbrev]

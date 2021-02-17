@@ -9,11 +9,11 @@ from . import _accessor_base
 class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
     def set(
         self,
-        dim: str,
+        dim: typing.Hashable,
         key: typing.Any,
         value: typing.Union[xr.DataArray, np.ndarray],
         *,
-        value_dims: typing.Optional[typing.List[str]] = None,
+        value_dims: typing.Optional[typing.List[typing.Hashable]] = None,
         existing: str = "error",
     ) -> xr.DataArray:
         """Set values, expanding the given dimension as necessary.
@@ -197,7 +197,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
                     f"Values {already_existing!r} for {dim!r} already exist."
                     " Use existing='overwrite' or 'fillna' to avoid this error."
                 )
-            # without conflicting keys, the new keys are overwritten
+            # without conflicting keys, the new keys are filled
             existing = "fillna"
 
         if isinstance(value, xr.DataArray):
@@ -208,7 +208,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             if dim not in value.dims:
                 if dim in value.coords:
                     value = value.reset_coords(dim, drop=True)
-                value = value.expand_dims({dim: key})
+                value = value.expand_dims({dim: key})  # type: ignore
             else:
                 value = value.loc[{dim: key}]
             value, expanded = xr.broadcast(value, self._da)

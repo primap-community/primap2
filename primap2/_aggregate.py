@@ -1,5 +1,5 @@
 import typing
-from typing import Dict, Optional, Sequence, Union
+from typing import Any, Hashable, Iterable, Mapping, Optional, Sequence, Union
 
 import numpy as np
 import xarray as xr
@@ -9,8 +9,15 @@ from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 DatasetOrDataArray = typing.TypeVar("DatasetOrDataArray", xr.Dataset, xr.DataArray)
 
 
+def dim_names(obj: DatasetOrDataArray):
+    if isinstance(obj.dims, tuple):
+        return obj.dims
+    else:
+        return obj.dims.keys()  # type: ignore
+
+
 def select_no_scalar_dimension(
-    obj: DatasetOrDataArray, sel: Dict[str, Sequence]
+    obj: DatasetOrDataArray, sel: Optional[Mapping[Hashable, Any]]
 ) -> DatasetOrDataArray:
     """Select but raise an error if the selection produces a new scalar dimensions.
 
@@ -29,9 +36,7 @@ def select_no_scalar_dimension(
         return obj
     else:
         sele: DatasetOrDataArray = obj.loc[sel]
-        sdims = sele.dims if isinstance(sele.dims, tuple) else sele.dims.keys()
-        odims = obj.dims if isinstance(obj.dims, tuple) else obj.dims.keys()
-        if sdims != odims:
+        if dim_names(obj) != dim_names(sele):
             raise ValueError(
                 "The dimension of the selection doesn't match the dimension of the "
                 "orginal dataset. Likely you used a selection casting to a scalar "
@@ -42,7 +47,7 @@ def select_no_scalar_dimension(
 
 
 class DataArrayAggregationAccessor(BaseDataArrayAccessor):
-    def fill_all_na(self, dim: Union[Sequence[str], str], value=0) -> xr.DataArray:
+    def fill_all_na(self, dim: Union[Iterable[Hashable], str], value=0) -> xr.DataArray:
         """Fill NA values only where all values along the specified dimension(s) are NA.
 
         Example: having a data array with dimensions ``time`` and ``position``,
@@ -69,8 +74,8 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
     def sum_skip_all_na(
         self,
-        dim: str,
-        skipna_evaluation_dims: Optional[Union[Sequence[str], str]] = None,
+        dim: Hashable,
+        skipna_evaluation_dims: Optional[Union[Iterable[Hashable], str]] = None,
     ) -> xr.DataArray:
         """Sum while skipping NA values if all the values are NA.
 
@@ -104,7 +109,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
 
 class DatasetAggregationAccessor(BaseDatasetAccessor):
-    def fill_all_na(self, dim: Union[Sequence[str], str], value=0) -> xr.Dataset:
+    def fill_all_na(self, dim: Union[Iterable[Hashable], str], value=0) -> xr.Dataset:
         """Fill NA values only where all values along the specified dimension(s) are NA.
 
         Example: if you have a Dataset with dimensions ``time`` and ``positions``,
@@ -127,8 +132,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
     def sum_skip_all_na(
         self,
-        dim: str,
-        skipna_evaluation_dims: Optional[Union[Sequence[str], str]] = None,
+        dim: Hashable,
+        skipna_evaluation_dims: Optional[Union[Iterable[Hashable], str]] = None,
     ) -> xr.Dataset:
         """Sum while skipping NA values if all the values are NA.
 
@@ -211,7 +216,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         *,
         basket: str,
         basket_contents: Sequence[str],
-        sel: Optional[Dict[str, Sequence]] = None,
+        sel: Optional[Mapping[Hashable, Sequence]] = None,
         skipna_evaluation_dims: Sequence[str] = tuple(),
     ) -> xr.DataArray:
         """Fill NA values in a gas basket using the sum of its contents.
