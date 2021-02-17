@@ -14,7 +14,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         value: typing.Union[xr.DataArray, np.ndarray],
         *,
         value_dims: typing.Optional[typing.List[typing.Hashable]] = None,
-        existing: str = "error",
+        existing: str = "fillna_empty",
     ) -> xr.DataArray:
         """Set values, expanding the given dimension as necessary.
 
@@ -36,11 +36,13 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             Specifies the dimensions of ``value``. If ``value`` is not a DataArray
             and ``da[{dim: key}]`` is higher-dimensional, it is necessary to specify
             the value dimensions.
-        existing: "error", "overwrite", or "fillna", optional
-            How to handle existing keys. If ``existing="error"`` (default), a ValueError
-            is raised if any key already exists. If ``existing="overwrite"``, new values
-            overwrite current values for existing keys. If ``existing="fillna"``, the
-            new values only overwrite NaN values for existing keys.
+        existing: "fillna_empty", "error", "overwrite", or "fillna", optional
+            How to handle existing keys. If ``existing="fillna_empty"`` (default), new
+            values overwrite existing values only if all existing values are NaN.
+            If ``existing="error"``, a ValueError is raised if any key already exists
+            in the index. If ``existing="overwrite"``, new values overwrite current
+            values for existing keys. If ``existing="fillna"``, the new values only
+            overwrite NaN values for existing keys.
 
         Examples
         --------
@@ -67,7 +69,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         >>> da.pr.set("area", "COL", np.array([0.5, 0.6, 0.7, 0.8]))
         Traceback (most recent call last):
         ...
-        ValueError: Values {'COL'} for 'area (ISO3)' already exist. Use existing='ove...
+        ValueError: Values {'COL'} for 'area (ISO3)' already exist and contain data. ...
         >>> da.pr.set(
         ...     "area", "COL", np.array([0.5, 0.6, 0.7, 0.8]), existing="overwrite"
         ... )
@@ -78,7 +80,40 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
           * area (ISO3)  (area (ISO3)) object 'COL' 'MEX'
           * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
 
-        Introducing a new value uses the same syntax
+        By default, existing values are only overwritten if all existing values are
+        NaN
+
+        >>> da_partly_empty = da.copy(deep=True)
+        >>> da_partly_empty.pr.loc[{"area": "COL"}] = np.nan
+        >>> da_partly_empty
+        <xarray.DataArray (area (ISO3): 2, time: 4)>
+        array([[nan, nan, nan, nan],
+               [ 2.,  3.,  4.,  5.]])
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+        >>> da_partly_empty.pr.set("area", "COL", np.array([0.5, 0.6, 0.7, 0.8]))
+        <xarray.DataArray (area (ISO3): 2, time: 4)>
+        array([[0.5, 0.6, 0.7, 0.8],
+               [2. , 3. , 4. , 5. ]])
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) object 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+        >>> # if even one value contains data, the default is to raise an Error
+        >>> da_partly_empty.pr.loc[{"area": "COL", "time": "2001"}] = 0.6
+        >>> da_partly_empty
+        <xarray.DataArray (area (ISO3): 2, time: 4)>
+        array([[nan, 0.6, nan, nan],
+               [2. , 3. , 4. , 5. ]])
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+        >>> da_partly_empty.pr.set("area", "COL", np.array([0.5, 0.6, 0.7, 0.8]))
+        Traceback (most recent call last):
+        ...
+        ValueError: Values {'COL'} for 'area (ISO3)' already exist and contain data. ...
+
+        Introducing a new value uses the same syntax as modifying existing values
 
         >>> da.pr.set("area", "ARG", np.array([0.5, 0.6, 0.7, 0.8]))
         <xarray.DataArray (area (ISO3): 3, time: 4)>
@@ -214,6 +249,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             value, expanded = xr.broadcast(value, self._da)
             value.attrs = self._da.attrs
             value.name = self._da.name
+            sel = expanded.loc[{dim: key}]
 
         else:
             new_index = list(self._da[dim].values)
@@ -226,9 +262,9 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
 
             if value_dims is None:
                 value_dims = []
-                for i, dim in enumerate(sel.dims):
+                for i, idim in enumerate(sel.dims):
                     if sel.shape[i] > 1:
-                        value_dims.append(dim)
+                        value_dims.append(idim)
                 if len(value_dims) != len(value.shape):
                     raise ValueError(
                         "Could not automatically determine value dimensions, please"
@@ -236,10 +272,19 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
                     )
             value = xr.DataArray(
                 value,
-                coords=[(dim, sel[dim]) for dim in value_dims],
+                coords=[(idim, sel[idim]) for idim in value_dims],
                 name=self._da.name,
                 attrs=self._da.attrs,
             ).broadcast_like(sel)
+
+        if existing == "fillna_empty":
+            if sel.count().item() > 0:
+                already_existing = set(self._da[dim].values).intersection(set(key))
+                raise ValueError(
+                    f"Values {already_existing!r} for {dim!r} already exist and contain"
+                    f" data. Use existing='overwrite' or 'fillna' to avoid this error."
+                )
+            existing = "fillna"
 
         if existing == "overwrite":
             return value.combine_first(expanded)
@@ -247,8 +292,8 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             return expanded.combine_first(value)
         else:
             raise ValueError(
-                "If given, 'existing' must specify one of 'error', 'overwrite', or"
-                f" 'fillna', not {existing!r}."
+                "If given, 'existing' must specify one of 'error', 'overwrite', "
+                f"'fillna_empty', or 'fillna', not {existing!r}."
             )
 
 
@@ -271,7 +316,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         key: typing.Any,
         value: xr.Dataset,
         *,
-        existing: str = "error",
+        existing: str = "fillna_empty",
     ) -> xr.Dataset:
         """Set values, expanding the given dimension as necessary.
 
@@ -292,11 +337,13 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
             Values that will be inserted at the positions specified by ``key``.
             ``value`` needs to contain all data variables which have the dimension.
             ``value`` has to be broadcastable to ``ds.pr.loc[{dim: key}]``.
-        existing: "error", "overwrite", or "fillna", optional
-            How to handle existing keys. If ``existing="error"`` (default), a ValueError
-            is raised if any key already exists. If ``existing="overwrite"``, new values
-            overwrite current values for existing keys. If ``existing="fillna"``, the
-            new values only overwrite NaN values for existing keys.
+        existing: "fillna_empty", "error", "overwrite", or "fillna", optional
+            How to handle existing keys. If ``existing="fillna_empty"`` (default), new
+            values overwrite existing values only if all existing values are NaN.
+            If ``existing="error"``, a ValueError is raised if any key already exists
+            in the index. If ``existing="overwrite"``, new values overwrite current
+            values for existing keys. If ``existing="fillna"``, the new values only
+            overwrite NaN values for existing keys.
 
         Examples
         --------
@@ -335,7 +382,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         >>> ds.pr.set("area", "MEX", ds.pr.loc[{"area": "COL"}] * 20)
         Traceback (most recent call last):
         ...
-        ValueError: Values {'MEX'} for 'area (ISO3)' already exist. Use existing='ove...
+        ValueError: Values {'MEX'} for 'area (ISO3)' already exist and contain data. ...
         >>> ds.pr.set(
         ...     "area", "MEX", ds.pr.loc[{"area": "COL"}] * 20, existing="overwrite"
         ... )
@@ -364,6 +411,45 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
             SF4          (area (ISO3), time) float64 0.5 1.5 2.5 3.5 2.5 3.5 50.0 5.5
         Attributes:
             area:     area (ISO3)
+
+        By default, existing values are only filled if all existing values are
+        missing in all data variables
+
+        >>> ds_partly_empty = ds.copy(deep=True)
+        >>> ds_partly_empty["CO2"].pr.loc[{"area": "COL"}] = np.nan
+        >>> ds_partly_empty["SF4"].pr.loc[{"area": "COL"}] = np.nan
+        >>> ds_partly_empty
+        <xarray.Dataset>
+        Dimensions:      (area (ISO3): 2, time: 4)
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+        Data variables:
+            CO2          (area (ISO3), time) float64 nan nan nan nan 2.0 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 nan nan nan nan 2.5 3.5 nan 5.5
+        Attributes:
+            area:     area (ISO3)
+        >>> ds_partly_empty.pr.set(
+        ...     "area", "COL", ds_partly_empty.pr.loc[{"area": "MEX"}] * 10
+        ... )
+        <xarray.Dataset>
+        Dimensions:      (area (ISO3): 2, time: 4)
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) object 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+        Data variables:
+            CO2          (area (ISO3), time) float64 20.0 30.0 40.0 50.0 2.0 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 25.0 35.0 nan 55.0 2.5 3.5 nan 5.5
+        Attributes:
+            area:     area (ISO3)
+        >>> # if even one value is non-nan, this fails by default
+        >>> ds_partly_empty["SF4"].pr.loc[{"area": "COL", "time": "2001"}] = 2
+        >>> ds_partly_empty.pr.set(
+        ...     "area", "COL", ds_partly_empty.pr.loc[{"area": "MEX"}] * 10
+        ... )
+        Traceback (most recent call last):
+        ...
+        ValueError: Values {'COL'} for 'area (ISO3)' already exist and contain data. ...
 
         Introducing a new value uses the same syntax
 

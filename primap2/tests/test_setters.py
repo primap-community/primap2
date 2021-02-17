@@ -9,7 +9,7 @@ import xarray as xr
 
 from primap2 import ureg
 
-from .utils import assert_ds_elementwise_equal, assert_elementwise_equal
+from .utils import assert_aligned_equal, assert_ds_aligned_equal
 
 
 @pytest.fixture
@@ -27,12 +27,47 @@ def ts() -> np.ndarray:
 
 
 @pytest.fixture
-def co2():
+def co2() -> pint.Unit:
     return ureg("Gg CO2 / year")
 
 
 class TestDASetter:
-    def test_exists_default(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
+    def test_exists_default_error(
+        self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit
+    ):
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "Values {'COL'} for 'area (ISO3)' already exist and contain data."
+                " Use existing='overwrite' or 'fillna' to avoid this error."
+            ),
+        ):
+            da.pr.set("area", "COL", ts * co2)
+
+    def test_exists_empty_default(
+        self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit
+    ):
+        da.loc[{"area (ISO3)": "COL"}] = np.nan
+        actual = da.pr.set("area", "COL", ts * co2)
+        expected = da
+        expected.loc[{"area (ISO3)": "COL"}] = ts[..., np.newaxis] * co2
+        assert_aligned_equal(actual, expected)
+
+    def test_exists_somena_default(
+        self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit
+    ):
+        da.loc[{"area (ISO3)": "COL"}] = np.nan
+        da.loc[{"area (ISO3)": "COL", "time": "2001"}] = 2 * co2
+        with pytest.raises(
+            ValueError,
+            match=re.escape(
+                "Values {'COL'} for 'area (ISO3)' already exist and contain data."
+                " Use existing='overwrite' or 'fillna' to avoid this error."
+            ),
+        ):
+            da.pr.set("area", "COL", ts * co2)
+
+    def test_exists_error(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
         with pytest.raises(
             ValueError,
             match=re.escape(
@@ -40,22 +75,39 @@ class TestDASetter:
                 " Use existing='overwrite' or 'fillna' to avoid this error."
             ),
         ):
-            da.pr.set("area", "COL", ts * co2)
+            da.pr.set(
+                "area",
+                "COL",
+                ts * co2,
+                existing="error",
+            )
 
     def test_exists_overwrite(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
         actual = da.pr.set("area", "COL", ts * co2, existing="overwrite")
         expected = da.copy()
         expected.loc[{"area (ISO3)": "COL"}] = ts[..., np.newaxis] * co2
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
     def test_exists_fillna(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
         expected = da.copy()
         expected.loc[{"area (ISO3)": "COL", "time": "2009"}] = np.nan * co2
         actual = expected.pr.set("area", "COL", ts * co2, existing="fillna")
         expected.loc[{"area (ISO3)": "COL", "time": "2009"}] = 9 * co2
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
     def test_mixed_default(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
+        da.loc[{"area (ISO3)": "COL"}] = np.nan
+        actual = da.pr.set(
+            "area",
+            ["COL", "CUB"],
+            np.array([ts, 2 * ts]).T * co2,
+        )
+        expected = da.reindex({"area (ISO3)": list(da["area (ISO3)"].values) + ["CUB"]})
+        expected.loc[{"area (ISO3)": "COL"}] = ts[..., np.newaxis] * co2
+        expected.loc[{"area (ISO3)": "CUB"}] = ts[..., np.newaxis] * 2 * co2
+        assert_aligned_equal(actual, expected)
+
+    def test_mixed_error(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
         with pytest.raises(
             ValueError,
             match=re.escape(
@@ -63,7 +115,12 @@ class TestDASetter:
                 " Use existing='overwrite' or 'fillna' to avoid this error."
             ),
         ):
-            da.pr.set("area", ["COL", "CUB"], ts * co2)
+            da.pr.set(
+                "area",
+                ["COL", "CUB"],
+                ts * co2,
+                existing="error",
+            )
 
     def test_mixed_overwrite(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
         actual = da.pr.set(
@@ -75,7 +132,7 @@ class TestDASetter:
         expected = da.reindex({"area (ISO3)": list(da["area (ISO3)"].values) + ["CUB"]})
         expected.loc[{"area (ISO3)": "COL"}] = ts[..., np.newaxis] * co2
         expected.loc[{"area (ISO3)": "CUB"}] = ts[..., np.newaxis] * 2 * co2
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
         # with explicit value_dims
         actual = da.pr.set(
@@ -85,7 +142,7 @@ class TestDASetter:
             value_dims=["area (ISO3)", "time"],
             existing="overwrite",
         )
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
     def test_mixed_fillna(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
         tda = da.copy()
@@ -99,14 +156,14 @@ class TestDASetter:
         expected = da.reindex({"area (ISO3)": list(da["area (ISO3)"].values) + ["CUB"]})
         expected.loc[{"area (ISO3)": "COL", "time": "2009"}] = 9 * co2
         expected.loc[{"area (ISO3)": "CUB"}] = ts[..., np.newaxis] * 2 * co2
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
     def test_new_from_array(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
         # with scalar dimension
         actual = da.pr.set("area", "CUB", 2 * da.pr.loc[{"area": "COL"}])
         expected = da.reindex({"area (ISO3)": list(da["area (ISO3)"].values) + ["CUB"]})
         expected = expected.fillna(expected.loc[{"area (ISO3)": "COL"}] * 2)
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
         # with non-scalar dimension
         with pytest.raises(KeyError, match="not all values found in index"):
@@ -121,7 +178,7 @@ class TestDASetter:
         expected = da.reindex({"area (ISO3)": list(da["area (ISO3)"].values) + ["CUB"]})
         expected.loc[{"area (ISO3)": "COL"}] = np.nan
         expected = expected.fillna(da.loc[{"area (ISO3)": "COL"}] * 2)
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
     @pytest.fixture
     def mda(self):
@@ -139,16 +196,16 @@ class TestDASetter:
     def test_multidimensional_ndarray(self, mda: xr.DataArray):
         actual = mda.pr.set("a", "a4", np.ones((4, 5)))
         expected = mda.reindex({"a": ["a1", "a2", "a3", "a4"]}).fillna(1)
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
         actual = mda.pr.set("a", "a4", np.ones(4), value_dims=["b"])
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
         actual = mda.pr.set("a", "a4", np.ones(5), value_dims=["c"])
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
         actual = mda.pr.set("a", "a4", np.ones((4, 5)), value_dims=["b", "c"])
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
     def test_multidimensional_ndarray_underspecified(self, mda: xr.DataArray):
         match = (
@@ -165,13 +222,13 @@ class TestDASetter:
             "a", "a4", xr.DataArray(np.ones((4, 5)), coords=[mda["b"], mda["c"]])
         )
         expected = mda.reindex({"a": ["a1", "a2", "a3", "a4"]}).fillna(1)
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
         actual = mda.pr.set("a", "a4", xr.DataArray(np.ones(4), coords=[mda["b"]]))
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
         actual = mda.pr.set("a", "a4", xr.DataArray(np.ones(5), coords=[mda["c"]]))
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
     def test_multidimensional_data_array_dim_contained(self, mda: xr.DataArray):
         actual = mda.pr.set(
@@ -185,7 +242,7 @@ class TestDASetter:
         )
         expected = mda.reindex({"a": ["a1", "a2", "a3", "a4", "a5"]}).fillna(1)
         expected.loc[{"a": "a3"}] = 1
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
     def test_multidimensional_data_array_dim_oversized(self, mda: xr.DataArray):
         actual = mda.pr.set(
@@ -203,9 +260,9 @@ class TestDASetter:
         )
         expected = mda.reindex({"a": ["a1", "a2", "a3", "a4", "a5"]}).fillna(1)
         expected.loc[{"a": "a3"}] = 1
-        assert_elementwise_equal(actual, expected)
+        assert_aligned_equal(actual, expected)
 
-    def test_da_setter_overspecifiec(self, da: xr.DataArray, ts: np.ndarray):
+    def test_over_specific(self, da: xr.DataArray, ts: np.ndarray):
         with pytest.raises(
             ValueError, match="value_dims given, but value is already a DataArray."
         ):
@@ -217,6 +274,18 @@ class TestDASetter:
                 existing="overwrite",
             )
 
+    def test_incompatible_units(self, da: xr.DataArray, ts: np.ndarray):
+        with pytest.raises(pint.errors.DimensionalityError, match="Cannot convert"):
+            da.pr.set("area", "COL", ts * ureg("kg"), existing="overwrite")
+
+    def test_automatic_unit_conversion(self, da: xr.DataArray, ts: np.ndarray, co2):
+        actual = da.pr.set(
+            "area", "COL", ts * ureg("Mg CO2 / year"), existing="overwrite"
+        )
+        expected = da
+        expected.loc[{"area (ISO3)": "COL"}] = 1e-3 * ts[..., np.newaxis] * co2
+        assert_aligned_equal(actual, expected)
+
     @pytest.mark.parametrize(
         ["dim", "existing", "error", "match"],
         [
@@ -225,8 +294,8 @@ class TestDASetter:
                 "area",
                 "asdf",
                 ValueError,
-                "If given, 'existing' must specify one of 'error', 'overwrite', or"
-                " 'fillna', not 'asdf'.",
+                "If given, 'existing' must specify one of 'error', 'overwrite', "
+                "'fillna_empty', or 'fillna', not 'asdf'.",
             ),
         ],
     )
@@ -247,7 +316,7 @@ class TestDsSetter:
             expected[key] = expected[key].fillna(
                 expected[key].pr.loc[{"area": "COL"}] * 2
             )
-        assert_ds_elementwise_equal(actual, expected)
+        assert_ds_aligned_equal(actual, expected)
 
     def test_existing_default(self, minimal_ds: xr.Dataset):
         with pytest.raises(ValueError):
@@ -263,7 +332,7 @@ class TestDsSetter:
                 expected[key].loc[{"area (ISO3)": "COL"}] * 2
             )
         expected = expected.pr.quantify()
-        assert_ds_elementwise_equal(actual, expected)
+        assert_ds_aligned_equal(actual, expected)
 
     def test_existing_fillna(self, minimal_ds: xr.Dataset):
         minimal_ds["CO2"].pr.loc[{"area": "COL", "time": "2001"}] = np.nan
@@ -271,7 +340,7 @@ class TestDsSetter:
             "area", "COL", minimal_ds.pr.loc[{"area": "MEX"}], existing="fillna"
         )
         expected = minimal_ds.fillna(minimal_ds.pr.loc[{"area": "MEX"}])
-        assert_ds_elementwise_equal(actual, expected)
+        assert_ds_aligned_equal(actual, expected)
 
     def test_existing_wrong_type(self, minimal_ds: xr.Dataset):
         with pytest.raises(TypeError, match="value must be a Dataset, not"):
@@ -295,4 +364,4 @@ class TestDsSetter:
             expected[key] = expected[key].fillna(
                 expected[key].pr.loc[{"area": "COL"}] * 2
             )
-        assert_ds_elementwise_equal(actual, expected)
+        assert_ds_aligned_equal(actual, expected)

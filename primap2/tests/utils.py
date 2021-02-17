@@ -19,22 +19,19 @@ def assert_equal(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
 
 def assert_align(a: xr.DataArray, b: xr.DataArray) -> (xr.DataArray, xr.DataArray):
     aa, ba = xr.align(a, b, join="outer")
-    size_unchanged = sorted(aa.shape) == sorted(a.shape) and sorted(ba.shape) == sorted(
-        b.shape
-    )
+    aa = aa.transpose(*ba.dims)
+    size_unchanged = sorted(aa.shape) == sorted(a.shape) and ba.shape == b.shape
     assert size_unchanged, (a.shape, b.shape)
     return aa, ba
 
 
-def assert_elementwise_equal(a: xr.DataArray, b: xr.DataArray):
+def assert_aligned_equal(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
     a, b = assert_align(a, b)
-    assert np.all(a == b)
-    assert a.attrs == b.attrs
-    assert a.name == b.name
+    assert_equal(a, b, *args, **kwargs)
 
 
-def assert_ds_elementwise_equal(a: xr.Dataset, b: xr.Dataset):
+def assert_ds_aligned_equal(a: xr.Dataset, b: xr.Dataset, *args, **kwargs):
     assert set(a.keys()) == set(b.keys())
     for key in a.keys():
-        assert_elementwise_equal(a[key], b[key])
+        assert_aligned_equal(a[key], b[key], *args, **kwargs)
     assert a.attrs == b.attrs
