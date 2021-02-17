@@ -250,3 +250,181 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
                 "If given, 'existing' must specify one of 'error', 'overwrite', or"
                 f" 'fillna', not {existing!r}."
             )
+
+
+class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
+    @staticmethod
+    def _set_apply(
+        da: xr.DataArray,
+        dim: typing.Hashable,
+        key: typing.Any,
+        value: xr.Dataset,
+        existing: str,
+    ) -> xr.DataArray:
+        if dim not in da.dims:
+            return da
+        return da.pr.set(dim=dim, key=key, value=value[da.name], existing=existing)
+
+    def set(
+        self,
+        dim: typing.Hashable,
+        key: typing.Any,
+        value: xr.Dataset,
+        *,
+        existing: str = "error",
+    ) -> xr.Dataset:
+        """Set values, expanding the given dimension as necessary.
+
+        All data variables which have the given dimension are modified.
+        The affected data variables are mutated using
+        ``DataArray.pr.set(dim, key, value[name], existing=existing)``.
+
+        Parameters
+        ----------
+        dim: str
+            Dimension along which values should be set. Only data variables which have
+            this dimension are mutated.
+        key: scalar or list of scalars
+            Keys in the dimension which should be set. Key values which are missing
+            in the dimension are inserted. The handling of key values which already
+            exist in the dimension is determined by the ``existing`` parameter.
+        value: xr.Dataset
+            Values that will be inserted at the positions specified by ``key``.
+            ``value`` needs to contain all data variables which have the dimension.
+            ``value`` has to be broadcastable to ``ds.pr.loc[{dim: key}]``.
+        existing: "error", "overwrite", or "fillna", optional
+            How to handle existing keys. If ``existing="error"`` (default), a ValueError
+            is raised if any key already exists. If ``existing="overwrite"``, new values
+            overwrite current values for existing keys. If ``existing="fillna"``, the
+            new values only overwrite NaN values for existing keys.
+
+        Examples
+        --------
+        >>> import pandas as pd
+        >>> import xarray as xr
+        >>> import numpy as np
+        >>> area = ("area (ISO3)", ["COL", "MEX"])
+        >>> time = ("time", pd.date_range("2000", "2003", freq="AS"))
+        >>> ds = xr.Dataset(
+        ...     {
+        ...         "CO2": xr.DataArray(
+        ...             [[0.0, 1.0, 2.0, 3.0], [2.0, 3.0, 4.0, 5.0]],
+        ...             coords=[area, time],
+        ...         ),
+        ...         "SF4": xr.DataArray(
+        ...             [[0.5, 1.5, 2.5, 3.5], [2.5, 3.5, np.nan, 5.5]],
+        ...             coords=[area, time],
+        ...         ),
+        ...     },
+        ...     attrs={"area": "area (ISO3)"},
+        ... )
+        >>> ds
+        <xarray.Dataset>
+        Dimensions:      (area (ISO3): 2, time: 4)
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+        Data variables:
+            CO2          (area (ISO3), time) float64 0.0 1.0 2.0 3.0 2.0 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 0.5 1.5 2.5 3.5 2.5 3.5 nan 5.5
+        Attributes:
+            area:     area (ISO3)
+
+        Setting an existing value
+
+        >>> ds.pr.set("area", "MEX", ds.pr.loc[{"area": "COL"}] * 20)
+        Traceback (most recent call last):
+        ...
+        ValueError: Values {'MEX'} for 'area (ISO3)' already exist. Use existing='ove...
+        >>> ds.pr.set(
+        ...     "area", "MEX", ds.pr.loc[{"area": "COL"}] * 20, existing="overwrite"
+        ... )
+        <xarray.Dataset>
+        Dimensions:      (area (ISO3): 2, time: 4)
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) object 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+        Data variables:
+            CO2          (area (ISO3), time) float64 0.0 1.0 2.0 3.0 0.0 20.0 40.0 60.0
+            SF4          (area (ISO3), time) float64 0.5 1.5 2.5 3.5 10.0 30.0 50.0 70.0
+        Attributes:
+            area:     area (ISO3)
+
+        Instead of overwriting existing values, you can also choose to only fill
+        missing values
+
+        >>> ds.pr.set("area", "MEX", ds.pr.loc[{"area": "COL"}] * 20, existing="fillna")
+        <xarray.Dataset>
+        Dimensions:      (area (ISO3): 2, time: 4)
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) object 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+        Data variables:
+            CO2          (area (ISO3), time) float64 0.0 1.0 2.0 3.0 2.0 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 0.5 1.5 2.5 3.5 2.5 3.5 50.0 5.5
+        Attributes:
+            area:     area (ISO3)
+
+        Introducing a new value uses the same syntax
+
+        >>> ds.pr.set("area", "BOL", ds.pr.loc[{"area": "COL"}] * 20)
+        <xarray.Dataset>
+        Dimensions:      (area (ISO3): 3, time: 4)
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) object 'BOL' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+        Data variables:
+            CO2          (area (ISO3), time) float64 0.0 20.0 40.0 60.0 ... 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 10.0 30.0 50.0 70.0 ... 3.5 nan 5.5
+        Attributes:
+            area:     area (ISO3)
+
+        Note that data variables which do not contain the specified dimension are
+        ignored
+
+        >>> ds["population"] = xr.DataArray([1e6, 1.2e6, 1.3e6, 1.4e6], coords=(time,))
+        >>> ds
+        <xarray.Dataset>
+        Dimensions:      (area (ISO3): 2, time: 4)
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+        Data variables:
+            CO2          (area (ISO3), time) float64 0.0 1.0 2.0 3.0 2.0 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 0.5 1.5 2.5 3.5 2.5 3.5 nan 5.5
+            population   (time) float64 1e+06 1.2e+06 1.3e+06 1.4e+06
+        Attributes:
+            area:     area (ISO3)
+        >>> ds.pr.set("area", "BOL", ds.pr.loc[{"area": "COL"}] * 20)
+        <xarray.Dataset>
+        Dimensions:      (area (ISO3): 3, time: 4)
+        Coordinates:
+          * area (ISO3)  (area (ISO3)) object 'BOL' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+        Data variables:
+            CO2          (area (ISO3), time) float64 0.0 20.0 40.0 60.0 ... 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 10.0 30.0 50.0 70.0 ... 3.5 nan 5.5
+            population   (time) float64 1e+06 1.2e+06 1.3e+06 1.4e+06
+        Attributes:
+            area:     area (ISO3)
+
+        Returns
+        -------
+        ds : xr.Dataset
+            modified Dataset
+        """
+        dim = self._ds.pr.dim_alias_translations.get(dim, dim)
+        if dim not in self._ds.dims:
+            raise ValueError(f"Dimension {dim!r} does not exist.")
+
+        if not isinstance(value, xr.Dataset):
+            raise TypeError(f"value must be a Dataset, not {type(value)}")
+
+        return self._ds.map(
+            self._set_apply,
+            keep_attrs=True,
+            dim=dim,
+            key=key,
+            value=value,
+            existing=existing,
+        )

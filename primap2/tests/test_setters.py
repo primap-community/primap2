@@ -14,7 +14,11 @@ from .utils import assert_ds_elementwise_equal, assert_elementwise_equal
 
 @pytest.fixture
 def da(minimal_ds) -> xr.DataArray:
-    return minimal_ds["CO2"]
+    da = minimal_ds["CO2"]
+    # cast coord explicitly to object, because calling set() often casts to object
+    # as a side effect of modifying the coords, and we are fine with that.
+    da["area (ISO3)"] = da["area (ISO3)"].astype(object)
+    return da
 
 
 @pytest.fixture
@@ -201,36 +205,34 @@ class TestDASetter:
         expected.loc[{"a": "a3"}] = 1
         assert_elementwise_equal(actual, expected)
 
+    def test_da_setter_overspecifiec(self, da: xr.DataArray, ts: np.ndarray):
+        with pytest.raises(
+            ValueError, match="value_dims given, but value is already a DataArray."
+        ):
+            da.pr.set(
+                "area",
+                "COL",
+                da.pr.loc[{"area": "BOL"}],
+                value_dims=["area", "time", "source"],
+                existing="overwrite",
+            )
 
-@pytest.mark.parametrize(
-    ["dim", "existing", "error", "match"],
-    [
-        ("asdf", "error", ValueError, "Dimension 'asdf' does not exist."),
-        (
-            "area",
-            "asdf",
-            ValueError,
-            "If given, 'existing' must specify one of 'error', 'overwrite', or"
-            " 'fillna', not 'asdf'.",
-        ),
-    ],
-)
-def test_da_setter_errors(da: xr.DataArray, dim, existing, error, match):
-    with pytest.raises(error, match=match):
-        da.pr.set(dim, ["COL"], np.linspace(0, 20, 21), existing=existing)
-
-
-def test_da_setter_overspecifiec(da: xr.DataArray, ts: np.ndarray):
-    with pytest.raises(
-        ValueError, match="value_dims given, but value is already a DataArray."
-    ):
-        da.pr.set(
-            "area",
-            "COL",
-            da.pr.loc[{"area": "BOL"}],
-            value_dims=["area", "time", "source"],
-            existing="overwrite",
-        )
+    @pytest.mark.parametrize(
+        ["dim", "existing", "error", "match"],
+        [
+            ("asdf", "error", ValueError, "Dimension 'asdf' does not exist."),
+            (
+                "area",
+                "asdf",
+                ValueError,
+                "If given, 'existing' must specify one of 'error', 'overwrite', or"
+                " 'fillna', not 'asdf'.",
+            ),
+        ],
+    )
+    def test_da_setter_errors(self, da: xr.DataArray, dim, existing, error, match):
+        with pytest.raises(error, match=match):
+            da.pr.set(dim, ["COL"], np.linspace(0, 20, 21), existing=existing)
 
 
 class TestDsSetter:
@@ -255,8 +257,12 @@ class TestDsSetter:
         actual = minimal_ds.pr.set(
             "area", "COL", minimal_ds.pr.loc[{"area": "COL"}] * 2, existing="overwrite"
         )
-        expected = minimal_ds
-        expected.pr.loc[{"area": "COL"}] *= 2
+        expected = minimal_ds.pint.dequantify()
+        for key in expected:
+            expected[key].loc[{"area (ISO3)": "COL"}] = (
+                expected[key].loc[{"area (ISO3)": "COL"}] * 2
+            )
+        expected = expected.pr.quantify()
         assert_ds_elementwise_equal(actual, expected)
 
     def test_existing_fillna(self, minimal_ds: xr.Dataset):
@@ -268,5 +274,25 @@ class TestDsSetter:
         assert_ds_elementwise_equal(actual, expected)
 
     def test_existing_wrong_type(self, minimal_ds: xr.Dataset):
-        with pytest.raises(TypeError):
+        with pytest.raises(TypeError, match="value must be a Dataset, not"):
             minimal_ds.pr.set("area", "COL", np.zeros((3, 4)))
+
+    def test_wrong_dim(self, minimal_ds: xr.Dataset):
+        with pytest.raises(ValueError, match="Dimension 'asdf' does not exist."):
+            minimal_ds.pr.set("asdf", "COL", minimal_ds.pr.loc[{"area": "COL"}])
+
+    def test_inhomogeneous(self, minimal_ds: xr.Dataset):
+        minimal_ds["population"] = minimal_ds["CO2"].pr.dequantify().sum("area (ISO3)")
+        actual = minimal_ds.pr.set(
+            "area", "CUB", minimal_ds.pr.loc[{"area": "COL"}] * 2
+        )
+        expected = minimal_ds.reindex(
+            {"area (ISO3)": list(minimal_ds["area (ISO3)"].values) + ["CUB"]}
+        )
+        for key in expected.keys():
+            if key == "population":
+                continue
+            expected[key] = expected[key].fillna(
+                expected[key].pr.loc[{"area": "COL"}] * 2
+            )
+        assert_ds_elementwise_equal(actual, expected)

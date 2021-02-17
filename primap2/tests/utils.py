@@ -17,7 +17,17 @@ def assert_equal(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
     assert a.name == b.name
 
 
+def assert_align(a: xr.DataArray, b: xr.DataArray) -> (xr.DataArray, xr.DataArray):
+    aa, ba = xr.align(a, b, join="outer")
+    size_unchanged = sorted(aa.shape) == sorted(a.shape) and sorted(ba.shape) == sorted(
+        b.shape
+    )
+    assert size_unchanged, (a.shape, b.shape)
+    return aa, ba
+
+
 def assert_elementwise_equal(a: xr.DataArray, b: xr.DataArray):
+    a, b = assert_align(a, b)
     assert np.all(a == b)
     assert a.attrs == b.attrs
     assert a.name == b.name

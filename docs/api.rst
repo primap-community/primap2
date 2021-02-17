@@ -89,3 +89,4 @@ Methods
     Dataset.pr.downscale_timeseries
     Dataset.pr.downscale_gas_timeseries
     Dataset.pr.__getitem__
+    Dataset.pr.set

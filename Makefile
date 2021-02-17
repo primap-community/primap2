@@ -51,7 +51,7 @@ lint: venv ## check style with pre-commit hooks
 	venv/bin/pre-commit run --all-files
 
 test: venv ## run tests quickly with the default Python
-	venv/bin/pytest  --xdoc
+	venv/bin/pytest  --xdoc -rx
 
 test-all: ## run tests on every Python version with tox
 	tox
@@ -82,7 +82,7 @@ install: clean ## install the package to the active Python's site-packages
 
 virtual-environment: venv ## setup a virtual environment for development
 
-venv: requirements_dev.txt setup.py
+venv: requirements_dev.txt
 	[ -d venv ] || python3 -m venv venv
 	venv/bin/python -m pip install -r requirements_dev.txt --upgrade
 	venv/bin/python -m pip install -e .

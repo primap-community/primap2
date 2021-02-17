@@ -160,14 +160,14 @@ def ensure_no_dimension_without_coordinates(ds: xr.Dataset):
 
 def ensure_valid_coordinates(ds: xr.Dataset):
     additional_coords = set(ds.coords) - set(ds.dims)
-    for coord in additional_coords:
+    for coord in ds.coords:
         if not isinstance(coord, str):
             logger.error(
-                f"Additional coordinate name {coord!r} is of type {type(coord)}, but "
+                f"Coordinate {coord!r} is of type {type(coord)}, but "
                 f"only strings are allowed."
             )
             raise ValueError(f"Coord key {coord!r} is not a string")
-        else:
+        elif coord in additional_coords:
             if " " in coord:
                 logger.error(
                     f"Additional coordinate name {coord!r} contains a space, "
