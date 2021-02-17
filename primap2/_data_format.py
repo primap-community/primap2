@@ -64,7 +64,7 @@ def open_dataset(
     copy you are manipulating in xarray is modified: the original file on disk
     is never touched.
     """
-    return xr.open_dataset(
+    ds = xr.open_dataset(
         filename_or_obj=filename_or_obj,
         group=group,
         autoclose=autoclose,
@@ -74,6 +74,9 @@ def open_dataset(
         backend_kwargs=backend_kwargs,
         engine="h5netcdf",
     ).pint.quantify(unit_registry=ureg)
+    if "sec_cats" in ds.attrs:
+        ds.attrs["sec_cats"] = list(ds.attrs["sec_cats"])
+    return ds
 
 
 class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
@@ -258,7 +261,7 @@ def ensure_entity_and_units_valid(key: Hashable, da: xr.DataArray):
                 f"compatible with an emission rate."
             )
     except pint.UndefinedUnitError:
-        if entity not in ("population",) and "(" not in entity:
+        if entity not in ("population",) and "(" not in key:
             logger.warning(f"entity {entity!r} of {key!r} is unknown.")
 
 

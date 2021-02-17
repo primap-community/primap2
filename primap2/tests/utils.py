@@ -13,8 +13,8 @@ def allclose(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
 
 def assert_equal(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
     assert allclose(a, b, *args, **kwargs)
-    assert a.attrs == b.attrs
-    assert a.name == b.name
+    assert a.attrs == b.attrs, (a.attrs, b.attrs)
+    assert a.name == b.name, (a.name, b.name)
 
 
 def assert_align(a: xr.DataArray, b: xr.DataArray) -> (xr.DataArray, xr.DataArray):
@@ -34,4 +34,4 @@ def assert_ds_aligned_equal(a: xr.Dataset, b: xr.Dataset, *args, **kwargs):
     assert set(a.keys()) == set(b.keys())
     for key in a.keys():
         assert_aligned_equal(a[key], b[key], *args, **kwargs)
-    assert a.attrs == b.attrs
+    assert a.attrs == b.attrs, (a.attrs, b.attrs)

@@ -46,10 +46,13 @@ def opulent_ds():
         "source": np.array(["RAND2020"]),
     }
 
+    # seed the rng with a constant to achieve predictable "randomness"
+    rng = np.random.default_rng(1)
+
     opulent = xr.Dataset(
         {
             ent: xr.DataArray(
-                data=np.random.rand(*(len(x) for x in coords.values())),
+                data=rng.random(tuple(len(x) for x in coords.values())),
                 coords=coords,
                 dims=list(coords.keys()),
                 attrs={"units": f"{ent} Gg / year", "entity": ent},
@@ -83,7 +86,7 @@ def opulent_ds():
         )
     }
     opulent["population"] = xr.DataArray(
-        data=np.random.rand(*(len(x) for x in pop_coords.values())),
+        data=rng.random(tuple(len(x) for x in pop_coords.values())),
         coords=pop_coords,
         dims=list(pop_coords.keys()),
         attrs={"entity": "population", "units": ""},
@@ -143,7 +146,7 @@ def empty_ds():
         attrs={"area": "area (ISO3)"},
     ).pr.quantify()
 
-    empty["KYOTOGHG"] = xr.DataArray(
+    empty["KYOTOGHG (AR4GWP100)"] = xr.DataArray(
         data=np.zeros((len(time), len(area_iso3), 1), dtype=np.float),
         coords=coords,
         dims=dims,
@@ -155,3 +158,15 @@ def empty_ds():
     ).pr.quantify()
 
     return empty
+
+
+@pytest.fixture(params=["opulent", "minimal", "empty"])
+def any_ds(request, opulent_ds, minimal_ds, empty_ds):
+    if request.param == "opulent":
+        return opulent_ds
+    elif request.param == "minimal":
+        return minimal_ds
+    elif request.param == "empty":
+        return empty_ds
+    else:
+        raise ValueError

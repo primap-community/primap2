@@ -19,13 +19,13 @@ def test_downscale_gas_timeseries(empty_ds):
     empty_ds["CH4"].loc[{"time": "2002"}] = 1 * ureg("Gg CH4 / year")
     sf6 = 22_800
     ch4 = 25
-    empty_ds["KYOTOGHG"][:] = (1 + sf6 + ch4) * ureg("Gg CO2 / year")
-    empty_ds["KYOTOGHG"].loc[{"time": "2020"}] = (
+    empty_ds["KYOTOGHG (AR4GWP100)"][:] = (1 + sf6 + ch4) * ureg("Gg CO2 / year")
+    empty_ds["KYOTOGHG (AR4GWP100)"].loc[{"time": "2020"}] = (
         2 * (1 + sf6 + ch4) * ureg("Gg CO2 / year")
     )
 
     downscaled = empty_ds.pr.downscale_gas_timeseries(
-        basket="KYOTOGHG", basket_contents=["CO2", "SF6", "CH4"]
+        basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
     )
     expected = empty_ds.copy()
     expected["CO2"][:] = 1 * ureg("Gg CO2 / year")
@@ -43,7 +43,7 @@ def test_downscale_gas_timeseries(empty_ds):
         ValueError, match="To continue regardless, set check_consistency=False"
     ):
         empty_ds.pr.downscale_gas_timeseries(
-            basket="KYOTOGHG", basket_contents=["CO2", "SF6", "CH4"]
+            basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
         )
 
 

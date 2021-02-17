@@ -107,10 +107,12 @@ class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
         translations : dict
             A mapping of all dimension aliases to full dimension names.
         """
-        ret: typing.Dict[typing.Hashable, str] = {
-            "area": self._ds.attrs["area"]
-        }  # required key
-        for key, abbrev in [("category", "cat"), ("scenario", "scen")]:
+        ret: typing.Dict[typing.Hashable, str] = {}
+        for key, abbrev in [
+            ("category", "cat"),
+            ("scenario", "scen"),
+            ("area", "area"),
+        ]:
             if abbrev in self._ds.attrs:
                 ret[key] = self._ds.attrs[abbrev]
         if "sec_cats" in self._ds.attrs:

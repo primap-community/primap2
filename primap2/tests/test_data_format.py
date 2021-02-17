@@ -9,6 +9,8 @@ import xarray as xr
 
 import primap2
 
+from .utils import assert_ds_aligned_equal
+
 
 def test_something_else_entirely(caplog):
     with pytest.raises(ValueError, match=r"ds is not an xr.Dataset"):
@@ -25,13 +27,15 @@ def test_valid_ds_pass(minimal_ds, opulent_ds, caplog):
     assert not caplog.records
 
 
-def test_io_roundtrip(minimal_ds, opulent_ds, caplog, tmp_path):
+def test_io_roundtrip(any_ds: xr.Dataset, caplog, tmp_path):
+    ds = any_ds
     caplog.set_level(logging.INFO)
-    minimal_ds.pr.to_netcdf(tmp_path / "minimal.nc")
-    opulent_ds.pr.to_netcdf(tmp_path / "opulent.nc")
-    primap2.open_dataset(tmp_path / "minimal.nc").pr.ensure_valid()
-    primap2.open_dataset(tmp_path / "opulent.nc").pr.ensure_valid()
+    ds.pr.to_netcdf(tmp_path / "temp.nc")
+    nds = primap2.open_dataset(tmp_path / "temp.nc")
+    nds.pr.ensure_valid()
     assert not caplog.records
+    xr.testing.assert_identical(ds, nds)
+    assert_ds_aligned_equal(ds, nds)
 
 
 def test_required_dimension_missing(caplog):

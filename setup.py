@@ -21,6 +21,7 @@ requirements = [
     "h5netcdf",
     "h5py<3",
     "bottleneck",
+    "matplotlib",
 ]
 
 setup_requirements = [

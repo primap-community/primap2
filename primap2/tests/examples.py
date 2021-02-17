@@ -10,10 +10,14 @@ def minimal_ds():
     """A valid, minimal dataset."""
     time = pd.date_range("2000-01-01", "2020-01-01", freq="AS")
     area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
+
+    # seed the rng with a constant to achieve predictable "randomness"
+    rng = np.random.default_rng(1)
+
     minimal = xr.Dataset(
         {
             ent: xr.DataArray(
-                data=np.random.rand(len(time), len(area_iso3), 1),
+                data=rng.random((len(time), len(area_iso3), 1)),
                 coords={
                     "time": time,
                     "area (ISO3)": area_iso3,

@@ -365,3 +365,14 @@ class TestDsSetter:
                 expected[key].pr.loc[{"area": "COL"}] * 2
             )
         assert_ds_aligned_equal(actual, expected)
+
+    def test_opulent_complex(self, opulent_ds: xr.Dataset):
+        ds = opulent_ds
+        ds.pr.set(
+            "category",
+            "0",
+            ds.pr.loc[{"category": ["1", "2", "3", "4", "5"]}].pr.sum_skip_all_na(
+                "category"
+            ),
+            existing="overwrite",
+        )

@@ -25,3 +25,4 @@ xarray
 mypy
 bottleneck
 xdoctest
+matplotlib
