@@ -165,6 +165,11 @@ class TestDASetter:
         expected = expected.fillna(expected.loc[{"area (ISO3)": "COL"}] * 2)
         assert_aligned_equal(actual, expected)
 
+        actual_error = da.pr.set(
+            "area", "CUB", 2 * da.pr.loc[{"area": "COL"}], existing="error"
+        )
+        assert_aligned_equal(actual_error, expected)
+
         # with non-scalar dimension
         with pytest.raises(KeyError, match="not all values found in index"):
             da.pr.set("area", "CUB", 2 * da.pr.loc[{"area": ["COL"]}])
