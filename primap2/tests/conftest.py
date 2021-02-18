@@ -87,9 +87,8 @@ def opulent_ds():
             "title": "Completely invented GHG inventory data",
             "comment": "GHG inventory data ...",
             "institution": "PIK",
-            "history": """2021-01-14 14:50 data invented
-                2021-01-14 14:51 additional processing step
-                """,
+            "history": "2021-01-14 14:50 data invented\n"
+            "2021-01-14 14:51 additional processing step",
         },
     )
 

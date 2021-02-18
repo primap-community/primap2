@@ -136,6 +136,10 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         -------
         converted : xr.DataArray
         """
+        if "gwp_context" not in like.attrs or like.attrs["gwp_context"] is None:
+            raise ValueError("reference array has no gwp_context.")
+        if like.pint.units is None:
+            raise ValueError("reference array has no units attached.")
         return self.convert_to_gwp(
             gwp_context=like.attrs["gwp_context"], units=like.pint.units
         )

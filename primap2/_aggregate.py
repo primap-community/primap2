@@ -174,8 +174,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         Parameters
         ----------
         basket: str
-          The name of the gas basket for which values are known at higher temporal
-          resolution and/or for a wider range. A value from `ds.keys()`.
+          The name of the gas basket. A value from `ds.keys()`.
         basket_contents: list of str
           The name of the gases in the gas basket. The sum of all basket_contents
           equals the basket. Values from `ds.keys()`.
@@ -223,8 +222,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         Parameters
         ----------
         basket: str
-          The name of the gas basket for which values are known at higher temporal
-          resolution and/or for a wider range. A value from `ds.keys()`.
+          The name of the gas basket. A value from `ds.keys()`.
         basket_contents: list of str
           The name of the gases in the gas basket. The sum of all basket_contents
           equals the basket. Values from `ds.keys()`.

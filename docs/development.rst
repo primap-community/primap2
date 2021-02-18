@@ -388,11 +388,24 @@ Deploying
 .. highlight:: shell
 
 A reminder for the maintainers on how to deploy.
-Make sure all your changes are committed (including an entry in CHANGELOG.rst).
+Make sure all your changes are committed (including replacing the unreleased entry in
+CHANGELOG.rst with your target version number).
 Then run::
 
     $ bump2version patch # possible: major / minor / patch
     $ git push
     $ git push --tags
 
-TODO: how to deploy to PyPI.
+Then, go to github and make a release from the tag.
+Use "Version x.y.z" as the release title, and the changelog entries as the release
+description.
+Creating the github release will automatically trigger
+a release on zenodo.
+Use the new DOI from zenodo to update the citation information and
+zenodo DOI badge in the README.rst. Commit your changes.
+Upload the release to pyPI::
+
+    $ make release
+
+To prepare for future development, add a new "unreleased" section to CHANGELOG.rst,
+and commit the result.
