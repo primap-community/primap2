@@ -712,5 +712,6 @@ def read_wide_csv_file(
     read_data_xr = read_data_xr.rename_dims(coord_renaming)
     read_data_xr = read_data_xr.rename(coord_renaming)
     read_data_xr.attrs = attrs
+    read_data_xr = read_data_xr.pr.quantify()
 
     return read_data_xr
