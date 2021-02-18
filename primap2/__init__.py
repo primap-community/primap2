@@ -8,6 +8,7 @@ import pint_xarray
 
 from . import accessors
 from ._data_format import open_dataset
+from ._data_reading import read_wide_csv_file
 from ._units import ureg
 
-__all__ = ["accessors", "open_dataset", "ureg"]
+__all__ = ["accessors", "open_dataset", "ureg", "read_wide_csv_file"]
