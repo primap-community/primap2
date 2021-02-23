@@ -623,7 +623,7 @@ def read_wide_csv_file(
         unit_col = coords_cols["unit"]
         # first convert the units such that pint understands them
         # TODO: this needs to be flexible as there are different possible input formats
-        convert_unit_primap_to_primap2(
+        convert_dataframe_units_primap_to_primap2(
             read_data, unit_col=unit_col, entity_col=entity_col
         )
         # get entities from read data
