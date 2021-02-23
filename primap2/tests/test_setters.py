@@ -32,21 +32,23 @@ def co2() -> pint.Unit:
     return ureg("Gg CO2 / year")
 
 
+@pytest.fixture(params=["fillna_empty", "error", "fillna", "overwrite", None])
+def existing(request) -> typing.Dict[str, str]:
+    if request.param is not None:
+        return {"existing": request.param}
+    else:
+        return {}
+
+
+@pytest.fixture(params=["error", "extend", None])
+def new(request) -> typing.Dict[str, str]:
+    if request.param is not None:
+        return {"new": request.param}
+    else:
+        return {}
+
+
 class TestDASetter:
-    @pytest.fixture(params=["fillna_empty", "error", "fillna", "overwrite", None])
-    def existing(self, request) -> typing.Dict[str, str]:
-        if request.param is not None:
-            return {"existing": request.param}
-        else:
-            return {}
-
-    @pytest.fixture(params=["error", "extend", None])
-    def new(self, request) -> typing.Dict[str, str]:
-        if request.param is not None:
-            return {"new": request.param}
-        else:
-            return {}
-
     def test_new_error(self, da: xr.DataArray, ts, co2, existing):
         with pytest.raises(
             KeyError,
@@ -375,9 +377,9 @@ class TestDASetter:
 
 
 class TestDsSetter:
-    def test_new(self, minimal_ds: xr.Dataset):
+    def test_new(self, minimal_ds: xr.Dataset, existing):
         actual = minimal_ds.pr.set(
-            "area", "CUB", minimal_ds.pr.loc[{"area": "COL"}] * 2
+            "area", "CUB", minimal_ds.pr.loc[{"area": "COL"}] * 2, **existing
         )
         expected = minimal_ds.reindex(
             {"area (ISO3)": list(minimal_ds["area (ISO3)"].values) + ["CUB"]}
@@ -388,13 +390,35 @@ class TestDsSetter:
             )
         assert_ds_aligned_equal(actual, expected)
 
-    def test_existing_default(self, minimal_ds: xr.Dataset):
-        with pytest.raises(ValueError):
-            minimal_ds.pr.set("area", "COL", minimal_ds.pr.loc[{"area": "COL"}] * 2)
+    def test_new_error(self, minimal_ds: xr.Dataset, existing):
+        with pytest.raises(
+            KeyError,
+            match=re.escape(
+                "Values {'CUB'} not in 'area (ISO3)', use new='extend' to automatically"
+                " insert new values into dim."
+            ),
+        ):
+            minimal_ds.pr.set(
+                "area",
+                "CUB",
+                minimal_ds.pr.loc[{"area": "COL"}] * 2,
+                new="error",
+                **existing
+            )
 
-    def test_existing_overwrite(self, minimal_ds: xr.Dataset):
+    def test_existing_default(self, minimal_ds: xr.Dataset, new):
+        with pytest.raises(ValueError):
+            minimal_ds.pr.set(
+                "area", "COL", minimal_ds.pr.loc[{"area": "COL"}] * 2, **new
+            )
+
+    def test_existing_overwrite(self, minimal_ds: xr.Dataset, new):
         actual = minimal_ds.pr.set(
-            "area", "COL", minimal_ds.pr.loc[{"area": "COL"}] * 2, existing="overwrite"
+            "area",
+            "COL",
+            minimal_ds.pr.loc[{"area": "COL"}] * 2,
+            existing="overwrite",
+            **new
         )
         expected = minimal_ds.pint.dequantify()
         for key in expected:
@@ -404,21 +428,23 @@ class TestDsSetter:
         expected = expected.pr.quantify()
         assert_ds_aligned_equal(actual, expected)
 
-    def test_existing_fillna(self, minimal_ds: xr.Dataset):
+    def test_existing_fillna(self, minimal_ds: xr.Dataset, new):
         minimal_ds["CO2"].pr.loc[{"area": "COL", "time": "2001"}] = np.nan
         actual = minimal_ds.pr.set(
-            "area", "COL", minimal_ds.pr.loc[{"area": "MEX"}], existing="fillna"
+            "area", "COL", minimal_ds.pr.loc[{"area": "MEX"}], existing="fillna", **new
         )
         expected = minimal_ds.fillna(minimal_ds.pr.loc[{"area": "MEX"}])
         assert_ds_aligned_equal(actual, expected)
 
-    def test_existing_wrong_type(self, minimal_ds: xr.Dataset):
+    def test_existing_wrong_type(self, minimal_ds: xr.Dataset, new):
         with pytest.raises(TypeError, match="value must be a Dataset, not"):
-            minimal_ds.pr.set("area", "COL", np.zeros((3, 4)))
+            minimal_ds.pr.set("area", "COL", np.zeros((3, 4)), **new)
 
-    def test_wrong_dim(self, minimal_ds: xr.Dataset):
+    def test_wrong_dim(self, minimal_ds: xr.Dataset, existing, new):
         with pytest.raises(ValueError, match="Dimension 'asdf' does not exist."):
-            minimal_ds.pr.set("asdf", "COL", minimal_ds.pr.loc[{"area": "COL"}])
+            minimal_ds.pr.set(
+                "asdf", "COL", minimal_ds.pr.loc[{"area": "COL"}], **existing, **new
+            )
 
     def test_inhomogeneous(self, minimal_ds: xr.Dataset):
         minimal_ds["population"] = minimal_ds["CO2"].pr.dequantify().sum("area (ISO3)")

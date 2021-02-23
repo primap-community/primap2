@@ -30,7 +30,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         existing: str = "fillna_empty",
         new: str = "extend",
     ) -> xr.DataArray:
-        """Set values, expanding the given dimension as necessary.
+        """Set values, optionally expanding the given dimension as necessary.
 
         The handling of already existing key values can be selected using the
         ``existing`` parameter.
@@ -353,10 +353,13 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         key: typing.Any,
         value: xr.Dataset,
         existing: str,
+        new: str,
     ) -> xr.DataArray:
         if dim not in da.dims:
             return da
-        return da.pr.set(dim=dim, key=key, value=value[da.name], existing=existing)
+        return da.pr.set(
+            dim=dim, key=key, value=value[da.name], existing=existing, new=new
+        )
 
     def set(
         self,
@@ -365,8 +368,9 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         value: xr.Dataset,
         *,
         existing: str = "fillna_empty",
+        new: str = "extend",
     ) -> xr.Dataset:
-        """Set values, expanding the given dimension as necessary.
+        """Set values, optionally expanding the given dimension as necessary.
 
         All data variables which have the given dimension are modified.
         The affected data variables are mutated using
@@ -392,6 +396,11 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
             in the index. If ``existing="overwrite"``, new values overwrite current
             values for existing keys. If ``existing="fillna"``, the new values only
             overwrite NaN values for existing keys.
+        new: "extend", or "error", optional
+            How to handle new keys. If ``new="extend"`` (default), keys which do not
+            exist so far are automatically inserted by extending the dimension.
+            If ``new="error"``, a KeyError is raised if any key is not yet in the
+            dimension.
 
         Examples
         --------
@@ -513,6 +522,14 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         Attributes:
             area:     area (ISO3)
 
+        If you don't want to automatically extend the dimensions with new values, you
+        can request checking that all keys already exist using ``new="error"``:
+
+        >>> ds.pr.set("area", "BOL", ds.pr.loc[{"area": "COL"}] * 20, new="error")
+        Traceback (most recent call last):
+        ...
+        KeyError: "Values {'BOL'} not in 'area (ISO3)', use new='extend' to automatic...
+
         Note that data variables which do not contain the specified dimension are
         ignored
 
@@ -561,4 +578,5 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
             key=key,
             value=value,
             existing=existing,
+            new=new,
         )
