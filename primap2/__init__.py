@@ -4,11 +4,8 @@ __author__ = """Mika Pflüger"""
 __email__ = "mika.pflueger@pik-potsdam.de"
 __version__ = "0.3.1"
 
-import pint_xarray
-
-from . import accessors
+from . import accessors, io
 from ._data_format import open_dataset
-from ._data_reading import read_wide_csv_file
 from ._units import ureg
 
-__all__ = ["accessors", "open_dataset", "ureg", "read_wide_csv_file"]
+__all__ = ["accessors", "open_dataset", "ureg", "io"]

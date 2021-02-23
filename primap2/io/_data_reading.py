@@ -4,13 +4,12 @@ import re
 
 import pandas as pd
 import xarray as xr
+from loguru import logger
 
-from ._units import ureg
-
-# from loguru import logger
+from primap2._units import ureg
 
 
-def convert_unit_primap_to_primap2(
+def convert_dataframe_units_primap_to_primap2(
     data_frame: pd.DataFrame, unit_col: str = "unit", entity_col: str = "entity"
 ):
     """
@@ -37,12 +36,51 @@ def convert_unit_primap_to_primap2(
     no return value, data_frame is altered in place
 
     """
+    # add variable_unit column with replaced units.
+    # special units will be replaced later
+    data_frame["entity_unit"] = (
+        data_frame[unit_col].astype(str) + " " + data_frame[entity_col].astype(str)
+    )
+
+    # get unique entity_unit combinations
+    unique_entity_unit = data_frame["entity_unit"].unique()
+    for entity_unit in unique_entity_unit:
+        [cur_entity, cur_unit] = re.split(" ", entity_unit)
+        data_frame.loc[
+            data_frame["entity_unit"] == entity_unit, "entity_unit"
+        ] = convert_unit_primap_to_primap2(cur_entity, cur_unit)
+
+    data_frame[unit_col] = data_frame["entity_unit"]
+    data_frame.drop(columns=["entity_unit"], inplace=True)
+    return data_frame
+
+
+def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
+    """
+    This function converts the emissions module style units which usually neither carry
+    information about the substance nor about the time to primap2 units. The function
+    also handles the exception cases where PRIMAP units do contain information about the
+    substance (e.g. GtC).
+
+    Parameters
+    ----------
+
+    unit : str
+        unit to convert
+    entity : str
+        entity for which the conversion takes place
+
+    Returns
+    -------
+    :str: converted unit
+
+    """
 
     # define exceptions
     # specialities
     exception_units = {
         "CO2eq": "CO2",  # convert to just CO2
-        "N": "<entity>N",  # currently only implemented for N2O (untested)
+        "<entity>N": "N",
         "C": "C",  # don't add variable here (untested)
     }
 
@@ -61,51 +99,47 @@ def convert_unit_primap_to_primap2(
 
     # build regexp to match the basic units with prefixes in units
     regexp_str = "("
-    for unit in units_prefixes:
-        regexp_str = regexp_str + unit + "|"
+    for this_unit in units_prefixes:
+        regexp_str = regexp_str + this_unit + "|"
     regexp_str = regexp_str[0:-1] + ")"
 
-    # add variable_unit column with replaced units.
+    # add entity and time frame to unit
     # special units will be replaced later
-    data_frame["entity_unit"] = (
-        data_frame[unit_col].astype(str)
-        + " "
-        + data_frame[entity_col].astype(str)
-        + time_frame_str
-    )
+    unit_entity = unit + " " + entity + time_frame_str
 
-    # get unique units
-    # unit_values = data_frame.get_unique_meta('unit')
-    # present_exception_units = []
-    replacements = dict()
-    for exception_unit in list(exception_units.keys()):
-        # TODO this needs error handling (e.g. when nothing has been matched)
-        data_current_unit = data_frame.loc[
-            data_frame[unit_col].str.match(regexp_str + exception_unit + "$")
-        ]
-        # get unique values of entity unit combinations
-        units_current_unit = data_current_unit["entity_unit"].unique()
-        # for each create a dict entry for conversion
-        for current_ent_unit in units_current_unit:
-            # first get the prefix and basic unit (e.g. Gt)
-            match = re.search(regexp_str, current_ent_unit)
-            pref_basic = match.group(0)
-            # then get variable
-            match = re.search("(?<=\s)(.*)(?=\s/\s)", current_ent_unit)  # noqa: W605
-            entity = match.group(0)
-            # now build the replacement
-            replacement_str = (
-                pref_basic + " " + exception_units[exception_unit] + time_frame_str
-            )
-            # add the variable if necessary
-            replacements[current_ent_unit] = replacement_str.replace(
-                "<entity>", entity
-            )  # untested as N replacement not tested yet
+    # check if exception unit
+    is_ex_unit = [
+        re.match(regexp_str + ex_unit.replace("<entity>", entity) + "$", unit)
+        is not None
+        for ex_unit in exception_units
+    ]
+    if any(is_ex_unit):
+        # we have an exception unit
+        exception_unit = list(exception_units.keys())[is_ex_unit.index(True)]
+        # first get the prefix and basic unit (e.g. Gt)
+        match = re.search(regexp_str, unit_entity)
+        if match is None:
+            logger.error("No unit prefix matched for unit." + unit_entity)
+            raise RuntimeError("No unit prefix matched for unit." + unit_entity)
+        pref_basic = match.group(0)
+        # then get variable
+        match = re.search("(?<=\s)(.*)(?=\s/\s)", unit_entity)  # noqa: W605
+        if match is None:
+            logger.error("No variable matched for unit." + unit_entity)
+            raise RuntimeError("No unit variable matched for unit." + unit_entity)
+        entity = match.group(0)
+        # now build the replacement
+        converted_unit = (
+            pref_basic + " " + exception_units[exception_unit] + time_frame_str
+        )
+        # add the variable if necessary
+        converted_unit = converted_unit.replace("<entity>", entity)
 
-    data_frame["entity_unit"] = data_frame["entity_unit"].replace(replacements)
-    data_frame["unit"] = data_frame["entity_unit"]
-    data_frame.drop(columns=["entity_unit"], inplace=True)
-    return data_frame
+    else:
+        # standard unit
+        converted_unit = unit_entity
+
+    return converted_unit
 
 
 def dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
@@ -133,13 +167,10 @@ def dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
     return ds
 
 
-def metadata_for_entity_primap(
-    unit: str, entity: str, default_gwp: str = "AR5GWP100"
-) -> dict:
+def metadata_for_entity_primap(unit: str, entity: str) -> dict:
     """
     This function takes GWP information from the entity name in primap style (if
-    present) and uses the default given otherwise. The default is given as "AR4", "SAR",
-    "AR5" etc (as in the entity names). Information is returned as attrs dict.
+    present). Information is returned as attrs dict.
 
     Currently the function uses a limited set of GWP values (define in gwp_mapping) and
     works on a limited set of variables (defined in entities_gwp).
@@ -147,12 +178,9 @@ def metadata_for_entity_primap(
     Parameters
     ----------
     unit: str
-        unit to be strored in the attrs dict
+        unit to be stored in the attrs dict
     entity: str
         entity to process
-    default_gwp: str
-        default GWP to be used if no GWP given. Default: AR5 (fifth assessment report
-        GWPs)
 
     Returns
     -------
@@ -196,9 +224,9 @@ def metadata_for_entity_primap(
     found = re.match(regexp_str, entity)
     if found is None:
         # not a basket entity which uses GWPs
-        gwp_out = default_gwp
         entity_out = entity
         variable_name = entity
+        attr_dict = {"entity": entity_out, "unit": unit}
     else:
         # check if GWP information present in entity
         match = re.search(regexp_str_gwps, entity)
@@ -218,8 +246,7 @@ def metadata_for_entity_primap(
                 gwp_out = gwp_mapping[gwp_out]
                 entity_out = match.group(0)
         variable_name = entity_out + " (" + gwp_out + ")"
-
-    attr_dict = {"entity": entity_out, "unit": unit, "gwp_context": gwp_out}
+        attr_dict = {"entity": entity_out, "unit": unit, "gwp_context": gwp_out}
 
     result_dict = {"variable_name": variable_name, "attrs": attr_dict}
 
@@ -380,6 +407,7 @@ def read_wide_csv_file(
 
     Currently duplicate datapoint will not be detected
     TODO: so far only one secondary category can be set
+    TODO: enable filtering through query strings
 
     Parameters
     ----------
