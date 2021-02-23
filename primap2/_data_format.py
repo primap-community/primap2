@@ -64,7 +64,7 @@ def open_dataset(
     copy you are manipulating in xarray is modified: the original file on disk
     is never touched.
     """
-    return xr.open_dataset(
+    ds = xr.open_dataset(
         filename_or_obj=filename_or_obj,
         group=group,
         autoclose=autoclose,
@@ -74,6 +74,9 @@ def open_dataset(
         backend_kwargs=backend_kwargs,
         engine="h5netcdf",
     ).pint.quantify(unit_registry=ureg)
+    if "sec_cats" in ds.attrs:
+        ds.attrs["sec_cats"] = list(ds.attrs["sec_cats"])
+    return ds
 
 
 class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
@@ -160,13 +163,20 @@ def ensure_no_dimension_without_coordinates(ds: xr.Dataset):
 
 def ensure_valid_coordinates(ds: xr.Dataset):
     additional_coords = set(ds.coords) - set(ds.dims)
-    for coord in additional_coords:
-        if " " in coord:
+    for coord in ds.coords:
+        if not isinstance(coord, str):
             logger.error(
-                f"Additional coordinate name {coord!r} contains a space, "
-                f"replace it with an underscore."
+                f"Coordinate {coord!r} is of type {type(coord)}, but "
+                f"only strings are allowed."
             )
-            raise ValueError(f"Coord key {coord!r} contains a space")
+            raise ValueError(f"Coord key {coord!r} is not a string")
+        elif coord in additional_coords:
+            if " " in coord:
+                logger.error(
+                    f"Additional coordinate name {coord!r} contains a space, "
+                    f"replace it with an underscore."
+                )
+                raise ValueError(f"Coord key {coord!r} contains a space")
 
 
 def ensure_valid_attributes(ds: xr.Dataset):
@@ -206,7 +216,7 @@ def ensure_valid_data_variables(ds: xr.Dataset):
     ds = ensure_units_exist(ds)
 
     for key in ds:
-        da = ds[key]
+        da: xr.DataArray = ds[key]  # type: ignore
         ensure_entity_and_units_exist(key, da)
         ensure_entity_and_units_valid(key, da)
         ensure_variable_name(str(key), da)
@@ -251,7 +261,7 @@ def ensure_entity_and_units_valid(key: Hashable, da: xr.DataArray):
                 f"compatible with an emission rate."
             )
     except pint.UndefinedUnitError:
-        if entity not in ("population",) and "(" not in entity:
+        if entity not in ("population",) and "(" not in key:
             logger.warning(f"entity {entity!r} of {key!r} is unknown.")
 
 

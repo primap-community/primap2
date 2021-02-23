@@ -4,6 +4,8 @@ Changelog
 
 unreleased
 ----------
+* Add the ``da.pr.set()`` and ``ds.pr.set()`` functions for overwriting / infilling /
+  extending data.
 
 0.3.1
 -----

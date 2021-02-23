@@ -45,6 +45,7 @@ Methods
     DataArray.pr.fill_all_na
     DataArray.pr.sum_skip_all_na
     DataArray.pr.downscale_timeseries
+    DataArray.pr.set
 
 Dataset
 -------
@@ -88,3 +89,4 @@ Methods
     Dataset.pr.downscale_timeseries
     Dataset.pr.downscale_gas_timeseries
     Dataset.pr.__getitem__
+    Dataset.pr.set
