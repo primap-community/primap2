@@ -374,7 +374,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
 
         All data variables which have the given dimension are modified.
         The affected data variables are mutated using
-        ``DataArray.pr.set(dim, key, value[name], existing=existing)``.
+        ``DataArray.pr.set(dim, key, value[name], existing=existing, new=new)``.
 
         Parameters
         ----------
