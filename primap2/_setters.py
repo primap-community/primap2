@@ -7,6 +7,19 @@ from . import _accessor_base
 
 
 class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
+    @staticmethod
+    def _sel_error(
+        da: xr.DataArray, dim: typing.Hashable, key: typing.Iterable
+    ) -> xr.DataArray:
+        try:
+            return da.loc[{dim: key}]
+        except KeyError:
+            missing = set(key).difference(set(da[dim].values))
+            raise KeyError(
+                f"Values {missing!r} not in {dim!r}, use new='extend' to "
+                f"automatically insert new values into dim."
+            )
+
     def set(
         self,
         dim: typing.Hashable,
@@ -15,6 +28,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         *,
         value_dims: typing.Optional[typing.List[typing.Hashable]] = None,
         existing: str = "fillna_empty",
+        new: str = "extend",
     ) -> xr.DataArray:
         """Set values, expanding the given dimension as necessary.
 
@@ -43,6 +57,11 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             in the index. If ``existing="overwrite"``, new values overwrite current
             values for existing keys. If ``existing="fillna"``, the new values only
             overwrite NaN values for existing keys.
+        new: "extend", or "error", optional
+            How to handle new keys. If ``new="extend"`` (default), keys which do not
+            exist so far are automatically inserted by extending the dimension.
+            If ``new="error"``, a KeyError is raised if any key is not yet in the
+            dimension.
 
         Examples
         --------
@@ -140,6 +159,14 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
           * area (ISO3)  (area (ISO3)) object 'ARG' 'COL' 'MEX'
           * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
 
+        If you don't want to automatically extend the dimensions with new values, you
+        can request checking that all keys already exist using ``new="error"``:
+
+        >>> da.pr.set("area", "ARG", np.array([0.5, 0.6, 0.7, 0.8]), new="error")
+        Traceback (most recent call last):
+        ...
+        KeyError: "Values {'ARG'} not in 'area (ISO3)', use new='extend' to automatic...
+
         If you want to use broadcasting or have more dimensions, the dimensions of your
         input can't be determined automatically anymore. Use the value_dims parameter
         to supply this information.
@@ -235,6 +262,11 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             # without conflicting keys, the new keys are filled
             existing = "fillna"
 
+        if new not in ("error", "extend"):
+            raise ValueError(
+                f"If given, 'new' must specify one of 'error' or 'extend', not {new!r}."
+            )
+
         if isinstance(value, xr.DataArray):
             if value_dims is not None:
                 raise ValueError("value_dims given, but value is already a DataArray.")
@@ -246,19 +278,35 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
                 value = value.expand_dims({dim: key})  # type: ignore
             else:
                 value = value.loc[{dim: key}]
-            value, expanded = xr.broadcast(value, self._da)
+
+            # we broadcast value to full self._da, a possible optimization would be
+            # to broadcast value only to sel, but would need more careful handling
+            # later.
+            if new == "extend":
+                value, expanded = xr.broadcast(value, self._da)
+            else:
+                expanded = self._da
+                value = value.broadcast_like(expanded)
+
+            sel = self._sel_error(expanded, dim, key)
+
             value.attrs = self._da.attrs
             value.name = self._da.name
-            sel = expanded.loc[{dim: key}]
 
         else:
-            new_index = list(self._da[dim].values)
-            for item in key:
-                if item not in new_index:
-                    new_index.append(item)
-            new_index = np.array(new_index, dtype=self._da[dim].dtype)
-            expanded = self._da.reindex({dim: new_index}, copy=False)
-            sel = expanded.loc[{dim: key}]
+            # convert value to DataArray
+
+            if new == "extend":
+                new_index = list(self._da[dim].values)
+                for item in key:
+                    if item not in new_index:
+                        new_index.append(item)
+                new_index = np.array(new_index, dtype=self._da[dim].dtype)
+                expanded = self._da.reindex({dim: new_index}, copy=False)
+            else:
+                expanded = self._da
+
+            sel = self._sel_error(expanded, dim, key)
 
             if value_dims is None:
                 value_dims = []
