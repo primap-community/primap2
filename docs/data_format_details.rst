@@ -14,18 +14,18 @@ For all dimensions, defined names have to be used and additional metadata about 
 dimensions is stored in the datasets ``attrs``.
 The dimensions are:
 
-===============  =====================  ========  ========================================================  ===================================
-dimension        dimension key          required  notes                                                     attrs
----------------  ---------------------  --------  --------------------------------------------------------  -----------------------------------
+===============  =====================  ========  ======================================  =======================================
+dimension        dimension key          required  notes                                   attrs
+---------------  ---------------------  --------  --------------------------------------  ---------------------------------------
 time             time                   ✗         for periods, the *start* of the period
-area             area (<category-set>)  ✗         must be a pre-defined category set                        'area': 'area (<category set>)'
-category         category (<c-set>)               primary category                                          'cat': 'category (<c-set>)'
-sec. categories  <type> (<c-set>)                 there can be multiple                                     'sec_cats': ['<type> (<c-set>)', …]
-scenario         scenario (<c-set>)                                                                         'scen': 'scenario (<c-set>)'
-provenance       provenance                       values are ``measured``, ``projected``, and ``derived``
+area             area (<category-set>)  ✗         must be a pre-defined category set      ``'area': 'area (<category set>)'``
+category         category (<c-set>)               primary category                        ``'cat': 'category (<c-set>)'``
+sec. categories  <type> (<c-set>)                 there can be multiple                   ``'sec_cats': ['<type> (<c-set>)', …]``
+scenario         scenario (<c-set>)                                                       ``'scen': 'scenario (<c-set>)'``
+provenance       provenance                       values from fixed set
 model            model                            model should be from a predefined list
 source           source                 ✗         a short source identifier
-===============  =====================  ========  ========================================================  ===================================
+===============  =====================  ========  ======================================  =======================================
 
 For some dimensions, the meaning of the data is directly visible from the data type
 (``time`` uses an xarray datetime data type) or the values come from a pre-defined list
@@ -51,6 +51,8 @@ category-set (for example, ``animal (FAOSTAT)``).
 Additional rules:
 
 * The size of the ``source`` dimension must be exactly 1.
+* The valid values for the ``provenance`` are ``measured``, ``projected``, and
+  ``derived``.
 
 Additional Coordinates
 ----------------------
