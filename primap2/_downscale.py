@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Sequence
+from typing import Dict, Hashable, Optional, Sequence
 
 import xarray as xr
 
@@ -11,12 +11,12 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
     def downscale_timeseries(
         self,
         *,
-        dim: str,
-        basket: str,
-        basket_contents: Sequence[str],
+        dim: Hashable,
+        basket: Hashable,
+        basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[Dict[str, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[str] = tuple(),
+        sel: Optional[Dict[Hashable, Sequence]] = None,
+        skipna_evaluation_dims: Sequence[Hashable] = tuple(),
     ) -> xr.DataArray:
         """Downscale timeseries along a dimension using a basket defined on a
         broader timeseries.
@@ -98,12 +98,12 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
     def downscale_timeseries(
         self,
         *,
-        dim: str,
-        basket: str,
-        basket_contents: Sequence[str],
+        dim: Hashable,
+        basket: Hashable,
+        basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[Dict[str, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[str] = tuple(),
+        sel: Optional[Dict[Hashable, Sequence]] = None,
+        skipna_evaluation_dims: Sequence[Hashable] = tuple(),
     ) -> xr.Dataset:
         """Downscale timeseries along a dimension using a basket defined on a
         broader timeseries.
@@ -189,11 +189,11 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
     def downscale_gas_timeseries(
         self,
         *,
-        basket: str,
-        basket_contents: Sequence[str],
+        basket: Hashable,
+        basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[Dict[str, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[str] = tuple(),
+        sel: Optional[Dict[Hashable, Sequence]] = None,
+        skipna_evaluation_dims: Sequence[Hashable] = tuple(),
     ) -> xr.Dataset:
         """Downscale a gas basket defined on a broader timeseries to its contents
         known on fewer time points.

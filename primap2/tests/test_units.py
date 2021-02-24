@@ -65,7 +65,7 @@ def test_convert_to_mass_missing_info(opulent_ds: xr.Dataset):
     ):
         da.pr.convert_to_mass()
 
-    da: xr.DataArray = opulent_ds["SF6 (SARGWP100)"]
+    da = opulent_ds["SF6 (SARGWP100)"]
     del da.attrs["entity"]
     with pytest.raises(
         ValueError, match="No entity given and no entity available in the attrs"
