@@ -12,7 +12,6 @@ def test_metadata_properties(opulent_ds):
     assert ds.pr.history == (
         "2021-01-14 14:50 data invented\n" "2021-01-14 14:51 additional processing step"
     )
-    assert ds.pr.source == "RAND2020"
 
     ds.pr.references = "references"
     assert ds.pr.references == "references"
@@ -28,5 +27,3 @@ def test_metadata_properties(opulent_ds):
     assert ds.pr.institution == "institution"
     ds.pr.history = "history"
     assert ds.pr.history == "history"
-    ds.pr.source = "source"
-    assert ds.pr.source == "source"

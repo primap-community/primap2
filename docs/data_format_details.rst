@@ -50,7 +50,6 @@ category-set (for example, ``animal (FAOSTAT)``).
 
 Additional rules:
 
-* The size of the ``source`` dimension must be exactly 1.
 * The valid values for the ``provenance`` are ``measured``, ``projected``, and
   ``derived``.
 

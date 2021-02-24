@@ -48,7 +48,7 @@ def opulent_ds():
         "scenario (FAOSTAT)": np.array(["highpop", "lowpop"]),
         "provenance": np.array(["projected"]),
         "model": np.array(["FANCYFAO"]),
-        "source": np.array(["RAND2020"]),
+        "source": np.array(["RAND2020", "RAND2021"]),
     }
 
     # seed the rng with a constant to achieve predictable "randomness"

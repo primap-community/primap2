@@ -385,10 +385,6 @@ def ensure_valid_dimensions(ds: xr.Dataset):
             f" sec_cats."
         )
 
-    if ds.dims["source"] != 1:
-        logger.error("Exactly one source required per data set.")
-        raise ValueError("Exactly one source required")
-
     for dim in required_indirect_dims.union(optional_indirect_dims):
         if dim in ds.attrs:
             split_dim_name(ds.attrs[dim])
