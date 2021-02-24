@@ -226,7 +226,7 @@ def metadata_for_entity_primap(unit: str, entity: str) -> dict:
         # not a basket entity which uses GWPs
         entity_out = entity
         variable_name = entity
-        attr_dict = {"entity": entity_out, "unit": unit}
+        attr_dict = {"entity": entity_out, "units": unit}
     else:
         # check if GWP information present in entity
         match = re.search(regexp_str_gwps, entity)
@@ -246,7 +246,7 @@ def metadata_for_entity_primap(unit: str, entity: str) -> dict:
                 gwp_out = gwp_mapping[gwp_out]
                 entity_out = match.group(0)
         variable_name = entity_out + " (" + gwp_out + ")"
-        attr_dict = {"entity": entity_out, "unit": unit, "gwp_context": gwp_out}
+        attr_dict = {"entity": entity_out, "units": unit, "gwp_context": gwp_out}
 
     result_dict = {"variable_name": variable_name, "attrs": attr_dict}
 
@@ -686,7 +686,7 @@ def read_wide_csv_file(
     # the next step is very memory consuming if the dimensionality of the array is too
     # high
     # TODO: introduce a check of dimensionality and alternate method for large datasets
-    read_data_xr = dates_to_dimension(read_data_xr).to_dataset("entity")
+    read_data_xr = dates_to_dimension(read_data_xr).to_dataset(entity_col)
 
     # fill the entity/variable attributes
     # TODO: it would be better if the renaming is done earlier such that the exchange
@@ -694,7 +694,7 @@ def read_wide_csv_file(
     # to xarray
     entity_renaming = {}
     for entity in read_data_xr:
-        csv_units = units.loc[{"entity": entity}].to_series().unique()
+        csv_units = units.loc[{entity_col: entity}].to_series().unique()
         if len(csv_units) > 1:
             raise ValueError(
                 f"More than one unit for {entity!r}: {csv_units!r}. "
@@ -733,13 +733,15 @@ def read_wide_csv_file(
 
     remove_cols = ["unit", "entity"]
     for col in remove_cols:
-        if col in coord_renaming:
-            del coord_renaming[col]
+        if col in coord_renaming.values():
+            for key in coord_renaming:
+                if coord_renaming[key] == col:
+                    del coord_renaming[key]
+                    break
         if col in attrs:
             del attrs[col]
     read_data_xr = read_data_xr.rename_dims(coord_renaming)
     read_data_xr = read_data_xr.rename(coord_renaming)
     read_data_xr.attrs = attrs
-    read_data_xr = read_data_xr.pr.quantify()
 
-    return read_data_xr
+    return read_data_xr.pr.quantify()

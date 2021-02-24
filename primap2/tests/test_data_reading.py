@@ -46,14 +46,14 @@ def test_convert_unit_primap_to_primap2(unit_in, entity_in, expected_unit_out):
         (
             "Mt",
             "CO2",
-            {"attrs": {"unit": "Mt", "entity": "CO2"}, "variable_name": "CO2"},
+            {"attrs": {"units": "Mt", "entity": "CO2"}, "variable_name": "CO2"},
         ),
         (
             "Gg CO2",
             "KYOTOGHGAR4",
             {
                 "attrs": {
-                    "unit": "Gg CO2",
+                    "units": "Gg CO2",
                     "entity": "KYOTOGHG",
                     "gwp_context": "AR4GWP100",
                 },
@@ -65,7 +65,7 @@ def test_convert_unit_primap_to_primap2(unit_in, entity_in, expected_unit_out):
             "KYOTOGHG",
             {
                 "attrs": {
-                    "unit": "kg CO2",
+                    "units": "kg CO2",
                     "entity": "KYOTOGHG",
                     "gwp_context": "SARGWP100",
                 },
