@@ -2,8 +2,8 @@
 Changelog
 =========
 
-unreleased
-----------
+0.4.0
+-----
 * Add the ``da.pr.set()`` and ``ds.pr.set()`` functions for overwriting / infilling /
   extending data.
 * Allow for more than one source in a single Dataset / DataArray.
