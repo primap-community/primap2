@@ -10,8 +10,8 @@ PRIMAP2
         :target: https://primap2.readthedocs.io/en/main/?badge=main
         :alt: Documentation Status
 
-.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.4535903.svg
-        :target: https://doi.org/10.5281/zenodo.4535903
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.4570257.svg
+        :target: https://doi.org/10.5281/zenodo.4570257
         :alt: Zenodo release
 
 PRIMAP2 is the next generation of the PRIMAP climate policy analysis suite.
@@ -56,6 +56,6 @@ Citation
 --------
 If you use this library and want to cite it, please cite it as:
 
-Mika Pflüger. (2021, February 11).
-pik-primap/primap2: Version 0.3.1.
-Zenodo. http://doi.org/10.5281/zenodo.4535903
+Mika Pflüger and Johannes Gütschow. (2021, March 1).
+pik-primap/primap2: Version 0.4.0.
+Zenodo. http://doi.org/10.5281/zenodo.4570257
