@@ -18,8 +18,8 @@ requirements = [
     "openscm_units",
     "loguru",
     "scipy",
-    "h5netcdf",
-    "h5py<3",
+    "h5netcdf>=0.10",
+    "h5py",
     "bottleneck",
     "matplotlib",
 ]
