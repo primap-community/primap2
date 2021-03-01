@@ -12,7 +12,6 @@ from ._units import ureg
 def open_dataset(
     filename_or_obj: Union[str, pathlib.Path, IO],
     group: Optional[str] = None,
-    autoclose: Optional[bool] = None,
     chunks: Optional[Union[int, dict]] = None,
     cache: Optional[bool] = None,
     drop_variables: Optional[Union[str, Iterable]] = None,
@@ -28,10 +27,6 @@ def open_dataset(
         objects are also supported.
     group : str, optional
         Path to the netCDF4 group in the given file to open.
-    autoclose : bool, optional
-        If True, automatically close files to avoid OS Error of too many files
-        being open.  However, this option doesn't work with streams, e.g.,
-        BytesIO.
     chunks : int or dict, optional
         If chunks is provided, it is used to load the new dataset into dask
         arrays. ``chunks={}`` loads the dataset with dask using a single
@@ -67,7 +62,6 @@ def open_dataset(
     ds = xr.open_dataset(
         filename_or_obj=filename_or_obj,
         group=group,
-        autoclose=autoclose,
         chunks=chunks,
         cache=cache,
         drop_variables=drop_variables,
