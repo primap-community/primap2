@@ -18,8 +18,8 @@ requirements = [
     "openscm_units",
     "loguru",
     "scipy",
-    "h5netcdf",
-    "h5py<3",
+    "h5netcdf>=0.10",
+    "h5py",
     "bottleneck",
     "matplotlib",
 ]
@@ -31,14 +31,13 @@ setup_requirements = [
 setup(
     author="Mika Pflüger",
     author_email="mika.pflueger@pik-potsdam.de",
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: Apache Software License",
         "Natural Language :: English",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         #        "Programming Language :: Python :: 3.9",
@@ -53,6 +52,6 @@ setup(
     packages=find_packages(include=["primap2", "primap2.*"]),
     setup_requires=setup_requirements,
     url="https://github.com/pik-primap/primap2",
-    version="0.3.1",
+    version="0.4.0",
     zip_safe=False,
 )

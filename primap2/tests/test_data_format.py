@@ -20,10 +20,9 @@ def test_something_else_entirely(caplog):
     assert "object is not an xarray Dataset." in caplog.text
 
 
-def test_valid_ds_pass(minimal_ds, opulent_ds, caplog):
+def test_valid_ds_pass(any_ds, caplog):
     caplog.set_level(logging.INFO)
-    minimal_ds.pr.ensure_valid()
-    opulent_ds.pr.ensure_valid()
+    any_ds.pr.ensure_valid()
     assert not caplog.records
 
 
@@ -107,22 +106,6 @@ def test_wrong_dimension_key(minimal_ds, caplog):
         ds.pr.ensure_valid()
     assert "ERROR" in caplog.text
     assert "'asdf' not in the format 'dim (category_set)'." in caplog.text
-
-
-def test_not_one_source(minimal_ds: xr.Dataset, caplog):
-    ds = minimal_ds.loc[{"source": "RAND2020"}]
-    ds["source"] = []
-    with pytest.raises(ValueError, match=r"Exactly one source required"):
-        ds.pr.ensure_valid()
-    assert "ERROR" in caplog.text
-    assert "Exactly one source required per data set." in caplog.text
-
-    caplog.clear()
-    ds["source"] = ["a", "b"]
-    with pytest.raises(ValueError, match=r"Exactly one source required"):
-        ds.pr.ensure_valid()
-    assert "ERROR" in caplog.text
-    assert "Exactly one source required per data set." in caplog.text
 
 
 def test_missing_sec_cat(minimal_ds, caplog):

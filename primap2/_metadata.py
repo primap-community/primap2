@@ -72,12 +72,3 @@ class DatasetMetadataAccessor(_accessor_base.BaseDatasetAccessor):
     @history.setter
     def history(self, value: str):
         self._ds.attrs["history"] = value
-
-    @property
-    def source(self) -> str:
-        """a short identifier for the source of the data"""
-        return self._ds["source"].item()
-
-    @source.setter
-    def source(self, value: str):
-        self._ds["source"] = [value]

@@ -17,8 +17,8 @@ ipykernel
 jupyter
 loguru
 scipy
-h5netcdf
-h5py<3
+h5netcdf>=0.10
+h5py
 git+https://github.com/keewis/sphinx-autosummary-accessors
 numpydoc
 xarray
