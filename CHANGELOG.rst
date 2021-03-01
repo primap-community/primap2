@@ -7,6 +7,7 @@ unreleased
 * Add the ``da.pr.set()`` and ``ds.pr.set()`` functions for overwriting / infilling /
   extending data.
 * Allow for more than one source in a single Dataset / DataArray.
+* Support xarray 0.17, and therefore drop support for Python 3.6.
 
 0.3.1
 -----
