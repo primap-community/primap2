@@ -320,7 +320,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
                     )
             value = xr.DataArray(
                 value,
-                coords=[(idim, sel[idim]) for idim in value_dims],
+                coords=[(idim, sel[idim].data) for idim in value_dims],
                 name=self._da.name,
                 attrs=self._da.attrs,
             ).broadcast_like(sel)
