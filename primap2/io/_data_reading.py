@@ -18,7 +18,7 @@ def convert_dataframe_units_primap_to_primap2(
     also handles the exception cases where PRIMAP units do contain information about the
     substance (e.g. GtC).
 
-    The function operates in a ScmRun dataframe which is alteed in place.
+    The function operates in place.
 
     Parameters
     ----------
@@ -144,27 +144,27 @@ def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
 
 def dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
     """
-    This function converts a xr dataset where each time point is an individual
-    coordinate to a xr.DataArray with one time coordinate and the time points as values.
-    All dimensions which are not in the index are assumed to be time points.
+    This function converts a xr.Dataset where each time point is an individual
+    data variable to a xr.DataArray with a time dimension.
+    All variables which are not in the index are assumed to be time points.
 
     Parameters
     ----------
     ds : xr.Dataset
-        Dataset with individual time points as dimensions
+        Dataset with individual time points as data variables
 
     time_format : str
         format string for the time points. Default: %Y (for year only)
 
     Returns
     -------
-    :obj:`xr.DataArray`
-        xr.DataArray with the time as an dimension and time points as values
-
+    reduced: xr.DataArray
+        xr.DataArray with the time as a dimension and time points as values
     """
-    ds = ds.to_array("time").unstack().dropna("time", "all")
-    ds["time"] = pd.to_datetime(ds["time"].values, format=time_format, exact=False)
-    return ds
+
+    da = ds.to_array("time").unstack().dropna("time", "all")
+    da["time"] = pd.to_datetime(da["time"].values, format=time_format, exact=False)
+    return da
 
 
 def convert_ipcc_code_primap_to_primap2(code: str) -> str:
@@ -231,74 +231,64 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
 
     if len(code) < 4:
         # code too short
-        logger.warning("Category code " + code + " is too short. Not converted")
-    elif code[0:3] in ["IPC", "CAT"]:
-        # it's an IPCC code. convert it
-        # check if it's a custom code (beginning with 'M'). Currently these are the same
-        # in pyCPA as in PRIMAP
-        if code[3] == "M":
-            new_code = code[3:]
-            if new_code in code_mapping.keys():
-                new_code = code_mapping[new_code]
+        logger.warning(f"Category code {code!r} is too short to be a PRIMAP IPCC code.")
+    if code[0:3] not in ["IPC", "CAT"]:
+        # prefix is missing
+        logger.warning(f"Category code {code!r} is not in PRIMAP IPCC code format.")
+        return ""
 
-        else:
-            # actual conversion happening here
-            # only work with the part without 'IPC' or 'CAT'
-            code_remaining = code[3:]
-
-            # first two chars are unchanged but a dot is added
-            if len(code_remaining) == 1:
-                new_code = code_remaining
-            elif len(code_remaining) == 2:
-                new_code = code_remaining[0] + "." + code_remaining[1]
-            else:
-                new_code = code_remaining[0] + "." + code_remaining[1]
-                code_remaining = code_remaining[2:]
-                # the next part is a number. match by regexp to also match 2 digit
-                # numbers (just in case there are any, currently not needed)
-                match = re.match("[0-9]*", code_remaining)
-                if match is None:
-                    # code does not obey specifications. Throw a warning and stop
-                    # conversion
-                    logger.warning(
-                        "Category code "
-                        + code
-                        + " does not obey specifications. "
-                        + "No number found on third level"
-                    )
-                    new_code = ""
-                else:
-                    new_code = new_code + "." + match.group(0)
-                    code_remaining = code_remaining[len(match.group(0)) :]
-
-                    # fourth level is a char. Has to be transformed to lower case
-                    if len(code_remaining) > 0:
-                        new_code = new_code + "." + code_remaining[0].lower()
-                        code_remaining = code_remaining[1:]
-
-                        # now we have an arabic numeral in the PRIMAP-format but a roman
-                        # numeral in pyCPA
-                        if len(code_remaining) > 0:
-                            new_code = (
-                                new_code + "." + arabic_to_roman[code_remaining[0]]
-                            )
-                            code_remaining = code_remaining[1:]
-
-                            if len(code_remaining) > 0:
-                                # now we have a number again. An it's the end of the
-                                # code. So just copy the rest
-                                new_code = new_code + "." + code_remaining
-
-        return new_code
+    # it's an IPCC code. convert it
+    # check if it's a custom code (beginning with 'M'). Currently these are the same
+    # in pyCPA as in PRIMAP
+    if code[3] == "M":
+        new_code = code[3:]
+        if new_code in code_mapping.keys():
+            new_code = code_mapping[new_code]
 
     else:
-        # the prefix is missing. Throw a warning and don't do anything
-        logger.warning(
-            "Category code "
-            + code
-            + " is not in PRIMAP IPCC code format. Not converted"
-        )
-        return ""
+        # actual conversion happening here
+        # only work with the part without 'IPC' or 'CAT'
+        code_remaining = code[3:]
+
+        # first two chars are unchanged but a dot is added
+        if len(code_remaining) == 1:
+            new_code = code_remaining
+        elif len(code_remaining) == 2:
+            new_code = code_remaining[0] + "." + code_remaining[1]
+        else:
+            new_code = code_remaining[0] + "." + code_remaining[1]
+            code_remaining = code_remaining[2:]
+            # the next part is a number. match by regexp to also match 2 digit
+            # numbers (just in case there are any, currently not needed)
+            match = re.match("[0-9]*", code_remaining)
+            if match is None:
+                # code does not obey specifications
+                logger.warning(
+                    f"Category code {code!r} does not conform to specifications:"
+                    f" No number found on third level."
+                )
+                new_code = ""
+            else:
+                new_code = new_code + "." + match.group(0)
+                code_remaining = code_remaining[len(match.group(0)) :]
+
+                # fourth level is a char. Has to be transformed to lower case
+                if len(code_remaining) > 0:
+                    new_code = new_code + "." + code_remaining[0].lower()
+                    code_remaining = code_remaining[1:]
+
+                    # now we have an arabic numeral in the PRIMAP-format but a roman
+                    # numeral in pyCPA
+                    if len(code_remaining) > 0:
+                        new_code = new_code + "." + arabic_to_roman[code_remaining[0]]
+                        code_remaining = code_remaining[1:]
+
+                        if len(code_remaining) > 0:
+                            # now we have a number again. An it's the end of the
+                            # code. So just copy the rest
+                            new_code = new_code + "." + code_remaining
+
+    return new_code
 
 
 def read_wide_csv_file_if(
@@ -765,7 +755,7 @@ def convert_entity_gwp_primap(entity_pm1: str) -> str:
 
     Returns
     -------
-    :str:
+    entity: str
     entity in PRIMAP2 format
 
     """
@@ -818,10 +808,12 @@ def convert_entity_gwp_primap(entity_pm1: str) -> str:
             match = re.search(".*(?=" + gwp_out + ")", entity_pm1)
             if match.group() == "":
                 logger.error(
-                    "No GWP matched in " + entity_pm1 + ". This should not be possible."
+                    "Confused: could not find entity which should be there."
+                    " This indicates a bug in this function."
                 )
-                raise RuntimeError(
-                    "No GWP matched in " + entity_pm1 + ". This should not be possible."
+                raise ValueError(
+                    "Confused: could not find entity which should be there."
+                    " This indicates a bug in this function."
                 )
             else:
                 entity_pm2 = match.group(0) + " (" + gwp_mapping[gwp_out] + ")"
@@ -843,9 +835,8 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
 
     Returns
     -------
-    :dict:
-    attrs for use in xr Dataset variable
-
+    attrs: dict
+    attrs for use in DataArray.attrs
     """
 
     attrs = {"units": unit}
