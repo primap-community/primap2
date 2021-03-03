@@ -11,6 +11,11 @@ Top-level API
     open_dataset
     ureg
 
+.. toctree::
+    :maxdepth: 2
+
+    io
+
 .. currentmodule:: xarray
 
 DataArray

@@ -313,6 +313,7 @@ def read_wide_csv_file_if(
 
     Currently duplicate datapoint will not be detected
     TODO: enable filtering through query strings
+    TODO: sort the metadata columns before returning the data
 
     Parameters
     ----------
