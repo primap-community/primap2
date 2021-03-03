@@ -1,22 +1,18 @@
 """Tests for _data_reading.py"""
 # import logging
 
+import os
+
+import pandas as pd
+
 # import pandas as pd
 # import pint
 import pytest
 
+import primap2 as pm2
 import primap2.io._data_reading as pm2io
 
-# import xarray as xr
-
-
-# @pytest.mark.parametrize("unit_in, entity_in, expected_unit_out", [("3+5", 8),
-# ("2+4", 6), ("6*9", 42)])
-# def test_convert_unit_primap_to_primap2():
-#    assert convert_unit_primap_to_primap2(
-#        data_frame: pd.DataFrame,
-#    unit_col: str = "unit",
-#                    entity_col: str = "entity"
+from .utils import assert_ds_aligned_equal
 
 
 @pytest.mark.parametrize(
@@ -41,38 +37,128 @@ def test_convert_unit_primap_to_primap2(unit_in, entity_in, expected_unit_out):
 
 
 @pytest.mark.parametrize(
-    "unit, entity, expected_dict",
+    "unit, entity, expected_attrs",
     [
-        (
-            "Mt",
-            "CO2",
-            {"attrs": {"units": "Mt", "entity": "CO2"}, "variable_name": "CO2"},
-        ),
+        ("Mt", "CO2", {"units": "Mt", "entity": "CO2"}),
         (
             "Gg CO2",
-            "KYOTOGHGAR4",
+            "KYOTOGHG (AR4GWP100)",
             {
-                "attrs": {
-                    "units": "Gg CO2",
-                    "entity": "KYOTOGHG",
-                    "gwp_context": "AR4GWP100",
-                },
-                "variable_name": "KYOTOGHG (AR4GWP100)",
+                "units": "Gg CO2",
+                "entity": "KYOTOGHG",
+                "gwp_context": "AR4GWP100",
             },
         ),
         (
             "kg CO2",
-            "KYOTOGHG",
+            "CH4 (SARGWP100)",
             {
-                "attrs": {
-                    "units": "kg CO2",
-                    "entity": "KYOTOGHG",
-                    "gwp_context": "SARGWP100",
-                },
-                "variable_name": "KYOTOGHG (SARGWP100)",
+                "units": "kg CO2",
+                "entity": "CH4",
+                "gwp_context": "SARGWP100",
             },
         ),
     ],
 )
-def test_metadata_for_entity_primap(unit, entity, expected_dict):
-    assert pm2io.metadata_for_entity_primap(unit, entity) == expected_dict
+def test_metadata_for_variable(unit, entity, expected_attrs):
+    assert pm2io.metadata_for_variable(unit, entity) == expected_attrs
+
+
+@pytest.mark.parametrize(
+    "entity_pm1, entity_pm2",
+    [
+        ("CO2", "CO2"),
+        ("KYOTOGHG", "KYOTOGHG (SARGWP100)"),
+        ("KYOTOGHGAR4", "KYOTOGHG (AR4GWP100)"),
+    ],
+)
+def test_convert_entity_gwp_primap(entity_pm1, entity_pm2):
+    assert pm2io.convert_entity_gwp_primap(entity_pm1) == entity_pm2
+
+
+def test_read_wide_csv_file():
+    path = os.path.join("primap2", "tests", "data")
+    file_input = "test_csv_data_sec_cat.csv"
+    file_expected = "test_read_wide_csv_file_output.csv"
+    df_expected = pd.read_csv(os.path.join(path, file_expected), index_col=0)
+
+    coords_cols = {
+        "unit": "unit",
+        "entity": "gas",
+        "area": "country",
+        "category": "category",
+        "sec_cats__Class": "class",
+    }
+    coords_defaults = {
+        "source": "TESTcsv2021",
+        "citation": "Test",
+        "sec_cats__Type": "fugitive",
+        "scenario": "HISTORY",
+    }
+    coords_terminologies = {
+        "area": "ISO3",
+        "category": "IPCC2006",
+        "sec_cats__Type": "type",
+        "sec_cats__Class": "class",
+        "scenario": "general",
+    }
+    meta_mapping = {"category": "PRIMAP1", "entity": "PRIMAP1"}
+    filter_keep = {
+        "f1": {"category": ["IPC0", "IPC2"]},
+    }
+    filter_remove = {
+        "f1": {"gas": "CH4"},
+    }
+
+    df_result = pm2io.read_wide_csv_file_if(
+        file_input,
+        path,
+        coords_cols=coords_cols,
+        coords_defaults=coords_defaults,
+        coords_terminologies=coords_terminologies,
+        meta_mapping=meta_mapping,
+        filter_keep=filter_keep,
+        filter_remove=filter_remove,
+    )
+    df_result.to_csv(os.path.join(path, "temp.csv"))
+    df_result = pd.read_csv(os.path.join(path, "temp.csv"), index_col=0)
+    os.remove(os.path.join(path, "temp.csv"))
+    pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
+
+
+def test_from_interchange_format():
+    path = os.path.join("primap2", "tests", "data")
+    file_input = "test_read_wide_csv_file_output.csv"
+    file_expected = "test_from_interchange_format_output.nc"
+    ds_expected = pm2.open_dataset(os.path.join(path, file_expected))
+    attrs = {
+        "area": "area (ISO3)",
+        "cat": "category (IPCC2006)",
+        "scen": "scenario (general)",
+        "sec_cats": ["Class (class)", "Type (type)"],
+    }
+    df_input = pd.read_csv(os.path.join(path, file_input), index_col=0)
+    ds_result = pm2io.from_interchange_format(
+        df_input, attrs, data_col_regex_str="\d"  # noqa: W605
+    )
+    assert_ds_aligned_equal(ds_result, ds_expected, equal_nan=True)
+
+
+def test_convert_dataframe_units_primap_to_primap2():
+    path = os.path.join("primap2", "tests", "data")
+    file_input = "test_csv_data_sec_cat.csv"
+    file_expected = "test_convert_dataframe_units_primap_to_primap2.csv"
+    df_expected = pd.read_csv(os.path.join(path, file_expected), index_col=0)
+    df = pd.read_csv(os.path.join(path, file_input))
+    df_converted = pm2io.convert_dataframe_units_primap_to_primap2(
+        df, unit_col="unit", entity_col="gas"
+    )
+    pd.testing.assert_frame_equal(df_converted, df_expected)
+
+
+# functions that need testing but work on dataframes
+
+
+# dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
+
+# harmonize_units

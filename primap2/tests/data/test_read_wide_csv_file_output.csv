@@ -1,0 +1,4 @@
+,area (ISO3),category (IPCC2006),sec_cats__Class (class),entity,unit,1991,2000,2010,source,scenario (general),sec_cats__Type (type)
+1,AUS,0,TOTAL,KYOTOGHG (SARGWP100),Mt CO2 / yr,8.0,9.0,10.0,TESTcsv2021,HISTORY,fugitive
+2,ZAM,0,TOTAL,KYOTOGHG (SARGWP100),Mt CO2 / yr,0.03,0.02,0.04,TESTcsv2021,HISTORY,fugitive
+4,ZAM,2,TOTAL,CO2,Gg CO2 / yr,12.0,13.0,14.0,TESTcsv2021,HISTORY,fugitive
