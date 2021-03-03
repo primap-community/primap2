@@ -331,13 +331,13 @@ def read_wide_csv_file_if(
     coords_defaults : dict
         Dict for default values of coordinates / dimensions not given in the csv files.
         The keys are the dimension or metadata names and the values are the values for
-        the diemnsions or metadata. The distinction between dimension and metadata is
-        done automatically on the basis of mandatoruy dimensions. For secondary
+        the dimensions or metadata. The distinction between dimension and metadata is
+        done automatically on the basis of mandatory dimensions. For secondary
         categories use a "sec_cats__" prefix. Default: empty
 
     coords_terminologies : dict
         Dict defining the terminologies used for the different coordinates (e.g. ISO3
-        for area). Only possible coordintes here are: area, category, scenario, and
+        for area). Only possible coordinates here are: area, category, scenario, and
         secondary categories. For secondary categories use a "sec_cats__" prefix.
         All entries different from "area", "category", "scenario", and "sec_cats__<name>
         will raise an error. Default: empty
