@@ -76,19 +76,26 @@ def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
 
     """
 
+    # check inputs
+    if entity == "":
+        logger.warning("Input entity is empty. Nothing converted.")
+        return "error_" + unit + "_" + entity
+    if unit == "":
+        logger.warning("Input unit is empty. Nothing converted.")
+        return "error_" + unit + "_" + entity
+
     # define exceptions
-    # specialities
     exception_units = {
         "CO2eq": "CO2",  # convert to just CO2
         "<entity>N": "N",
-        "C": "C",  # don't add variable here (untested)
+        "C": "C",  # don't add variable here
     }
 
     # basic units
     basic_units = ["g", "t"]
 
     # prefixes
-    si_unit_multipliers = ["k", "M", "G", "T", "P", "E", "Z", "Y"]
+    si_unit_multipliers = ["", "k", "M", "G", "T", "P", "E", "Z", "Y"]
 
     # combines basic units with prefixes
     units_prefixes = list(itertools.product(si_unit_multipliers, basic_units))
@@ -107,34 +114,28 @@ def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
     # special units will be replaced later
     unit_entity = unit + " " + entity + time_frame_str
 
+    # check if unit has prefix
+    match_pref = re.search(regexp_str, unit_entity)
+    if match_pref is None:
+        logger.warning("No unit prefix matched for unit. " + unit_entity)
+        return "error_" + unit + "_" + entity
+
     # check if exception unit
     is_ex_unit = [
         re.match(regexp_str + ex_unit.replace("<entity>", entity) + "$", unit)
         is not None
         for ex_unit in exception_units
     ]
+
     if any(is_ex_unit):
         # we have an exception unit
         exception_unit = list(exception_units.keys())[is_ex_unit.index(True)]
         # first get the prefix and basic unit (e.g. Gt)
-        match = re.search(regexp_str, unit_entity)
-        if match is None:
-            logger.error("No unit prefix matched for unit." + unit_entity)
-            raise RuntimeError("No unit prefix matched for unit." + unit_entity)
-        pref_basic = match.group(0)
-        # then get variable
-        match = re.search("(?<=\s)(.*)(?=\s/\s)", unit_entity)  # noqa: W605
-        if match is None:
-            logger.error("No variable matched for unit." + unit_entity)
-            raise RuntimeError("No unit variable matched for unit." + unit_entity)
-        entity = match.group(0)
+        pref_basic = match_pref.group(0)
         # now build the replacement
         converted_unit = (
             pref_basic + " " + exception_units[exception_unit] + time_frame_str
         )
-        # add the variable if necessary
-        converted_unit = converted_unit.replace("<entity>", entity)
-
     else:
         # standard unit
         converted_unit = unit_entity
@@ -232,10 +233,11 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
     if len(code) < 4:
         # code too short
         logger.warning(f"Category code {code!r} is too short to be a PRIMAP IPCC code.")
+        return "error_" + code
     if code[0:3] not in ["IPC", "CAT"]:
         # prefix is missing
         logger.warning(f"Category code {code!r} is not in PRIMAP IPCC code format.")
-        return ""
+        return "error_" + code
 
     # it's an IPCC code. convert it
     # check if it's a custom code (beginning with 'M'). Currently these are the same
@@ -250,43 +252,93 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
         # only work with the part without 'IPC' or 'CAT'
         code_remaining = code[3:]
 
-        # first two chars are unchanged but a dot is added
-        if len(code_remaining) == 1:
-            new_code = code_remaining
-        elif len(code_remaining) == 2:
-            new_code = code_remaining[0] + "." + code_remaining[1]
+        # first level is a digit
+        if code_remaining[0].isdigit():
+            new_code = code_remaining[0]
         else:
-            new_code = code_remaining[0] + "." + code_remaining[1]
-            code_remaining = code_remaining[2:]
-            # the next part is a number. match by regexp to also match 2 digit
-            # numbers (just in case there are any, currently not needed)
-            match = re.match("[0-9]*", code_remaining)
-            if match is None:
+            # code does not obey specifications
+            logger.warning(
+                f"Category code {code!r} does not conform to specifications:"
+                f" No digit found on first level."
+            )
+            new_code = "error_" + code
+        # second level is a letter
+        if len(code_remaining) > 1:
+            code_remaining = code_remaining[1:]
+            if code_remaining[0].isalpha():
+                new_code = new_code + "." + code_remaining[0]
+            else:
                 # code does not obey specifications
                 logger.warning(
                     f"Category code {code!r} does not conform to specifications:"
-                    f" No number found on third level."
+                    f" No letter found on second level."
                 )
-                new_code = ""
-            else:
-                new_code = new_code + "." + match.group(0)
-                code_remaining = code_remaining[len(match.group(0)) :]
-
-                # fourth level is a char. Has to be transformed to lower case
-                if len(code_remaining) > 0:
-                    new_code = new_code + "." + code_remaining[0].lower()
-                    code_remaining = code_remaining[1:]
-
-                    # now we have an arabic numeral in the PRIMAP-format but a roman
-                    # numeral in pyCPA
-                    if len(code_remaining) > 0:
-                        new_code = new_code + "." + arabic_to_roman[code_remaining[0]]
+                return "error_" + code
+            # third level is a number. might be more than one char, so use regexp
+            if len(code_remaining) > 1:
+                code_remaining = code_remaining[1:]
+                match = re.match("^[0-9]+", code_remaining)
+                if match is not None:
+                    new_code = new_code + "." + match.group(0)
+                else:
+                    # code does not obey specifications
+                    logger.warning(
+                        f"Category code {code!r} does not conform to specifications:"
+                        f" No number found on third level."
+                    )
+                    return "error_" + code
+                # fourth level is a letter. has to be transformed to lower case
+                if len(code_remaining) > len(match.group(0)):
+                    code_remaining = code_remaining[len(match.group(0)) :]
+                    if code_remaining[0].isalpha():
+                        new_code = new_code + "." + code_remaining[0].lower()
+                    else:
+                        # code does not obey specifications
+                        logger.warning(
+                            f"Category code {code!r} does not conform to "
+                            f"specifications:"
+                            f" No letter found on fourth level."
+                        )
+                        return "error_" + code
+                    # fifth level is digit in PRIMAP1 format but roman numeral in IPCC
+                    # and PRIMAP2
+                    if len(code_remaining) > 1:
                         code_remaining = code_remaining[1:]
-
-                        if len(code_remaining) > 0:
-                            # now we have a number again. An it's the end of the
-                            # code. So just copy the rest
-                            new_code = new_code + "." + code_remaining
+                        if code_remaining[0].isdigit():
+                            new_code = (
+                                new_code + "." + arabic_to_roman[code_remaining[0]]
+                            )
+                        else:
+                            # code does not obey specifications
+                            logger.warning(
+                                f"Category code {code!r} does not conform to "
+                                f"specifications:"
+                                f" No digit found on fifth level."
+                            )
+                            return "error_" + code
+                        # sixth and last level is a number.
+                        if len(code_remaining) > 1:
+                            code_remaining = code_remaining[1:]
+                            match = re.match("^[0-9]+", code_remaining)
+                            if match is not None:
+                                new_code = new_code + "." + match.group(0)
+                                # check if anything left
+                                if not code_remaining == match.group(0):
+                                    # code does not obey specifications
+                                    logger.warning(
+                                        f"Category code {code!r} does not conform to "
+                                        f"specifications:"
+                                        f" Chars left after sixth level."
+                                    )
+                                    return "error_" + code
+                            else:
+                                # code does not obey specifications
+                                logger.warning(
+                                    f"Category code {code!r} does not conform to "
+                                    f"specifications:"
+                                    f" No number found on sixth level."
+                                )
+                                return "error_" + code
 
     return new_code
 

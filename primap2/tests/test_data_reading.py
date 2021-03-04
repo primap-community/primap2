@@ -5,10 +5,10 @@ import os
 
 import pandas as pd
 
-# import pandas as pd
 # import pint
 import pytest
 
+# import logging
 import primap2 as pm2
 import primap2.io._data_reading as pm2io
 
@@ -23,6 +23,60 @@ def test_convert_ipcc_code_primap_to_primap2(code_in, expected_code_out):
     assert pm2io.convert_ipcc_code_primap_to_primap2(code_in) == expected_code_out
 
 
+def test_convert_ipcc_code_primap_to_primap2_too_short(caplog):
+    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC") == "error_IPC"
+    assert "WARNING" in caplog.text
+    assert "Category code 'IPC' is too short to be a PRIMAP IPCC code." in caplog.text
+
+
+def test_convert_ipcc_code_primap_to_primap2_wrong_format(caplog):
+    assert pm2io.convert_ipcc_code_primap_to_primap2("IPD1A") == "error_IPD1A"
+    assert "WARNING" in caplog.text
+    assert "Category code 'IPD1A' is not in PRIMAP IPCC code format." in caplog.text
+
+
+def test_convert_ipcc_code_primap_to_primap2_first_lvl(caplog):
+    assert pm2io.convert_ipcc_code_primap_to_primap2("IPCA1") == "error_IPCA1"
+    assert "WARNING" in caplog.text
+    assert " No digit found on first level." in caplog.text
+
+
+def test_convert_ipcc_code_primap_to_primap2_second_lvl(caplog):
+    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC123") == "error_IPC123"
+    assert "WARNING" in caplog.text
+    assert " No letter found on second level." in caplog.text
+
+
+def test_convert_ipcc_code_primap_to_primap2_third_lvl(caplog):
+    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC1AC") == "error_IPC1AC"
+    assert "WARNING" in caplog.text
+    assert " No number found on third level." in caplog.text
+
+
+def test_convert_ipcc_code_primap_to_primap2_fourth_lvl(caplog):
+    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC1A2_") == "error_IPC1A2_"
+    assert "WARNING" in caplog.text
+    assert " No letter found on fourth level." in caplog.text
+
+
+def test_convert_ipcc_code_primap_to_primap2_fifth_lvl(caplog):
+    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC1A2BB") == "error_IPC1A2BB"
+    assert "WARNING" in caplog.text
+    assert " No digit found on fifth level." in caplog.text
+
+
+def test_convert_ipcc_code_primap_to_primap2_sixth_lvl(caplog):
+    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC1A2B3X") == "error_IPC1A2B3X"
+    assert "WARNING" in caplog.text
+    assert " No number found on sixth level." in caplog.text
+
+
+def test_convert_ipcc_code_primap_to_primap2_after_sixth_lvl(caplog):
+    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC1A2B33A") == "error_IPC1A2B33A"
+    assert "WARNING" in caplog.text
+    assert " Chars left after sixth level." in caplog.text
+
+
 @pytest.mark.parametrize(
     "unit_in, entity_in, expected_unit_out",
     [
@@ -34,6 +88,26 @@ def test_convert_ipcc_code_primap_to_primap2(code_in, expected_code_out):
 )
 def test_convert_unit_primap_to_primap2(unit_in, entity_in, expected_unit_out):
     assert pm2io.convert_unit_primap_to_primap2(unit_in, entity_in) == expected_unit_out
+
+
+def test_convert_unit_primap_to_primap2_no_prefix(caplog):
+    assert (
+        pm2io.convert_unit_primap_to_primap2("CO2eq", "FGASES") == "error_CO2eq_FGASES"
+    )
+    assert "WARNING" in caplog.text
+    assert "No unit prefix matched for unit." in caplog.text
+
+
+def test_convert_unit_primap_to_primap2_unit_empty(caplog):
+    assert pm2io.convert_unit_primap_to_primap2("", "FGASES") == "error__FGASES"
+    assert "WARNING" in caplog.text
+    assert "Input unit is empty. Nothing converted." in caplog.text
+
+
+def test_convert_unit_primap_to_primap2_entity_empty(caplog):
+    assert pm2io.convert_unit_primap_to_primap2("GgCO2eq", "") == "error_GgCO2eq_"
+    assert "WARNING" in caplog.text
+    assert "Input entity is empty. Nothing converted." in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -156,8 +230,7 @@ def test_convert_dataframe_units_primap_to_primap2():
     pd.testing.assert_frame_equal(df_converted, df_expected)
 
 
-# functions that need testing but work on dataframes
-
+# functions that still need individual testing
 
 # dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
 
