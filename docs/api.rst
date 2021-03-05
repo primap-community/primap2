@@ -14,7 +14,7 @@ Top-level API
 .. toctree::
     :maxdepth: 2
 
-    io
+    pm2io
 
 .. currentmodule:: xarray
 

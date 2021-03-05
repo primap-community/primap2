@@ -13,7 +13,7 @@ the conversion yourself.
 
 General information
 -------------------
-The data reading functionality is bundled in the PRIMAP2 submodule ``io``.
+The data reading functionality is bundled in the PRIMAP2 submodule ``pm2io``.
 
 To enable a wider use of the PRIMAP2 data reading functionality we read all
 data into the PRIMAP2 interchange format which is a wide format pandas

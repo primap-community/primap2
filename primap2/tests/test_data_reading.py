@@ -10,7 +10,7 @@ import pytest
 
 # import logging
 import primap2 as pm2
-import primap2.io._data_reading as pm2io
+import primap2.pm2io._data_reading as pm2io
 
 from .utils import assert_ds_aligned_equal
 
