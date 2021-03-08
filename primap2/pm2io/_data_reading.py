@@ -523,10 +523,10 @@ def read_wide_csv_file_if(
 
     # now the filters for removing data. Same as for keeping
     if filter_remove:
-        query = "~"
+        query = ""
         for filter_name in filter_remove:
             filter_current = filter_remove[filter_name]
-            query = query + "("
+            query = query + "~("
             for col in filter_current:
                 if isinstance(filter_current[col], list):
                     query = query + col + " in ["
@@ -535,10 +535,13 @@ def read_wide_csv_file_if(
                     query = query[0:-2] + "] & "
                 else:
                     query = query + col + " == '" + filter_current[col] + "' & "
-            query = query[0:-2] + ") |"
+            query = query[0:-3] + ") & "
         query = query[0:-2]
         # print("filter_remove: " + query)
         read_data.query(query, inplace=True)
+
+    # reset index
+    read_data.reset_index(drop=True)
 
     # 3) bring metadata into primap2 format (mandatory metadata, entity names, unit etc)
     # map metadata (e.g. replace gas names, scenario names etc.)

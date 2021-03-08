@@ -161,7 +161,7 @@ def test_read_wide_csv_file():
         "entity": "gas",
         "area": "country",
         "category": "category",
-        "sec_cats__Class": "class",
+        "sec_cats__Class": "classification",
     }
     coords_defaults = {
         "source": "TESTcsv2021",
@@ -179,10 +179,9 @@ def test_read_wide_csv_file():
     meta_mapping = {"category": "PRIMAP1", "entity": "PRIMAP1"}
     filter_keep = {
         "f1": {"category": ["IPC0", "IPC2"]},
+        "f2": {"classification": "TOTAL"},
     }
-    filter_remove = {
-        "f1": {"gas": "CH4"},
-    }
+    filter_remove = {"f1": {"gas": "CH4"}, "f2": {"country": ["USA", "FRA"]}}
 
     df_result = pm2io.read_wide_csv_file_if(
         file_input,
