@@ -1,12 +1,12 @@
 import itertools
-import os
 import re
+from pathlib import Path
 
 import pandas as pd
 import xarray as xr
 from loguru import logger
 
-from primap2._units import ureg
+from .._units import ureg
 
 
 def convert_dataframe_units_primap_to_primap2(
@@ -479,7 +479,7 @@ def read_wide_csv_file_if(
         "NE0",
         "NO, NE",
     ]
-    read_data = pd.read_csv(os.path.join(folder, file), na_values=na_values)
+    read_data = pd.read_csv(Path(folder) / Path(file), na_values=na_values)
 
     # 2) prepare and filter the dataset
     # get all the columns that are actual data not metadata (usually the years)
@@ -567,7 +567,7 @@ def read_wide_csv_file_if(
                             + column
                             + "."
                         )
-                        raise RuntimeError(
+                        raise ValueError(
                             "Unknown metadata mapping "
                             + meta_mapping[column]
                             + " for column "
@@ -589,7 +589,7 @@ def read_wide_csv_file_if(
                             + column
                             + "."
                         )
-                        raise RuntimeError(
+                        raise ValueError(
                             "Unknown metadata mapping "
                             + meta_mapping[column]
                             + " for column "
@@ -605,7 +605,7 @@ def read_wide_csv_file_if(
                         + column
                         + "."
                     )
-                    raise RuntimeError(
+                    raise ValueError(
                         "Function based metadata mapping not implemented"
                         + " for column "
                         + column
@@ -628,7 +628,7 @@ def read_wide_csv_file_if(
             read_data[coord] = coords_defaults[coord]
         else:
             logger.error("Mandatory dimension " + coord + " not defined.")
-            raise RuntimeError("Mandatory dimension " + coord + " not defined.")
+            raise ValueError("Mandatory dimension " + coord + " not defined.")
 
     # add optional dimensions as columns if present in coords_defaults
     for coord in optional_coords:
@@ -649,7 +649,7 @@ def read_wide_csv_file_if(
         read_data["entity"] = coords_defaults["entity"]
     else:
         logger.error("Entity not defined.")
-        raise RuntimeError("Entity not defined.")
+        raise ValueError("Entity not defined.")
 
     # a unit column is mandatory for the interchange format
     # if your data has no unit set an empty unit so it's clear that it's not a fault
@@ -661,7 +661,7 @@ def read_wide_csv_file_if(
     else:
         # no unit information present. Throw an error
         logger.error("Unit information not defined.")
-        raise RuntimeError("Unit information not defined.")
+        raise ValueError("Unit information not defined.")
 
     columns = read_data.columns.values
 
@@ -754,7 +754,7 @@ def harmonize_units(
         )
     else:
         logger.error("Unknown unit terminology " + unit_terminology + ".")
-        raise RuntimeError("Unknown unit terminology " + unit_terminology + ".")
+        raise ValueError("Unknown unit terminology " + unit_terminology + ".")
 
     # find the data columns
     data_col_regex = re.compile(data_col_regex_str)
