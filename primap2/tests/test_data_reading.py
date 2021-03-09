@@ -211,9 +211,7 @@ def test_from_interchange_format():
         "sec_cats": ["Class (class)", "Type (type)"],
     }
     df_input = pd.read_csv(os.path.join(path, file_input), index_col=0)
-    ds_result = pm2io.from_interchange_format(
-        df_input, attrs, data_col_regex_str="\d"  # noqa: W605
-    )
+    ds_result = pm2io.from_interchange_format(df_input, attrs, data_col_regex_str=r"\d")
     assert_ds_aligned_equal(ds_result, ds_expected, equal_nan=True)
 
 

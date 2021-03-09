@@ -483,7 +483,7 @@ def read_wide_csv_file_if(
 
     # 2) prepare and filter the dataset
     # get all the columns that are actual data not metadata (usually the years)
-    year_regex = re.compile("\d")  # noqa: W605
+    year_regex = re.compile(r"\d")
     year_cols = list(filter(year_regex.match, read_data.columns.values))
 
     # remove all non-numeric values from year columns
@@ -716,7 +716,7 @@ def harmonize_units(
     unit_terminology: str = "PRIMAP1",
     unit_col: str = "unit",
     entity_col: str = "entity",
-    data_col_regex_str: str = "\d",  # noqa: W605
+    data_col_regex_str: str = r"\d",
 ) -> pd.DataFrame:
     """
     This function harmonizes the units of the input data. For each entity it converts
@@ -737,7 +737,7 @@ def harmonize_units(
     entity_col: str
         column name for entity column. Default: "entity"
     data_col_regex_str: str
-        regular expression to match the columns with data. default: "\d"  # noqa: W605
+        regular expression to match the columns with data. default: matches digits only
 
     Returns
     -------
@@ -897,8 +897,8 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
 
     attrs = {"units": unit}
 
-    regex_gwp = "\s\(([A-Za-z0-9]*)\)$"  # noqa: W605
-    regex_variable = "^(.*)\s\([a-zA-z0-9]*\)$"  # noqa: W605
+    regex_gwp = r"\s\(([A-Za-z0-9]*)\)$"
+    regex_variable = r"^(.*)\s\([a-zA-z0-9]*\)$"
 
     gwp = re.findall(regex_gwp, variable)
     if gwp:
@@ -919,7 +919,7 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
 
 
 def from_interchange_format(
-    data: pd.DataFrame, attrs: dict, data_col_regex_str: str = "\d"  # noqa: W605
+    data: pd.DataFrame, attrs: dict, data_col_regex_str: str = r"\d"
 ) -> xr.Dataset:
     """
     This function converts an interchange format DataFrame to an PRIMAP2 xarray data
