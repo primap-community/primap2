@@ -162,8 +162,8 @@ def dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
     reduced: xr.DataArray
         xr.DataArray with the time as a dimension and time points as values
     """
-
-    da = ds.to_array("time").unstack().dropna("time", "all")
+    empty_vars = (x for x in ds if ds[x].count() == 0)
+    da = ds.drop_vars(empty_vars).to_array("time").unstack()
     da["time"] = pd.to_datetime(da["time"].values, format=time_format, exact=False)
     return da
 
