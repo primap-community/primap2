@@ -1,6 +1,7 @@
 import itertools
 import re
 from pathlib import Path
+from typing import IO, Any, Dict, Optional, Union
 
 import pandas as pd
 import xarray as xr
@@ -314,17 +315,17 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
 
 
 def read_wide_csv_file_if(
-    file: str,
-    folder: str,
-    coords_cols: dict = {},
-    coords_defaults: dict = {},
-    coords_terminologies: dict = {},
-    meta_mapping: dict = {},
-    filter_keep: dict = {},
-    filter_remove: dict = {},
+    filepath_or_buffer: Union[str, Path, IO],
+    *,
+    coords_cols: Dict[str, str],
+    coords_defaults: Optional[Dict[str, Any]] = None,
+    coords_terminologies: Optional[Dict[str, str]] = None,
+    meta_mapping: Optional[Dict[str, Any]] = None,
+    filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
+    filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> pd.DataFrame:
     """
-    This function reads a csv file and returns the data as a pandas DataFrame in PRIAMP2
+    This function reads a csv file and returns the data as a pandas DataFrame in PRIMAP2
     interchange format.
 
     Columns can be renamed or filled with default vales to match the PRIMAP2 structure.
@@ -340,57 +341,52 @@ def read_wide_csv_file_if(
     Parameters
     ----------
 
-    file : str
-        String containing the file name
-
-    folder : str
-        String with folder name to read from
+    filepath_or_buffer: str, pathlib.Path, or file-like
+        Wide CSV file which will be read.
 
     coords_cols : dict
         Dict where the keys are column names in the files to be read and the value is
-        the dimension in PRIMAP2. For secondary categories use a "sec_cat__" prefix.
-        Default = empty
+        the dimension in PRIMAP2. For secondary categories use a ``sec_cats__`` prefix.
 
-    coords_defaults : dict
+    coords_defaults : dict, optional
         Dict for default values of coordinates / dimensions not given in the csv files.
         The keys are the dimension or metadata names and the values are the values for
         the dimensions or metadata. The distinction between dimension and metadata is
         done automatically on the basis of mandatory dimensions. For secondary
-        categories use a "sec_cats__" prefix. Default: empty
+        categories use a ``sec_cats__`` prefix.
 
-    coords_terminologies : dict
+    coords_terminologies : dict, optional
         Dict defining the terminologies used for the different coordinates (e.g. ISO3
         for area). Only possible coordinates here are: area, category, scenario, and
-        secondary categories. For secondary categories use a "sec_cats__" prefix.
+        secondary categories. For secondary categories use a ``sec_cats__`` prefix.
         All entries different from "area", "category", "scenario", and "sec_cats__<name>
-        will raise an error. Default: empty
+        will raise an error.
 
-    meta_mapping : dict
+    meta_mapping : dict, optional
         A dict with primap2 dimension names as keys. Values are dicts with input values
         as keys and output values as values. A standard use case is to map gas names
         from input data to the standardized names used in primap2.
         Alternatively values can be strings which define the function to run to create
         the dict. Possible functions are hard-coded currently for security reasons.
         Meta mapping is only possible for columns read from the input file not for
-        columns defined via `columns_defaults`
-        Default: empty
+        columns defined via columns_defaults.
 
-    filter_keep : dict
+    filter_keep : dict, optional
         Dict defining filters of data to keep. Filtering is done before metadata
         mapping, so use original metadata values to define the filter. Column names are
         as in the csv file. Each entry in the dict defines an individual filter.
-        The names of the filters have no relevance. Default: empty
+        The names of the filters have no relevance. Default: keep all data.
 
-    filter_remove : dict
+    filter_remove : dict, optional
         Dict defining filters of data to remove. Filtering is done before metadata
         mapping, so use original metadata values to define the filter. Column names are
         as in the csv file. Each entry in the dict defines an individual filter.
-        The names of the filters have no relevance. Default: empty
+        The names of the filters have no relevance.
 
     Returns
     -------
 
-    :obj:`pd.DataFrame`
+    obj: pd.DataFrame
         pandas DataFrame with the read data
 
 
@@ -428,9 +424,6 @@ def read_wide_csv_file_if(
 
     """
 
-    # TODO: check if mandatory coords present in input definitions
-    #  (do we have the list of mandatory coords somewhere)
-
     # 0) some definitions
     mandatory_coords = ["area", "source"]
     # entity and time are also mandatory, but need special treatment
@@ -451,7 +444,7 @@ def read_wide_csv_file_if(
         "NE0",
         "NO, NE",
     ]
-    read_data = pd.read_csv(Path(folder) / Path(file), na_values=na_values)
+    read_data = pd.read_csv(filepath_or_buffer, na_values=na_values)
 
     # 2) prepare and filter the dataset
     # get all the columns that are actual data not metadata (usually the years)
@@ -518,6 +511,9 @@ def read_wide_csv_file_if(
     # 3) bring metadata into primap2 format (mandatory metadata, entity names, unit etc)
     # map metadata (e.g. replace gas names, scenario names etc.)
     # add mandatory dimensions as columns if not present
+    if coords_defaults is None:
+        coords_defaults = {}
+
     for coord in mandatory_coords:
         if coord in coords_cols.keys():
             pass
@@ -565,7 +561,7 @@ def read_wide_csv_file_if(
 
     # TODO: add additional conversion functions here!
     meta_mapping_df = {}
-    if meta_mapping:
+    if meta_mapping is not None:
         # preprocess meta_mapping
         for column in meta_mapping:
             if isinstance(meta_mapping[column], str):
@@ -640,6 +636,8 @@ def read_wide_csv_file_if(
 
     # rename columns to match PRIMAP2 specifications
     # add the dataset wide attributes
+    if coords_terminologies is None:
+        coords_terminologies = {}
     attrs = {}
     coord_renaming = {}
     for coord in coords_cols:
@@ -723,7 +721,7 @@ def harmonize_units(
 
     Returns
     -------
-    :obj:`pd.DataFrame`
+    obj: pd.DataFrame
         pandas DataFrame with the converted data
 
     """
@@ -794,7 +792,7 @@ def convert_entity_gwp_primap(entity_pm1: str) -> str:
     Returns
     -------
     entity: str
-    entity in PRIMAP2 format
+        entity in PRIMAP2 format
 
     """
 
@@ -874,7 +872,7 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
     Returns
     -------
     attrs: dict
-    attrs for use in DataArray.attrs
+        attrs for use in DataArray.attrs
     """
 
     attrs = {"units": unit}
@@ -918,7 +916,7 @@ def from_interchange_format(
 
     Returns
     -------
-    :obj:`xr.Dataset`
+    obj: xr.Dataset
         xr dataset with the converted data
 
     """

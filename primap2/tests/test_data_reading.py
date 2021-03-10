@@ -153,9 +153,9 @@ def test_convert_entity_gwp_primap(entity_pm1, entity_pm2):
 
 def test_read_wide_csv_file():
     path = Path("primap2") / "tests" / "data"
-    file_input = Path("test_csv_data_sec_cat.csv")
-    file_expected = Path("test_read_wide_csv_file_output.csv")
-    df_expected = pd.read_csv(path / file_expected, index_col=0)
+    file_input = path / "test_csv_data_sec_cat.csv"
+    file_expected = path / "test_read_wide_csv_file_output.csv"
+    df_expected = pd.read_csv(file_expected, index_col=0)
 
     coords_cols = {
         "unit": "unit",
@@ -186,7 +186,6 @@ def test_read_wide_csv_file():
 
     df_result = pm2io.read_wide_csv_file_if(
         file_input,
-        path,
         coords_cols=coords_cols,
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
@@ -202,9 +201,9 @@ def test_read_wide_csv_file():
 
 def test_read_wide_csv_file_meta_dict():
     path = Path("primap2") / "tests" / "data"
-    file_input = Path("test_csv_data_sec_cat.csv")
-    file_expected = Path("test_read_wide_csv_file_output.csv")
-    df_expected = pd.read_csv(path / file_expected, index_col=0)
+    file_input = path / "test_csv_data_sec_cat.csv"
+    file_expected = path / "test_read_wide_csv_file_output.csv"
+    df_expected = pd.read_csv(file_expected, index_col=0)
 
     coords_cols = {
         "unit": "unit",
@@ -239,7 +238,6 @@ def test_read_wide_csv_file_meta_dict():
 
     df_result = pm2io.read_wide_csv_file_if(
         file_input,
-        path,
         coords_cols=coords_cols,
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
@@ -255,9 +253,9 @@ def test_read_wide_csv_file_meta_dict():
 
 def test_read_wide_csv_file_entity_def():
     path = Path("primap2") / "tests" / "data"
-    file_input = "test_csv_data_sec_cat.csv"
-    file_expected = "test_read_wide_csv_file_output_entity_def.csv"
-    df_expected = pd.read_csv(path / file_expected, index_col=0)
+    file_input = path / "test_csv_data_sec_cat.csv"
+    file_expected = path / "test_read_wide_csv_file_output_entity_def.csv"
+    df_expected = pd.read_csv(file_expected, index_col=0)
 
     coords_cols = {
         "unit": "unit",
@@ -290,7 +288,6 @@ def test_read_wide_csv_file_entity_def():
 
     df_result = pm2io.read_wide_csv_file_if(
         file_input,
-        path,
         coords_cols=coords_cols,
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
@@ -304,11 +301,11 @@ def test_read_wide_csv_file_entity_def():
     pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
 
 
-def test_read_wide_csv_file_unit_def():
+def test_read_wide_csv_file_unit_def(tmp_path):
     path = Path("primap2") / "tests" / "data"
-    file_input = "test_csv_data_sec_cat.csv"
-    file_expected = "test_read_wide_csv_file_output_unit_def.csv"
-    df_expected = pd.read_csv(path / file_expected, index_col=0)
+    file_input = path / "test_csv_data_sec_cat.csv"
+    file_expected = path / "test_read_wide_csv_file_output_unit_def.csv"
+    df_expected = pd.read_csv(file_expected, index_col=0)
 
     coords_cols = {
         "entity": "gas",
@@ -341,7 +338,6 @@ def test_read_wide_csv_file_unit_def():
 
     df_result = pm2io.read_wide_csv_file_if(
         file_input,
-        path,
         coords_cols=coords_cols,
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
@@ -349,15 +345,14 @@ def test_read_wide_csv_file_unit_def():
         filter_keep=filter_keep,
         filter_remove=filter_remove,
     )
-    df_result.to_csv(path / "temp.csv")
-    df_result = pd.read_csv(path / "temp.csv", index_col=0)
-    os.remove(path / "temp.csv")
+    df_result.to_csv(tmp_path / "test.csv")
+    df_result = pd.read_csv(tmp_path / "test.csv", index_col=0)
     pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
 
 
 def test_read_wide_csv_file_no_unit():
     path = Path("primap2") / "tests" / "data"
-    file_input = Path("test_csv_data_sec_cat.csv")
+    file_input = path / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "entity": "gas",
@@ -383,7 +378,6 @@ def test_read_wide_csv_file_no_unit():
     with pytest.raises(ValueError):
         pm2io.read_wide_csv_file_if(
             file_input,
-            path,
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
@@ -393,7 +387,7 @@ def test_read_wide_csv_file_no_unit():
 
 def test_read_wide_csv_file_mapping_not_implemented_for_col():
     path = Path("primap2") / "tests" / "data"
-    file_input = Path("test_csv_data_sec_cat.csv")
+    file_input = path / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "unit": "unit",
@@ -420,7 +414,6 @@ def test_read_wide_csv_file_mapping_not_implemented_for_col():
     with pytest.raises(ValueError):
         pm2io.read_wide_csv_file_if(
             file_input,
-            path,
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
@@ -430,7 +423,7 @@ def test_read_wide_csv_file_mapping_not_implemented_for_col():
 
 def test_read_wide_csv_file_mandatory_missing():
     path = Path("primap2") / "tests" / "data"
-    file_input = Path("test_csv_data_sec_cat.csv")
+    file_input = path / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "unit": "unit",
@@ -456,7 +449,6 @@ def test_read_wide_csv_file_mandatory_missing():
     with pytest.raises(ValueError):
         pm2io.read_wide_csv_file_if(
             file_input,
-            path,
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
@@ -466,7 +458,7 @@ def test_read_wide_csv_file_mandatory_missing():
 
 def test_read_wide_csv_file_no_entity():
     path = Path("primap2") / "tests" / "data"
-    file_input = Path("test_csv_data_sec_cat.csv")
+    file_input = path / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "unit": "unit",
@@ -492,7 +484,6 @@ def test_read_wide_csv_file_no_entity():
     with pytest.raises(ValueError):
         pm2io.read_wide_csv_file_if(
             file_input,
-            path,
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
@@ -502,7 +493,7 @@ def test_read_wide_csv_file_no_entity():
 
 def test_read_wide_csv_file_unknown_cat_mapping():
     path = Path("primap2") / "tests" / "data"
-    file_input = Path("test_csv_data_sec_cat.csv")
+    file_input = path / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "unit": "unit",
@@ -529,7 +520,6 @@ def test_read_wide_csv_file_unknown_cat_mapping():
     with pytest.raises(ValueError):
         pm2io.read_wide_csv_file_if(
             file_input,
-            path,
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
@@ -539,7 +529,7 @@ def test_read_wide_csv_file_unknown_cat_mapping():
 
 def test_read_wide_csv_file_unknown_entity_mapping():
     path = Path("primap2") / "tests" / "data"
-    file_input = Path("test_csv_data_sec_cat.csv")
+    file_input = path / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "unit": "unit",
@@ -566,7 +556,6 @@ def test_read_wide_csv_file_unknown_entity_mapping():
     with pytest.raises(ValueError):
         pm2io.read_wide_csv_file_if(
             file_input,
-            path,
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
@@ -576,7 +565,7 @@ def test_read_wide_csv_file_unknown_entity_mapping():
 
 def test_read_wide_csv_file_no_function_mapping_col():
     path = Path("primap2") / "tests" / "data"
-    file_input = Path("test_csv_data_sec_cat.csv")
+    file_input = path / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "entity": "gas",
@@ -601,7 +590,6 @@ def test_read_wide_csv_file_no_function_mapping_col():
     with pytest.raises(ValueError):
         pm2io.read_wide_csv_file_if(
             file_input,
-            path,
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
