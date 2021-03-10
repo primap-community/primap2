@@ -168,6 +168,14 @@ def dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
     return da
 
 
+def code_invalid_warn(code: str, message: str) -> str:
+    """Log a warning and return an error code."""
+    logger.warning(
+        f"Category code {code!r} does not conform to specifications: {message}"
+    )
+    return "error_" + code
+
+
 def convert_ipcc_code_primap_to_primap2(code: str) -> str:
     """
     This function converts IPCC emissions category codes from the PRIMAP-format to
@@ -196,11 +204,8 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
     Examples
     --------
 
-    input:
-        code = 'IPC1A3B34'
-
-    output:
-        '1.A.3.b.3.iv'
+    >>> convert_ipcc_code_primap_to_primap2("IPC1A3B34")
+    '1.A.3.b.iii.4'
 
     """
 
@@ -213,7 +218,7 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
         "6": "vi",
         "7": "vii",
         "8": "viii",
-        "9": "viiii",
+        "9": "ix",
     }
 
     code_mapping = {
@@ -228,16 +233,12 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
         "M0EL": "M.0.EL",
     }
 
-    # TODO: checks at all levels (currently only a few)
-
     if len(code) < 4:
-        # code too short
-        logger.warning(f"Category code {code!r} is too short to be a PRIMAP IPCC code.")
-        return "error_" + code
+        return code_invalid_warn(code, "Too short to be a PRIMAP IPCC code.")
     if code[0:3] not in ["IPC", "CAT"]:
-        # prefix is missing
-        logger.warning(f"Category code {code!r} is not in PRIMAP IPCC code format.")
-        return "error_" + code
+        return code_invalid_warn(
+            code, "Prefix is missing, must be one of 'IPC' or 'CAT'."
+        )
 
     # it's an IPCC code. convert it
     # check if it's a custom code (beginning with 'M'). Currently these are the same
@@ -256,24 +257,14 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
         if code_remaining[0].isdigit():
             new_code = code_remaining[0]
         else:
-            # code does not obey specifications
-            logger.warning(
-                f"Category code {code!r} does not conform to specifications:"
-                f" No digit found on first level."
-            )
-            new_code = "error_" + code
+            return code_invalid_warn(code, "No digit found on first level.")
         # second level is a letter
         if len(code_remaining) > 1:
             code_remaining = code_remaining[1:]
             if code_remaining[0].isalpha():
                 new_code = new_code + "." + code_remaining[0]
             else:
-                # code does not obey specifications
-                logger.warning(
-                    f"Category code {code!r} does not conform to specifications:"
-                    f" No letter found on second level."
-                )
-                return "error_" + code
+                return code_invalid_warn(code, "No letter found on second level.")
             # third level is a number. might be more than one char, so use regexp
             if len(code_remaining) > 1:
                 code_remaining = code_remaining[1:]
@@ -281,25 +272,16 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
                 if match is not None:
                     new_code = new_code + "." + match.group(0)
                 else:
-                    # code does not obey specifications
-                    logger.warning(
-                        f"Category code {code!r} does not conform to specifications:"
-                        f" No number found on third level."
-                    )
-                    return "error_" + code
+                    return code_invalid_warn(code, "No number found on third level.")
                 # fourth level is a letter. has to be transformed to lower case
                 if len(code_remaining) > len(match.group(0)):
                     code_remaining = code_remaining[len(match.group(0)) :]
                     if code_remaining[0].isalpha():
                         new_code = new_code + "." + code_remaining[0].lower()
                     else:
-                        # code does not obey specifications
-                        logger.warning(
-                            f"Category code {code!r} does not conform to "
-                            f"specifications:"
-                            f" No letter found on fourth level."
+                        return code_invalid_warn(
+                            code, "No letter found on fourth level."
                         )
-                        return "error_" + code
                     # fifth level is digit in PRIMAP1 format but roman numeral in IPCC
                     # and PRIMAP2
                     if len(code_remaining) > 1:
@@ -309,13 +291,9 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
                                 new_code + "." + arabic_to_roman[code_remaining[0]]
                             )
                         else:
-                            # code does not obey specifications
-                            logger.warning(
-                                f"Category code {code!r} does not conform to "
-                                f"specifications:"
-                                f" No digit found on fifth level."
+                            return code_invalid_warn(
+                                code, "No digit found on fifth level."
                             )
-                            return "error_" + code
                         # sixth and last level is a number.
                         if len(code_remaining) > 1:
                             code_remaining = code_remaining[1:]
@@ -324,21 +302,13 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
                                 new_code = new_code + "." + match.group(0)
                                 # check if anything left
                                 if not code_remaining == match.group(0):
-                                    # code does not obey specifications
-                                    logger.warning(
-                                        f"Category code {code!r} does not conform to "
-                                        f"specifications:"
-                                        f" Chars left after sixth level."
+                                    return code_invalid_warn(
+                                        code, "Chars left after sixth level."
                                     )
-                                    return "error_" + code
                             else:
-                                # code does not obey specifications
-                                logger.warning(
-                                    f"Category code {code!r} does not conform to "
-                                    f"specifications:"
-                                    f" No number found on sixth level."
+                                return code_invalid_warn(
+                                    code, "No number found on sixth level."
                                 )
-                                return "error_" + code
 
     return new_code
 
