@@ -1,7 +1,5 @@
 """Tests for _data_reading.py"""
-# import logging
 
-import os
 from pathlib import Path
 
 import pandas as pd
@@ -9,11 +7,12 @@ import pandas as pd
 # import pint
 import pytest
 
-# import logging
 import primap2 as pm2
 import primap2.pm2io._data_reading as pm2io
 
 from .utils import assert_ds_aligned_equal
+
+DATA_PATH = Path(__file__).parent / "data"
 
 
 @pytest.mark.parametrize(
@@ -151,10 +150,9 @@ def test_convert_entity_gwp_primap(entity_pm1, entity_pm2):
     assert pm2io.convert_entity_gwp_primap(entity_pm1) == entity_pm2
 
 
-def test_read_wide_csv_file():
-    path = Path("primap2") / "tests" / "data"
-    file_input = path / "test_csv_data_sec_cat.csv"
-    file_expected = path / "test_read_wide_csv_file_output.csv"
+def test_read_wide_csv_file(tmp_path):
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+    file_expected = DATA_PATH / "test_read_wide_csv_file_output.csv"
     df_expected = pd.read_csv(file_expected, index_col=0)
 
     coords_cols = {
@@ -166,7 +164,6 @@ def test_read_wide_csv_file():
     }
     coords_defaults = {
         "source": "TESTcsv2021",
-        "citation": "Test",
         "sec_cats__Type": "fugitive",
         "scenario": "HISTORY",
     }
@@ -193,16 +190,14 @@ def test_read_wide_csv_file():
         filter_keep=filter_keep,
         filter_remove=filter_remove,
     )
-    df_result.to_csv(path / Path("temp.csv"))
-    df_result = pd.read_csv(path / Path("temp.csv"), index_col=0)
-    os.remove(path / Path("temp.csv"))
+    df_result.to_csv(tmp_path / "temp.csv")
+    df_result = pd.read_csv(tmp_path / "temp.csv", index_col=0)
     pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
 
 
-def test_read_wide_csv_file_meta_dict():
-    path = Path("primap2") / "tests" / "data"
-    file_input = path / "test_csv_data_sec_cat.csv"
-    file_expected = path / "test_read_wide_csv_file_output.csv"
+def test_read_wide_csv_file_meta_dict(tmp_path):
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+    file_expected = DATA_PATH / "test_read_wide_csv_file_output.csv"
     df_expected = pd.read_csv(file_expected, index_col=0)
 
     coords_cols = {
@@ -214,7 +209,6 @@ def test_read_wide_csv_file_meta_dict():
     }
     coords_defaults = {
         "source": "TESTcsv2021",
-        "citation": "Test",
         "sec_cats__Type": "fugitive",
         "scenario": "HISTORY",
     }
@@ -245,16 +239,14 @@ def test_read_wide_csv_file_meta_dict():
         filter_keep=filter_keep,
         filter_remove=filter_remove,
     )
-    df_result.to_csv(path / Path("temp.csv"))
-    df_result = pd.read_csv(path / Path("temp.csv"), index_col=0)
-    os.remove(path / Path("temp.csv"))
+    df_result.to_csv(tmp_path / "temp.csv")
+    df_result = pd.read_csv(tmp_path / "temp.csv", index_col=0)
     pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
 
 
-def test_read_wide_csv_file_entity_def():
-    path = Path("primap2") / "tests" / "data"
-    file_input = path / "test_csv_data_sec_cat.csv"
-    file_expected = path / "test_read_wide_csv_file_output_entity_def.csv"
+def test_read_wide_csv_file_entity_def(tmp_path):
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+    file_expected = DATA_PATH / "test_read_wide_csv_file_output_entity_def.csv"
     df_expected = pd.read_csv(file_expected, index_col=0)
 
     coords_cols = {
@@ -265,7 +257,6 @@ def test_read_wide_csv_file_entity_def():
     }
     coords_defaults = {
         "source": "TESTcsv2021",
-        "citation": "Test",
         "sec_cats__Type": "fugitive",
         "scenario": "HISTORY",
         "entity": "CO2",
@@ -295,16 +286,14 @@ def test_read_wide_csv_file_entity_def():
         filter_keep=filter_keep,
         filter_remove=filter_remove,
     )
-    df_result.to_csv(path / "temp.csv")
-    df_result = pd.read_csv(path / "temp.csv", index_col=0)
-    os.remove(path / "temp.csv")
+    df_result.to_csv(tmp_path / "temp.csv")
+    df_result = pd.read_csv(tmp_path / "temp.csv", index_col=0)
     pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
 
 
 def test_read_wide_csv_file_unit_def(tmp_path):
-    path = Path("primap2") / "tests" / "data"
-    file_input = path / "test_csv_data_sec_cat.csv"
-    file_expected = path / "test_read_wide_csv_file_output_unit_def.csv"
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+    file_expected = DATA_PATH / "test_read_wide_csv_file_output_unit_def.csv"
     df_expected = pd.read_csv(file_expected, index_col=0)
 
     coords_cols = {
@@ -315,7 +304,6 @@ def test_read_wide_csv_file_unit_def(tmp_path):
     }
     coords_defaults = {
         "source": "TESTcsv2021",
-        "citation": "Test",
         "sec_cats__Type": "fugitive",
         "scenario": "HISTORY",
         "unit": "Gg",
@@ -351,8 +339,7 @@ def test_read_wide_csv_file_unit_def(tmp_path):
 
 
 def test_read_wide_csv_file_no_unit():
-    path = Path("primap2") / "tests" / "data"
-    file_input = path / "test_csv_data_sec_cat.csv"
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "entity": "gas",
@@ -386,8 +373,7 @@ def test_read_wide_csv_file_no_unit():
 
 
 def test_read_wide_csv_file_mapping_not_implemented_for_col():
-    path = Path("primap2") / "tests" / "data"
-    file_input = path / "test_csv_data_sec_cat.csv"
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "unit": "unit",
@@ -422,8 +408,7 @@ def test_read_wide_csv_file_mapping_not_implemented_for_col():
 
 
 def test_read_wide_csv_file_mandatory_missing():
-    path = Path("primap2") / "tests" / "data"
-    file_input = path / "test_csv_data_sec_cat.csv"
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "unit": "unit",
@@ -457,8 +442,7 @@ def test_read_wide_csv_file_mandatory_missing():
 
 
 def test_read_wide_csv_file_no_entity():
-    path = Path("primap2") / "tests" / "data"
-    file_input = path / "test_csv_data_sec_cat.csv"
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "unit": "unit",
@@ -492,8 +476,7 @@ def test_read_wide_csv_file_no_entity():
 
 
 def test_read_wide_csv_file_unknown_cat_mapping():
-    path = Path("primap2") / "tests" / "data"
-    file_input = path / "test_csv_data_sec_cat.csv"
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "unit": "unit",
@@ -528,8 +511,7 @@ def test_read_wide_csv_file_unknown_cat_mapping():
 
 
 def test_read_wide_csv_file_unknown_entity_mapping():
-    path = Path("primap2") / "tests" / "data"
-    file_input = path / "test_csv_data_sec_cat.csv"
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "unit": "unit",
@@ -564,8 +546,7 @@ def test_read_wide_csv_file_unknown_entity_mapping():
 
 
 def test_read_wide_csv_file_no_function_mapping_col():
-    path = Path("primap2") / "tests" / "data"
-    file_input = path / "test_csv_data_sec_cat.csv"
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
 
     coords_cols = {
         "entity": "gas",
@@ -598,27 +579,25 @@ def test_read_wide_csv_file_no_function_mapping_col():
 
 
 def test_from_interchange_format():
-    path = Path("primap2") / "tests" / "data"
-    file_input = Path("test_read_wide_csv_file_output.csv")
-    file_expected = Path("test_from_interchange_format_output.nc")
-    ds_expected = pm2.open_dataset(path / file_expected)
+    file_input = DATA_PATH / "test_read_wide_csv_file_output.csv"
+    file_expected = DATA_PATH / "test_from_interchange_format_output.nc"
+    ds_expected = pm2.open_dataset(file_expected)
     attrs = {
         "area": "area (ISO3)",
         "cat": "category (IPCC2006)",
         "scen": "scenario (general)",
         "sec_cats": ["Class (class)", "Type (type)"],
     }
-    df_input = pd.read_csv(path / file_input, index_col=0)
+    df_input = pd.read_csv(file_input, index_col=0)
     ds_result = pm2io.from_interchange_format(df_input, attrs, data_col_regex_str=r"\d")
     assert_ds_aligned_equal(ds_result, ds_expected, equal_nan=True)
 
 
 def test_convert_dataframe_units_primap_to_primap2():
-    path = Path("primap2") / "tests" / "data"
-    file_input = Path("test_csv_data_sec_cat.csv")
-    file_expected = Path("test_convert_dataframe_units_primap_to_primap2.csv")
-    df_expected = pd.read_csv(path / file_expected, index_col=0)
-    df = pd.read_csv(path / file_input)
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+    file_expected = DATA_PATH / "test_convert_dataframe_units_primap_to_primap2.csv"
+    df_expected = pd.read_csv(file_expected, index_col=0)
+    df = pd.read_csv(file_input)
     df_converted = pm2io.convert_dataframe_units_primap_to_primap2(
         df, unit_col="unit", entity_col="gas"
     )

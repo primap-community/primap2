@@ -1,6 +1,6 @@
-,area (ISO3),category (IPCC2006),sec_cats__Class (class),unit,1991,2000,2010,source,scenario (general),sec_cats__Type (type),entity
-0,AUS,1,TOTAL,Mt CO2 / yr,4.0,5.0,6.0,TESTcsv2021,HISTORY,fugitive,CO2
-1,AUS,0,TOTAL,Mt CO2 / yr,8.0,9.0,10.0,TESTcsv2021,HISTORY,fugitive,CO2
-2,ZAM,0,TOTAL,Mt CO2 / yr,0.03,0.02,0.04,TESTcsv2021,HISTORY,fugitive,CO2
-3,ZAM,2,TOTAL,Mt CO2 / yr,0.007,0.008,0.009000000000000001,TESTcsv2021,HISTORY,fugitive,CO2
-4,ZAM,2,TOTAL,Mt CO2 / yr,0.012,0.013000000000000001,0.014,TESTcsv2021,HISTORY,fugitive,CO2
+,area (ISO3),category (IPCC2006),sec_cats__Class (class),unit,1991,2000,2010,source,sec_cats__Type (type),scenario (general),entity
+0,AUS,1,TOTAL,Mt CO2 / yr,4.0,5.0,6.0,TESTcsv2021,fugitive,HISTORY,CO2
+1,AUS,0,TOTAL,Mt CO2 / yr,8.0,9.0,10.0,TESTcsv2021,fugitive,HISTORY,CO2
+2,ZAM,0,TOTAL,Mt CO2 / yr,0.03,0.02,0.04,TESTcsv2021,fugitive,HISTORY,CO2
+3,ZAM,2,TOTAL,Mt CO2 / yr,0.007,0.008,0.009000000000000001,TESTcsv2021,fugitive,HISTORY,CO2
+4,ZAM,2,TOTAL,Mt CO2 / yr,0.012,0.013000000000000001,0.014,TESTcsv2021,fugitive,HISTORY,CO2

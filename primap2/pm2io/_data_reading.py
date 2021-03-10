@@ -1,13 +1,21 @@
 import itertools
 import re
 from pathlib import Path
-from typing import IO, Any, Dict, Optional, Union
+from typing import IO, Any, Callable, Dict, Optional, Union
 
 import pandas as pd
 import xarray as xr
 from loguru import logger
 
 from .._units import ureg
+
+SEC_CATS_PREFIX = "sec_cats__"
+# entity is mandatory in the interchange format because it is transformed
+# into the variables
+# unit is mandatory in the interchange format because it is transformed
+# into the pint units
+INTERCHANGE_FORMAT_MANDATORY_COLUMNS = ["area", "source", "entity", "unit"]
+INTERCHANGE_FORMAT_OPTIONAL_COLUMNS = ["category", "scenario", "provenance", "model"]
 
 
 def convert_dataframe_units_primap_to_primap2(
@@ -366,10 +374,15 @@ def read_wide_csv_file_if(
         A dict with primap2 dimension names as keys. Values are dicts with input values
         as keys and output values as values. A standard use case is to map gas names
         from input data to the standardized names used in primap2.
-        Alternatively values can be strings which define the function to run to create
-        the dict. Possible functions are hard-coded currently for security reasons.
+        Alternatively a value can also be a function which transforms one CSV metadata
+        value into the new metadata value.
+        A third possibility is to give a string as a value, which defines a rule for
+        translating metadata values. The only defined rule at the moment is "PRIMAP1"
+        which can be used for the "category", "entity", and "unit" columns to translate
+        from PRIMAP1 metadata to PRIMAP2 metadata.
         Meta mapping is only possible for columns read from the input file not for
-        columns defined via columns_defaults.
+        columns defined via columns_defaults - for defaults, specify the mapped values
+        directly in columns_defaults.
 
     filter_keep : dict, optional
         Dict defining filters of data to keep. Filtering is done before metadata
@@ -423,16 +436,65 @@ def read_wide_csv_file_if(
     This filter removes all data with 'HISTORY' as scenario
 
     """
+    # Check and prepare arguments
+    if coords_defaults is None:
+        coords_defaults = {}
+    if coords_terminologies is None:
+        coords_terminologies = {}
+    check_mandatory_dimensions(coords_cols, coords_defaults)
+    check_overlapping_specifications(coords_cols, coords_defaults)
 
-    # 0) some definitions
-    mandatory_coords = ["area", "source"]
-    # entity and time are also mandatory, but need special treatment
-    optional_coords = ["category", "scenario", "provenance", "model"]
-    sec_cats_name = "sec_cats__"
-    attr_names = {"category": "cat", "scenario": "scen", "area": "area"}
+    data = read_csv(filepath_or_buffer, coords_cols)
 
-    # 1) read the data
-    # read the data into a pandas dataframe replacing special strings by nan
+    filter_data(data, filter_keep, filter_remove)
+
+    add_dimensions_from_defaults(data, coords_defaults)
+
+    if meta_mapping is not None:
+        map_metadata(data, coords_cols, meta_mapping)
+
+    rename_columns(data, coords_cols, coords_defaults, coords_terminologies)
+
+    if meta_mapping and "unit" in meta_mapping:
+        harmonize_units(data, unit_terminology=meta_mapping["unit"])
+    else:
+        harmonize_units(data)
+
+    return data
+
+
+def check_mandatory_dimensions(
+    coords_cols: Dict[str, str],
+    coords_defaults: Dict[str, Any],
+):
+    """Check if all mandatory dimensions are specified."""
+    for coord in INTERCHANGE_FORMAT_MANDATORY_COLUMNS:
+        if coord not in coords_cols and coord not in coords_defaults:
+            logger.error(
+                f"Mandatory dimension {coord} not found in coords_cols={coords_cols} or"
+                f" coords_defaults={coords_defaults}."
+            )
+            raise ValueError(f"Mandatory dimension {coord} not defined.")
+
+
+def check_overlapping_specifications(
+    coords_cols: Dict[str, str],
+    coords_defaults: Dict[str, Any],
+):
+    both = set(coords_cols.keys()).intersection(set(coords_defaults.keys()))
+    if both:
+        logger.error(
+            f"{both!r} is given in coords_cols and coords_defaults, but"
+            f" it must only be given in one of them."
+        )
+        raise ValueError(f"{both!r} given in coords_cols and coords_defaults.")
+
+
+def read_csv(
+    filepath_or_buffer,
+    coords_cols: Dict[str, str],
+) -> pd.DataFrame:
+
     na_values = [
         "nan",
         "NE",
@@ -446,7 +508,6 @@ def read_wide_csv_file_if(
     ]
     read_data = pd.read_csv(filepath_or_buffer, na_values=na_values)
 
-    # 2) prepare and filter the dataset
     # get all the columns that are actual data not metadata (usually the years)
     year_regex = re.compile(r"\d")
     year_cols = list(filter(year_regex.match, read_data.columns.values))
@@ -465,184 +526,135 @@ def read_wide_csv_file_if(
         inplace=True,
     )
 
-    # filter the data
-    # first the filters for keeping data. Filters are combined with "or" while all
-    # column conditions in each filter are combined with "&"
+    return read_data
+
+
+def spec_to_query_string(filter_spec: Dict[str, Union[list, Any]]) -> str:
+    """Convert filter specification to query string.
+
+    All column conditions in the filter are combined with &."""
+    queries = []
+    for col in filter_spec:
+        if isinstance(filter_spec[col], list):
+            itemlist = ", ".join((repr(x) for x in filter_spec[col]))
+            filter_query = f"{col} in [{itemlist}]"
+        else:
+            filter_query = f"{col} == {filter_spec[col]!r}"
+        queries.append(filter_query)
+
+    return " & ".join(queries)
+
+
+def filter_data(
+    read_data: pd.DataFrame,
+    filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
+    filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
+):
+    # Filters for keeping data are combined with "or" so that
+    # everything matching at least one rule is kept.
     if filter_keep:
-        query = ""
-        for filter_name in filter_keep:
-            filter_current = filter_keep[filter_name]
-            query = query + "("
-            for col in filter_current:
-                if isinstance(filter_current[col], list):
-                    query = query + col + " in ["
-                    for item in filter_current[col]:
-                        query = query + "'" + item + "', "
-                    query = query[0:-2] + "] & "
-                else:
-                    query = query + col + " == '" + filter_current[col] + "' & "
-            query = query[0:-2] + ") |"
-        query = query[0:-2]
-        # print("filter_keep: " + query)
+        queries = []
+        for filter_spec in filter_keep.values():
+            q = spec_to_query_string(filter_spec)
+            queries.append(f"({q})")
+        query = " | ".join(queries)
         read_data.query(query, inplace=True)
 
-    # now the filters for removing data. Same as for keeping
+    # Filters for removing data are negated and combined with "and" so that
+    # only rows which don't match any rule are kept.
     if filter_remove:
-        query = ""
-        for filter_name in filter_remove:
-            filter_current = filter_remove[filter_name]
-            query = query + "~("
-            for col in filter_current:
-                if isinstance(filter_current[col], list):
-                    query = query + col + " in ["
-                    for item in filter_current[col]:
-                        query = query + "'" + item + "', "
-                    query = query[0:-2] + "] & "
-                else:
-                    query = query + col + " == '" + filter_current[col] + "' & "
-            query = query[0:-3] + ") & "
-        query = query[0:-2]
-        # print("filter_remove: " + query)
+        queries = []
+        for filter_spec in filter_remove.values():
+            q = spec_to_query_string(filter_spec)
+            queries.append(f"~({q})")
+        query = " & ".join(queries)
         read_data.query(query, inplace=True)
 
-    # reset index
-    read_data.reset_index(drop=True)
+    read_data.reset_index(drop=True, inplace=True)
 
-    # 3) bring metadata into primap2 format (mandatory metadata, entity names, unit etc)
-    # map metadata (e.g. replace gas names, scenario names etc.)
-    # add mandatory dimensions as columns if not present
-    if coords_defaults is None:
-        coords_defaults = {}
 
-    for coord in mandatory_coords:
-        if coord in coords_cols.keys():
-            pass
-        elif coord in coords_defaults.keys():
+def add_dimensions_from_defaults(
+    read_data: pd.DataFrame,
+    coords_defaults: Dict[str, Any],
+):
+    if_columns = (
+        INTERCHANGE_FORMAT_OPTIONAL_COLUMNS + INTERCHANGE_FORMAT_MANDATORY_COLUMNS
+    )
+    for coord in coords_defaults.keys():
+        if coord in if_columns or coord.startswith(SEC_CATS_PREFIX):
             # add column to dataframe with default value
             read_data[coord] = coords_defaults[coord]
         else:
-            logger.error("Mandatory dimension " + coord + " not defined.")
-            raise ValueError("Mandatory dimension " + coord + " not defined.")
+            raise ValueError(
+                f"{coord!r} given in coords_defaults is unknown - prefix with "
+                f"{SEC_CATS_PREFIX!r} to add a secondary category."
+            )
 
-    # add optional dimensions as columns if present in coords_defaults
-    for coord in optional_coords:
-        if coord in coords_defaults.keys():
-            # add column to dataframe with default value
-            read_data[coord] = coords_defaults[coord]
 
-    # the secondary categories need special treatment
-    for coord in coords_defaults.keys():
-        # check if it starts with sec_cats_name
-        if coord[0 : len(sec_cats_name)] == sec_cats_name:
-            read_data[coord] = coords_defaults[coord]
+def map_metadata(
+    read_data: pd.DataFrame,
+    coords_cols: Dict[str, str],
+    meta_mapping: Dict[str, Union[str, Callable, dict]],
+):
+    """Map the metadata according to specifications given in meta_mapping."""
 
-    # entity is also mandatory as it is transformed into the variables
-    if "entity" in coords_cols.keys():
-        pass
-    elif "entity" in coords_defaults.keys():
-        read_data["entity"] = coords_defaults["entity"]
-    else:
-        logger.error("Entity not defined.")
-        raise ValueError("Entity not defined.")
+    # TODO: add additional mapping functions here
+    mapping_functions = {
+        "PRIMAP1": {
+            "category": convert_ipcc_code_primap_to_primap2,
+            "entity": convert_entity_gwp_primap,
+        }
+    }
 
-    # a unit column is mandatory for the interchange format
-    # if your data has no unit set an empty unit so it's clear that it's not a fault
-    if "unit" in coords_cols.keys():
-        pass
-    elif "unit" in coords_defaults.keys():
-        # set unit. no unit conversion needed
-        read_data["unit"] = coords_defaults["unit"]
-    else:
-        # no unit information present. Throw an error
-        logger.error("Unit information not defined.")
-        raise ValueError("Unit information not defined.")
-
-    columns = read_data.columns.values
-
-    # TODO: add additional conversion functions here!
     meta_mapping_df = {}
-    if meta_mapping is not None:
-        # preprocess meta_mapping
-        for column in meta_mapping:
-            if isinstance(meta_mapping[column], str):
-                if column == "category":
-                    # print('creating meta_mapping dict for ' + column)
-                    values_to_map = read_data[coords_cols[column]].unique()
-                    if meta_mapping[column] == "PRIMAP1":
-                        # print("using PRIMAP converter")
-                        values_mapped = map(
-                            convert_ipcc_code_primap_to_primap2, values_to_map
-                        )
-                    else:
-                        logger.error(
-                            "Unknown metadata mapping "
-                            + meta_mapping[column]
-                            + " for column "
-                            + column
-                            + "."
-                        )
-                        raise ValueError(
-                            "Unknown metadata mapping "
-                            + meta_mapping[column]
-                            + " for column "
-                            + column
-                            + "."
-                        )
-                elif column == "entity":
-                    values_to_map = read_data[coords_cols[column]].unique()
-                    if meta_mapping[column] == "PRIMAP1":
-                        # print("using PRIMAP converter")
-                        values_mapped = list(
-                            map(convert_entity_gwp_primap, values_to_map)
-                        )
-                    else:
-                        logger.error(
-                            "Unknown metadata mapping "
-                            + meta_mapping[column]
-                            + " for column "
-                            + column
-                            + "."
-                        )
-                        raise ValueError(
-                            "Unknown metadata mapping "
-                            + meta_mapping[column]
-                            + " for column "
-                            + column
-                            + "."
-                        )
-                elif column == "unit":
-                    pass  # units are processed later
-                else:
+    # preprocess meta_mapping
+    for column, mapping in meta_mapping.items():
+        if column == "unit":  # handled in harmonize_units
+            continue
+
+        if isinstance(mapping, str) or callable(mapping):
+            if isinstance(mapping, str):  # need to translate to function first
+                try:
+                    func = mapping_functions[mapping][column]
+                except KeyError:
                     logger.error(
-                        "Function based metadata mapping not implemented for"
-                        + " column "
-                        + column
-                        + "."
+                        f"Unknown metadata mapping {mapping} for column {column}, "
+                        f"known mappings are: {mapping_functions}."
                     )
                     raise ValueError(
-                        "Function based metadata mapping not implemented"
-                        + " for column "
-                        + column
-                        + "."
-                    )
-                if not (column == "unit"):
-                    meta_mapping_df[coords_cols[column]] = dict(
-                        zip(values_to_map, values_mapped)
+                        f"Unknown metadata mapping {mapping} for column {column}."
                     )
             else:
-                meta_mapping_df[coords_cols[column]] = meta_mapping[column]
-        # print(meta_mapping_df)
-        read_data.replace(meta_mapping_df, inplace=True)
+                func = mapping
 
-    # rename columns to match PRIMAP2 specifications
-    # add the dataset wide attributes
-    if coords_terminologies is None:
-        coords_terminologies = {}
+            values_to_map = read_data[coords_cols[column]].unique()
+            values_mapped = map(func, values_to_map)
+            meta_mapping_df[coords_cols[column]] = dict(
+                zip(values_to_map, values_mapped)
+            )
+
+        else:
+            meta_mapping_df[coords_cols[column]] = mapping
+
+    read_data.replace(meta_mapping_df, inplace=True)
+
+
+def rename_columns(
+    read_data: pd.DataFrame,
+    coords_cols: Dict[str, str],
+    coords_defaults: Dict[str, Any],
+    coords_terminologies: Dict[str, str],
+):
+    """Rename columns to match PRIMAP2 specifications and generate the corresponding
+    dataset-wide attrs for PRIMAP2."""
+
+    attr_names = {"category": "cat", "scenario": "scen", "area": "area"}
+
     attrs = {}
     coord_renaming = {}
     for coord in coords_cols:
-        if coord in coords_terminologies.keys():
-            name = coord + " (" + coords_terminologies[coord] + ")"
+        if coord in coords_terminologies:
+            name = f"{coord} ({coords_terminologies[coord]})"
         else:
             name = coord
         coord_renaming[coords_cols[coord]] = name
@@ -650,45 +662,25 @@ def read_wide_csv_file_if(
             attrs[attr_names[coord]] = name
 
     for coord in coords_defaults:
-        if coord in columns:
-            if coord in coords_terminologies.keys():
-                name = coord + " (" + coords_terminologies[coord] + ")"
-                coord_renaming[coord] = name
-            else:
-                name = coord
-            if coord in attr_names:
-                attrs[attr_names[coord]] = name
+        if coord in coords_terminologies:
+            name = f"{coord} ({coords_terminologies[coord]})"
+            coord_renaming[coord] = name
         else:
-            if coord in attr_names:
-                logger.error(
-                    "Only columns can be in attr_names. "
-                    + coord
-                    + " is not a column. Internal error."
-                )
-                raise RuntimeError(
-                    "Only columns can be in attr_names. "
-                    + coord
-                    + " is not a column. Internal error."
-                )
+            name = coord
+        if coord in attr_names:
+            attrs[attr_names[coord]] = name
+
     read_data.rename(columns=coord_renaming, inplace=True)
 
     # fill sec_cats attrs
-    columns = read_data.columns.values
     sec_cat_attrs = []
-    for col in columns:
-        if col[0 : len(sec_cats_name)] == sec_cats_name:
-            sec_cat_attrs.append(col[len(sec_cats_name) :])
+    for col in read_data.columns.values:
+        if col.startswith(SEC_CATS_PREFIX):
+            sec_cat_attrs.append(col[len(SEC_CATS_PREFIX) :])
     if len(sec_cat_attrs) > 0:
         attrs["sec_cats"] = sec_cat_attrs
 
-    # unit harmonization
-    if "unit" in meta_mapping:
-        read_data = harmonize_units(read_data, unit_terminology=meta_mapping["unit"])
-    else:
-        read_data = harmonize_units(read_data)
-
     read_data.attrs = attrs
-    return read_data
 
 
 def harmonize_units(
@@ -697,11 +689,11 @@ def harmonize_units(
     unit_col: str = "unit",
     entity_col: str = "entity",
     data_col_regex_str: str = r"\d",
-) -> pd.DataFrame:
+):
     """
-    This function harmonizes the units of the input data. For each entity it converts
+    Harmonize the units of the input data. For each entity, convert
     all time series to the same unit (the unit that occurs first). The unit strings
-    are converted to PRIMAP2 style. the input data unit style is defined viw the
+    are converted to PRIMAP2 style. The input data unit style is defined via the
     "unit_terminology" parameter.
 
     Parameters
@@ -759,21 +751,9 @@ def harmonize_units(
                 # print(unit_pint)
                 factor = unit_pint.magnitude
                 # print(factor)
-                data.loc[
-                    (data[entity_col] == entity) & (data[unit_col] == unit),
-                    data_cols,
-                ] = (
-                    data.loc[
-                        (data[entity_col] == entity) & (data[unit_col] == unit),
-                        data_cols,
-                    ]
-                    * factor
-                )
-                data.loc[
-                    (data[entity_col] == entity) & (data[unit_col] == unit),
-                    unit_col,
-                ] = unit_to
-    return data
+                mask = (data[entity_col] == entity) & (data[unit_col] == unit)
+                data.loc[mask, data_cols] *= factor
+                data.loc[mask, unit_col] = unit_to
 
 
 def convert_entity_gwp_primap(entity_pm1: str) -> str:
