@@ -401,6 +401,8 @@ def read_wide_csv_file_if(
         from input data to the standardized names used in primap2.
         Alternatively values can be strings which define the function to run to create
         the dict. Possible functions are hard-coded currently for security reasons.
+        Meta mapping is only possible for columns read from the input file not for
+        columns defined via `columns_defaults`
         Default: empty
 
     filter_keep : dict
@@ -545,6 +547,52 @@ def read_wide_csv_file_if(
 
     # 3) bring metadata into primap2 format (mandatory metadata, entity names, unit etc)
     # map metadata (e.g. replace gas names, scenario names etc.)
+    # add mandatory dimensions as columns if not present
+    for coord in mandatory_coords:
+        if coord in coords_cols.keys():
+            pass
+        elif coord in coords_defaults.keys():
+            # add column to dataframe with default value
+            read_data[coord] = coords_defaults[coord]
+        else:
+            logger.error("Mandatory dimension " + coord + " not defined.")
+            raise ValueError("Mandatory dimension " + coord + " not defined.")
+
+    # add optional dimensions as columns if present in coords_defaults
+    for coord in optional_coords:
+        if coord in coords_defaults.keys():
+            # add column to dataframe with default value
+            read_data[coord] = coords_defaults[coord]
+
+    # the secondary categories need special treatment
+    for coord in coords_defaults.keys():
+        # check if it starts with sec_cats_name
+        if coord[0 : len(sec_cats_name)] == sec_cats_name:
+            read_data[coord] = coords_defaults[coord]
+
+    # entity is also mandatory as it is transformed into the variables
+    if "entity" in coords_cols.keys():
+        pass
+    elif "entity" in coords_defaults.keys():
+        read_data["entity"] = coords_defaults["entity"]
+    else:
+        logger.error("Entity not defined.")
+        raise ValueError("Entity not defined.")
+
+    # a unit column is mandatory for the interchange format
+    # if your data has no unit set an empty unit so it's clear that it's not a fault
+    if "unit" in coords_cols.keys():
+        pass
+    elif "unit" in coords_defaults.keys():
+        # set unit. no unit conversion needed
+        read_data["unit"] = coords_defaults["unit"]
+    else:
+        # no unit information present. Throw an error
+        logger.error("Unit information not defined.")
+        raise ValueError("Unit information not defined.")
+
+    columns = read_data.columns.values
+
     # TODO: add additional conversion functions here!
     meta_mapping_df = {}
     if meta_mapping:
@@ -611,59 +659,14 @@ def read_wide_csv_file_if(
                         + column
                         + "."
                     )
-                meta_mapping_df[coords_cols[column]] = dict(
-                    zip(values_to_map, values_mapped)
-                )
+                if not (column == "unit"):
+                    meta_mapping_df[coords_cols[column]] = dict(
+                        zip(values_to_map, values_mapped)
+                    )
             else:
                 meta_mapping_df[coords_cols[column]] = meta_mapping[column]
         # print(meta_mapping_df)
         read_data.replace(meta_mapping_df, inplace=True)
-
-    # add mandatory dimensions as columns if not present
-    for coord in mandatory_coords:
-        if coord in coords_cols.keys():
-            pass
-        elif coord in coords_defaults.keys():
-            # add column to dataframe with default value
-            read_data[coord] = coords_defaults[coord]
-        else:
-            logger.error("Mandatory dimension " + coord + " not defined.")
-            raise ValueError("Mandatory dimension " + coord + " not defined.")
-
-    # add optional dimensions as columns if present in coords_defaults
-    for coord in optional_coords:
-        if coord in coords_defaults.keys():
-            # add column to dataframe with default value
-            read_data[coord] = coords_defaults[coord]
-
-    # the secondary categories need special treatment
-    for coord in coords_defaults.keys():
-        # check if it starts with sec_cats_name
-        if coord[0 : len(sec_cats_name)] == sec_cats_name:
-            read_data[coord] = coords_defaults[coord]
-
-    # entity is also mandatory as it is transformed into the variables
-    if "entity" in coords_cols.keys():
-        pass
-    elif "entity" in coords_defaults.keys():
-        read_data["entity"] = coords_defaults["entity"]
-    else:
-        logger.error("Entity not defined.")
-        raise ValueError("Entity not defined.")
-
-    # a unit column is mandatory for the interchange format
-    # if your data has no unit set an empty unit so it's clear that it's not a fault
-    if "unit" in coords_cols.keys():
-        pass
-    elif "unit" in coords_defaults.keys():
-        # set unit. no unit conversion needed
-        read_data["unit"] = coords_defaults["unit"]
-    else:
-        # no unit information present. Throw an error
-        logger.error("Unit information not defined.")
-        raise ValueError("Unit information not defined.")
-
-    columns = read_data.columns.values
 
     # rename columns to match PRIMAP2 specifications
     # add the dataset wide attributes
@@ -689,7 +692,16 @@ def read_wide_csv_file_if(
                 attrs[attr_names[coord]] = name
         else:
             if coord in attr_names:
-                attrs[attr_names[coord]] = coords_defaults[coord]
+                logger.error(
+                    "Only columns can be in attr_names. "
+                    + coord
+                    + " is not a column. Internal error."
+                )
+                raise RuntimeError(
+                    "Only columns can be in attr_names. "
+                    + coord
+                    + " is not a column. Internal error."
+                )
     read_data.rename(columns=coord_renaming, inplace=True)
 
     # fill sec_cats attrs
@@ -867,7 +879,7 @@ def convert_entity_gwp_primap(entity_pm1: str) -> str:
                     "Confused: could not find entity which should be there."
                     " This indicates a bug in this function."
                 )
-                raise ValueError(
+                raise RuntimeError(
                     "Confused: could not find entity which should be there."
                     " This indicates a bug in this function."
                 )
@@ -906,15 +918,14 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
         entity = re.findall(regex_variable, variable)
         if not entity:
             logger.error(
-                "Malformed variable name: " + variable + " Can't extract entity"
+                "Can't extract entity from " + variable + ". Probably error in code."
             )
-            raise ValueError(
-                "Malformed variable name: " + variable + " Can't extract entity"
+            raise RuntimeError(
+                "Can't extract entity from " + variable + ". Probably error in code."
             )
         attrs["entity"] = entity[0]
     else:
         attrs["entity"] = variable
-
     return attrs
 
 
@@ -974,7 +985,7 @@ def from_interchange_format(
                 f"More than one unit for {variable!r}: {csv_units!r}. "
                 + "There is an error in the unit conversion."
             )
-            raise ValueError(
+            raise RuntimeError(
                 f"More than one unit for {variable!r}: {csv_units!r}. "
                 "There is an error in the unit conversion."
             )

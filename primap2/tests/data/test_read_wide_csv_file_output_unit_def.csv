@@ -1,0 +1,4 @@
+,area (ISO3),category (IPCC2006),sec_cats__Class (class),entity,1991,2000,2010,source,scenario (general),sec_cats__Type (type),unit
+0,AUS,1,TOTAL,CO2,4,5,6,TESTcsv2021,HISTORY,fugitive,Gg CO2 / yr
+3,ZAM,2,TOTAL,CH4,7,8,9,TESTcsv2021,HISTORY,fugitive,Gg CH4 / yr
+4,ZAM,2,TOTAL,CO2,12,13,14,TESTcsv2021,HISTORY,fugitive,Gg CO2 / yr
