@@ -342,6 +342,7 @@ def read_wide_csv_file_if(
     coords_value_mapping: Optional[Dict[str, Any]] = None,
     filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
+    meta_data: Optional[Dict[str, Any]] = None,
 ) -> pd.DataFrame:
     """
     This function reads a csv file and returns the data as a pandas DataFrame in PRIMAP2
@@ -409,6 +410,13 @@ def read_wide_csv_file_if(
         as in the csv file. Each entry in the dict defines an individual filter.
         The names of the filters have no relevance.
 
+    meta_data : dict, optional
+        Meta data for the whole dataset. Will end up in the dataset-wide attrs. Allowed
+        keys are "references", "rights", "contact", "title", "comment", "institution",
+        and "history". Documentation about the format and meaning of the meta data can
+        be found in the
+        `data format documentation <https://primap2.readthedocs.io/en/stable/data_format_details.html#dataset-attributes>`_.  # noqa: E501
+
     Returns
     -------
 
@@ -454,6 +462,11 @@ def read_wide_csv_file_if(
         coords_defaults = {}
     if coords_terminologies is None:
         coords_terminologies = {}
+    if meta_data is None:
+        attrs = {}
+    else:
+        attrs = meta_data.copy()
+
     check_mandatory_dimensions(coords_cols, coords_defaults)
     check_overlapping_specifications(coords_cols, coords_defaults)
 
@@ -466,7 +479,10 @@ def read_wide_csv_file_if(
     if coords_value_mapping is not None:
         map_metadata(data, coords_cols, coords_value_mapping)
 
-    rename_columns(data, coords_cols, coords_defaults, coords_terminologies)
+    naming_attrs = rename_columns(
+        data, coords_cols, coords_defaults, coords_terminologies
+    )
+    attrs.update(naming_attrs)
 
     if coords_value_mapping and "unit" in coords_value_mapping:
         harmonize_units(data, unit_terminology=coords_value_mapping["unit"])
@@ -474,6 +490,8 @@ def read_wide_csv_file_if(
         harmonize_units(data)
 
     data = sort_columns_and_rows(data)
+
+    data.attrs = attrs
 
     return data
 
@@ -540,6 +558,15 @@ def read_csv(
         columns=list(set(columns) - set(coords_cols.values()) - set(year_cols)),
         inplace=True,
     )
+
+    # check that all cols in the specification could be read
+    missing = set(coords_cols.values()) - set(read_data.columns.values)
+    if missing:
+        logger.error(
+            f"Column(s) {missing} specified in coords_cols, but not found in "
+            f"the CSV file {filepath_or_buffer!r}."
+        )
+        raise ValueError(f"Columns {missing} not found in CSV.")
 
     return read_data
 
@@ -659,7 +686,7 @@ def rename_columns(
     coords_cols: Dict[str, str],
     coords_defaults: Dict[str, Any],
     coords_terminologies: Dict[str, str],
-):
+) -> dict:
     """Rename columns to match PRIMAP2 specifications and generate the corresponding
     dataset-wide attrs for PRIMAP2."""
 
@@ -687,7 +714,7 @@ def rename_columns(
     if sec_cats:
         attrs["sec_cats"] = sec_cats
 
-    read_data.attrs = attrs
+    return attrs
 
 
 def harmonize_units(

@@ -173,28 +173,39 @@ def test_read_wide_csv_file(tmp_path):
         "sec_cats__Class": "class",
         "scenario": "general",
     }
-    meta_mapping = {"category": "PRIMAP1", "entity": "PRIMAP1"}
+    coords_value_mapping = {"category": "PRIMAP1", "entity": "PRIMAP1"}
     filter_keep = {
         "f1": {"category": ["IPC0", "IPC2"]},
         "f2": {"classification": "TOTAL"},
     }
     filter_remove = {"f1": {"gas": "CH4"}, "f2": {"country": ["USA", "FRA"]}}
+    meta_data = {"references": "Just ask around."}
 
     df_result = pm2io.read_wide_csv_file_if(
         file_input,
         coords_cols=coords_cols,
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
-        coords_value_mapping=meta_mapping,
+        coords_value_mapping=coords_value_mapping,
         filter_keep=filter_keep,
         filter_remove=filter_remove,
+        meta_data=meta_data,
     )
+    attrs_result = df_result.attrs
     df_result.to_csv(tmp_path / "temp.csv")
     df_result = pd.read_csv(tmp_path / "temp.csv", index_col=0)
     pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
 
+    assert attrs_result == {
+        "references": "Just ask around.",
+        "sec_cats": ["Class (class)", "Type (type)"],
+        "scen": "scenario (general)",
+        "area": "area (ISO3)",
+        "cat": "category (IPCC2006)",
+    }
 
-def test_read_wide_csv_file_meta_dict(tmp_path):
+
+def test_read_wide_csv_file_coords_value_mapping(tmp_path):
     file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
     file_expected = DATA_PATH / "test_read_wide_csv_file_output.csv"
     df_expected = pd.read_csv(file_expected, index_col=0)
@@ -218,7 +229,7 @@ def test_read_wide_csv_file_meta_dict(tmp_path):
         "sec_cats__Class": "class",
         "scenario": "general",
     }
-    meta_mapping = {
+    coords_value_mapping = {
         "category": {"IPC1": "1", "IPC2": "2", "IPC3": "3", "IPC0": "0"},
         "entity": {"KYOTOGHG": "KYOTOGHG (SARGWP100)"},
         "unit": "PRIMAP1",
@@ -234,7 +245,7 @@ def test_read_wide_csv_file_meta_dict(tmp_path):
         coords_cols=coords_cols,
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
-        coords_value_mapping=meta_mapping,
+        coords_value_mapping=coords_value_mapping,
         filter_keep=filter_keep,
         filter_remove=filter_remove,
     )
@@ -335,6 +346,47 @@ def test_read_wide_csv_file_unit_def(tmp_path):
     df_result.to_csv(tmp_path / "test.csv")
     df_result = pd.read_csv(tmp_path / "test.csv", index_col=0)
     pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
+
+
+def test_read_wide_csv_file_col_missing():
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+
+    coords_cols = {
+        "unit": "unit",
+        "entity": "gas",
+        "area": "country",
+        "category": "category",
+        "sec_cats__Class": "class",
+    }
+    coords_defaults = {
+        "source": "TESTcsv2021",
+        "sec_cats__Type": "fugitive",
+        "scenario": "HISTORY",
+    }
+    coords_terminologies = {
+        "area": "ISO3",
+        "category": "IPCC2006",
+        "sec_cats__Type": "type",
+        "sec_cats__Class": "class",
+        "scenario": "general",
+    }
+    coords_value_mapping = {"category": "PRIMAP1", "entity": "PRIMAP1"}
+    filter_keep = {
+        "f1": {"category": ["IPC0", "IPC2"]},
+        "f2": {"classification": "TOTAL"},
+    }
+    filter_remove = {"f1": {"gas": "CH4"}, "f2": {"country": ["USA", "FRA"]}}
+
+    with pytest.raises(ValueError, match="Columns {'class'} not found in CSV."):
+        pm2io.read_wide_csv_file_if(
+            file_input,
+            coords_cols=coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=coords_value_mapping,
+            filter_keep=filter_keep,
+            filter_remove=filter_remove,
+        )
 
 
 def test_read_wide_csv_file_no_unit():
