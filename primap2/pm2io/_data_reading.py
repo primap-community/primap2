@@ -665,34 +665,26 @@ def rename_columns(
     attr_names = {"category": "cat", "scenario": "scen", "area": "area"}
 
     attrs = {}
+    sec_cats = []
     coord_renaming = {}
-    for coord in coords_cols:
+    for coord in itertools.chain(coords_cols, coords_defaults):
         if coord in coords_terminologies:
             name = f"{coord} ({coords_terminologies[coord]})"
         else:
             name = coord
-        coord_renaming[coords_cols[coord]] = name
-        if coord in attr_names:
+
+        if coord.startswith(SEC_CATS_PREFIX):
+            name = name[len(SEC_CATS_PREFIX) :]
+            sec_cats.append(name)
+        elif coord in attr_names:
             attrs[attr_names[coord]] = name
 
-    for coord in coords_defaults:
-        if coord in coords_terminologies:
-            name = f"{coord} ({coords_terminologies[coord]})"
-            coord_renaming[coord] = name
-        else:
-            name = coord
-        if coord in attr_names:
-            attrs[attr_names[coord]] = name
+        coord_renaming[coords_cols.get(coord, coord)] = name
 
     read_data.rename(columns=coord_renaming, inplace=True)
 
-    # fill sec_cats attrs
-    sec_cat_attrs = []
-    for col in read_data.columns.values:
-        if col.startswith(SEC_CATS_PREFIX):
-            sec_cat_attrs.append(col[len(SEC_CATS_PREFIX) :])
-    if len(sec_cat_attrs) > 0:
-        attrs["sec_cats"] = sec_cat_attrs
+    if sec_cats:
+        attrs["sec_cats"] = sec_cats
 
     read_data.attrs = attrs
 
@@ -926,7 +918,7 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
 
 
 def from_interchange_format(
-    data: pd.DataFrame, attrs: dict, data_col_regex_str: str = r"\d"
+    data: pd.DataFrame, attrs: Optional[dict] = None, time_col_regex: str = r"\d"
 ) -> xr.Dataset:
     """
     This function converts an interchange format DataFrame to an PRIMAP2 xarray data
@@ -937,10 +929,11 @@ def from_interchange_format(
     Parameters
     ----------
     data: pd.DataFrame
-        pandas DataFrame in PRIMAP2 interchange format
-    attrs: dict
-        attrs dict as defined for PRIMAP2 xarray datasets
-    data_col_regex_str
+        pandas DataFrame in PRIMAP2 interchange format.
+    attrs: dict, optional
+        attrs dict as defined for PRIMAP2 xarray datasets. Default: use data.attrs.
+    time_col_regex: str, optional
+        Regular expression matching the columns which will form the time
 
     Returns
     -------
@@ -948,15 +941,17 @@ def from_interchange_format(
         xr dataset with the converted data
 
     """
+    if attrs is None:
+        attrs = data.attrs
+
     # preparations
     # definitions
     unit_col = "unit"
     entity_col = "entity"
-    sec_cats_name = "sec_cats__"
     # column names
     columns = data.columns.values
     # find the data columns
-    data_col_regex = re.compile(data_col_regex_str)
+    data_col_regex = re.compile(time_col_regex)
     data_cols = list(filter(data_col_regex.match, columns))
 
     # convert to primap2 xarray format
@@ -986,18 +981,11 @@ def from_interchange_format(
                 "There is an error in the unit conversion."
             )
         data_xr[variable].attrs = metadata_for_variable(csv_units[0], variable)
-    # add the dataset wide attributes and rename secondary categories
+
+    # add the dataset wide attributes
     data_xr.attrs = attrs
 
-    coord_renaming = {}
-    for coord in columns:
-        if coord[0 : len(sec_cats_name)] == sec_cats_name:
-            coord_renaming[coord] = coord[len(sec_cats_name) :]
-
-    data_xr = data_xr.rename_dims(coord_renaming)
-    data_xr = data_xr.rename(coord_renaming)
-
     data_xr = data_xr.pr.quantify()
-    # check if the dataset complies with the PRIMAP2 data specifications
+
     data_xr.pr.ensure_valid()
     return data_xr
