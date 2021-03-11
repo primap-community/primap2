@@ -16,6 +16,16 @@ SEC_CATS_PREFIX = "sec_cats__"
 # into the pint units
 INTERCHANGE_FORMAT_MANDATORY_COLUMNS = ["area", "source", "entity", "unit"]
 INTERCHANGE_FORMAT_OPTIONAL_COLUMNS = ["category", "scenario", "provenance", "model"]
+INTERCHANGE_FORMAT_COLUMN_ORDER = [
+    "source",
+    "scenario",
+    "provenance",
+    "model",
+    "area",
+    "entity",
+    "unit",
+    "category",
+]
 
 
 def convert_dataframe_units_primap_to_primap2(
@@ -328,7 +338,7 @@ def read_wide_csv_file_if(
     coords_cols: Dict[str, str],
     coords_defaults: Optional[Dict[str, Any]] = None,
     coords_terminologies: Optional[Dict[str, str]] = None,
-    meta_mapping: Optional[Dict[str, Any]] = None,
+    coords_value_mapping: Optional[Dict[str, Any]] = None,
     filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> pd.DataFrame:
@@ -342,8 +352,10 @@ def read_wide_csv_file_if(
     terminology information will be added by this function. You can not use the short
     dimension names in the attributes (e.g. "cat" instead of "category")
 
-    Currently duplicate datapoint will not be detected
+    Currently duplicate datapoints will not be detected.
+
     TODO: enable filtering through query strings
+
     TODO: sort the metadata columns before returning the data
 
     Parameters
@@ -370,7 +382,7 @@ def read_wide_csv_file_if(
         All entries different from "area", "category", "scenario", and "sec_cats__<name>
         will raise an error.
 
-    meta_mapping : dict, optional
+    coords_value_mapping : dict, optional
         A dict with primap2 dimension names as keys. Values are dicts with input values
         as keys and output values as values. A standard use case is to map gas names
         from input data to the standardized names used in primap2.
@@ -450,15 +462,17 @@ def read_wide_csv_file_if(
 
     add_dimensions_from_defaults(data, coords_defaults)
 
-    if meta_mapping is not None:
-        map_metadata(data, coords_cols, meta_mapping)
+    if coords_value_mapping is not None:
+        map_metadata(data, coords_cols, coords_value_mapping)
 
     rename_columns(data, coords_cols, coords_defaults, coords_terminologies)
 
-    if meta_mapping and "unit" in meta_mapping:
-        harmonize_units(data, unit_terminology=meta_mapping["unit"])
+    if coords_value_mapping and "unit" in coords_value_mapping:
+        harmonize_units(data, unit_terminology=coords_value_mapping["unit"])
     else:
         harmonize_units(data)
+
+    data = sort_columns_and_rows(data)
 
     return data
 
@@ -754,6 +768,40 @@ def harmonize_units(
                 mask = (data[entity_col] == entity) & (data[unit_col] == unit)
                 data.loc[mask, data_cols] *= factor
                 data.loc[mask, unit_col] = unit_to
+
+
+def sort_columns_and_rows(data: pd.DataFrame) -> pd.DataFrame:
+    """Sort the data.
+
+    The columns are ordered according to the order in
+    INTERCHANGE_FORMAT_COLUMN_ORDER, with secondary categories alphabetically after
+    the category and all date columns in order at the end.
+
+    The rows are ordered by values of the non-date columns.
+    """
+    columns = data.columns.values
+
+    date_regex = re.compile(r"\d")
+    date_cols = list(filter(date_regex.match, columns))
+
+    other_cols = set(columns) - set(date_cols)
+
+    cols_sorted = []
+    for col in INTERCHANGE_FORMAT_COLUMN_ORDER:
+        for ocol in other_cols:
+            if ocol == col or ocol.startswith(f"{col} ("):
+                cols_sorted.append(ocol)
+                other_cols.remove(ocol)
+                break
+
+    cols_sorted += list(sorted(other_cols))
+
+    data = data[cols_sorted + list(sorted(date_cols))]
+
+    data.sort_values(by=cols_sorted, inplace=True)
+    data.reset_index(inplace=True, drop=True)
+
+    return data
 
 
 def convert_entity_gwp_primap(entity_pm1: str) -> str:

@@ -186,7 +186,7 @@ def test_read_wide_csv_file(tmp_path):
         coords_cols=coords_cols,
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
-        meta_mapping=meta_mapping,
+        coords_value_mapping=meta_mapping,
         filter_keep=filter_keep,
         filter_remove=filter_remove,
     )
@@ -235,7 +235,7 @@ def test_read_wide_csv_file_meta_dict(tmp_path):
         coords_cols=coords_cols,
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
-        meta_mapping=meta_mapping,
+        coords_value_mapping=meta_mapping,
         filter_keep=filter_keep,
         filter_remove=filter_remove,
     )
@@ -282,7 +282,7 @@ def test_read_wide_csv_file_entity_def(tmp_path):
         coords_cols=coords_cols,
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
-        meta_mapping=meta_mapping,
+        coords_value_mapping=meta_mapping,
         filter_keep=filter_keep,
         filter_remove=filter_remove,
     )
@@ -329,7 +329,7 @@ def test_read_wide_csv_file_unit_def(tmp_path):
         coords_cols=coords_cols,
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
-        meta_mapping=meta_mapping,
+        coords_value_mapping=meta_mapping,
         filter_keep=filter_keep,
         filter_remove=filter_remove,
     )
@@ -368,7 +368,7 @@ def test_read_wide_csv_file_no_unit():
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
-            meta_mapping=meta_mapping,
+            coords_value_mapping=meta_mapping,
         )
 
 
@@ -403,7 +403,7 @@ def test_read_wide_csv_file_mapping_not_implemented_for_col():
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
-            meta_mapping=meta_mapping,
+            coords_value_mapping=meta_mapping,
         )
 
 
@@ -437,7 +437,7 @@ def test_read_wide_csv_file_mandatory_missing():
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
-            meta_mapping=meta_mapping,
+            coords_value_mapping=meta_mapping,
         )
 
 
@@ -471,7 +471,7 @@ def test_read_wide_csv_file_no_entity():
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
-            meta_mapping=meta_mapping,
+            coords_value_mapping=meta_mapping,
         )
 
 
@@ -506,7 +506,7 @@ def test_read_wide_csv_file_unknown_cat_mapping():
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
-            meta_mapping=meta_mapping,
+            coords_value_mapping=meta_mapping,
         )
 
 
@@ -541,7 +541,7 @@ def test_read_wide_csv_file_unknown_entity_mapping():
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
-            meta_mapping=meta_mapping,
+            coords_value_mapping=meta_mapping,
         )
 
 
@@ -574,7 +574,7 @@ def test_read_wide_csv_file_no_function_mapping_col():
             coords_cols=coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
-            meta_mapping=meta_mapping,
+            coords_value_mapping=meta_mapping,
         )
 
 
