@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 from typing import IO, Any, Callable, Dict, Optional, Union
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 from loguru import logger
@@ -893,6 +894,13 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
     -------
     attrs: dict
         attrs for use in DataArray.attrs
+
+    Examples
+    --------
+
+    >>> metadata_for_variable("Gg CO2 / year", "Kyoto-GHG (SARGWP100)")
+    {'units': 'Gg CO2 / year', 'gwp_context': 'SARGWP100', 'entity': 'Kyoto-GHG'}
+
     """
 
     attrs = {"units": unit}
@@ -905,12 +913,8 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
         attrs["gwp_context"] = gwp[0]
         entity = re.findall(regex_variable, variable)
         if not entity:
-            logger.error(
-                "Can't extract entity from " + variable + ". Probably error in code."
-            )
-            raise RuntimeError(
-                "Can't extract entity from " + variable + ". Probably error in code."
-            )
+            logger.error("Can't extract entity from " + variable)
+            raise ValueError("Can't extract entity from " + variable)
         attrs["entity"] = entity[0]
     else:
         attrs["entity"] = variable
@@ -918,7 +922,10 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
 
 
 def from_interchange_format(
-    data: pd.DataFrame, attrs: Optional[dict] = None, time_col_regex: str = r"\d"
+    data: pd.DataFrame,
+    attrs: Optional[dict] = None,
+    time_col_regex: str = r"\d",
+    max_array_size: int = 1024 * 1024 * 1024,
 ) -> xr.Dataset:
     """
     This function converts an interchange format DataFrame to an PRIMAP2 xarray data
@@ -934,6 +941,9 @@ def from_interchange_format(
         attrs dict as defined for PRIMAP2 xarray datasets. Default: use data.attrs.
     time_col_regex: str, optional
         Regular expression matching the columns which will form the time
+    max_array_size: int, optional
+        Maximum permitted projected array size. Larger sizes will raise an exception.
+        Default: 1 G, corresponding to about 4 GB of memory usage.
 
     Returns
     -------
@@ -944,42 +954,48 @@ def from_interchange_format(
     if attrs is None:
         attrs = data.attrs
 
-    # preparations
-    # definitions
-    unit_col = "unit"
-    entity_col = "entity"
-    # column names
     columns = data.columns.values
-    # find the data columns
-    data_col_regex = re.compile(time_col_regex)
-    data_cols = list(filter(data_col_regex.match, columns))
+    # find the time columns
+    time_cols = list(filter(re.compile(time_col_regex).match, columns))
 
-    # convert to primap2 xarray format
+    # convert to xarray
     data_xr = data.to_xarray()
-    index_cols = list(set(columns) - set(data_cols) - set([unit_col]))
+    index_cols = list(set(columns) - set(time_cols) - {"unit"})
     data_xr = data_xr.set_index({"index": index_cols})
     # take the units out as they increase dimensionality and we have only one unit per
     # entity/variable
-    units = data_xr[unit_col].dropna("index")
-    del data_xr[unit_col]
-    # the next step is very memory consuming if the dimensionality of the array is too
-    # high
-    # TODO: introduce a check of dimensionality and alternate method for large datasets
-    #  if necessary
-    data_xr = dates_to_dimension(data_xr).to_dataset(entity_col)
+    units = data_xr["unit"].dropna("index")
+    del data_xr["unit"]
+
+    # check resulting shape to estimate memory consumption
+    shape = []
+    for col in index_cols:
+        shape.append(len(np.unique(data_xr[col])))
+    array_size = np.product(shape)
+    logger.debug(f"Expected array shape: {shape}, resulting in size {array_size:,}.")
+    if array_size > max_array_size:
+        logger.error(
+            f"Array with {len(shape)-1} dimensions will have a size of {array_size:,} "
+            f"due to the shape {shape}. Aborting to avoid out-of-memory errors. To "
+            f"continue, raise max_array_size (currently {max_array_size:,})."
+        )
+        raise ValueError(
+            f"Resulting array too large: {array_size:,} > {max_array_size:,}. To "
+            f"continue, raise max_array_size."
+        )
+
+    # convert time to dimension and entity to variables.
+    data_xr = dates_to_dimension(data_xr).to_dataset("entity")
 
     # fill the entity/variable attributes
     for variable in data_xr:
-        csv_units = units.loc[{entity_col: variable}].to_series().unique()
+        csv_units = np.unique(units.loc[{"entity": variable}])
         if len(csv_units) > 1:
             logger.error(
                 f"More than one unit for {variable!r}: {csv_units!r}. "
-                + "There is an error in the unit conversion."
+                + "There is an error in the unit harmonization."
             )
-            raise RuntimeError(
-                f"More than one unit for {variable!r}: {csv_units!r}. "
-                "There is an error in the unit conversion."
-            )
+            raise ValueError(f"More than one unit for {variable!r}: {csv_units!r}.")
         data_xr[variable].attrs = metadata_for_variable(csv_units[0], variable)
 
     # add the dataset wide attributes

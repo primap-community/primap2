@@ -2,9 +2,8 @@
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
-
-# import pint
 import pytest
 
 import primap2 as pm2
@@ -591,6 +590,28 @@ def test_from_interchange_format():
     df_input = pd.read_csv(file_input, index_col=0)
     ds_result = pm2io.from_interchange_format(df_input, attrs, time_col_regex=r"\d")
     assert_ds_aligned_equal(ds_result, ds_expected, equal_nan=True)
+
+
+def test_from_interchange_format_too_large(caplog):
+    df = pd.DataFrame(
+        {
+            "a": np.arange(10),
+            "b": np.arange(10),
+            "c": np.arange(10),
+            "unit": ["Gg"] * 10,
+            "2001": np.arange(10),
+        }
+    )
+    df.attrs = {}
+    # projected array size should be 1000 > 100
+    with pytest.raises(ValueError, match="Resulting array too large"):
+        pm2io.from_interchange_format(df, max_array_size=100)
+
+    assert "ERROR" in caplog.text
+    assert (
+        "Array with 2 dimensions will have a size of 1,000 due to the shape"
+        " [10, 10, 10]." in caplog.text
+    )
 
 
 def test_convert_dataframe_units_primap_to_primap2():
