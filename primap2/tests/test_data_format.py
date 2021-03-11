@@ -113,7 +113,7 @@ def test_missing_sec_cat(minimal_ds, caplog):
     with pytest.raises(ValueError, match="Secondary category 'missing' not in dims"):
         minimal_ds.pr.ensure_valid()
     assert "ERROR" in caplog.text
-    assert "Secondary category 'missing' defined, but not found in dims." in caplog.text
+    assert "Secondary category 'missing' defined, but not found in dims:" in caplog.text
 
 
 def test_missing_optional_dim(minimal_ds, caplog):
