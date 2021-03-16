@@ -1,0 +1,6 @@
+,source,scenario (general),area (ISO3),entity,unit,category (IPCC2006),Class (class),Type (type),1991,2000,2010
+0,TESTcsv2021,HISTORY,AUS,CO2,Mt CO2 / yr,0,TOTAL,fugitive,8.0,9.0,10.0
+1,TESTcsv2021,HISTORY,AUS,CO2,Mt CO2 / yr,1,TOTAL,fugitive,4.0,5.0,6.0
+2,TESTcsv2021,HISTORY,ZAM,CO2,Mt CO2 / yr,0,TOTAL,fugitive,0.03,0.02,0.04
+3,TESTcsv2021,HISTORY,ZAM,CO2,Mt CO2 / yr,2,TOTAL,fugitive,0.007,0.008,0.009
+4,TESTcsv2021,HISTORY,ZAM,CO2,Mt CO2 / yr,2,TOTAL,fugitive,0.012,0.013,0.014

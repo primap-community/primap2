@@ -355,7 +355,8 @@ def ensure_valid_dimensions(ds: xr.Dataset):
             included_optional_dims.append(sec_cat)
             if sec_cat not in ds.dims:
                 logger.error(
-                    f"Secondary category {sec_cat!r} defined, but not found in dims."
+                    f"Secondary category {sec_cat!r} defined, but not found in dims: "
+                    f"{ds.dims}."
                 )
                 raise ValueError(f"Secondary category {sec_cat!r} not in dims")
 

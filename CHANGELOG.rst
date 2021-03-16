@@ -4,6 +4,7 @@ Changelog
 
 Unreleased
 ----------
+* Add csv reading capabilities in (pm2io module)
 
 0.4.0
 -----
