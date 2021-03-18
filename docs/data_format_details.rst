@@ -71,25 +71,30 @@ The attributes are:
 ===========  ========================================================================  ============================
 attribute    content                                                                   required
 -----------  ------------------------------------------------------------------------  ----------------------------
-entity       what gas emission or other entity is measured                             yes
+entity       entity code, possibly from the dataset's entity category set              yes
 gwp_context  which global warming potential context was used for calculating the data  if a gwp was used
 units        in which units the data is given                                          if dataset is not quantified
 ===========  ========================================================================  ============================
 
-Additional rules:
+For the ``entity``, a category set (i.e. a terminology) should be defined for the
+whole dataset in the dataset attributes using the key ``entity_terminology`` (see
+below).
+If the ``entity_terminology`` is defined, all entities in the dataset must be defined
+in the terminology so that the exact meaning of entity codes is known.
+If the ``entity_terminology`` is not defined, the meaning of the entities is not clearly
+defined.
 
-* If the entity is a gas emission rate (e.g. mass of CO2 emitted per year), only the
-  gas is used as the entity.
-* If the entity is the human population, only ``population`` is used as the entity.
-* Gases, gwp_contexts and units use the names used in
-  `openscm-units <https://openscm-units.readthedocs.io/en/latest/>`_.
-* The unit must be given in the attributes if the dataset is not quantified
-  using pint_xarray.
-  For storage, the dataset should not be quantified, but for calculations the dataset
-  should be quantified using pint_xarray.
+The name of the data variable (its key) is formed from the ``entity`` and the
+``gwp_context``, if applicable.
+If there is no ``gwp_context``, the name is the entity.
+If there is a ``gwp_context``, the name is the entity, followed by the ``gwp_context``
+in parentheses, separated from the entity by a space.
 
-The name of the data variable should be the entity, and if it has a gwp_context, the
-gwp_context in parentheses, separated from the entity by a space.
+The unit must be given in the attributes if the dataset is not quantified
+using pint_xarray.
+For storage, the dataset should not be quantified, but for calculations the dataset
+should be quantified using pint_xarray.
+The unit must be parsable by `openscm-units <https://openscm-units.readthedocs.io>`_.
 
 Dataset Attributes
 ------------------
@@ -100,17 +105,18 @@ The metadata about the dimensions is described above in the paragraph concerning
 dimensions.
 The other attributes with metadata about the dataset as a whole are:
 
-===========  ========================================  =========================================
-attribute    description                               data type
------------  ----------------------------------------  -----------------------------------------
-references   citable reference(s) describing the data  free-form ``str`` (ideally URL, e.g. DOI)
-rights       license or other usage restrictions       free-form ``str``
-contact      who can answer questions about the data   free-form ``str`` (usually email)
-title        a succinct description                    free-form ``str``
-comment      longer form description                   free-form ``str``
-institution  where the data originates                 free-form ``str``
-history      processing steps done on the data         ``str`` with specific rules (see text)
-===========  ========================================  =========================================
+==================  ========================================  =========================================
+attribute           description                               data type
+------------------  ----------------------------------------  -----------------------------------------
+references          citable reference(s) describing the data  free-form ``str`` (ideally URL)
+rights              license or other usage restrictions       free-form ``str``
+contact             who can answer questions about the data   free-form ``str`` (usually email)
+title               a succinct description                    free-form ``str``
+comment             longer form description                   free-form ``str``
+institution         where the data originates                 free-form ``str``
+history             processing steps done on the data         ``str`` with specific rules (see text)
+entity_terminology  terminology for data variable entities    ``str``
+==================  ========================================  =========================================
 
 All of these attributes are optional.
 If the ``references`` field starts with ``doi:``, it is a doi, otherwise it is a
@@ -121,3 +127,8 @@ separated by a newline character, and processing steps should append to the fiel
 These attributes describing the data set contents are inspired by the
 `CF conventions <https://cfconventions.org/Data/cf-conventions/cf-conventions-1.8/cf-conventions.html#description-of-file-contents>`_
 for the description of file contents.
+
+The ``entity_terminology`` (if present) defines the meaning of the codes used in the
+data variables' names and ``entity`` attributes.
+In ``entity_terminology``, the name of the used terminology is stored and the
+terminology is defined elsewhere.
