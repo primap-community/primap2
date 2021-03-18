@@ -413,8 +413,8 @@ def read_wide_csv_file_if(
     meta_data : dict, optional
         Meta data for the whole dataset. Will end up in the dataset-wide attrs. Allowed
         keys are "references", "rights", "contact", "title", "comment", "institution",
-        and "history". Documentation about the format and meaning of the meta data can
-        be found in the
+        "history", and "entity_terminology". Documentation about the format and meaning
+        of the meta data can be found in the
         `data format documentation <https://primap2.readthedocs.io/en/stable/data_format_details.html#dataset-attributes>`_.  # noqa: E501
 
     Returns
