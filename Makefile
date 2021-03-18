@@ -1,15 +1,6 @@
 .PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit stubs update-venv
 .DEFAULT_GOAL := help
 
-define BROWSER_PYSCRIPT
-import os, webbrowser, sys
-
-from urllib.request import pathname2url
-
-webbrowser.open("file://" + pathname2url(os.path.abspath(sys.argv[1])))
-endef
-export BROWSER_PYSCRIPT
-
 define PRINT_HELP_PYSCRIPT
 import re, sys
 
@@ -20,8 +11,6 @@ for line in sys.stdin:
 		print("%-20s %s" % (target, help))
 endef
 export PRINT_HELP_PYSCRIPT
-
-BROWSER := python -c "$$BROWSER_PYSCRIPT"
 
 help:
 	@python -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
@@ -54,7 +43,7 @@ test: venv ## run tests quickly with the default Python
 	venv/bin/pytest  --xdoc -rx
 
 test-all: ## run tests on every Python version with tox
-	tox
+	tox -p
 
 coverage: venv ## check code coverage quickly with the default Python
 	venv/bin/coverage run --source primap2 -m pytest
@@ -73,8 +62,7 @@ release: venv dist ## package and upload a release
 	venv/bin/twine upload dist/*
 
 dist: clean venv ## builds source and wheel package
-	venv/bin/python setup.py sdist
-	venv/bin/python setup.py bdist_wheel
+	venv/bin/python -m build
 	ls -l dist
 
 install: clean ## install the package to the active Python's site-packages
@@ -102,3 +90,6 @@ stubs: venv ## generate directory with xarray stubs with inserted primap2 stubs
 	mkdir -p stubs
 	venv/bin/stubgen -p xarray -o stubs
 	(cd stubs; patch -s -p0 < ../primap-stubs.patch)
+
+README.rst:  CHANGELOG.rst  ## Update the citation information from zenodo
+	venv/bin/python update_citation_info.py

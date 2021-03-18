@@ -374,7 +374,7 @@ Developing PRIMAP2 with Pycharm works best if you:
    * `Matlab support <https://plugins.jetbrains.com/plugin/10941-matlab-support>`_
       to quickly view .m files without starting matlab
    * `Diff/patch file support <https://plugins.jetbrains.com/plugin/11957-diff--patch-file-support>`_
-      for syntax highlighting of patchfiles (currently only used for stub generation)
+      for syntax highlighting of patch files (currently only used for stub generation)
    * `Requirements <https://plugins.jetbrains.com/plugin/10837-requirements>`_
       for managing requirements_dev.txt from within PyCharm
    * `Toml <https://plugins.jetbrains.com/plugin/8195-toml>`_
@@ -388,24 +388,18 @@ Deploying
 .. highlight:: shell
 
 A reminder for the maintainers on how to deploy.
-Make sure all your changes are committed (including replacing the unreleased entry in
-CHANGELOG.rst with your target version number).
-Then run::
 
-    $ bump2version patch # possible: major / minor / patch
-    $ git push
-    $ git push --tags
-
-Then, go to github and make a release from the tag.
-Use "Version x.y.z" as the release title, and the changelog entries as the release
-description.
-Creating the github release will automatically trigger
-a release on zenodo.
-Use the new DOI from zenodo to update the citation information and
-zenodo DOI badge in the README.rst. Commit your changes.
-Upload the release to pyPI::
-
-    $ make release
-
-To prepare for future development, add a new "unreleased" section to CHANGELOG.rst,
-and commit the result.
+1.  Commit all your changes.
+2.  Replace the unreleased entry in CHANGELOG.rst with your target version number.
+3.  Run ``tbump X.Y.Z``.
+4.  Go to github and make a release from the tag.
+    Use "Version x.y.z" as the release title, and the changelog entries as the release
+    description.
+    Creating the github release will automatically trigger
+    a release on zenodo.
+5.  Run ``make README.rst`` to update the citation information in the README from the
+    zenodo API (note that it might take a while for zenodo to build the release, so
+    grab a tee and be a bit patient). Commit the change.
+6.  Upload the release to pyPI: ``make release``
+7.  To prepare for future development, add a new "unreleased" section to CHANGELOG.rst,
+    and commit the result.

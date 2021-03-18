@@ -140,7 +140,7 @@ def empty_ds():
     empty = xr.Dataset(
         {
             ent: xr.DataArray(
-                data=np.zeros((len(time), len(area_iso3), 1), dtype=np.float),
+                data=np.zeros((len(time), len(area_iso3), 1), dtype=float),
                 coords=coords,
                 dims=dims,
                 attrs={"units": f"{ent} Gg / year", "entity": ent},
@@ -151,7 +151,7 @@ def empty_ds():
     ).pr.quantify()
 
     empty["KYOTOGHG (AR4GWP100)"] = xr.DataArray(
-        data=np.zeros((len(time), len(area_iso3), 1), dtype=np.float),
+        data=np.zeros((len(time), len(area_iso3), 1), dtype=float),
         coords=coords,
         dims=dims,
         attrs={

@@ -118,8 +118,8 @@ def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
     si_unit_multipliers = ["", "k", "M", "G", "T", "P", "E", "Z", "Y"]
 
     # combines basic units with prefixes
-    units_prefixes = list(itertools.product(si_unit_multipliers, basic_units))
-    units_prefixes = [i[0] + i[1] for i in units_prefixes]
+    units_prefixes_r = list(itertools.product(si_unit_multipliers, basic_units))
+    units_prefixes = [i[0] + i[1] for i in units_prefixes_r]
 
     # time information to add
     time_frame_str = " / yr"
