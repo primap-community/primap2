@@ -77,6 +77,11 @@ class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
         names including the corresponding category-set."""
         return DataArrayAliasLocIndexer(self._da)
 
+    def __getitem__(self, item: typing.Hashable) -> xr.DataArray:
+        """Like da[], but translates short aliases like "area" into the long names
+        including the corresponding category-set."""
+        return self._da[self.dim_alias_translations.get(item, item)]
+
 
 class DatasetAliasLocIndexer:
     """Provides loc-style selection with aliases. Needs to be a separate class for
