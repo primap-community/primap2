@@ -4,6 +4,8 @@ Changelog
 
 Unreleased
 ----------
+* Add ``da.pr.coverage()`` and ``ds.pr.coverage()`` functions to summarize data
+  coverage.
 * Update python packaging to use declarative style and modern setuptools.
 * Support and test python 3.9 and windows.
 * Add csv reading capabilities in pm2io module.
