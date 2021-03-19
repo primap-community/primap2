@@ -50,7 +50,9 @@ Methods
     DataArray.pr.fill_all_na
     DataArray.pr.sum_skip_all_na
     DataArray.pr.downscale_timeseries
+    DataArray.pr.__getitem__
     DataArray.pr.set
+    DataArray.pr.coverage
 
 Dataset
 -------
@@ -94,3 +96,4 @@ Methods
     Dataset.pr.downscale_gas_timeseries
     Dataset.pr.__getitem__
     Dataset.pr.set
+    Dataset.pr.coverage
