@@ -200,6 +200,7 @@ def ensure_valid_attributes(ds: xr.Dataset):
         "cat",
         "sec_cats",
         "scen",
+        "entity_terminology",
     }
     unknown_attr_keys = set(ds.attrs.keys()) - valid_attr_keys
     if unknown_attr_keys:

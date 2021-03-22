@@ -7,6 +7,8 @@ Unreleased
 * Update python packaging to use declarative style and modern setuptools.
 * Support and test python 3.9 and windows.
 * Add csv reading capabilities in pm2io module.
+* Add dataset attr for storing the terminology used for entities (and thus variable
+  names).
 
 0.4.0
 -----

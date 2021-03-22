@@ -65,6 +65,7 @@ def opulent_ds():
             for ent in ("CO2", "SF6", "CH4")
         },
         attrs={
+            "entity_terminology": "primap2",
             "area": "area (ISO3)",
             "cat": "category (IPCC 2006)",
             "sec_cats": ["animal (FAOSTAT)", "product (FAOSTAT)"],
