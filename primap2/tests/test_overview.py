@@ -3,6 +3,7 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from primap2 import ureg
 
@@ -47,6 +48,13 @@ def test_array_coverage_multidim(opulent_ds):
     pd.testing.assert_frame_equal(expected.T, da.pr.coverage("product", "animal"))
 
 
+def test_array_coverage_error(opulent_ds):
+    da = opulent_ds["CO2"]
+
+    with pytest.raises(ValueError, match="'non-existing' is not a dimension."):
+        da.pr.coverage("animal", "non-existing")
+
+
 def test_set_coverage(opulent_ds):
     ds = opulent_ds
 
@@ -87,3 +95,10 @@ def test_set_coverage_entity(opulent_ds):
 
     pd.testing.assert_frame_equal(expected, ds.pr.coverage("entity", "product"))
     pd.testing.assert_frame_equal(expected.T, ds.pr.coverage("product", "entity"))
+
+
+def test_set_coverage_error(opulent_ds):
+    ds = opulent_ds["CO2"]
+
+    with pytest.raises(ValueError, match="'non-existing' is not a dimension"):
+        ds.pr.coverage("animal", "non-existing")

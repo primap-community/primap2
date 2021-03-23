@@ -9,9 +9,7 @@ from . import _accessor_base
 
 
 class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
-    def coverage(
-        self, coord_x: typing.Hashable, coord_y: typing.Hashable
-    ) -> pd.DataFrame:
+    def coverage(self, dim_x: typing.Hashable, dim_y: typing.Hashable) -> pd.DataFrame:
         """Summarize how many data points exist for a coordinate combination.
 
         For each combinations of values in the given coordinates, count the number of
@@ -20,11 +18,11 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Parameters
         ----------
-        coord_x: str
-            Name or alias of the first coordinate, which will be the x-coordinate, i.e.
+        dim_x: str
+            Name or alias of the first dimension, which will be the x-coordinate, i.e.
             the columns of the result.
-        coord_y: str
-            Name or alias of the second coordinate, which will be the x-coordinate, i.e.
+        dim_y: str
+            Name or alias of the second dimension, which will be the y-coordinate, i.e.
             the rows of the result.
 
         Returns
@@ -33,20 +31,21 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
             Two-dimensional dataframe summarizing the number of non-NaN data points
             for each combination of value from the x and y coordinate.
         """
-        coord_x = self._da.pr.dim_alias_translations.get(coord_x, coord_x)
-        coord_y = self._da.pr.dim_alias_translations.get(coord_y, coord_y)
+        dim_x = self._da.pr.dim_alias_translations.get(dim_x, dim_x)
+        dim_y = self._da.pr.dim_alias_translations.get(dim_y, dim_y)
+        for dim in (dim_x, dim_y):
+            if dim not in self._da.dims:
+                raise ValueError(f"{dim!r} is not a dimension.")
         return (
-            self._da.count(dim=set(self._da.dims) - {coord_x, coord_y})
-            .transpose(coord_y, coord_x)
+            self._da.count(dim=set(self._da.dims) - {dim_x, dim_y})
+            .transpose(dim_y, dim_x)
             .to_dataframe("coverage")["coverage"]
             .unstack()
         )
 
 
 class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
-    def coverage(
-        self, coord_x: typing.Hashable, coord_y: typing.Hashable
-    ) -> pd.DataFrame:
+    def coverage(self, dim_x: typing.Hashable, dim_y: typing.Hashable) -> pd.DataFrame:
         """Summarize how many data points exist for a coordinate combination.
 
         For each combinations of values in the given coordinates, count the number of
@@ -58,12 +57,12 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
 
         Parameters
         ----------
-        coord_x: str
-            Name or alias of the first coordinate, which will be the x-coordinate, i.e.
+        dim_x: str
+            Name or alias of the first dimension, which will be the x-coordinate, i.e.
             the columns of the result. To use the name of the data variables (usually,
             the gases) as a coordinate, use "entity".
-        coord_y: str
-            Name or alias of the second coordinate, which will be the x-coordinate, i.e.
+        dim_y: str
+            Name or alias of the second dimension, which will be the y-coordinate, i.e.
             the rows of the result. To use the name of the data variables (usually, the
             gases) as a coordinate, use "entity".
 
@@ -71,28 +70,26 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
         -------
         coverage: pandas.DataFrame
             Two-dimensional dataframe summarizing the number of non-NaN data points
-            for each combination of value from the x and y coordinate.
+            for each combination of values from the x and y coordinate.
         """
-        coord_x = self._ds.pr.dim_alias_translations.get(coord_x, coord_x)
-        coord_y = self._ds.pr.dim_alias_translations.get(coord_y, coord_y)
+        dim_x = self._ds.pr.dim_alias_translations.get(dim_x, dim_x)
+        dim_y = self._ds.pr.dim_alias_translations.get(dim_y, dim_y)
 
         # remove variables which aren't defined on all requested coordinates
         ds = self._ds
-        for coord in (coord_x, coord_y):
-            if coord == "entity":
+        for dim in (dim_x, dim_y):
+            if dim == "entity":
                 continue
-            ds = ds.drop_vars([x for x in ds if coord not in ds[x].dims])
+            if dim not in self._ds.dims:
+                raise ValueError(f"{dim!r} is not a dimension or 'entity'.")
+            ds = ds.drop_vars([x for x in ds if dim not in ds[x].dims])
 
-        # reduce dim coords, i.e. not the "entity"
-        normal_coords = {x for x in (coord_x, coord_y) if x != "entity"}
-        da = ds.count(dim=set(ds.dims) - normal_coords).to_array("entity")
+        # reduce normal dimensions, i.e. not the "entity"
+        normal_dims = {x for x in (dim_x, dim_y) if x != "entity"}
+        da = ds.count(dim=set(ds.dims) - normal_dims).to_array("entity")
 
         # also reduce the entity unless it is part of the output
-        if "entity" not in (coord_x, coord_y):
+        if "entity" not in (dim_x, dim_y):
             da = da.sum(dim=["entity"])
 
-        return (
-            da.transpose(coord_y, coord_x)
-            .to_dataframe("coverage")["coverage"]
-            .unstack()
-        )
+        return da.transpose(dim_y, dim_x).to_dataframe("coverage")["coverage"].unstack()
