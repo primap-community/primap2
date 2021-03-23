@@ -1,4 +1,4 @@
-"""Tests for _metadata.py"""
+"""Tests for _overview.py"""
 
 
 import numpy as np
