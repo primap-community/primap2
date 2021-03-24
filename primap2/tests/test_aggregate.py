@@ -58,7 +58,7 @@ def test_fill_all_na():
     assert np.allclose(dsf["2"], a_expected, equal_nan=True)
 
 
-def test_sum_skip_allna():
+def test_sum():
     coords = [("a", [1, 2]), ("b", [1, 2]), ("c", [1, 2, 3])]
     da = xr.DataArray(
         data=[
@@ -68,56 +68,32 @@ def test_sum_skip_allna():
         coords=coords,
     )
 
-    a = da.pr.sum_skip_all_na(dim="a")
-    a_expected = xr.DataArray(
-        data=[
-            [np.nan, np.nan, np.nan],
-            [np.nan, 2, 4],
-        ],
-        coords=coords[1:],
-    )
-    assert np.allclose(a, a_expected, equal_nan=True)
-
-    b = da.pr.sum_skip_all_na(dim="b", skipna_evaluation_dims="a")
+    b = da.pr.sum(dim="b", skipna_evaluation_dims="a")
     b_expected = xr.DataArray(
         data=[[0, 1, 2], [0, 1, 2]], coords=[coords[0], coords[2]]
     )
     assert np.allclose(b, b_expected, equal_nan=True)
 
-    c = da.pr.sum_skip_all_na(dim="b", skipna_evaluation_dims="c")
+    c = da.pr.sum(dim="b", skipna_evaluation_dims="c")
     c_expected = xr.DataArray(
         data=[[np.nan, 1, 2], [np.nan, 1, 2]], coords=[coords[0], coords[2]]
     )
     assert np.allclose(c, c_expected, equal_nan=True)
 
     ds = xr.Dataset({"1": da, "2": da.copy()})
-    dss = ds.pr.sum_skip_all_na(dim="a")
+    dss = ds.pr.sum(dim="b", skipna_evaluation_dims="a")
     dss_expected = xr.Dataset(
         {
-            "1": xr.DataArray(
-                data=[
-                    [np.nan, np.nan, np.nan],
-                    [np.nan, 2, 4],
-                ],
-                coords=coords[1:],
-            ),
-            "2": xr.DataArray(
-                data=[
-                    [np.nan, np.nan, np.nan],
-                    [np.nan, 2, 4],
-                ],
-                coords=coords[1:],
-            ),
+            "1": b_expected,
+            "2": b_expected,
         }
     )
     xr.testing.assert_identical(dss, dss_expected)
 
 
-def test_sum_skip_allna_inhomogeneous(opulent_ds: xr.Dataset):
+def test_sum_inhomogeneous(opulent_ds: xr.Dataset):
     ds = opulent_ds
-    dss = ds.pr.loc[{"category": ["1", "2", "3", "4", "5"]}].pr.sum_skip_all_na(
-        "category"
-    )
+    dss = ds.pr.loc[{"category": ["1", "2", "3", "4", "5"]}].pr.sum("category")
     xr.testing.assert_identical(dss["population"], ds["population"])
     actual = dss["CO2"]
     expected = (

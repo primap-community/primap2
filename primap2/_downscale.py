@@ -64,7 +64,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket_contents_da = da_sel.loc[{dim: basket_contents}]
         basket_da = da_sel.loc[{dim: basket}]
 
-        basket_sum = basket_contents_da.pr.sum_skip_all_na(
+        basket_sum = basket_contents_da.pr.sum(
             dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
         )
 
@@ -157,7 +157,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket_contents_ds = ds_sel.loc[{dim: basket_contents}]
         basket_ds = ds_sel.loc[{dim: basket}]
 
-        basket_sum = basket_contents_ds.pr.sum_skip_all_na(
+        basket_sum = basket_contents_ds.pr.sum(
             dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
         )
 
@@ -242,8 +242,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
             da: xr.DataArray = ds_sel[var]
             basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=da_basket)
 
-        da_basket_contents: xr.DataArray = basket_contents_converted.to_array("entity")
-        basket_sum = da_basket_contents.pr.sum_skip_all_na(
+        basket_sum = basket_contents_converted.pr.sum(
             dim="entity", skipna_evaluation_dims=skipna_evaluation_dims
         )
 

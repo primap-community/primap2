@@ -7,16 +7,7 @@ import typing
 import xarray as xr
 
 from . import _accessor_base
-
-KeyT = typing.TypeVar("KeyT", str, typing.Mapping[typing.Hashable, typing.Any])
-DimOrDimsT = typing.TypeVar(
-    "DimOrDimsT",
-    str,
-    typing.Hashable,
-    typing.Iterable[str],
-    typing.Iterable[typing.Hashable],
-)
-FunctionT = typing.TypeVar("FunctionT", bound=typing.Callable[..., typing.Any])
+from ._types import DimOrDimsT, FunctionT, KeyT
 
 
 class DimensionNotExistingError(ValueError):
@@ -65,6 +56,7 @@ def alias(
 def alias_dims(
     args_to_alias: typing.Iterable[str],
     wraps: typing.Optional[typing.Callable] = None,
+    additional_allowed_values: typing.Iterable[str] = tuple(),
 ) -> typing.Callable[[FunctionT], FunctionT]:
     """Method decorator to automatically translate dimension aliases in parameters.
 
@@ -96,7 +88,7 @@ def alias_dims(
             except AttributeError:
                 obj = self._ds
             translations = obj.pr.dim_alias_translations
-            dims = obj.dims
+            dims = set(obj.dims).union(set(additional_allowed_values))
 
             # translate kwargs
             for arg_to_alias in args_to_alias:

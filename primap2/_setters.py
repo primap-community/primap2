@@ -354,6 +354,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
             dim=dim, key=key, value=value[da.name], existing=existing, new=new
         )
 
+    @alias_dims(["dim"])
     def set(
         self,
         dim: typing.Hashable,
@@ -557,10 +558,6 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         ds : xr.Dataset
             modified Dataset
         """
-        dim = self._ds.pr.dim_alias_translations.get(dim, dim)
-        if dim not in self._ds.dims:
-            raise ValueError(f"Dimension {dim!r} does not exist.")
-
         if not isinstance(value, xr.Dataset):
             raise TypeError(f"value must be a Dataset, not {type(value)}")
 

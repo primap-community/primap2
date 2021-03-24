@@ -48,7 +48,7 @@ Methods
     DataArray.pr.convert_to_gwp_like
     DataArray.pr.convert_to_mass
     DataArray.pr.fill_all_na
-    DataArray.pr.sum_skip_all_na
+    DataArray.pr.sum
     DataArray.pr.downscale_timeseries
     DataArray.pr.__getitem__
     DataArray.pr.set
@@ -89,7 +89,7 @@ Methods
     Dataset.pr.quantify
     Dataset.pr.dequantify
     Dataset.pr.fill_all_na
-    Dataset.pr.sum_skip_all_na
+    Dataset.pr.sum
     Dataset.pr.gas_basket_contents_sum
     Dataset.pr.fill_na_gas_basket_from_contents
     Dataset.pr.downscale_timeseries
