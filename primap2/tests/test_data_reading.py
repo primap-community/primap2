@@ -16,7 +16,12 @@ DATA_PATH = Path(__file__).parent / "data"
 
 @pytest.mark.parametrize(
     "code_in, expected_code_out",
-    [("IPC1A", "1.A"), ("CATM0EL", "M.0.EL"), ("IPC1A1B23", "1.A.1.b.ii.3")],
+    [
+        ("IPC1A", "1.A"),
+        ("CATM0EL", "M.0.EL"),
+        ("IPC1A1B23", "1.A.1.b.ii.3"),
+        ("IPCM1B1C", "M.1.B.1.c"),
+    ],
 )
 def test_convert_ipcc_code_primap_to_primap2(code_in, expected_code_out):
     assert pm2io.convert_ipcc_code_primap_to_primap2(code_in) == expected_code_out
