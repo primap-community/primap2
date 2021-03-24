@@ -1,0 +1,8 @@
+attrs:
+  area: area (ISO3)
+  cat: category (IPCC2006)
+  scen: scenario (general)
+  sec_cats:
+  - Class (class)
+  - Type (type)
+data_file: test_csv_data_sec_cat_if.csv

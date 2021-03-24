@@ -677,6 +677,27 @@ def test_convert_dataframe_units_primap_to_primap2():
     pd.testing.assert_frame_equal(df_converted, df_expected)
 
 
+def test_read_write_interchange_format_roundtrip():
+    file_input = DATA_PATH / "test_read_wide_csv_file_output.csv"
+    file_temp = DATA_PATH / "test_interchange_format"
+    data = pd.read_csv(file_input, index_col=0)
+    attrs = {
+        "area": "area (ISO3)",
+        "cat": "category (IPCC2006)",
+        "scen": "scenario (general)",
+        "sec_cats": ["Class (class)", "Type (type)"],
+    }
+    pm2.pm2io.write_interchange_format(file_temp, data, attrs)
+    read_data = pm2.pm2io.read_interchange_format(file_temp)
+    yaml_path = file_temp.parent / (file_temp.stem + ".yaml")
+    yaml_path.unlink()
+    csv_path = file_temp.parent / (file_temp.stem + ".csv")
+    csv_path.unlink()
+    read_attrs = read_data.attrs
+    assert read_attrs == attrs
+    pd.testing.assert_frame_equal(data, read_data)
+
+
 # functions that still need individual testing
 
 # dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:

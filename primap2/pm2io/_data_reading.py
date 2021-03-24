@@ -6,6 +6,7 @@ from typing import IO, Any, Callable, Dict, Optional, Union
 import numpy as np
 import pandas as pd
 import xarray as xr
+import yaml
 from loguru import logger
 
 from .._units import ureg
@@ -946,6 +947,89 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
     else:
         attrs["entity"] = variable
     return attrs
+
+
+def write_interchange_format(
+    filepath: Union[str, Path], data: pd.DataFrame, attrs: Optional[dict] = None
+) -> None:
+    """
+    This function writes an interchange format dataset to disk. The data is stored
+    in a csv file while the additional metadata in the attrs dict is written to a
+    yaml file.
+
+    Parameters
+    ----------
+    filepath: str or pathlib.Path
+        path and filename for the dataset. If a file ending is given it will be
+        ignored and replaced by .csv for the data and .yaml for the metadata
+
+    data: pandas.DataFrame
+        DataFrame in PRIMAP2 interchange format
+
+    attrs: dict, optional
+        PRIMAP2 dataset attrs dict. If not given explicitly it is assumed to be
+        present in the data DataFrame
+
+
+    """
+
+    if attrs is None:
+        attrs = data.attrs
+
+    # make sure filepath is a Path object
+    filepath = Path(filepath)
+    data_file = filepath.parent / (filepath.stem + ".csv")
+    meta_file = filepath.parent / (filepath.stem + ".yaml")
+
+    # write the data
+    data.to_csv(data_file, index=False, float_format="%g")
+
+    yaml_dict = {"data_file": data_file.name, "attrs": attrs}
+    with open(meta_file, "w") as file:
+        yaml.dump(yaml_dict, file)
+
+
+def read_interchange_format(
+    filepath: Union[str, Path],
+) -> pd.DataFrame:
+    """
+    This function read an interchange format dataset from disk. The data is stored
+    in a csv file while the additional metadata in the attrs dict is stored in a yaml
+    file. This function takes the yaml file as parameter, the data file is specified
+    in the yaml file. If no or a wrong ending is given the function tries to load
+    a file by the same name with the ending `.yaml`.
+
+    Parameters
+    ----------
+    filepath: str or pathlib.Path
+        path and filename for the dataset (the yaml file, not data file)
+
+    Returns
+    -------
+    data: pandas.DataFrame
+        DataFrame with the read data in PRIMAP2 interchange format
+
+    """
+
+    filepath = Path(filepath)
+    if not filepath.exists():
+        filepath = filepath.parent / (filepath.stem + ".yaml")
+    with open(filepath) as meta_file:
+        meta_data = yaml.full_load(meta_file)
+
+    if "data_file" in meta_data.keys():
+        data = pd.read_csv(filepath.parent / meta_data["data_file"])
+    else:
+        # no file information given, check for file with same name
+        datafile = filepath.parent / (filepath.stem + ".csv")
+        if datafile.exists():
+            data = pd.read_csv(datafile)
+        else:
+            return None
+
+    data.attrs = meta_data["attrs"]
+
+    return data
 
 
 def from_interchange_format(
