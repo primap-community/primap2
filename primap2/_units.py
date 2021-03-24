@@ -273,30 +273,30 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
         <xarray.Dataset>
         Dimensions:  (x: 3)
         Coordinates:
-          * x        (x) int64 0 1 2
-            u        (x) int64 -1 0 1
+          * x        (x) int... 0 1 2
+            u        (x) int... -1 0 1
         Data variables:
-            a        (x) int64 0 3 2
-            b        (x) int64 5 -2 1
+            a        (x) int... 0 3 2
+            b        (x) int... 5 -2 1
 
         >>> ds.pr.quantify()
         <xarray.Dataset>
         Dimensions:  (x: 3)
         Coordinates:
-          * x        (x) int64 0 1 2
-            u        (x) int64 [s] -1 0 1
+          * x        (x) int... 0 1 2
+            u        (x) int... [s] -1 0 1
         Data variables:
-            a        (x) int64 [m] 0 3 2
-            b        (x) int64 5 -2 1
+            a        (x) int... [m] 0 3 2
+            b        (x) int... 5 -2 1
         >>> ds.pr.quantify({"b": "dm"})
         <xarray.Dataset>
         Dimensions:  (x: 3)
         Coordinates:
-          * x        (x) int64 0 1 2
-            u        (x) int64 [s] -1 0 1
+          * x        (x) int... 0 1 2
+            u        (x) int... [s] -1 0 1
         Data variables:
-            a        (x) int64 [m] 0 3 2
-            b        (x) int64 [dm] 5 -2 1
+            a        (x) int... [m] 0 3 2
+            b        (x) int... [dm] 5 -2 1
         """
         return self._ds.pint.quantify(unit_registry=ureg, units=units, **unit_kwargs)
 

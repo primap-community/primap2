@@ -3,6 +3,15 @@ from . import _accessor_base
 
 class DatasetMetadataAccessor(_accessor_base.BaseDatasetAccessor):
     @property
+    def entity_terminology(self) -> str:
+        """the terminology of the entity attributes in this dataset's data variables"""
+        return self._ds.attrs["entity_terminology"]
+
+    @entity_terminology.setter
+    def entity_terminology(self, value: str):
+        self._ds.attrs["entity_terminology"] = value
+
+    @property
     def references(self) -> str:
         """citable reference(s) describing the data
 
