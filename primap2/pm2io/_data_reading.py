@@ -119,8 +119,8 @@ def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
     si_unit_multipliers = ["", "k", "M", "G", "T", "P", "E", "Z", "Y"]
 
     # combines basic units with prefixes
-    units_prefixes_r = list(itertools.product(si_unit_multipliers, basic_units))
-    units_prefixes = [i[0] + i[1] for i in units_prefixes_r]
+    units_prefixes = list(itertools.product(si_unit_multipliers, basic_units))
+    units_prefixes = [i[0] + i[1] for i in units_prefixes]
 
     # time information to add
     time_frame_str = " / yr"
@@ -248,7 +248,6 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
         "MBK": "M.BK",
         "MBKA": "M.BK.A",
         "MBKM": "M.BK.M",
-        "M1A2M": "M.1.A.2.m",
         "MLULUCF": "M.LULUCF",
         "MMULTIOP": "M.MULTIOP",
         "M0EL": "M.0.EL",
@@ -265,71 +264,69 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
     # check if it's a custom code (beginning with 'M'). Currently these are the same
     # in pyCPA as in PRIMAP
     if code[3] == "M":
-        new_code = code[3:]
-        if new_code in code_mapping.keys():
-            new_code = code_mapping[new_code]
-
+        code_remaining = code[3:]
+        if code_remaining in code_mapping.keys():
+            new_code = code_mapping[code_remaining]
+            return new_code
+        else:
+            new_code = "M."
+            code_remaining = code_remaining[1:]
     else:
-        # actual conversion happening here
+        new_code = ""
         # only work with the part without 'IPC' or 'CAT'
         code_remaining = code[3:]
 
-        # first level is a digit
-        if code_remaining[0].isdigit():
-            new_code = code_remaining[0]
+    # actual conversion happening here
+    # first level is a digit
+    if code_remaining[0].isdigit():
+        new_code = new_code + code_remaining[0]
+    else:
+        return code_invalid_warn(code, "No digit found on first level.")
+    # second level is a letter
+    if len(code_remaining) > 1:
+        code_remaining = code_remaining[1:]
+        if code_remaining[0].isalpha():
+            new_code = new_code + "." + code_remaining[0]
         else:
-            return code_invalid_warn(code, "No digit found on first level.")
-        # second level is a letter
+            return code_invalid_warn(code, "No letter found on second level.")
+        # third level is a number. might be more than one char, so use regexp
         if len(code_remaining) > 1:
             code_remaining = code_remaining[1:]
-            if code_remaining[0].isalpha():
-                new_code = new_code + "." + code_remaining[0]
+            match = re.match("^[0-9]+", code_remaining)
+            if match is not None:
+                new_code = new_code + "." + match.group(0)
             else:
-                return code_invalid_warn(code, "No letter found on second level.")
-            # third level is a number. might be more than one char, so use regexp
-            if len(code_remaining) > 1:
-                code_remaining = code_remaining[1:]
-                match = re.match("^[0-9]+", code_remaining)
-                if match is not None:
-                    new_code = new_code + "." + match.group(0)
+                return code_invalid_warn(code, "No number found on third level.")
+            # fourth level is a letter. has to be transformed to lower case
+            if len(code_remaining) > len(match.group(0)):
+                code_remaining = code_remaining[len(match.group(0)) :]
+                if code_remaining[0].isalpha():
+                    new_code = new_code + "." + code_remaining[0].lower()
                 else:
-                    return code_invalid_warn(code, "No number found on third level.")
-                # fourth level is a letter. has to be transformed to lower case
-                if len(code_remaining) > len(match.group(0)):
-                    code_remaining = code_remaining[len(match.group(0)) :]
-                    if code_remaining[0].isalpha():
-                        new_code = new_code + "." + code_remaining[0].lower()
+                    return code_invalid_warn(code, "No letter found on fourth level.")
+                # fifth level is digit in PRIMAP1 format but roman numeral in IPCC
+                # and PRIMAP2
+                if len(code_remaining) > 1:
+                    code_remaining = code_remaining[1:]
+                    if code_remaining[0].isdigit():
+                        new_code = new_code + "." + arabic_to_roman[code_remaining[0]]
                     else:
-                        return code_invalid_warn(
-                            code, "No letter found on fourth level."
-                        )
-                    # fifth level is digit in PRIMAP1 format but roman numeral in IPCC
-                    # and PRIMAP2
+                        return code_invalid_warn(code, "No digit found on fifth level.")
+                    # sixth and last level is a number.
                     if len(code_remaining) > 1:
                         code_remaining = code_remaining[1:]
-                        if code_remaining[0].isdigit():
-                            new_code = (
-                                new_code + "." + arabic_to_roman[code_remaining[0]]
-                            )
+                        match = re.match("^[0-9]+", code_remaining)
+                        if match is not None:
+                            new_code = new_code + "." + match.group(0)
+                            # check if anything left
+                            if not code_remaining == match.group(0):
+                                return code_invalid_warn(
+                                    code, "Chars left after sixth level."
+                                )
                         else:
                             return code_invalid_warn(
-                                code, "No digit found on fifth level."
+                                code, "No number found on sixth level."
                             )
-                        # sixth and last level is a number.
-                        if len(code_remaining) > 1:
-                            code_remaining = code_remaining[1:]
-                            match = re.match("^[0-9]+", code_remaining)
-                            if match is not None:
-                                new_code = new_code + "." + match.group(0)
-                                # check if anything left
-                                if not code_remaining == match.group(0):
-                                    return code_invalid_warn(
-                                        code, "Chars left after sixth level."
-                                    )
-                            else:
-                                return code_invalid_warn(
-                                    code, "No number found on sixth level."
-                                )
 
     return new_code
 
@@ -414,8 +411,8 @@ def read_wide_csv_file_if(
     meta_data : dict, optional
         Meta data for the whole dataset. Will end up in the dataset-wide attrs. Allowed
         keys are "references", "rights", "contact", "title", "comment", "institution",
-        "history", and "entity_terminology". Documentation about the format and meaning
-        of the meta data can be found in the
+        and "history". Documentation about the format and meaning of the meta data can
+        be found in the
         `data format documentation <https://primap2.readthedocs.io/en/stable/data_format_details.html#dataset-attributes>`_.  # noqa: E501
 
     Returns
