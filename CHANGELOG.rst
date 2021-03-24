@@ -4,6 +4,7 @@ Changelog
 
 Unreleased
 ----------
+* Add read and write functionality for interchange format
 * Add csv reading capabilities in (pm2io module)
 
 0.4.0
