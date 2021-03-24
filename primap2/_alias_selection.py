@@ -1,6 +1,7 @@
 """Simple selection and loc-style accessor which automatically translates PRIMAP2 short
 column names to the actual long names including the categorization."""
-
+import functools
+import inspect
 import typing
 
 import xarray as xr
@@ -8,6 +9,19 @@ import xarray as xr
 from . import _accessor_base
 
 KeyT = typing.TypeVar("KeyT", str, typing.Mapping[typing.Hashable, typing.Any])
+DimOrDimsT = typing.TypeVar(
+    "DimOrDimsT",
+    str,
+    typing.Hashable,
+    typing.Iterable[str],
+    typing.Iterable[typing.Hashable],
+)
+FunctionT = typing.TypeVar("FunctionT", bound=typing.Callable[..., typing.Any])
+
+
+class DimensionNotExistingError(ValueError):
+    def __init__(self, dim):
+        ValueError.__init__(self, f"Dimension {dim!r} does not exist.")
 
 
 def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) -> KeyT:
@@ -24,6 +38,86 @@ def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) ->
             else:
                 sel[key] = item[key]
         return sel
+
+
+def alias(
+    dim: DimOrDimsT,
+    translations: typing.Dict[typing.Hashable, str],
+    dims: typing.Iterable[typing.Hashable],
+) -> DimOrDimsT:
+    if isinstance(dim, str):
+        dim = translations.get(dim, dim)
+        if dim not in dims:
+            raise DimensionNotExistingError(dim)
+        return dim
+    else:
+        try:
+            rdim = []
+            for idim in dim:
+                rdim.append(alias(idim, translations, dims))
+            return rdim
+        except TypeError:  # not iterable, so some other hashable like int
+            if dim not in dims:
+                raise DimensionNotExistingError(dim)
+            return dim
+
+
+def alias_dims(
+    args_to_alias: typing.Iterable[str],
+    wraps: typing.Optional[typing.Callable] = None,
+) -> typing.Callable[[FunctionT], FunctionT]:
+    """Method decorator to automatically translate dimension aliases in parameters.
+
+    Use like this:
+    @alias_dims(["dim"])
+    def sum(self, dim):
+        self._da.sum(dim)
+
+    To copy the documentation etc. from an xarray function, use the wraps parameter:
+    @alias_dims(["dim"], wraps=xr.DataArray.sum)
+    def sum(self, *args, **kwargs):
+        self._da.sum(*args, **kwargs)
+    """
+
+    def decorator(func: FunctionT) -> FunctionT:
+
+        if wraps is not None:
+            wrap_func = wraps
+        else:
+            wrap_func = func
+
+        # the parameters of the wrapped function without self
+        func_args_list = list(inspect.signature(wrap_func).parameters.values())[1:]
+
+        @functools.wraps(wrap_func)
+        def wrapper(self, *args, **kwargs):
+            try:
+                obj = self._da
+            except AttributeError:
+                obj = self._ds
+            translations = obj.pr.dim_alias_translations
+            dims = obj.dims
+
+            # translate kwargs
+            for arg_to_alias in args_to_alias:
+                if arg_to_alias in kwargs:
+                    kwargs[arg_to_alias] = alias(
+                        kwargs[arg_to_alias], translations, dims
+                    )
+
+            # translate args
+            args_translated = []
+            for i, arg in enumerate(args):
+                if func_args_list[i].name in args_to_alias:
+                    args_translated.append(alias(arg, translations, dims))
+                else:
+                    args_translated.append(arg)
+
+            return func(self, *args_translated, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 class DataArrayAliasLocIndexer:

@@ -6,9 +6,11 @@ import typing
 import pandas as pd
 
 from . import _accessor_base
+from ._alias_selection import alias_dims
 
 
 class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
+    @alias_dims(["dim_x", "dim_y"])
     def coverage(self, dim_x: typing.Hashable, dim_y: typing.Hashable) -> pd.DataFrame:
         """Summarize how many data points exist for a coordinate combination.
 
@@ -31,11 +33,6 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
             Two-dimensional dataframe summarizing the number of non-NaN data points
             for each combination of value from the x and y coordinate.
         """
-        dim_x = self._da.pr.dim_alias_translations.get(dim_x, dim_x)
-        dim_y = self._da.pr.dim_alias_translations.get(dim_y, dim_y)
-        for dim in (dim_x, dim_y):
-            if dim not in self._da.dims:
-                raise ValueError(f"{dim!r} is not a dimension.")
         return (
             self._da.count(dim=set(self._da.dims) - {dim_x, dim_y})
             .transpose(dim_y, dim_x)

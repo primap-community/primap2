@@ -5,6 +5,7 @@ import numpy as np
 import xarray as xr
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+from ._alias_selection import alias_dims
 
 DatasetOrDataArray = typing.TypeVar("DatasetOrDataArray", xr.Dataset, xr.DataArray)
 
@@ -47,6 +48,7 @@ def select_no_scalar_dimension(
 
 
 class DataArrayAggregationAccessor(BaseDataArrayAccessor):
+    @alias_dims(["dim"])
     def fill_all_na(self, dim: Union[Iterable[Hashable], str], value=0) -> xr.DataArray:
         """Fill NA values only where all values along the specified dimension(s) are NA.
 
@@ -70,12 +72,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         if not dim:
             return self._da
         else:
-            if isinstance(dim, str):
-                dim = self._da.pr.dim_alias_translations.get(dim, dim)
-            else:
-                dim = [self._da.pr.dim_alias_translations.get(x, x) for x in dim]
             return self._da.where(~np.isnan(self._da).all(dim=dim), value)
 
+    @alias_dims(["dim"])
     def sum_skip_all_na(
         self,
         dim: Hashable,
@@ -102,8 +101,6 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         -------
         summed : xr.DataArray
         """
-        dim = self._da.pr.dim_alias_translations.get(dim, dim)
-
         if skipna_evaluation_dims is None:
             skipna_evaluation_dims = set(self._da.dims) - {dim}
 
@@ -127,6 +124,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         dim = [x for x in dim if x in da.dims]
         return da.pr.fill_all_na(dim=dim, value=value)
 
+    @alias_dims(["dim"])
     def fill_all_na(self, dim: Union[Iterable[Hashable], str], value=0) -> xr.Dataset:
         """Fill NA values only where all values along the specified dimension(s) are NA.
 
@@ -146,14 +144,11 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         filled : xr.Dataset
         """
-        if isinstance(dim, str):
-            dim = self._ds.pr.dim_alias_translations.get(dim, dim)
-        else:
-            dim = [self._ds.pr.dim_alias_translations.get(x, x) for x in dim]
         return self._ds.map(
             self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True
         )
 
+    @alias_dims(["dim"])
     def sum_skip_all_na(
         self,
         dim: Hashable,
@@ -181,8 +176,6 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         summed : xr.Dataset
         """
-        dim = self._ds.pr.dim_alias_translations.get(dim, dim)
-
         if skipna_evaluation_dims is None:
             skipna_evaluation_dims = set(self._ds.dims) - {dim}
 

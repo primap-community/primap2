@@ -51,7 +51,7 @@ def test_array_coverage_multidim(opulent_ds):
 def test_array_coverage_error(opulent_ds):
     da = opulent_ds["CO2"]
 
-    with pytest.raises(ValueError, match="'non-existing' is not a dimension."):
+    with pytest.raises(ValueError, match="Dimension 'non-existing' does not exist."):
         da.pr.coverage("animal", "non-existing")
 
 
@@ -100,5 +100,5 @@ def test_set_coverage_entity(opulent_ds):
 def test_set_coverage_error(opulent_ds):
     ds = opulent_ds["CO2"]
 
-    with pytest.raises(ValueError, match="'non-existing' is not a dimension"):
+    with pytest.raises(ValueError, match="Dimension 'non-existing' does not exist."):
         ds.pr.coverage("animal", "non-existing")
