@@ -1,11 +1,12 @@
 import pathlib
 from typing import IO, Hashable, Iterable, Mapping, Optional, Tuple, Union
 
+import pandas as pd
 import pint
 import xarray as xr
 from loguru import logger
 
-from . import _accessor_base
+from . import _accessor_base, pm2io
 from ._units import ureg
 
 
@@ -94,6 +95,40 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         ensure_valid_coordinate_values(self._ds)
         ensure_valid_data_variables(self._ds)
         ensure_valid_attributes(self._ds)
+
+    def to_interchange_format(self, time_format: str = "%Y") -> pd.DataFrame:
+        """Convert dataset to the interchange format.
+
+        The interchange format consists of a pandas DataFrame in wide format with the
+        meta data stored in the DataFrame's attrs dict.
+
+        Parameters
+        ----------
+        time_format: str, optional
+          string for strftime formatting of the "time" axis.
+
+        Returns
+        -------
+        df: pd.DataFrame
+        """
+        dsd = self._ds.pr.dequantify()
+        # additional coordinates are not yet supported, so drop them
+        dsd = dsd.reset_coords(drop=True)
+
+        dsd["time"] = dsd["time"].dt.strftime(time_format)
+        dsw = dsd.to_array("entity").to_dataset("time")
+
+        units = xr.DataArray(
+            [dsd[x].attrs["units"] for x in dsd], coords=[("entity", dsw["entity"])]
+        )
+        df = dsw.assign({"unit": units}).to_dataframe()
+        # require two valid data points, because the unit is always non-Null
+        df.dropna(thresh=2, inplace=True)
+        # convert multiindex to normal data frame
+        df.reset_index(inplace=True)
+        df = pm2io._data_reading.sort_columns_and_rows(df)
+        df.attrs = self._ds.attrs
+        return df
 
     def to_netcdf(
         self,
