@@ -46,6 +46,66 @@ def select_no_scalar_dimension(
 
 
 class DataArrayAggregationAccessor(BaseDataArrayAccessor):
+    def _reduce_dim(
+        self, dim: Optional[DimOrDimsT], reduce_to_dim: Optional[DimOrDimsT]
+    ) -> Optional[DimOrDimsT]:
+        if dim is not None and reduce_to_dim is not None:
+            raise ValueError(
+                "Only one of 'dim' and 'reduce_to_dim' may be supplied, not both."
+            )
+
+        if dim is None:
+            if reduce_to_dim is not None:
+                if isinstance(reduce_to_dim, str):
+                    reduce_to_dim = [reduce_to_dim]
+                dim = set(self._da.dims) - set(reduce_to_dim)
+
+        return dim
+
+    @alias_dims(["dim"], wraps=xr.DataArray.any)
+    def any(self, *args, **kwargs):
+        self._da.any(*args, **kwargs)
+
+    @alias_dims(["dim", "reduce_to_dim"])
+    def count(
+        self,
+        dim: Optional[DimOrDimsT] = None,
+        *,
+        reduce_to_dim: Optional[DimOrDimsT] = None,
+        keep_attrs: bool = True,
+        **kwargs,
+    ) -> xr.DataArray:
+        """Reduce this array by counting along some dimension(s).
+
+        By default, works like da.count(), but with some additional features:
+
+        1. Dimension aliases can be used instead of full dimension names everywhere.
+        2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
+           the dimensions that the result should have via ``reduce_to_dim``. Then,
+           `count` will be applied along all other dimensions.
+
+        Parameters
+        ----------
+        dim: str or list of str, optional
+          Dimension(s) over which to apply `count`. Only one of ``dim`` and
+          ``reduce_to_dim`` arguments can be supplied. If neither is supplied, then
+          the count is calculated over all dimensions.
+        reduce_to_dim: str or list of str, optional
+          Dimension(s) of the result. Only one of ``dim`` and ``reduce_to_dim``
+          arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
+          equivalent to giving ``dim=set(da.dims) - {"dim_1"}``, but more legible.
+        keep_attrs: bool, optional
+          Keep the attr metadata (default True).
+        **kwargs: dict
+          Additional keyword arguments are passed directly to xarray's da.count().
+
+        Returns
+        -------
+        counted : xr.DataArray
+        """
+        dim = self._reduce_dim(dim, reduce_to_dim)
+        return self._da.count(dim=dim, keep_attrs=keep_attrs, **kwargs)
+
     @alias_dims(["dim", "reduce_to_dim", "skipna_evaluation_dims"])
     def sum(
         self,
@@ -101,21 +161,13 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         -------
         summed : xr.DataArray
         """
-        if dim is not None and reduce_to_dim is not None:
-            raise ValueError(
-                "Only one of 'dim' and 'reduce_to_dim' may be supplied, not both."
-            )
+        dim = self._reduce_dim(dim, reduce_to_dim)
+
         if skipna is not None and skipna_evaluation_dims is not None:
             raise ValueError(
                 "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
                 " both."
             )
-
-        if dim is None:
-            if reduce_to_dim is not None:
-                if isinstance(reduce_to_dim, str):
-                    reduce_to_dim = [reduce_to_dim]
-                dim = set(self._da.dims) - set(reduce_to_dim)
 
         if skipna_evaluation_dims is not None:
             skipna = False
@@ -189,6 +241,75 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True
         )
 
+    def _reduce_dim(
+        self, dim: Optional[DimOrDimsT], reduce_to_dim: Optional[DimOrDimsT]
+    ) -> Optional[Iterable[Hashable]]:
+        if dim is not None and reduce_to_dim is not None:
+            raise ValueError(
+                "Only one of 'dim' and 'reduce_to_dim' may be supplied, not both."
+            )
+
+        if dim is None:
+            if reduce_to_dim is not None:
+                if isinstance(reduce_to_dim, str):
+                    reduce_to_dim = [reduce_to_dim]
+                dim = set(self._ds.dims) - set(reduce_to_dim)
+
+        if isinstance(dim, str):
+            dim = [dim]
+
+        return dim
+
+    @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
+    def count(
+        self,
+        dim: Optional[DimOrDimsT] = None,
+        *,
+        reduce_to_dim: Optional[DimOrDimsT] = None,
+        keep_attrs: bool = True,
+        **kwargs,
+    ) -> DatasetOrDataArray:
+        """Reduce this Dataset by counting along some dimension(s).
+
+        By default, works like ds.count(), but with some additional features:
+
+        1. Dimension aliases can be used instead of full dimension names everywhere.
+        2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
+           the dimensions that the result should have via ``reduce_to_dim``. Then,
+           `count` will be applied along all other dimensions.
+        3. If you specify ``entity`` in "dim", the Dataset is converted to a DataArray
+           and counted along the data variables (which will only work if the units of
+           the DataArrays are compatible).
+
+        Parameters
+        ----------
+        dim: str or list of str, optional
+          Dimension(s) over which to apply `count`. Only one of ``dim`` and
+          ``reduce_to_dim`` arguments can be supplied. If neither is supplied, then
+          the count is calculated over all dimensions. Use "entity" to convert to a
+          DataArray and sum along the data variables.
+        reduce_to_dim: str or list of str, optional
+          Dimension(s) of the result. Only one of ``dim`` and ``reduce_to_dim``
+          arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
+          equivalent to giving ``dim=set(ds.dims) - {"dim_1"}``, but more legible.
+        keep_attrs: bool, optional
+          Keep the attr metadata (default True).
+        **kwargs: dict
+          Additional keyword arguments are passed directly to xarray's ds.count().
+
+        Returns
+        -------
+        counted : xr.Dataset or xr.DataArray if "entity" in dims.
+        """
+        dim = self._reduce_dim(dim, reduce_to_dim)
+
+        if dim is not None and "entity" in dim:
+            return self._ds.to_array("entity").count(
+                dim=dim, keep_attrs=keep_attrs, **kwargs
+            )
+        else:
+            return self._ds.count(dim=dim, keep_attrs=keep_attrs, **kwargs)
+
     @alias_dims(["dim"], additional_allowed_values=["entity"])
     def sum(
         self,
@@ -248,24 +369,13 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         summed : xr.DataArray
         """
-        if dim is not None and reduce_to_dim is not None:
-            raise ValueError(
-                "Only one of 'dim' and 'reduce_to_dim' may be supplied, not both."
-            )
+        dim = self._reduce_dim(dim, reduce_to_dim)
+
         if skipna is not None and skipna_evaluation_dims is not None:
             raise ValueError(
                 "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
                 " both."
             )
-
-        if dim is None:
-            if reduce_to_dim is not None:
-                if isinstance(reduce_to_dim, str):
-                    reduce_to_dim = [reduce_to_dim]
-                dim = set(self._ds.dims) - set(reduce_to_dim)
-
-        if isinstance(dim, str):
-            dim = [dim]
 
         if skipna_evaluation_dims is not None:
             skipna = False
@@ -273,7 +383,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         else:
             ds = self._ds
 
-        if "entity" in dim:
+        if dim is not None and "entity" in dim:
             return ds.to_array("entity").sum(
                 dim=dim, skipna=skipna, keep_attrs=keep_attrs, **kwargs
             )

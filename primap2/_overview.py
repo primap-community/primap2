@@ -10,6 +10,27 @@ from ._alias_selection import alias_dims
 
 
 class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
+    def to_df(self, name: typing.Optional[str] = None) -> pd.DataFrame:
+        """Convert this array into an unstacked (i.e. non-tidy) pandas.DataFrame.
+
+        Converting to an unstacked pandas.DataFrame is most useful for two-dimensional
+        data because then there is no MultiIndex, making the result very easy to read.
+
+        If you want a tidy dataframe, use xarray's da.to_dataframe() instead.
+
+        Parameters
+        ----------
+        name: str
+          Name to give to this array (required if unnamed).
+
+        Returns
+        -------
+        df: pandas.DataFrame
+        """
+        if name is None:
+            name = self._da.name
+        return self._da.reset_coords(drop=True).to_dataframe(name)[name].unstack()
+
     @alias_dims(["dim_x", "dim_y"])
     def coverage(self, dim_x: typing.Hashable, dim_y: typing.Hashable) -> pd.DataFrame:
         """Summarize how many data points exist for a coordinate combination.
@@ -33,15 +54,19 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
             Two-dimensional dataframe summarizing the number of non-NaN data points
             for each combination of value from the x and y coordinate.
         """
+        if self._da.name is None:
+            name = "coverage"
+        else:
+            name = self._da.name
         return (
-            self._da.count(dim=set(self._da.dims) - {dim_x, dim_y})
+            self._da.pr.count(reduce_to_dim={dim_x, dim_y})
             .transpose(dim_y, dim_x)
-            .to_dataframe("coverage")["coverage"]
-            .unstack()
+            .pr.to_df(name)
         )
 
 
 class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
+    @alias_dims(["dim_x", "dim_y"], additional_allowed_values=["entity"])
     def coverage(self, dim_x: typing.Hashable, dim_y: typing.Hashable) -> pd.DataFrame:
         """Summarize how many data points exist for a coordinate combination.
 
@@ -69,24 +94,12 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
             Two-dimensional dataframe summarizing the number of non-NaN data points
             for each combination of values from the x and y coordinate.
         """
-        dim_x = self._ds.pr.dim_alias_translations.get(dim_x, dim_x)
-        dim_y = self._ds.pr.dim_alias_translations.get(dim_y, dim_y)
-
-        # remove variables which aren't defined on all requested coordinates
-        ds = self._ds
-        for dim in (dim_x, dim_y):
-            if dim == "entity":
-                continue
-            if dim not in self._ds.dims:
-                raise ValueError(f"{dim!r} is not a dimension or 'entity'.")
-            ds = ds.drop_vars([x for x in ds if dim not in ds[x].dims])
-
-        # reduce normal dimensions, i.e. not the "entity"
-        normal_dims = {x for x in (dim_x, dim_y) if x != "entity"}
-        da = ds.count(dim=set(ds.dims) - normal_dims).to_array("entity")
-
-        # also reduce the entity unless it is part of the output
-        if "entity" not in (dim_x, dim_y):
-            da = da.sum(dim=["entity"])
-
-        return da.transpose(dim_y, dim_x).to_dataframe("coverage")["coverage"].unstack()
+        # TODO: define what actually should happen for non-homogenuos data variable
+        # dimensions. Maybe it doesn't make sense at all?
+        return (
+            self._ds.notnull()
+            .to_array("entity")
+            .pr.sum(reduce_to_dim={dim_x, dim_y})
+            .transpose(dim_y, dim_x)
+            .pr.to_df("coverage")
+        )
