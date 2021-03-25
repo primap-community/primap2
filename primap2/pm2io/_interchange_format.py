@@ -4,9 +4,10 @@ from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
+import strictyaml as sy
 import xarray as xr
-import yaml
 from loguru import logger
+from ruamel.yaml import YAML
 
 # entity is mandatory in the interchange format because it is transformed
 # into the variables
@@ -24,6 +25,15 @@ INTERCHANGE_FORMAT_COLUMN_ORDER = [
     "unit",
     "category",
 ]
+
+# Pretty basic schema for now; attrs could be declared more explicitly with the
+# mandatory columns etc.
+INTERCHANGE_FORMAT_STRICTYAML_SCHEMA = sy.Map(
+    {
+        "data_file": sy.Str(),
+        "attrs": sy.MapPattern(sy.Str(), sy.Any()),
+    }
+)
 
 
 def dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
@@ -127,8 +137,10 @@ def write_interchange_format(
     data.to_csv(data_file, index=False, float_format="%g")
 
     yaml_dict = {"data_file": data_file.name, "attrs": attrs}
-    with open(meta_file, "w") as file:
-        yaml.dump(yaml_dict, file)
+    yaml = YAML()
+    yaml.default_flow_style = False
+    with meta_file.open("w") as fd:
+        yaml.dump(yaml_dict, fd)
 
 
 def read_interchange_format(
@@ -156,8 +168,9 @@ def read_interchange_format(
     filepath = Path(filepath)
     if not filepath.exists():
         filepath = filepath.parent / (filepath.stem + ".yaml")
-    with open(filepath) as meta_file:
-        meta_data = yaml.full_load(meta_file)
+    with filepath.open() as meta_file:
+        yaml = sy.load(meta_file.read(), schema=INTERCHANGE_FORMAT_STRICTYAML_SCHEMA)
+        meta_data = yaml.data
 
     if "data_file" in meta_data.keys():
         data = pd.read_csv(filepath.parent / meta_data["data_file"])
