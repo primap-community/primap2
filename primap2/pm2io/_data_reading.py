@@ -966,10 +966,7 @@ def write_interchange_format(
     attrs: dict, optional
         PRIMAP2 dataset attrs dict. If not given explicitly it is assumed to be
         present in the data DataFrame
-
-
     """
-
     if attrs is None:
         attrs = data.attrs
 
@@ -990,7 +987,7 @@ def read_interchange_format(
     filepath: Union[str, Path],
 ) -> pd.DataFrame:
     """
-    This function read an interchange format dataset from disk. The data is stored
+    This function reads an interchange format dataset from disk. The data is stored
     in a csv file while the additional metadata in the attrs dict is stored in a yaml
     file. This function takes the yaml file as parameter, the data file is specified
     in the yaml file. If no or a wrong ending is given the function tries to load
@@ -1022,7 +1019,10 @@ def read_interchange_format(
         if datafile.exists():
             data = pd.read_csv(datafile)
         else:
-            return None
+            raise FileNotFoundError(
+                f"Data file not specified in {filepath} and data file not found at "
+                f"{datafile}."
+            )
 
     data.attrs = meta_data["attrs"]
 
