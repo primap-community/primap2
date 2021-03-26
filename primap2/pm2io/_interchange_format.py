@@ -1,3 +1,4 @@
+import itertools
 import re
 from pathlib import Path
 from typing import Optional, Union
@@ -30,8 +31,10 @@ INTERCHANGE_FORMAT_COLUMN_ORDER = [
 # mandatory columns etc.
 INTERCHANGE_FORMAT_STRICTYAML_SCHEMA = sy.Map(
     {
-        "data_file": sy.Str(),
+        sy.Optional("data_file"): sy.Str(),
         "attrs": sy.MapPattern(sy.Str(), sy.Any()),
+        "dimensions": sy.MapPattern(sy.Str(), sy.Seq(sy.Str())),
+        "time_format": sy.Str(),
     }
 )
 
@@ -56,7 +59,7 @@ def dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
         xr.DataArray with the time as a dimension and time points as values
     """
     empty_vars = (x for x in ds if ds[x].count() == 0)
-    da = ds.drop_vars(empty_vars).to_array("time").unstack()
+    da = ds.drop_vars(empty_vars).to_array("time")
     da["time"] = pd.to_datetime(da["time"].values, format=time_format, exact=False)
     return da
 
@@ -136,11 +139,12 @@ def write_interchange_format(
     # write the data
     data.to_csv(data_file, index=False, float_format="%g")
 
-    yaml_dict = {"data_file": data_file.name, "attrs": attrs}
+    attrs["data_file"] = data_file.name
+
     yaml = YAML()
     yaml.default_flow_style = False
     with meta_file.open("w") as fd:
-        yaml.dump(yaml_dict, fd)
+        yaml.dump(attrs, fd)
 
 
 def read_interchange_format(
@@ -167,7 +171,7 @@ def read_interchange_format(
 
     filepath = Path(filepath)
     if not filepath.exists():
-        filepath = filepath.parent / (filepath.stem + ".yaml")
+        filepath = filepath.with_suffix(".yaml")
     with filepath.open() as meta_file:
         yaml = sy.load(meta_file.read(), schema=INTERCHANGE_FORMAT_STRICTYAML_SCHEMA)
         meta_data = yaml.data
@@ -185,7 +189,7 @@ def read_interchange_format(
                 f"{datafile}."
             )
 
-    data.attrs = meta_data["attrs"]
+    data.attrs = meta_data
 
     return data
 
@@ -193,7 +197,6 @@ def read_interchange_format(
 def from_interchange_format(
     data: pd.DataFrame,
     attrs: Optional[dict] = None,
-    time_col_regex: str = r"\d",
     max_array_size: int = 1024 * 1024 * 1024,
 ) -> xr.Dataset:
     """
@@ -208,8 +211,6 @@ def from_interchange_format(
         pandas DataFrame in PRIMAP2 interchange format.
     attrs: dict, optional
         attrs dict as defined for PRIMAP2 xarray datasets. Default: use data.attrs.
-    time_col_regex: str, optional
-        Regular expression matching the columns which will form the time
     max_array_size: int, optional
         Maximum permitted projected array size. Larger sizes will raise an exception.
         Default: 1 G, corresponding to about 4 GB of memory usage.
@@ -223,29 +224,37 @@ def from_interchange_format(
     if attrs is None:
         attrs = data.attrs
 
-    columns = data.columns.values
+    if "entity_terminology" in attrs["attrs"]:
+        entity_col = f"entity ({attrs['attrs']['entity_terminology']})"
+    else:
+        entity_col = "entity"
+
     # find the time columns
-    time_cols = list(filter(re.compile(time_col_regex).match, columns))
+    if_index_cols = set(itertools.chain(*attrs["dimensions"].values()))
+    time_cols = set(data.columns.values) - if_index_cols
 
     # convert to xarray
     data_xr = data.to_xarray()
-    index_cols = list(set(columns) - set(time_cols) - {"unit"})
-    data_xr = data_xr.set_index({"index": index_cols})
+    index_cols = if_index_cols - {"unit", "time"}
+    data_xr = data_xr.set_index({"index": list(index_cols)})
     # take the units out as they increase dimensionality and we have only one unit per
     # entity/variable
-    units = data_xr["unit"].dropna("index")
+    units = data_xr["unit"]
     del data_xr["unit"]
 
     # check resulting shape to estimate memory consumption
-    shape = []
-    for col in index_cols:
-        shape.append(len(np.unique(data_xr[col])))
-    array_size = np.product(shape)
-    logger.debug(f"Expected array shape: {shape}, resulting in size {array_size:,}.")
+    dim_lens = {dim: len(np.unique(data_xr[dim].dropna("index"))) for dim in index_cols}
+    dim_lens["time"] = len(time_cols)
+    shapes = []
+    for entity, dims in attrs["dimensions"].items():
+        shapes.append([dim_lens[dim] for dim in dims if dim != "unit"])
+    array_size = np.sum((np.product(shape) for shape in shapes))
+    logger.debug(f"Expected array shapes: {shapes}, resulting in size {array_size:,}.")
     if array_size > max_array_size:
         logger.error(
-            f"Array with {len(shape)-1} dimensions will have a size of {array_size:,} "
-            f"due to the shape {shape}. Aborting to avoid out-of-memory errors. To "
+            f"Set with {len(shapes)} entities and a total of {len(index_cols)} "
+            f"dimensions will have a size of {array_size:,} "
+            f"due to the shapes {shapes}. Aborting to avoid out-of-memory errors. To "
             f"continue, raise max_array_size (currently {max_array_size:,})."
         )
         raise ValueError(
@@ -254,21 +263,32 @@ def from_interchange_format(
         )
 
     # convert time to dimension and entity to variables.
-    data_xr = dates_to_dimension(data_xr).to_dataset("entity")
+    da = dates_to_dimension(data_xr)
+    data_vars = {}
+    for entity, dims in attrs["dimensions"].items():
+        da_entity = da.loc[{entity_col: entity}]
+        # we still have a full MultiIndex, so trim it to the relevant dimensions
+        da_entity["index"] = da_entity.indexes["index"].droplevel(
+            list(index_cols - set(dims))
+        )
+        # now we can safely unstack the index
+        data_vars[entity] = da_entity.unstack("index")
+
+    data_xr = xr.Dataset(data_vars)
 
     # fill the entity/variable attributes
     for variable in data_xr:
-        csv_units = np.unique(units.loc[{"entity": variable}])
+        csv_units = np.unique(units.loc[{entity_col: variable}])
         if len(csv_units) > 1:
             logger.error(
-                f"More than one unit for {variable!r}: {csv_units!r}. "
+                f"More than one unit for entity {variable!r}: {csv_units!r}. "
                 + "There is an error in the unit harmonization."
             )
             raise ValueError(f"More than one unit for {variable!r}: {csv_units!r}.")
         data_xr[variable].attrs = metadata_for_variable(csv_units[0], variable)
 
     # add the dataset wide attributes
-    data_xr.attrs = attrs
+    data_xr.attrs = attrs["attrs"]
 
     data_xr = data_xr.pr.quantify()
 

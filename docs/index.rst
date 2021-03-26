@@ -12,6 +12,7 @@ Welcome to PRIMAP2's documentation!
    data_reading
    data_format_details
    interchange_format_examples
+   interchange_format_details
    development
    credits
    api

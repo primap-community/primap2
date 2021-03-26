@@ -100,7 +100,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         """Convert dataset to the interchange format.
 
         The interchange format consists of a pandas DataFrame in wide format with the
-        meta data stored in the DataFrame's attrs dict.
+        meta data dictionary stored in the DataFrame's attrs dict.
 
         Parameters
         ----------
@@ -116,18 +116,32 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         dsd = dsd.reset_coords(drop=True)
 
         dsd["time"] = dsd["time"].dt.strftime(time_format)
-        dsw = dsd.to_array("entity").to_dataset("time")
 
-        units = xr.DataArray(
-            [dsd[x].attrs["units"] for x in dsd], coords=[("entity", dsw["entity"])]
-        )
-        df = dsw.assign({"unit": units}).to_dataframe()
-        # require two valid data points, because the unit is always non-Null
-        df.dropna(thresh=2, inplace=True)
-        # convert multiindex to normal data frame
-        df.reset_index(inplace=True)
+        if "entity_terminology" in self._ds.attrs:
+            entity_col = f"entity ({self._ds.attrs['entity_terminology']})"
+        else:
+            entity_col = "entity"
+
+        dfs = []
+        for x in dsd:
+            df = (
+                dsd[x].to_dataset("time").to_dataframe().dropna(how="all").reset_index()
+            )
+            df[entity_col] = x
+            df["unit"] = dsd[x].attrs["units"]
+            dfs.append(df)
+
+        df = pd.concat(dfs, ignore_index=True)
+
         df = pm2io._data_reading.sort_columns_and_rows(df)
-        df.attrs = self._ds.attrs
+
+        df.attrs = {
+            "attrs": self._ds.attrs,
+            "time_format": time_format,
+            "dimensions": {
+                x: [str(dim) for dim in dsd[x].dims] + [entity_col, "unit"] for x in dsd
+            },
+        }
         return df
 
     def to_netcdf(
