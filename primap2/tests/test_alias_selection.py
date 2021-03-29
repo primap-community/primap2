@@ -42,6 +42,29 @@ def test_pr_getitem(opulent_ds, alias, full_name):
         ("provenance", "provenance"),
         ("model", "model"),
         ("source", "source"),
+        ("CO2", "CO2"),
+        ("population", "population"),
+    ],
+)
+def test_pr_getitem_no_attrs(opulent_ds, alias, full_name):
+    da = opulent_ds.notnull().pr[alias]
+    assert da.name == full_name
+
+
+@pytest.mark.parametrize(
+    ["alias", "full_name"],
+    [
+        ("time", "time"),
+        ("area", "area (ISO3)"),
+        ("category", "category (IPCC 2006)"),
+        ("cat", "category (IPCC 2006)"),
+        ("animal", "animal (FAOSTAT)"),
+        ("product", "product (FAOSTAT)"),
+        ("scenario", "scenario (FAOSTAT)"),
+        ("scen", "scenario (FAOSTAT)"),
+        ("provenance", "provenance"),
+        ("model", "model"),
+        ("source", "source"),
     ],
 )
 def test_pr_alias_array(opulent_ds, alias, full_name):
