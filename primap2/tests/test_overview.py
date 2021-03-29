@@ -79,8 +79,13 @@ def test_array_coverage_multidim(opulent_ds):
     expected.index.name = "animal (FAOSTAT)"
     expected.columns.name = "product (FAOSTAT)"
 
-    pd.testing.assert_frame_equal(expected, da.pr.coverage("animal", "product"))
-    pd.testing.assert_frame_equal(expected.T, da.pr.coverage("product", "animal"))
+    pd.testing.assert_frame_equal(
+        expected.astype(np.int32), da.pr.coverage("animal", "product").astype(np.int32)
+    )
+    pd.testing.assert_frame_equal(
+        expected.T.astype(np.int32),
+        da.pr.coverage("product", "animal").astype(np.int32),
+    )
 
 
 def test_array_coverage_error(opulent_ds):
