@@ -72,7 +72,7 @@ def test_array_coverage_multidim(opulent_ds):
     expected = pd.DataFrame(
         index=da.pr["animal"].values,
         columns=da.pr["product"].values,
-        data=np.zeros((len(da.pr["animal"]), len(da.pr["product"])), dtype=np.int64),
+        data=np.zeros((len(da.pr["animal"]), len(da.pr["product"])), dtype=np.int32),
     )
     expected[:] = np.product(da.shape) // np.product(expected.shape)
     expected.loc[:, "milk"] = 0
