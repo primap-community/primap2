@@ -467,8 +467,6 @@ class TestDsSetter:
         ds.pr.set(
             "category",
             "0",
-            ds.pr.loc[{"category": ["1", "2", "3", "4", "5"]}].pr.sum_skip_all_na(
-                "category"
-            ),
+            ds.pr.loc[{"category": ["1", "2", "3", "4", "5"]}].pr.sum("category"),
             existing="overwrite",
         )

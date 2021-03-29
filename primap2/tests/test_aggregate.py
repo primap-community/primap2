@@ -11,7 +11,17 @@ import xarray.testing
 import primap2
 from primap2 import ureg
 
+from . import examples
 from .utils import assert_equal
+
+
+@pytest.fixture(params=["opulent_ds", "opulent_ds[CO2]"])
+def opulent_ds_or_da(request):
+    """Test with the opulent Dataset or an array taken from it."""
+    if request.param == "opulent_ds":
+        return examples.opulent_ds()
+    elif request.param == "opulent_ds[CO2]":
+        return examples.opulent_ds()["CO2"]
 
 
 def test_fill_all_na():
@@ -58,89 +68,140 @@ def test_fill_all_na():
     assert np.allclose(dsf["2"], a_expected, equal_nan=True)
 
 
-def test_sum_skip_allna():
-    coords = [("a", [1, 2]), ("b", [1, 2]), ("c", [1, 2, 3])]
-    da = xr.DataArray(
-        data=[
-            [[np.nan, np.nan, np.nan], [np.nan, 1, 2]],
-            [[np.nan, np.nan, np.nan], [np.nan, 1, 2]],
-        ],
-        coords=coords,
+class TestSum:
+    def test_skipna(self):
+        coords = [("a", [1, 2]), ("b", [1, 2]), ("c", [1, 2, 3])]
+        da = xr.DataArray(
+            data=[
+                [[np.nan, np.nan, np.nan], [np.nan, 1, 2]],
+                [[np.nan, np.nan, np.nan], [np.nan, 1, 2]],
+            ],
+            coords=coords,
+        )
+
+        b = da.pr.sum(dim="b", skipna_evaluation_dims="a")
+        b_expected = xr.DataArray(
+            data=[[0, 1, 2], [0, 1, 2]], coords=[coords[0], coords[2]]
+        )
+        assert np.allclose(b, b_expected, equal_nan=True)
+
+        c = da.pr.sum(dim="b", skipna_evaluation_dims="c")
+        c_expected = xr.DataArray(
+            data=[[np.nan, 1, 2], [np.nan, 1, 2]], coords=[coords[0], coords[2]]
+        )
+        assert np.allclose(c, c_expected, equal_nan=True)
+
+        ds = xr.Dataset({"1": da, "2": da.copy()})
+        dss = ds.pr.sum(dim="b", skipna_evaluation_dims="a")
+        dss_expected = xr.Dataset(
+            {
+                "1": b_expected,
+                "2": b_expected,
+            }
+        )
+        xr.testing.assert_identical(dss, dss_expected)
+
+    def test_inhomogeneous_regression(self, opulent_ds: xr.Dataset):
+        ds = opulent_ds
+        dss = ds.pr.loc[{"category": ["1", "2", "3", "4", "5"]}].pr.sum("category")
+        xr.testing.assert_identical(dss["population"], ds["population"])
+        actual = dss["CO2"]
+        expected = (
+            ds["CO2"]
+            .pr.loc[{"category": ["1", "2", "3", "4", "5"]}]
+            .sum("category (IPCC 2006)", keep_attrs=True)
+        )
+        assert_equal(actual, expected)
+
+        # uncomment to refresh this regression test
+        # dss.pr.to_netcdf(
+        #    pathlib.Path(__file__).parent
+        #    / "data"
+        #    / "test_sum_skip_allna_inhomogeneous_result.nc"
+        # )
+
+        actual = dss
+        expected = primap2.open_dataset(
+            pathlib.Path(__file__).parent
+            / "data"
+            / "test_sum_skip_allna_inhomogeneous_result.nc"
+        )
+        xr.testing.assert_identical(actual, expected)
+
+    def test_errors(self, opulent_ds_or_da):
+        with pytest.raises(
+            ValueError,
+            match="Only one of 'dim' and 'reduce_to_dim' may be supplied, not both.",
+        ):
+            opulent_ds_or_da.pr.sum("area", reduce_to_dim="category")
+
+        with pytest.raises(
+            ValueError,
+            match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied",
+        ):
+            opulent_ds_or_da.pr.sum(
+                "area", skipna=True, skipna_evaluation_dims="category"
+            )
+
+    def test_error_entity(self, opulent_ds):
+        with pytest.raises(
+            NotImplementedError,
+            match="Summing along the entity dimension is only supported",
+        ):
+            opulent_ds.pr.sum("entity")
+
+    def test_reduce_to_dim_scalar(self, opulent_ds):
+        xr.testing.assert_identical(
+            opulent_ds[["CO2", "SF6 (SARGWP100)"]].pr.sum(reduce_to_dim="category"),
+            opulent_ds[["CO2", "SF6 (SARGWP100)"]].pr.sum(reduce_to_dim=["category"]),
+        )
+
+        xr.testing.assert_identical(
+            opulent_ds["CO2"].pr.sum(reduce_to_dim="category"),
+            opulent_ds["CO2"].pr.sum(reduce_to_dim=["category"]),
+        )
+
+    def test_reduce_to_dim(self, opulent_ds: xr.Dataset):
+        xr.testing.assert_identical(
+            opulent_ds.pr.sum(reduce_to_dim=["entity", "area"]),
+            opulent_ds.sum(set(opulent_ds.dims) - {"area (ISO3)"}, keep_attrs=True),
+        )
+
+        shared_ds = opulent_ds[["CO2", "SF6 (SARGWP100)"]]
+        xr.testing.assert_allclose(
+            shared_ds.pr.sum(reduce_to_dim=["area"]),
+            shared_ds.sum(set(shared_ds.dims) - {"area (ISO3)"}, keep_attrs=True)
+            .to_array("entity")
+            .sum("entity", keep_attrs=True),
+        )
+
+
+def test_any(opulent_ds_or_da):
+    xr.testing.assert_identical(
+        opulent_ds_or_da.pr.any(dim="area"), opulent_ds_or_da.any(dim="area (ISO3)")
     )
 
-    a = da.pr.sum_skip_all_na(dim="a")
-    a_expected = xr.DataArray(
-        data=[
-            [np.nan, np.nan, np.nan],
-            [np.nan, 2, 4],
-        ],
-        coords=coords[1:],
-    )
-    assert np.allclose(a, a_expected, equal_nan=True)
 
-    b = da.pr.sum_skip_all_na(dim="b", skipna_evaluation_dims="a")
-    b_expected = xr.DataArray(
-        data=[[0, 1, 2], [0, 1, 2]], coords=[coords[0], coords[2]]
-    )
-    assert np.allclose(b, b_expected, equal_nan=True)
+class TestCount:
+    def test_inhomogeneous_entity(self, opulent_ds):
+        with pytest.raises(NotImplementedError):
+            opulent_ds.pr.count("entity")
 
-    c = da.pr.sum_skip_all_na(dim="b", skipna_evaluation_dims="c")
-    c_expected = xr.DataArray(
-        data=[[np.nan, 1, 2], [np.nan, 1, 2]], coords=[coords[0], coords[2]]
-    )
-    assert np.allclose(c, c_expected, equal_nan=True)
+    def test_entity(self, opulent_ds):
+        actual = opulent_ds[["CO2", "SF6"]].pr.count(dim=["entity", "area"])
+        assert (actual == 8).all()
 
-    ds = xr.Dataset({"1": da, "2": da.copy()})
-    dss = ds.pr.sum_skip_all_na(dim="a")
-    dss_expected = xr.Dataset(
-        {
-            "1": xr.DataArray(
-                data=[
-                    [np.nan, np.nan, np.nan],
-                    [np.nan, 2, 4],
-                ],
-                coords=coords[1:],
-            ),
-            "2": xr.DataArray(
-                data=[
-                    [np.nan, np.nan, np.nan],
-                    [np.nan, 2, 4],
-                ],
-                coords=coords[1:],
-            ),
-        }
-    )
-    xr.testing.assert_identical(dss, dss_expected)
+    def test_array(self, opulent_ds):
+        da = opulent_ds["CO2"]
+        actual = da.pr.count(reduce_to_dim=["area"])
+        expected = da.count(set(da.dims) - {"area (ISO3)"})
+        xr.testing.assert_allclose(actual, expected)
 
-
-def test_sum_skip_allna_inhomogeneous(opulent_ds: xr.Dataset):
-    ds = opulent_ds
-    dss = ds.pr.loc[{"category": ["1", "2", "3", "4", "5"]}].pr.sum_skip_all_na(
-        "category"
-    )
-    xr.testing.assert_identical(dss["population"], ds["population"])
-    actual = dss["CO2"]
-    expected = (
-        ds["CO2"]
-        .pr.loc[{"category": ["1", "2", "3", "4", "5"]}]
-        .sum("category (IPCC 2006)", keep_attrs=True)
-    )
-    assert_equal(actual, expected)
-
-    # uncomment to refresh this regression test
-    # dss.pr.to_netcdf(
-    #    pathlib.Path(__file__).parent
-    #    / "data"
-    #    / "test_sum_skip_allna_inhomogeneous_result.nc"
-    # )
-
-    actual = dss
-    expected = primap2.open_dataset(
-        pathlib.Path(__file__).parent
-        / "data"
-        / "test_sum_skip_allna_inhomogeneous_result.nc"
-    )
-    xr.testing.assert_identical(actual, expected)
+    def test_set(self, opulent_ds):
+        ds = opulent_ds
+        actual = ds.pr.count(reduce_to_dim=["area", "entity"])
+        expected = ds.count(set(ds.dims) - {"area (ISO3)"})
+        xr.testing.assert_allclose(actual, expected)
 
 
 def test_gas_basket_contents_sum(empty_ds):

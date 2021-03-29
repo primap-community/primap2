@@ -4,6 +4,7 @@ import numpy as np
 import xarray as xr
 
 from . import _accessor_base
+from ._alias_selection import alias_dims
 
 
 class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
@@ -20,6 +21,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
                 f"automatically insert new values into dim."
             )
 
+    @alias_dims(["dim", "value_dims"])
     def set(
         self,
         dim: typing.Hashable,
@@ -238,15 +240,6 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         da : xr.DataArray
             modified DataArray
         """
-        dim = self._da.pr.dim_alias_translations.get(dim, dim)
-        if dim not in self._da.dims:
-            raise ValueError(f"Dimension {dim!r} does not exist.")
-
-        if value_dims is not None:
-            value_dims = [
-                self._da.pr.dim_alias_translations.get(x, x) for x in value_dims
-            ]
-
         if np.ndim(key) == 0:  # scalar
             key = [key]
         else:
@@ -361,6 +354,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
             dim=dim, key=key, value=value[da.name], existing=existing, new=new
         )
 
+    @alias_dims(["dim"])
     def set(
         self,
         dim: typing.Hashable,
@@ -564,10 +558,6 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         ds : xr.Dataset
             modified Dataset
         """
-        dim = self._ds.pr.dim_alias_translations.get(dim, dim)
-        if dim not in self._ds.dims:
-            raise ValueError(f"Dimension {dim!r} does not exist.")
-
         if not isinstance(value, xr.Dataset):
             raise TypeError(f"value must be a Dataset, not {type(value)}")
 

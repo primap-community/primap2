@@ -159,6 +159,9 @@ def ensure_valid_coordinates(ds: xr.Dataset):
     additional_coords = set(ds.coords) - set(ds.dims)
     for coord in ds.coords:
         if not isinstance(coord, str):
+            # Note: can not be tested properly because xarray deals poorly with
+            # coordinate names which are not sortable with strings so the test never
+            # gets here anyway
             logger.error(
                 f"Coordinate {coord!r} is of type {type(coord)}, but "
                 f"only strings are allowed."

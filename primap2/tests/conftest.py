@@ -48,5 +48,3 @@ def any_ds(request):
         return examples.minimal_ds()
     elif request.param == "empty":
         return examples.empty_ds()
-    else:
-        raise ValueError

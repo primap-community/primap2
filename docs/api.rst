@@ -48,9 +48,13 @@ Methods
     DataArray.pr.convert_to_gwp_like
     DataArray.pr.convert_to_mass
     DataArray.pr.fill_all_na
-    DataArray.pr.sum_skip_all_na
+    DataArray.pr.sum
+    DataArray.pr.count
     DataArray.pr.downscale_timeseries
+    DataArray.pr.__getitem__
     DataArray.pr.set
+    DataArray.pr.coverage
+    DataArray.pr.to_df
 
 Dataset
 -------
@@ -87,10 +91,13 @@ Methods
     Dataset.pr.quantify
     Dataset.pr.dequantify
     Dataset.pr.fill_all_na
-    Dataset.pr.sum_skip_all_na
+    Dataset.pr.sum
+    Dataset.pr.count
     Dataset.pr.gas_basket_contents_sum
     Dataset.pr.fill_na_gas_basket_from_contents
     Dataset.pr.downscale_timeseries
     Dataset.pr.downscale_gas_timeseries
     Dataset.pr.__getitem__
     Dataset.pr.set
+    Dataset.pr.coverage
+    Dataset.pr.to_df

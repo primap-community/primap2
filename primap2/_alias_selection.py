@@ -1,13 +1,18 @@
 """Simple selection and loc-style accessor which automatically translates PRIMAP2 short
 column names to the actual long names including the categorization."""
-
+import functools
+import inspect
 import typing
 
 import xarray as xr
 
 from . import _accessor_base
+from ._types import DimOrDimsT, FunctionT, KeyT
 
-KeyT = typing.TypeVar("KeyT", str, typing.Mapping[typing.Hashable, typing.Any])
+
+class DimensionNotExistingError(ValueError):
+    def __init__(self, dim):
+        ValueError.__init__(self, f"Dimension {dim!r} does not exist.")
 
 
 def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) -> KeyT:
@@ -24,6 +29,98 @@ def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) ->
             else:
                 sel[key] = item[key]
         return sel
+
+
+def alias(
+    dim: DimOrDimsT,
+    translations: typing.Dict[typing.Hashable, str],
+    dims: typing.Iterable[typing.Hashable],
+) -> DimOrDimsT:
+    if isinstance(dim, str):
+        dim = translations.get(dim, dim)
+        if dim not in dims:
+            raise DimensionNotExistingError(dim)
+        return dim
+    else:
+        try:
+            rdim = []
+            for idim in dim:
+                rdim.append(alias(idim, translations, dims))
+            return rdim
+        except TypeError:  # not iterable, so some other hashable like int
+            if dim not in dims:
+                raise DimensionNotExistingError(dim)
+            return dim
+
+
+def alias_dims(
+    args_to_alias: typing.Iterable[str],
+    wraps: typing.Optional[typing.Callable] = None,
+    additional_allowed_values: typing.Iterable[str] = tuple(),
+) -> typing.Callable[[FunctionT], FunctionT]:
+    """Method decorator to automatically translate dimension aliases in parameters.
+
+    Use like this:
+    @alias_dims(["dim"])
+    def sum(self, dim):
+        return self._da.sum(dim)
+
+    To copy the documentation etc. from an xarray function, use the wraps parameter:
+    @alias_dims(["dim"], wraps=xr.DataArray.sum)
+    def sum(self, *args, **kwargs):
+        return self._da.sum(*args, **kwargs)
+    """
+
+    def decorator(func: FunctionT) -> FunctionT:
+
+        if wraps is not None:
+            wrap_func = wraps
+        else:
+            wrap_func = func
+
+        # the parameters of the wrapped function without self
+        func_args_list = list(inspect.signature(wrap_func).parameters.values())[1:]
+
+        @functools.wraps(wrap_func)
+        def wrapper(self, *args, **kwargs):
+            try:
+                obj = self._da
+            except AttributeError:
+                obj = self._ds
+            translations = obj.pr.dim_alias_translations
+            dims = set(obj.dims).union(set(additional_allowed_values))
+
+            # translate kwargs
+            for arg_to_alias in args_to_alias:
+                if arg_to_alias in kwargs:
+                    kwargs[arg_to_alias] = alias(
+                        kwargs[arg_to_alias], translations, dims
+                    )
+
+            # translate args
+            args_translated = []
+            for i, arg in enumerate(args):
+                try:
+                    translate_arg = func_args_list[i].name in args_to_alias
+                except IndexError:  # more arguments given than function has
+                    # translate if function has an *args-style parameter which should
+                    # be translated
+                    translate_arg = (
+                        len(func_args_list) > 0
+                        and func_args_list[-1].kind == inspect.Parameter.VAR_POSITIONAL
+                        and func_args_list[-1].name in args_to_alias
+                    )
+
+                if translate_arg:
+                    args_translated.append(alias(arg, translations, dims))
+                else:
+                    args_translated.append(arg)
+
+            return func(self, *args_translated, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 class DataArrayAliasLocIndexer:
@@ -68,6 +165,10 @@ class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
                 if " (" in dim:
                     key: str = dim.split("(")[0][:-1]
                     ret[key] = dim
+        if "scenario" in ret:
+            ret["scen"] = ret["scenario"]
+        if "category" in ret:
+            ret["cat"] = ret["category"]
         return ret
 
     @property
@@ -76,6 +177,11 @@ class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
         supports short aliases like ``area`` and translates them into the long
         names including the corresponding category-set."""
         return DataArrayAliasLocIndexer(self._da)
+
+    def __getitem__(self, item: typing.Hashable) -> xr.DataArray:
+        """Like da[], but translates short aliases like "area" into the long names
+        including the corresponding category-set."""
+        return self._da[self.dim_alias_translations.get(item, item)]
 
 
 class DatasetAliasLocIndexer:
@@ -108,6 +214,18 @@ class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
             A mapping of all dimension aliases to full dimension names.
         """
         ret: typing.Dict[typing.Hashable, str] = {}
+        # First guess aliases from the names themselves. The meta data in attrs
+        # is later used to overwrite the guessed values where they are available
+        for dim in self._ds.dims:
+            if isinstance(dim, str):
+                if " (" in dim:
+                    key: str = dim.split("(")[0][:-1]
+                    ret[key] = dim
+        if "scenario" in ret:
+            ret["scen"] = ret["scenario"]
+        if "category" in ret:
+            ret["cat"] = ret["category"]
+
         for key, abbrev in [
             ("category", "cat"),
             ("scenario", "scen"),
@@ -115,6 +233,7 @@ class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
         ]:
             if abbrev in self._ds.attrs:
                 ret[key] = self._ds.attrs[abbrev]
+                ret[abbrev] = self._ds.attrs[abbrev]
         if "sec_cats" in self._ds.attrs:
             for full_name in self._ds.attrs["sec_cats"]:
                 key = full_name.split("(")[0][:-1]

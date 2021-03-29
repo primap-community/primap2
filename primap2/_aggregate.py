@@ -1,12 +1,11 @@
-import typing
 from typing import Any, Hashable, Iterable, Mapping, Optional, Sequence, Union
 
 import numpy as np
 import xarray as xr
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
-
-DatasetOrDataArray = typing.TypeVar("DatasetOrDataArray", xr.Dataset, xr.DataArray)
+from ._alias_selection import alias_dims
+from ._types import DatasetOrDataArray, DimOrDimsT
 
 
 def dim_names(obj: DatasetOrDataArray):
@@ -47,6 +46,138 @@ def select_no_scalar_dimension(
 
 
 class DataArrayAggregationAccessor(BaseDataArrayAccessor):
+    def _reduce_dim(
+        self, dim: Optional[DimOrDimsT], reduce_to_dim: Optional[DimOrDimsT]
+    ) -> Optional[DimOrDimsT]:
+        if dim is not None and reduce_to_dim is not None:
+            raise ValueError(
+                "Only one of 'dim' and 'reduce_to_dim' may be supplied, not both."
+            )
+
+        if dim is None:
+            if reduce_to_dim is not None:
+                if isinstance(reduce_to_dim, str):
+                    reduce_to_dim = [reduce_to_dim]
+                dim = set(self._da.dims) - set(reduce_to_dim)
+
+        return dim
+
+    @alias_dims(["dim"], wraps=xr.DataArray.any)
+    def any(self, *args, **kwargs):
+        return self._da.any(*args, **kwargs)
+
+    @alias_dims(["dim", "reduce_to_dim"])
+    def count(
+        self,
+        dim: Optional[DimOrDimsT] = None,
+        *,
+        reduce_to_dim: Optional[DimOrDimsT] = None,
+        keep_attrs: bool = True,
+        **kwargs,
+    ) -> xr.DataArray:
+        """Reduce this array by counting along some dimension(s).
+
+        By default, works like da.count(), but with some additional features:
+
+        1. Dimension aliases can be used instead of full dimension names everywhere.
+        2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
+           the dimensions that the result should have via ``reduce_to_dim``. Then,
+           `count` will be applied along all other dimensions.
+
+        Parameters
+        ----------
+        dim: str or list of str, optional
+          Dimension(s) over which to apply `count`. Only one of ``dim`` and
+          ``reduce_to_dim`` arguments can be supplied. If neither is supplied, then
+          the count is calculated over all dimensions.
+        reduce_to_dim: str or list of str, optional
+          Dimension(s) of the result. Only one of ``dim`` and ``reduce_to_dim``
+          arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
+          equivalent to giving ``dim=set(da.dims) - {"dim_1"}``, but more legible.
+        keep_attrs: bool, optional
+          Keep the attr metadata (default True).
+        **kwargs: dict
+          Additional keyword arguments are passed directly to xarray's da.count().
+
+        Returns
+        -------
+        counted : xr.DataArray
+        """
+        dim = self._reduce_dim(dim, reduce_to_dim)
+        return self._da.count(dim=dim, keep_attrs=keep_attrs, **kwargs)
+
+    @alias_dims(["dim", "reduce_to_dim", "skipna_evaluation_dims"])
+    def sum(
+        self,
+        dim: Optional[DimOrDimsT] = None,
+        *,
+        reduce_to_dim: Optional[DimOrDimsT] = None,
+        skipna: Optional[bool] = None,
+        skipna_evaluation_dims: Optional[DimOrDimsT] = None,
+        keep_attrs: bool = True,
+        **kwargs,
+    ) -> xr.DataArray:
+        """Reduce this DataArray's data by applying `sum` along some dimension(s).
+
+        By default, works like da.sum(), but has additional features:
+
+        1. Dimension aliases can be used instead of full dimension names everywhere.
+        2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
+           the dimensions that the result should have via ``reduce_to_dim``. Then,
+           `sum` will be applied along all other dimensions.
+        3. You can specify ``skipna_evaluation_dims`` to skip NA values only if all
+           values along the given dimension(s) are NA. Example: If you have a data array
+           with the dimensions ``time`` and ``position``, summing over ``time`` with the
+           evaluation dimension ``position`` will skip only those values where all
+           values with the same ``position`` are NA.
+
+        Parameters
+        ----------
+        dim: str or list of str, optional
+          Dimension(s) over which to apply `sum`. Only one of ``dim`` and
+          ``reduce_to_dim`` arguments can be supplied. If neither is supplied, then
+          the sum is calculated over all dimensions.
+        reduce_to_dim: str or list of str, optional
+          Dimension(s) of the result. Only one of ``dim`` and ``reduce_to_dim``
+          arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
+          equivalent to giving ``dim=set(da.dims) - {"dim_1"}``, but more legible.
+        skipna: bool, optional
+          If True, skip missing values (as marked by NaN). By default, only
+          skips missing values for float dtypes; other dtypes either do not
+          have a sentinel missing value (int) or skipna=True has not been
+          implemented (object, datetime64 or timedelta64).
+        skipna_evaluation_dims: str or list of str, optional
+          Dimension(s) to evaluate along to determine if values should be skipped.
+          Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
+          If all values along the specified dimensions are NA, the values are skipped,
+          other NA values are not skipped and will lead to NA in the corresponding
+          result.
+        keep_attrs: bool, optional
+          Keep the attr metadata (default True).
+        **kwargs: dict
+          Additional keyword arguments are passed directly to xarray's da.sum().
+
+        Returns
+        -------
+        summed : xr.DataArray
+        """
+        dim = self._reduce_dim(dim, reduce_to_dim)
+
+        if skipna is not None and skipna_evaluation_dims is not None:
+            raise ValueError(
+                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
+                " both."
+            )
+
+        if skipna_evaluation_dims is not None:
+            skipna = False
+            da = self.fill_all_na(dim=skipna_evaluation_dims, value=0)
+        else:
+            da = self._da
+
+        return da.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, **kwargs)
+
+    @alias_dims(["dim"])
     def fill_all_na(self, dim: Union[Iterable[Hashable], str], value=0) -> xr.DataArray:
         """Fill NA values only where all values along the specified dimension(s) are NA.
 
@@ -70,48 +201,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         if not dim:
             return self._da
         else:
-            if isinstance(dim, str):
-                dim = self._da.pr.dim_alias_translations.get(dim, dim)
-            else:
-                dim = [self._da.pr.dim_alias_translations.get(x, x) for x in dim]
             return self._da.where(~np.isnan(self._da).all(dim=dim), value)
-
-    def sum_skip_all_na(
-        self,
-        dim: Hashable,
-        skipna_evaluation_dims: Optional[Union[Iterable[Hashable], str]] = None,
-    ) -> xr.DataArray:
-        """Sum while skipping NA values if all the values are NA.
-
-        The sum is evaluated along the dimension ``dim`` while skipping only those NA
-        values where all values along the ``skipna_evaluation_dims`` are NA.
-
-        Example: If you have a data array with the dimensions ``time`` and ``position``,
-        summing over ``time`` with the evaluation dimension ``position`` will skip only
-        those values where all values with the same ``position`` are NA.
-
-        Parameters
-        ----------
-        dim: str
-          Evaluation dimension to sum over.
-        skipna_evaluation_dims: str or list of str, optional
-          Dimension(s) to evaluate along to determine if values should be skipped.
-          If omitted, all other dimensions are used.
-
-        Returns
-        -------
-        summed : xr.DataArray
-        """
-        dim = self._da.pr.dim_alias_translations.get(dim, dim)
-
-        if skipna_evaluation_dims is None:
-            skipna_evaluation_dims = set(self._da.dims) - {dim}
-
-        return self.fill_all_na(dim=skipna_evaluation_dims, value=0).sum(
-            dim=dim,
-            skipna=False,
-            keep_attrs=True,
-        )
 
 
 class DatasetAggregationAccessor(BaseDatasetAccessor):
@@ -127,7 +217,14 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         dim = [x for x in dim if x in da.dims]
         return da.pr.fill_all_na(dim=dim, value=value)
 
-    def fill_all_na(self, dim: Union[Iterable[Hashable], str], value=0) -> xr.Dataset:
+    def _all_vars_all_dimensions(self):
+        return (
+            np.array([len(var.dims) for var in self._ds.values()])
+            == [len(self._ds.dims)]
+        ).all()
+
+    @alias_dims(["dim"])
+    def fill_all_na(self, dim: DimOrDimsT, value=0) -> xr.Dataset:
         """Fill NA values only where all values along the specified dimension(s) are NA.
 
         Example: if you have a Dataset with dimensions ``time`` and ``positions``,
@@ -146,51 +243,182 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         filled : xr.Dataset
         """
-        if isinstance(dim, str):
-            dim = self._ds.pr.dim_alias_translations.get(dim, dim)
-        else:
-            dim = [self._ds.pr.dim_alias_translations.get(x, x) for x in dim]
         return self._ds.map(
             self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True
         )
 
-    def sum_skip_all_na(
+    def _reduce_dim(
+        self, dim: Optional[DimOrDimsT], reduce_to_dim: Optional[DimOrDimsT]
+    ) -> Optional[Iterable[Hashable]]:
+        if dim is not None and reduce_to_dim is not None:
+            raise ValueError(
+                "Only one of 'dim' and 'reduce_to_dim' may be supplied, not both."
+            )
+
+        if dim is None:
+            if reduce_to_dim is not None:
+                if isinstance(reduce_to_dim, str):
+                    reduce_to_dim = [reduce_to_dim]
+                dims = set(self._ds.dims)
+                dims.add("entity")
+                dim = dims - set(reduce_to_dim)
+
+        if isinstance(dim, str):
+            dim = [dim]
+
+        return dim
+
+    @alias_dims(["dim"], wraps=xr.Dataset.any)
+    def any(self, *args, **kwargs):
+        return self._ds.any(*args, **kwargs)
+
+    @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
+    def count(
         self,
-        dim: Hashable,
-        skipna_evaluation_dims: Optional[Union[Iterable[Hashable], str]] = None,
-    ) -> xr.Dataset:
-        """Sum while skipping NA values if all the values are NA.
+        dim: Optional[DimOrDimsT] = None,
+        *,
+        reduce_to_dim: Optional[DimOrDimsT] = None,
+        keep_attrs: bool = True,
+        **kwargs,
+    ) -> DatasetOrDataArray:
+        """Reduce this Dataset by counting along some dimension(s).
 
-        The sum is evaluated along the dimension ``dim`` while skipping only those NA
-        values where all values along the ``skipna_evaluation_dims`` are NA.
+        By default, works like ds.count(), but with some additional features:
 
-        Example: If you have a Dataset with the dimensions ``time`` and ``position``,
-        summing over ``time`` with the evaluation dimension ``position`` will skip only
-        those values where all values with the same ``position`` are NA in a
-        DataArray.
+        1. Dimension aliases can be used instead of full dimension names everywhere.
+        2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
+           the dimensions that the result should have via ``reduce_to_dim``. Then,
+           `count` will be applied along all other dimensions (including ``entity``).
+        3. If you specify ``entity`` in "dim", the Dataset is converted to a DataArray
+           and counted along the data variables.
 
         Parameters
         ----------
-        dim: str
-          Evaluation dimension to sum over.
-        skipna_evaluation_dims: str or list of str, optional
-          Dimension(s) to evaluate along to determine if values should be skipped.
-          If omitted, all other dimensions are used.
+        dim: str or list of str, optional
+          Dimension(s) over which to apply `count`. Only one of ``dim`` and
+          ``reduce_to_dim`` arguments can be supplied. If neither is supplied, then
+          the count is calculated over all dimensions. Use "entity" to convert to a
+          DataArray and sum along the data variables.
+        reduce_to_dim: str or list of str, optional
+          Dimension(s) of the result. Only one of ``dim`` and ``reduce_to_dim``
+          arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
+          equivalent to giving ``dim=set(da.dims) + {"entity"} - {"dim_1"}``, but more
+          legible.
+        keep_attrs: bool, optional
+          Keep the attr metadata (default True).
+        **kwargs: dict
+          Additional keyword arguments are passed directly to xarray's ds.count().
 
         Returns
         -------
-        summed : xr.Dataset
+        counted : xr.Dataset or xr.DataArray if "entity" in dims.
         """
-        dim = self._ds.pr.dim_alias_translations.get(dim, dim)
+        dim = self._reduce_dim(dim, reduce_to_dim)
 
-        if skipna_evaluation_dims is None:
-            skipna_evaluation_dims = set(self._ds.dims) - {dim}
+        if dim is not None and "entity" in dim:
+            ndim = set(dim) - {"entity"}
 
-        return self.fill_all_na(dim=skipna_evaluation_dims, value=0).sum(
-            dim=dim,
-            skipna=False,
-            keep_attrs=True,
-        )
+            ds = self._ds.count(dim=ndim, keep_attrs=keep_attrs, **kwargs)
+
+            if not ds.pr._all_vars_all_dimensions():
+                raise NotImplementedError(
+                    "Counting along the entity dimension is only supported "
+                    "when all entities share the dimensions remaining after counting."
+                )
+
+            return ds.to_array("entity").sum(dim="entity", keep_attrs=True)
+        else:
+            return self._ds.count(dim=dim, keep_attrs=keep_attrs, **kwargs)
+
+    @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
+    def sum(
+        self,
+        dim: Optional[DimOrDimsT] = None,
+        *,
+        reduce_to_dim: Optional[DimOrDimsT] = None,
+        skipna: Optional[bool] = None,
+        skipna_evaluation_dims: Optional[DimOrDimsT] = None,
+        keep_attrs: bool = True,
+        **kwargs,
+    ) -> DatasetOrDataArray:
+        """Reduce this Dataset's data by applying `sum` along some dimension(s).
+
+        By default, works like ds.sum(), but has additional features:
+
+        1. Dimension aliases can be used instead of full dimension names everywhere.
+        2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
+           the dimensions that the result should have via ``reduce_to_dim``. Then,
+           `sum` will be applied along all other dimensions (including ``entity``).
+        3. You can specify ``skipna_evaluation_dims`` to skip NA values only if all
+           values along the given dimension(s) are NA. Example: If you have a data array
+           with the dimensions ``time`` and ``position``, summing over ``time`` with the
+           evaluation dimension ``position`` will skip only those values where all
+           values with the same ``position`` are NA.
+        4. If you specify ``entity`` in "dim", the Dataset is converted to a DataArray
+           and summed along the data variables (which will only work if the units of
+           the DataArrays are compatible).
+
+        Parameters
+        ----------
+        dim: str or list of str, optional
+          Dimension(s) over which to apply `sum`. Only one of ``dim`` and
+          ``reduce_to_dim`` arguments can be supplied. If neither is supplied, then
+          the sum is calculated over all dimensions. Use "entity" to convert to a
+          DataArray and sum along the data variables.
+        reduce_to_dim: str or list of str, optional
+          Dimension(s) of the result. Only one of ``dim`` and ``reduce_to_dim``
+          arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
+          equivalent to giving ``dim=set(da.dims) + {"entity"} - {"dim_1"}``, but more
+          legible.
+        skipna: bool, optional
+          If True, skip missing values (as marked by NaN). By default, only
+          skips missing values for float dtypes; other dtypes either do not
+          have a sentinel missing value (int) or skipna=True has not been
+          implemented (object, datetime64 or timedelta64).
+        skipna_evaluation_dims: str or list of str, optional
+          Dimension(s) to evaluate along to determine if values should be skipped.
+          Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
+          If all values along the specified dimensions are NA, the values are skipped,
+          other NA values are not skipped and will lead to NA in the corresponding
+          result.
+        keep_attrs: bool, optional
+          Keep the attr metadata (default True).
+        **kwargs: dict
+          Additional keyword arguments are passed directly to xarray's da.sum().
+
+        Returns
+        -------
+        summed : xr.DataArray
+        """
+        dim = self._reduce_dim(dim, reduce_to_dim)
+
+        if skipna is not None and skipna_evaluation_dims is not None:
+            raise ValueError(
+                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
+                " both."
+            )
+
+        if skipna_evaluation_dims is not None:
+            skipna = False
+            ds = self.fill_all_na(dim=skipna_evaluation_dims, value=0)
+        else:
+            ds = self._ds
+
+        if dim is not None and "entity" in dim:
+            ndim = set(dim) - {"entity"}
+
+            ds = ds.sum(dim=ndim, skipna=skipna, keep_attrs=keep_attrs, **kwargs)
+
+            if not ds.pr._all_vars_all_dimensions():
+                raise NotImplementedError(
+                    "Summing along the entity dimension is only supported "
+                    "when all entities share the dimensions remaining after summing."
+                )
+            return ds.to_array("entity").sum(
+                dim="entity", skipna=skipna, keep_attrs=keep_attrs, **kwargs
+            )
+        else:
+            return ds.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, **kwargs)
 
     def gas_basket_contents_sum(
         self,
@@ -224,13 +452,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             da: xr.DataArray = self._ds[var]
             basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=basket_da)
 
-        basket_contents_converted_da: xr.DataArray = basket_contents_converted.to_array(
-            "entity"
-        )
-
-        da = basket_contents_converted_da.pr.sum_skip_all_na(
-            dim="entity",
-            skipna_evaluation_dims=skipna_evaluation_dims,
+        da = basket_contents_converted.pr.sum(
+            dim="entity", skipna_evaluation_dims=skipna_evaluation_dims
         )
         da.attrs["gwp_context"] = basket_da.attrs["gwp_context"]
         da.attrs["entity"] = basket_da.attrs["entity"]
