@@ -6,6 +6,8 @@ Unreleased
 ----------
 * Add ``da.pr.coverage()`` and ``ds.pr.coverage()`` functions to summarize data
   coverage.
+* Add aggregation functions ``set`` and ``count`` which use aliasing and can reduce to
+  a given set of dimensions, including the entity.
 * Update python packaging to use declarative style and modern setuptools.
 * Support and test python 3.9 and windows.
 * Add csv reading capabilities in pm2io module.
