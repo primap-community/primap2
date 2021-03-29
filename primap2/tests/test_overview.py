@@ -53,15 +53,20 @@ def test_array_coverage(empty_ds):
     expected = pd.DataFrame(
         index=da["area (ISO3)"].values,
         columns=da["time"].values,
-        data=np.zeros((len(da["area (ISO3)"]), len(da["time"])), dtype=np.int64),
+        data=np.zeros((len(da["area (ISO3)"]), len(da["time"]))),
     )
     expected.loc["COL", "2001"] = 1
     expected.loc["COL", "2002"] = 1
     expected.index.name = "area (ISO3)"
     expected.columns.name = "time"
 
-    pd.testing.assert_frame_equal(expected, da.pr.coverage("area", "time"))
-    pd.testing.assert_frame_equal(expected.T, da.pr.coverage("time", "area (ISO3)"))
+    pd.testing.assert_frame_equal(
+        expected.astype(np.int32), da.pr.coverage("area", "time").astype(np.int32)
+    )
+    pd.testing.assert_frame_equal(
+        expected.T.astype(np.int32),
+        da.pr.coverage("time", "area (ISO3)").astype(np.int32),
+    )
 
 
 def test_array_coverage_multidim(opulent_ds):
