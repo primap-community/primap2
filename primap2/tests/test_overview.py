@@ -35,6 +35,20 @@ def test_to_df_1d():
     pd.testing.assert_series_equal(actual, expected)
 
 
+def test_to_df_set():
+    data = np.array([1, 2], dtype=np.int64)
+    a = ["a1", "a2"]
+    da = xr.DataArray(data, coords=[("a", a)], name="name")
+    ds = xr.Dataset({"b": da})
+    actual = ds.pr.to_df("name")
+
+    expected = pd.DataFrame(data, index=a, columns=["b"])
+    expected.index.name = "a"
+    expected.columns.name = "name"
+
+    pd.testing.assert_frame_equal(actual, expected)
+
+
 def test_array_empty(empty_ds):
     with pytest.raises(ValueError, match="Specify at least one dimension"):
         empty_ds.pr.coverage()
@@ -141,6 +155,13 @@ def test_set_coverage_entity(opulent_ds):
     expected.columns.name = "area (ISO3)"
 
     pd.testing.assert_frame_equal(expected, ds.pr.coverage("entity", "area"))
+
+
+def test_set_coverage_boolean(opulent_ds):
+    actual = opulent_ds.notnull().any("time").pr.coverage("entity", "area")
+    expected = opulent_ds.pr.coverage("entity", "area") // len(opulent_ds["time"])
+
+    pd.testing.assert_frame_equal(actual, expected)
 
 
 def test_set_coverage_entity_other_dim_not_existing(opulent_ds):

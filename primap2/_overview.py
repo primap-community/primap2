@@ -48,6 +48,10 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
         non-NaN data points in the array. The result is returned as an
         N-dimensional pandas DataFrame.
 
+        If the array's dtype is ``bool``, count the number of True values instead. This
+        makes it possible to easily apply preprocessing. For example, to count the
+        number of valid time series use ``da.notnull().any("time").coverage(...)``.
+
         Parameters
         ----------
         *dims: str
@@ -63,12 +67,17 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
         """
         if not dims:
             raise ValueError("Specify at least one dimension.")
+        da = self._da
 
-        if self._da.name is None:
+        if da.name is None:
             name = "coverage"
         else:
-            name = self._da.name
-        return self._da.pr.count(reduce_to_dim=dims).transpose(*dims).pr.to_df(name)
+            name = da.name
+
+        if da.dtype != bool:
+            da = da.notnull()
+
+        return da.pr.sum(reduce_to_dim=dims).transpose(*dims).pr.to_df(name)
 
 
 class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
@@ -84,7 +93,7 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
         Parameters
         ----------
         name: str, optional
-          Name to give to the output.
+          Name to give to the output columns.
 
         Returns
         -------
@@ -92,7 +101,7 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
         """
         df = self._ds.reset_coords(drop=True).to_dataframe()
         if name is not None:
-            df.name = name
+            df.columns.name = name
         return df
 
     @alias_dims(["dims"], additional_allowed_values=["entity"])
@@ -105,6 +114,11 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
 
         Only those data variables in the dataset are considered which are defined on
         all given dims, i.e. each dim is in ``ds[key].dims``.
+
+        If the dataset only contains boolean arrays, count the number of True values
+        instead. This makes it possible to easily apply preprocessing. For example,
+        to count the number of valid time series use
+        ``ds.notnull().any("time").coverage(...)``.
 
         Parameters
         ----------
@@ -123,13 +137,23 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
         if not dims:
             raise ValueError("Specify at least one dimension.")
 
-        ndims = set(dims) - {"entity"}
-
         ds = self._ds
-        for dim in ndims:
+
+        for dim in dims:
+            if dim == "entity":
+                continue
             ds = ds.drop_vars([x for x in ds if dim not in ds[x].dims])
 
-        da = ds.pr.count(reduce_to_dim=dims)
+        all_boolean = True
+        for var in ds:
+            if ds[var].dtype != bool:
+                all_boolean = False
+                break
+
+        if not all_boolean:  # Convert into boolean coverage array
+            ds = ds.notnull()
+
+        da = ds.pr.sum(reduce_to_dim=dims)
         if "entity" in dims:
             da = da.to_array("entity")
 

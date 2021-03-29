@@ -189,8 +189,19 @@ class TestCount:
 
     def test_entity(self, opulent_ds):
         actual = opulent_ds[["CO2", "SF6"]].pr.count(dim=["entity", "area"])
-
         assert (actual == 8).all()
+
+    def test_array(self, opulent_ds):
+        da = opulent_ds["CO2"]
+        actual = da.pr.count(reduce_to_dim=["area"])
+        expected = da.count(set(da.dims) - {"area (ISO3)"})
+        xr.testing.assert_allclose(actual, expected)
+
+    def test_set(self, opulent_ds):
+        ds = opulent_ds
+        actual = ds.pr.count(reduce_to_dim=["area", "entity"])
+        expected = ds.count(set(ds.dims) - {"area (ISO3)"})
+        xr.testing.assert_allclose(actual, expected)
 
 
 def test_gas_basket_contents_sum(empty_ds):
