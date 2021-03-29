@@ -150,10 +150,29 @@ class TestSum:
         ):
             opulent_ds.pr.sum("entity")
 
-    def test_reduce_to_dim_scalar(self, opulent_ds_or_da):
+    def test_reduce_to_dim_scalar(self, opulent_ds):
         xr.testing.assert_identical(
-            opulent_ds_or_da.pr.sum(reduce_to_dim="area"),
-            opulent_ds_or_da.pr.sum(reduce_to_dim=["area"]),
+            opulent_ds[["CO2", "SF6 (SARGWP100)"]].pr.sum(reduce_to_dim="category"),
+            opulent_ds[["CO2", "SF6 (SARGWP100)"]].pr.sum(reduce_to_dim=["category"]),
+        )
+
+        xr.testing.assert_identical(
+            opulent_ds["CO2"].pr.sum(reduce_to_dim="category"),
+            opulent_ds["CO2"].pr.sum(reduce_to_dim=["category"]),
+        )
+
+    def test_reduce_to_dim(self, opulent_ds: xr.Dataset):
+        xr.testing.assert_identical(
+            opulent_ds.pr.sum(reduce_to_dim=["entity", "area"]),
+            opulent_ds.sum(set(opulent_ds.dims) - {"area (ISO3)"}, keep_attrs=True),
+        )
+
+        shared_ds = opulent_ds[["CO2", "SF6 (SARGWP100)"]]
+        xr.testing.assert_allclose(
+            shared_ds.pr.sum(reduce_to_dim=["area"]),
+            shared_ds.sum(set(shared_ds.dims) - {"area (ISO3)"}, keep_attrs=True)
+            .to_array("entity")
+            .sum("entity", keep_attrs=True),
         )
 
 

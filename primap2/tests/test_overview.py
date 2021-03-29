@@ -102,7 +102,6 @@ def test_array_coverage_error(opulent_ds):
 
 def test_set_coverage(opulent_ds):
     ds = opulent_ds
-
     ds["CO2"].pr.loc[{"product": "milk"}] = np.nan
 
     expected = pd.DataFrame(
@@ -116,12 +115,35 @@ def test_set_coverage(opulent_ds):
     )
     expected.index.name = "product (FAOSTAT)"
     expected.columns.name = "animal (FAOSTAT)"
+    expected.name = "coverage"
 
     pd.testing.assert_frame_equal(expected, ds.pr.coverage("product", "animal"))
     pd.testing.assert_frame_equal(expected.T, ds.pr.coverage("animal", "product"))
 
 
 def test_set_coverage_entity(opulent_ds):
+    ds = opulent_ds
+    ds["CO2"].pr.loc[{"product": "milk"}] = np.nan
+
+    expected = pd.DataFrame(
+        index=list(ds.keys()),
+        columns=ds.pr["area"].values,
+        data=np.zeros((len(ds), len(ds.pr["area"].values)), dtype=int),
+    )
+    expected[:] = np.product(ds["CO2"].shape)
+    expected.loc["population", :] = np.product(ds["population"].shape)
+    expected.loc["CO2", :] = np.product(ds["CO2"].shape) - np.product(
+        ds["CO2"].pr.loc[{"product": "milk"}].shape
+    )
+    expected = expected // len(ds.pr["area"].values)
+    expected.name = "coverage"
+    expected.index.name = "entity"
+    expected.columns.name = "area (ISO3)"
+
+    pd.testing.assert_frame_equal(expected, ds.pr.coverage("entity", "area"))
+
+
+def test_set_coverage_entity_other_dim_not_existing(opulent_ds):
     ds = opulent_ds
 
     ds["CO2"].pr.loc[{"product": "milk"}] = np.nan

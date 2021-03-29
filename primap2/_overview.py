@@ -32,6 +32,7 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
         if name is None:
             name = self._da.name
         pandas_obj = self._da.reset_coords(drop=True).to_dataframe(name)[name]
+        pandas_obj.name = name
         if isinstance(pandas_obj, pd.DataFrame) or isinstance(
             pandas_obj.index, pd.MultiIndex
         ):
@@ -71,6 +72,29 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
 
 
 class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
+    def to_df(
+        self,
+        name: typing.Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Convert this dataset into a pandas.DataFrame.
+
+        It returns mostly the same as xarray's to_dataframe() method, but discards
+        additional coordinates instead of including them in the output.
+
+        Parameters
+        ----------
+        name: str, optional
+          Name to give to the output.
+
+        Returns
+        -------
+        df: pandas.DataFrame
+        """
+        df = self._ds.reset_coords(drop=True).to_dataframe()
+        if name is not None:
+            df.name = name
+        return df
+
     @alias_dims(["dims"], additional_allowed_values=["entity"])
     def coverage(self, *dims: typing.Hashable) -> typing.Union[pd.DataFrame, pd.Series]:
         """Summarize how many data points exist for a dimension combination.
@@ -100,16 +124,13 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
             raise ValueError("Specify at least one dimension.")
 
         ndims = set(dims) - {"entity"}
-        ds = self._ds
 
+        ds = self._ds
         for dim in ndims:
             ds = ds.drop_vars([x for x in ds if dim not in ds[x].dims])
 
-        da_entity = ds.pr.count(reduce_to_dim=ndims).to_array("entity")
-
-        if "entity" not in dims:
-            da = da_entity.sum("entity")
-        else:
-            da = da_entity
+        da = ds.pr.count(reduce_to_dim=dims)
+        if "entity" in dims:
+            da = da.to_array("entity")
 
         return da.transpose(*dims).pr.to_df("coverage")

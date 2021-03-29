@@ -259,7 +259,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             if reduce_to_dim is not None:
                 if isinstance(reduce_to_dim, str):
                     reduce_to_dim = [reduce_to_dim]
-                dim = set(self._ds.dims) - set(reduce_to_dim)
+                dims = set(self._ds.dims)
+                dims.add("entity")
+                dim = dims - set(reduce_to_dim)
 
         if isinstance(dim, str):
             dim = [dim]
@@ -286,7 +288,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         1. Dimension aliases can be used instead of full dimension names everywhere.
         2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
            the dimensions that the result should have via ``reduce_to_dim``. Then,
-           `count` will be applied along all other dimensions.
+           `count` will be applied along all other dimensions (including ``entity``).
         3. If you specify ``entity`` in "dim", the Dataset is converted to a DataArray
            and counted along the data variables.
 
@@ -300,7 +302,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         reduce_to_dim: str or list of str, optional
           Dimension(s) of the result. Only one of ``dim`` and ``reduce_to_dim``
           arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
-          equivalent to giving ``dim=set(ds.dims) - {"dim_1"}``, but more legible.
+          equivalent to giving ``dim=set(da.dims) + {"entity"} - {"dim_1"}``, but more
+          legible.
         keep_attrs: bool, optional
           Keep the attr metadata (default True).
         **kwargs: dict
@@ -313,19 +316,17 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         dim = self._reduce_dim(dim, reduce_to_dim)
 
         if dim is not None and "entity" in dim:
-            if not self._all_vars_all_dimensions():
+            ndim = set(dim) - {"entity"}
+
+            ds = self._ds.count(dim=ndim, keep_attrs=keep_attrs, **kwargs)
+
+            if not ds.pr._all_vars_all_dimensions():
                 raise NotImplementedError(
-                    "Counting along the entity dimension is only supported for "
-                    "datasets where all entities share the same dims."
+                    "Counting along the entity dimension is only supported "
+                    "when all entities share the dimensions remaining after counting."
                 )
 
-            # use notnull + sum to avoid unit conversions when converting
-            # to array
-            return (
-                self._ds.notnull(keep_attrs=True)
-                .to_array("entity")
-                .sum(dim=dim, keep_attrs=keep_attrs, **kwargs)
-            )
+            return ds.to_array("entity").sum(dim="entity", keep_attrs=True)
         else:
             return self._ds.count(dim=dim, keep_attrs=keep_attrs, **kwargs)
 
@@ -347,7 +348,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         1. Dimension aliases can be used instead of full dimension names everywhere.
         2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
            the dimensions that the result should have via ``reduce_to_dim``. Then,
-           `sum` will be applied along all other dimensions.
+           `sum` will be applied along all other dimensions (including ``entity``).
         3. You can specify ``skipna_evaluation_dims`` to skip NA values only if all
            values along the given dimension(s) are NA. Example: If you have a data array
            with the dimensions ``time`` and ``position``, summing over ``time`` with the
@@ -367,7 +368,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         reduce_to_dim: str or list of str, optional
           Dimension(s) of the result. Only one of ``dim`` and ``reduce_to_dim``
           arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
-          equivalent to giving ``dim=set(da.dims) - {"dim_1"}``, but more legible.
+          equivalent to giving ``dim=set(da.dims) + {"entity"} - {"dim_1"}``, but more
+          legible.
         skipna: bool, optional
           If True, skip missing values (as marked by NaN). By default, only
           skips missing values for float dtypes; other dtypes either do not
@@ -403,13 +405,17 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             ds = self._ds
 
         if dim is not None and "entity" in dim:
-            if not self._all_vars_all_dimensions():
+            ndim = set(dim) - {"entity"}
+
+            ds = ds.sum(dim=ndim, skipna=skipna, keep_attrs=keep_attrs, **kwargs)
+
+            if not ds.pr._all_vars_all_dimensions():
                 raise NotImplementedError(
-                    "Summing along the entity dimension is only supported for datasets "
-                    "where all entities share the same dims."
+                    "Summing along the entity dimension is only supported "
+                    "when all entities share the dimensions remaining after summing."
                 )
             return ds.to_array("entity").sum(
-                dim=dim, skipna=skipna, keep_attrs=keep_attrs, **kwargs
+                dim="entity", skipna=skipna, keep_attrs=keep_attrs, **kwargs
             )
         else:
             return ds.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, **kwargs)
