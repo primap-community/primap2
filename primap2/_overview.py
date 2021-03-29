@@ -32,9 +32,11 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
         if name is None:
             name = self._da.name
         pandas_obj = self._da.reset_coords(drop=True).to_dataframe(name)[name]
-        try:
+        if isinstance(pandas_obj, pd.DataFrame) or isinstance(
+            pandas_obj.index, pd.MultiIndex
+        ):
             return pandas_obj.unstack()
-        except ValueError:  # 1D objects can't be unstacked, return them as-is
+        else:  # Series without MultiIndex can't be unstacked, return them as-is
             return pandas_obj
 
     @alias_dims(["dims"])
