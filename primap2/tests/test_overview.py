@@ -16,14 +16,14 @@ def test_array_coverage(empty_ds):
     da.pr.loc[{"time": "2002", "area": "COL"}] = 13.0 * ureg("Gg CO2 / year")
 
     expected = pd.DataFrame(
-        index=da["time"].values,
-        columns=da["area (ISO3)"].values,
-        data=np.zeros((len(da["time"]), len(da["area (ISO3)"])), dtype=int),
+        index=da["area (ISO3)"].values,
+        columns=da["time"].values,
+        data=np.zeros((len(da["area (ISO3)"]), len(da["time"])), dtype=int),
     )
-    expected.loc["2001", "COL"] = 1
-    expected.loc["2002", "COL"] = 1
-    expected.index.name = "time"
-    expected.columns.name = "area (ISO3)"
+    expected.loc["COL", "2001"] = 1
+    expected.loc["COL", "2002"] = 1
+    expected.index.name = "area (ISO3)"
+    expected.columns.name = "time"
 
     pd.testing.assert_frame_equal(expected, da.pr.coverage("area", "time"))
     pd.testing.assert_frame_equal(expected.T, da.pr.coverage("time", "area (ISO3)"))
@@ -35,14 +35,14 @@ def test_array_coverage_multidim(opulent_ds):
     da.pr.loc[{"product": "milk"}] = np.nan
 
     expected = pd.DataFrame(
-        index=da.pr["product"].values,
-        columns=da.pr["animal"].values,
-        data=np.zeros((len(da.pr["product"]), len(da.pr["animal"])), dtype=int),
+        index=da.pr["animal"].values,
+        columns=da.pr["product"].values,
+        data=np.zeros((len(da.pr["animal"]), len(da.pr["product"])), dtype=int),
     )
     expected[:] = np.product(da.shape) // np.product(expected.shape)
-    expected.loc["milk", :] = 0
-    expected.index.name = "product (FAOSTAT)"
-    expected.columns.name = "animal (FAOSTAT)"
+    expected.loc[:, "milk"] = 0
+    expected.index.name = "animal (FAOSTAT)"
+    expected.columns.name = "product (FAOSTAT)"
 
     pd.testing.assert_frame_equal(expected, da.pr.coverage("animal", "product"))
     pd.testing.assert_frame_equal(expected.T, da.pr.coverage("product", "animal"))
@@ -72,8 +72,8 @@ def test_set_coverage(opulent_ds):
     expected.index.name = "product (FAOSTAT)"
     expected.columns.name = "animal (FAOSTAT)"
 
-    pd.testing.assert_frame_equal(expected, ds.pr.coverage("animal", "product"))
-    pd.testing.assert_frame_equal(expected.T, ds.pr.coverage("product", "animal"))
+    pd.testing.assert_frame_equal(expected, ds.pr.coverage("product", "animal"))
+    pd.testing.assert_frame_equal(expected.T, ds.pr.coverage("animal", "product"))
 
 
 def test_set_coverage_entity(opulent_ds):
@@ -93,8 +93,8 @@ def test_set_coverage_entity(opulent_ds):
     expected.index.name = "product (FAOSTAT)"
     expected.columns.name = "entity"
 
-    pd.testing.assert_frame_equal(expected, ds.pr.coverage("entity", "product"))
-    pd.testing.assert_frame_equal(expected.T, ds.pr.coverage("product", "entity"))
+    pd.testing.assert_frame_equal(expected, ds.pr.coverage("product", "entity"))
+    pd.testing.assert_frame_equal(expected.T, ds.pr.coverage("entity", "product"))
 
 
 def test_set_coverage_error(opulent_ds):

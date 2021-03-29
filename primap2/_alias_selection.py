@@ -100,7 +100,18 @@ def alias_dims(
             # translate args
             args_translated = []
             for i, arg in enumerate(args):
-                if func_args_list[i].name in args_to_alias:
+                try:
+                    translate_arg = func_args_list[i].name in args_to_alias
+                except IndexError:  # more arguments given than function has
+                    # translate if function has an *args-style parameter which should
+                    # be translated
+                    translate_arg = (
+                        len(func_args_list) > 0
+                        and func_args_list[-1].kind == inspect.Parameter.VAR_POSITIONAL
+                        and func_args_list[-1].name in args_to_alias
+                    )
+
+                if translate_arg:
                     args_translated.append(alias(arg, translations, dims))
                 else:
                     args_translated.append(arg)

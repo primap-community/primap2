@@ -217,6 +217,12 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         dim = [x for x in dim if x in da.dims]
         return da.pr.fill_all_na(dim=dim, value=value)
 
+    def _all_vars_all_dimensions(self):
+        return (
+            np.array([len(var.dims) for var in self._ds.values()])
+            == [len(self._ds.dims)]
+        ).all()
+
     @alias_dims(["dim"])
     def fill_all_na(self, dim: DimOrDimsT, value=0) -> xr.Dataset:
         """Fill NA values only where all values along the specified dimension(s) are NA.
@@ -384,6 +390,11 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             ds = self._ds
 
         if dim is not None and "entity" in dim:
+            if not self._all_vars_all_dimensions():
+                raise NotImplementedError(
+                    "Summing along the entity dimension is only supported for datasets "
+                    "where all entities share the same dims."
+                )
             return ds.to_array("entity").sum(
                 dim=dim, skipna=skipna, keep_attrs=keep_attrs, **kwargs
             )

@@ -10,7 +10,9 @@ from ._alias_selection import alias_dims
 
 
 class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
-    def to_df(self, name: typing.Optional[str] = None) -> pd.DataFrame:
+    def to_df(
+        self, name: typing.Optional[str] = None
+    ) -> typing.Union[pd.DataFrame, pd.Series]:
         """Convert this array into an unstacked (i.e. non-tidy) pandas.DataFrame.
 
         Converting to an unstacked pandas.DataFrame is most useful for two-dimensional
@@ -29,77 +31,83 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
         """
         if name is None:
             name = self._da.name
-        return self._da.reset_coords(drop=True).to_dataframe(name)[name].unstack()
+        pandas_obj = self._da.reset_coords(drop=True).to_dataframe(name)[name]
+        try:
+            return pandas_obj.unstack()
+        except ValueError:  # 1D objects can't be unstacked, return them as-is
+            return pandas_obj
 
-    @alias_dims(["dim_x", "dim_y"])
-    def coverage(self, dim_x: typing.Hashable, dim_y: typing.Hashable) -> pd.DataFrame:
-        """Summarize how many data points exist for a coordinate combination.
+    @alias_dims(["dims"])
+    def coverage(self, *dims: typing.Hashable) -> typing.Union[pd.DataFrame, pd.Series]:
+        """Summarize how many data points exist for a dimension combination.
 
-        For each combinations of values in the given coordinates, count the number of
-        non-NaN data points in the array. The result is returned as a two-dimensional
-        pandas DataFrame.
+        For each combinations of values in the given dimensions, count the number of
+        non-NaN data points in the array. The result is returned as an
+        N-dimensional pandas DataFrame.
 
         Parameters
         ----------
-        dim_x: str
-            Name or alias of the first dimension, which will be the x-coordinate, i.e.
-            the columns of the result.
-        dim_y: str
-            Name or alias of the second dimension, which will be the y-coordinate, i.e.
-            the rows of the result.
+        *dims: str
+            Names or aliases of the dimensions to be used for summarizing.
+            You can specify any number of dimensions, but the readability
+            of the result is best for one or two dimensions.
 
         Returns
         -------
-        coverage: pandas.DataFrame
-            Two-dimensional dataframe summarizing the number of non-NaN data points
-            for each combination of value from the x and y coordinate.
+        coverage: pandas.DataFrame or pandas.Series
+            N-dimensional dataframe (series for N=1) summarizing the number of non-NaN
+            data points for each combination of values in the given dimensions.
         """
+        if not dims:
+            raise ValueError("Specify at least one dimension.")
+
         if self._da.name is None:
             name = "coverage"
         else:
             name = self._da.name
-        return (
-            self._da.pr.count(reduce_to_dim={dim_x, dim_y})
-            .transpose(dim_y, dim_x)
-            .pr.to_df(name)
-        )
+        return self._da.pr.count(reduce_to_dim=dims).transpose(*dims).pr.to_df(name)
 
 
 class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
-    @alias_dims(["dim_x", "dim_y"], additional_allowed_values=["entity"])
-    def coverage(self, dim_x: typing.Hashable, dim_y: typing.Hashable) -> pd.DataFrame:
-        """Summarize how many data points exist for a coordinate combination.
+    @alias_dims(["dims"], additional_allowed_values=["entity"])
+    def coverage(self, *dims: typing.Hashable) -> typing.Union[pd.DataFrame, pd.Series]:
+        """Summarize how many data points exist for a dimension combination.
 
-        For each combinations of values in the given coordinates, count the number of
-        non-NaN data points in the dataset. The result is returned as a
-        two-dimensional pandas DataFrame.
+        For each combinations of values in the given dimensions, count the number of
+        non-NaN data points in the dataset. The result is returned as an
+        N-dimensional pandas DataFrame.
 
         Only those data variables in the dataset are considered which are defined on
-        both given coordinates, i.e. coord_x and coord_y are in ``ds[key].dims``.
+        all given dims, i.e. each dim is in ``ds[key].dims``.
 
         Parameters
         ----------
-        dim_x: str
-            Name or alias of the first dimension, which will be the x-coordinate, i.e.
-            the columns of the result. To use the name of the data variables (usually,
-            the gases) as a coordinate, use "entity".
-        dim_y: str
-            Name or alias of the second dimension, which will be the y-coordinate, i.e.
-            the rows of the result. To use the name of the data variables (usually, the
-            gases) as a coordinate, use "entity".
+        *dims: str
+            Names or aliases of the dimensions to be used for summarizing.
+            To use the name of the data variables (usually, the gases) as a coordinate,
+            use "entity". You can specify any number of dimensions, but the readability
+            of the result is best for one or two dimensions.
 
         Returns
         -------
-        coverage: pandas.DataFrame
-            Two-dimensional dataframe summarizing the number of non-NaN data points
-            for each combination of values from the x and y coordinate.
+        coverage: pandas.DataFrame or pandas.Series
+            N-dimensional dataframe (series for N=1) summarizing the number of non-NaN
+            data points for each combination of values in the given dimensions.
         """
-        # TODO: define what actually should happen for non-homogenuos data variable
-        # dimensions. Maybe it doesn't make sense at all?
-        return (
-            self._ds.notnull()
-            .to_array("entity")
-            .pr.sum(reduce_to_dim={dim_x, dim_y})
-            .transpose(dim_y, dim_x)
-            .pr.to_df("coverage")
-        )
+        if not dims:
+            raise ValueError("Specify at least one dimension.")
+
+        ndims = set(dims) - {"entity"}
+        ds = self._ds
+
+        for dim in ndims:
+            ds = ds.drop_vars([x for x in ds if dim not in ds[x].dims])
+
+        da_entity = ds.pr.count(reduce_to_dim=ndims).to_array("entity")
+
+        if "entity" not in dims:
+            da = da_entity.sum("entity")
+        else:
+            da = da_entity
+
+        return da.transpose(*dims).pr.to_df("coverage")
