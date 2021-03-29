@@ -165,6 +165,10 @@ class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
                 if " (" in dim:
                     key: str = dim.split("(")[0][:-1]
                     ret[key] = dim
+        if "scenario" in ret:
+            ret["scen"] = ret["scenario"]
+        if "category" in ret:
+            ret["cat"] = ret["category"]
         return ret
 
     @property
@@ -210,6 +214,18 @@ class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
             A mapping of all dimension aliases to full dimension names.
         """
         ret: typing.Dict[typing.Hashable, str] = {}
+        # First guess aliases from the names themselves. The meta data in attrs
+        # is later used to overwrite the guessed values where they are available
+        for dim in self._ds.dims:
+            if isinstance(dim, str):
+                if " (" in dim:
+                    key: str = dim.split("(")[0][:-1]
+                    ret[key] = dim
+        if "scenario" in ret:
+            ret["scen"] = ret["scenario"]
+        if "category" in ret:
+            ret["cat"] = ret["category"]
+
         for key, abbrev in [
             ("category", "cat"),
             ("scenario", "scen"),
@@ -217,6 +233,7 @@ class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
         ]:
             if abbrev in self._ds.attrs:
                 ret[key] = self._ds.attrs[abbrev]
+                ret[abbrev] = self._ds.attrs[abbrev]
         if "sec_cats" in self._ds.attrs:
             for full_name in self._ds.attrs["sec_cats"]:
                 key = full_name.split("(")[0][:-1]
