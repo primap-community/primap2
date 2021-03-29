@@ -63,12 +63,12 @@ def alias_dims(
     Use like this:
     @alias_dims(["dim"])
     def sum(self, dim):
-        self._da.sum(dim)
+        return self._da.sum(dim)
 
     To copy the documentation etc. from an xarray function, use the wraps parameter:
     @alias_dims(["dim"], wraps=xr.DataArray.sum)
     def sum(self, *args, **kwargs):
-        self._da.sum(*args, **kwargs)
+        return self._da.sum(*args, **kwargs)
     """
 
     def decorator(func: FunctionT) -> FunctionT:

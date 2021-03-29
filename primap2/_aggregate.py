@@ -64,7 +64,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
     @alias_dims(["dim"], wraps=xr.DataArray.any)
     def any(self, *args, **kwargs):
-        self._da.any(*args, **kwargs)
+        return self._da.any(*args, **kwargs)
 
     @alias_dims(["dim", "reduce_to_dim"])
     def count(
@@ -266,6 +266,10 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         return dim
 
+    @alias_dims(["dim"], wraps=xr.Dataset.any)
+    def any(self, *args, **kwargs):
+        return self._ds.any(*args, **kwargs)
+
     @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
     def count(
         self,
@@ -284,8 +288,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
            the dimensions that the result should have via ``reduce_to_dim``. Then,
            `count` will be applied along all other dimensions.
         3. If you specify ``entity`` in "dim", the Dataset is converted to a DataArray
-           and counted along the data variables (which will only work if the units of
-           the DataArrays are compatible).
+           and counted along the data variables.
 
         Parameters
         ----------
@@ -310,13 +313,23 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         dim = self._reduce_dim(dim, reduce_to_dim)
 
         if dim is not None and "entity" in dim:
-            return self._ds.to_array("entity").count(
-                dim=dim, keep_attrs=keep_attrs, **kwargs
+            if not self._all_vars_all_dimensions():
+                raise NotImplementedError(
+                    "Counting along the entity dimension is only supported for "
+                    "datasets where all entities share the same dims."
+                )
+
+            # use notnull + sum to avoid unit conversions when converting
+            # to array
+            return (
+                self._ds.notnull(keep_attrs=True)
+                .to_array("entity")
+                .sum(dim=dim, keep_attrs=keep_attrs, **kwargs)
             )
         else:
             return self._ds.count(dim=dim, keep_attrs=keep_attrs, **kwargs)
 
-    @alias_dims(["dim"], additional_allowed_values=["entity"])
+    @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
     def sum(
         self,
         dim: Optional[DimOrDimsT] = None,

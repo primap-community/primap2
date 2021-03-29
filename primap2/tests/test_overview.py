@@ -4,13 +4,48 @@
 import numpy as np
 import pandas as pd
 import pytest
+import xarray as xr
 
 from primap2 import ureg
+
+
+def test_to_df():
+    data = np.array([[1, 2], [3, 4]], dtype=np.int64)
+    a = ["a1", "a2"]
+    b = ["b1", "b2"]
+    da = xr.DataArray(data, coords=[("a", a), ("b", b)], name="name")
+    actual = da.pr.to_df()
+
+    expected = pd.DataFrame(data, index=a, columns=b)
+    expected.index.name = "a"
+    expected.columns.name = "b"
+
+    pd.testing.assert_frame_equal(actual, expected)
+
+
+def test_to_df_1d():
+    data = np.array([1, 2], dtype=np.int64)
+    a = ["a1", "a2"]
+    da = xr.DataArray(data, coords=[("a", a)], name="name")
+    actual = da.pr.to_df()
+
+    expected = pd.Series(data, index=a, name="name")
+    expected.index.name = "a"
+
+    pd.testing.assert_series_equal(actual, expected)
+
+
+def test_array_empty(empty_ds):
+    with pytest.raises(ValueError, match="Specify at least one dimension"):
+        empty_ds.pr.coverage()
+    with pytest.raises(ValueError, match="Specify at least one dimension"):
+        empty_ds["CO2"].pr.coverage()
 
 
 def test_array_coverage(empty_ds):
     da = empty_ds["CO2"]
     da[:] = np.nan
+    da.name = None
 
     da.pr.loc[{"time": "2001", "area": "COL"}] = 12.0 * ureg("Gg CO2 / year")
     da.pr.loc[{"time": "2002", "area": "COL"}] = 13.0 * ureg("Gg CO2 / year")
@@ -18,7 +53,7 @@ def test_array_coverage(empty_ds):
     expected = pd.DataFrame(
         index=da["area (ISO3)"].values,
         columns=da["time"].values,
-        data=np.zeros((len(da["area (ISO3)"]), len(da["time"])), dtype=int),
+        data=np.zeros((len(da["area (ISO3)"]), len(da["time"])), dtype=np.int64),
     )
     expected.loc["COL", "2001"] = 1
     expected.loc["COL", "2002"] = 1
@@ -37,7 +72,7 @@ def test_array_coverage_multidim(opulent_ds):
     expected = pd.DataFrame(
         index=da.pr["animal"].values,
         columns=da.pr["product"].values,
-        data=np.zeros((len(da.pr["animal"]), len(da.pr["product"])), dtype=int),
+        data=np.zeros((len(da.pr["animal"]), len(da.pr["product"])), dtype=np.int64),
     )
     expected[:] = np.product(da.shape) // np.product(expected.shape)
     expected.loc[:, "milk"] = 0
