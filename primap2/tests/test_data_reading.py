@@ -6,149 +6,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import primap2 as pm2
+import primap2
 import primap2.pm2io as pm2io
 
 from .utils import assert_ds_aligned_equal
 
 DATA_PATH = Path(__file__).parent / "data"
-
-
-@pytest.mark.parametrize(
-    "code_in, expected_code_out",
-    [
-        ("IPC1A", "1.A"),
-        ("CATM0EL", "M.0.EL"),
-        ("IPC1A1B23", "1.A.1.b.ii.3"),
-        ("IPCM1B1C", "M.1.B.1.c"),
-    ],
-)
-def test_convert_ipcc_code_primap_to_primap2(code_in, expected_code_out):
-    assert (
-        pm2io._data_reading.convert_ipcc_code_primap_to_primap2(code_in)
-        == expected_code_out
-    )
-
-
-def test_convert_ipcc_code_primap_to_primap2_too_short(caplog):
-    assert pm2io._data_reading.convert_ipcc_code_primap_to_primap2("IPC") == "error_IPC"
-    assert "WARNING" in caplog.text
-    assert "Too short to be a PRIMAP IPCC code." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_wrong_format(caplog):
-    assert (
-        pm2io._data_reading.convert_ipcc_code_primap_to_primap2("IPD1A")
-        == "error_IPD1A"
-    )
-    assert "WARNING" in caplog.text
-    assert "Prefix is missing, must be one of 'IPC' or 'CAT'." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_first_lvl(caplog):
-    assert (
-        pm2io._data_reading.convert_ipcc_code_primap_to_primap2("IPCA1")
-        == "error_IPCA1"
-    )
-    assert "WARNING" in caplog.text
-    assert "No digit found on first level." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_second_lvl(caplog):
-    assert (
-        pm2io._data_reading.convert_ipcc_code_primap_to_primap2("IPC123")
-        == "error_IPC123"
-    )
-    assert "WARNING" in caplog.text
-    assert "No letter found on second level." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_third_lvl(caplog):
-    assert (
-        pm2io._data_reading.convert_ipcc_code_primap_to_primap2("IPC1AC")
-        == "error_IPC1AC"
-    )
-    assert "WARNING" in caplog.text
-    assert "No number found on third level." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_fourth_lvl(caplog):
-    assert (
-        pm2io._data_reading.convert_ipcc_code_primap_to_primap2("IPC1A2_")
-        == "error_IPC1A2_"
-    )
-    assert "WARNING" in caplog.text
-    assert "No letter found on fourth level." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_fifth_lvl(caplog):
-    assert (
-        pm2io._data_reading.convert_ipcc_code_primap_to_primap2("IPC1A2BB")
-        == "error_IPC1A2BB"
-    )
-    assert "WARNING" in caplog.text
-    assert "No digit found on fifth level." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_sixth_lvl(caplog):
-    assert (
-        pm2io._data_reading.convert_ipcc_code_primap_to_primap2("IPC1A2B3X")
-        == "error_IPC1A2B3X"
-    )
-    assert "WARNING" in caplog.text
-    assert "No number found on sixth level." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_after_sixth_lvl(caplog):
-    assert (
-        pm2io._data_reading.convert_ipcc_code_primap_to_primap2("IPC1A2B33A")
-        == "error_IPC1A2B33A"
-    )
-    assert "WARNING" in caplog.text
-    assert "Chars left after sixth level." in caplog.text
-
-
-@pytest.mark.parametrize(
-    "unit_in, entity_in, expected_unit_out",
-    [
-        ("GgCO2eq", "KYOTOGHG", "Gg CO2 / yr"),
-        ("MtC", "CO", "Mt C / yr"),
-        ("GgN2ON", "N2O", "Gg N / yr"),
-        ("t", "CH4", "t CH4 / yr"),
-    ],
-)
-def test_convert_unit_primap_to_primap2(unit_in, entity_in, expected_unit_out):
-    assert (
-        pm2io._data_reading.convert_unit_primap_to_primap2(unit_in, entity_in)
-        == expected_unit_out
-    )
-
-
-def test_convert_unit_primap_to_primap2_no_prefix(caplog):
-    assert (
-        pm2io._data_reading.convert_unit_primap_to_primap2("CO2eq", "FGASES")
-        == "error_CO2eq_FGASES"
-    )
-    assert "WARNING" in caplog.text
-    assert "No unit prefix matched for unit." in caplog.text
-
-
-def test_convert_unit_primap_to_primap2_unit_empty(caplog):
-    assert (
-        pm2io._data_reading.convert_unit_primap_to_primap2("", "FGASES")
-        == "error__FGASES"
-    )
-    assert "WARNING" in caplog.text
-    assert "Input unit is empty. Nothing converted." in caplog.text
-
-
-def test_convert_unit_primap_to_primap2_entity_empty(caplog):
-    assert (
-        pm2io._data_reading.convert_unit_primap_to_primap2("GgCO2eq", "")
-        == "error_GgCO2eq_"
-    )
-    assert "WARNING" in caplog.text
-    assert "Input entity is empty. Nothing converted." in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -181,18 +44,6 @@ def test_metadata_for_variable(unit, entity, expected_attrs):
     )
 
 
-@pytest.mark.parametrize(
-    "entity_pm1, entity_pm2",
-    [
-        ("CO2", "CO2"),
-        ("KYOTOGHG", "KYOTOGHG (SARGWP100)"),
-        ("KYOTOGHGAR4", "KYOTOGHG (AR4GWP100)"),
-    ],
-)
-def test_convert_entity_gwp_primap(entity_pm1, entity_pm2):
-    assert pm2io._data_reading.convert_entity_gwp_primap(entity_pm1) == entity_pm2
-
-
 def test_read_wide_csv_file(tmp_path):
     file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
     file_expected = DATA_PATH / "test_read_wide_csv_file_output.csv"
@@ -217,7 +68,11 @@ def test_read_wide_csv_file(tmp_path):
         "sec_cats__Class": "class",
         "scenario": "general",
     }
-    coords_value_mapping = {"category": "PRIMAP1", "entity": "PRIMAP1"}
+    coords_value_mapping = {
+        "category": "PRIMAP1",
+        "entity": "PRIMAP1",
+        "unit": "PRIMAP1",
+    }
     filter_keep = {
         "f1": {"category": ["IPC0", "IPC2"]},
         "f2": {"classification": "TOTAL"},
@@ -240,13 +95,38 @@ def test_read_wide_csv_file(tmp_path):
     df_result = pd.read_csv(tmp_path / "temp.csv", index_col=0)
     pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
 
-    assert attrs_result == {
-        "references": "Just ask around.",
-        "sec_cats": ["Class (class)", "Type (type)"],
-        "scen": "scenario (general)",
-        "area": "area (ISO3)",
-        "cat": "category (IPCC2006)",
+    attrs_expected = {
+        "attrs": {
+            "references": "Just ask around.",
+            "sec_cats": ["Class (class)", "Type (type)"],
+            "scen": "scenario (general)",
+            "area": "area (ISO3)",
+            "cat": "category (IPCC2006)",
+        },
+        "time_format": "%Y",
+        "dimensions": {
+            ent: [
+                "entity",
+                "source",
+                "area (ISO3)",
+                "Type (type)",
+                "unit",
+                "scenario (general)",
+                "Class (class)",
+                "category (IPCC2006)",
+            ]
+            for ent in np.unique(df_expected["entity"])
+        },
     }
+
+    assert attrs_result.keys() == attrs_expected.keys()
+    assert attrs_result["attrs"] == attrs_expected["attrs"]
+    assert attrs_result["time_format"] == attrs_expected["time_format"]
+    assert attrs_result["dimensions"].keys() == attrs_expected["dimensions"].keys()
+    for entity in attrs_result["dimensions"]:
+        assert set(attrs_result["dimensions"][entity]) == set(
+            attrs_expected["dimensions"][entity]
+        )
 
 
 def test_read_wide_csv_file_coords_value_mapping(tmp_path):
@@ -676,7 +556,7 @@ def test_read_wide_csv_file_no_function_mapping_col():
 def test_from_interchange_format():
     file_input = DATA_PATH / "test_read_wide_csv_file_output.csv"
     file_expected = DATA_PATH / "test_from_interchange_format_output.nc"
-    ds_expected = pm2.open_dataset(file_expected)
+    ds_expected = primap2.open_dataset(file_expected)
     attrs = {
         "area": "area (ISO3)",
         "cat": "category (IPCC2006)",
@@ -710,17 +590,6 @@ def test_from_interchange_format_too_large(caplog):
     )
 
 
-def test_convert_dataframe_units_primap_to_primap2():
-    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
-    file_expected = DATA_PATH / "test_convert_dataframe_units_primap_to_primap2.csv"
-    df_expected = pd.read_csv(file_expected, index_col=0)
-    df = pd.read_csv(file_input)
-    df_converted = pm2io._data_reading.convert_dataframe_units_primap_to_primap2(
-        df, unit_col="unit", entity_col="gas"
-    )
-    pd.testing.assert_frame_equal(df_converted, df_expected)
-
-
 def test_read_write_interchange_format_roundtrip(tmp_path):
     file_input = DATA_PATH / "test_read_wide_csv_file_output.csv"
     file_temp = tmp_path / "test_interchange_format"
@@ -731,8 +600,8 @@ def test_read_write_interchange_format_roundtrip(tmp_path):
         "scen": "scenario (general)",
         "sec_cats": ["Class (class)", "Type (type)"],
     }
-    pm2.pm2io.write_interchange_format(file_temp, data, attrs)
-    read_data = pm2.pm2io.read_interchange_format(file_temp)
+    pm2io.write_interchange_format(file_temp, data, attrs)
+    read_data = pm2io.read_interchange_format(file_temp)
     read_attrs = read_data.attrs
     assert read_attrs == attrs
     pd.testing.assert_frame_equal(data, read_data)

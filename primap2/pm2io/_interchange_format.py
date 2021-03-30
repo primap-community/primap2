@@ -263,7 +263,10 @@ def from_interchange_format(
         )
 
     # convert time to dimension and entity to variables.
-    da = dates_to_dimension(data_xr)
+    if "time_format" in attrs:
+        da = dates_to_dimension(data_xr, time_format=attrs["time_format"])
+    else:
+        da = dates_to_dimension(data_xr)
     data_vars = {}
     for entity, dims in attrs["dimensions"].items():
         da_entity = da.loc[{entity_col: entity}]

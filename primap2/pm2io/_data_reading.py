@@ -1,12 +1,14 @@
+import datetime
 import itertools
-import re
 from pathlib import Path
-from typing import IO, Any, Callable, Dict, Optional, Union
+from typing import IO, Any, Callable, Dict, Hashable, Iterable, List, Optional, Union
 
+import numpy as np
 import pandas as pd
 from loguru import logger
 
 from .._units import ureg
+from . import _conversion
 from ._interchange_format import (
     INTERCHANGE_FORMAT_COLUMN_ORDER,
     INTERCHANGE_FORMAT_MANDATORY_COLUMNS,
@@ -14,282 +16,6 @@ from ._interchange_format import (
 )
 
 SEC_CATS_PREFIX = "sec_cats__"
-
-
-def convert_dataframe_units_primap_to_primap2(
-    data_frame: pd.DataFrame, unit_col: str = "unit", entity_col: str = "entity"
-):
-    """
-    This function converts the emissions module style units which usually neither carry
-    information about the substance nor about the time to primap2 units. The function
-    also handles the exception cases where PRIMAP units do contain information about the
-    substance (e.g. GtC).
-
-    The function operates in place.
-
-    Parameters
-    ----------
-
-    data_frame : pandas.Dataframe
-        data_frame with IPCC category codes in in PRIMAP format (IPCC1996 and IPCC2006
-        can be converted)
-    unit_col : str
-        name of the column that contains the unit. Default: "unit"
-    entity_col : str
-        name of the column that contains the entity. Default: "entity"
-
-    Returns
-    -------
-    no return value, data_frame is altered in place
-
-    """
-    # add variable_unit column with replaced units.
-    # special units will be replaced later
-    data_frame["entity_unit"] = (
-        data_frame[unit_col].astype(str) + "<<>>" + data_frame[entity_col].astype(str)
-    )
-
-    # get unique entity_unit combinations
-    unique_entity_unit = data_frame["entity_unit"].unique()
-    for entity_unit in unique_entity_unit:
-        [cur_entity, cur_unit] = re.split("<<>>", entity_unit)
-        data_frame.loc[
-            data_frame["entity_unit"] == entity_unit, "entity_unit"
-        ] = convert_unit_primap_to_primap2(cur_entity, cur_unit)
-
-    data_frame[unit_col] = data_frame["entity_unit"]
-    data_frame.drop(columns=["entity_unit"], inplace=True)
-    return data_frame
-
-
-def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
-    """
-    This function converts the emissions module style units which usually neither carry
-    information about the substance nor about the time to primap2 units. The function
-    also handles the exception cases where PRIMAP units do contain information about the
-    substance (e.g. GtC).
-
-    Parameters
-    ----------
-
-    unit : str
-        unit to convert
-    entity : str
-        entity for which the conversion takes place
-
-    Returns
-    -------
-    :str: converted unit
-
-    """
-
-    # check inputs
-    if entity == "":
-        logger.warning("Input entity is empty. Nothing converted.")
-        return "error_" + unit + "_" + entity
-    if unit == "":
-        logger.warning("Input unit is empty. Nothing converted.")
-        return "error_" + unit + "_" + entity
-
-    # define exceptions
-    exception_units = {
-        "CO2eq": "CO2",  # convert to just CO2
-        "<entity>N": "N",
-        "C": "C",  # don't add variable here
-    }
-
-    # basic units
-    basic_units = ["g", "t"]
-
-    # prefixes
-    si_unit_multipliers = ["", "k", "M", "G", "T", "P", "E", "Z", "Y"]
-
-    # combines basic units with prefixes
-    units_prefixes = list(itertools.product(si_unit_multipliers, basic_units))
-    units_prefixes = [i[0] + i[1] for i in units_prefixes]
-
-    # time information to add
-    time_frame_str = " / yr"
-
-    # build regexp to match the basic units with prefixes in units
-    regexp_str = "("
-    for this_unit in units_prefixes:
-        regexp_str = regexp_str + this_unit + "|"
-    regexp_str = regexp_str[0:-1] + ")"
-
-    # add entity and time frame to unit
-    # special units will be replaced later
-    unit_entity = unit + " " + entity + time_frame_str
-
-    # check if unit has prefix
-    match_pref = re.search(regexp_str, unit_entity)
-    if match_pref is None:
-        logger.warning("No unit prefix matched for unit. " + unit_entity)
-        return "error_" + unit + "_" + entity
-
-    # check if exception unit
-    is_ex_unit = [
-        re.match(regexp_str + ex_unit.replace("<entity>", entity) + "$", unit)
-        is not None
-        for ex_unit in exception_units
-    ]
-
-    if any(is_ex_unit):
-        # we have an exception unit
-        exception_unit = list(exception_units.keys())[is_ex_unit.index(True)]
-        # first get the prefix and basic unit (e.g. Gt)
-        pref_basic = match_pref.group(0)
-        # now build the replacement
-        converted_unit = (
-            pref_basic + " " + exception_units[exception_unit] + time_frame_str
-        )
-    else:
-        # standard unit
-        converted_unit = unit_entity
-
-    return converted_unit
-
-
-def code_invalid_warn(code: str, message: str) -> str:
-    """Log a warning and return an error code."""
-    logger.warning(
-        f"Category code {code!r} does not conform to specifications: {message}"
-    )
-    return "error_" + code
-
-
-def convert_ipcc_code_primap_to_primap2(code: str) -> str:
-    """
-    This function converts IPCC emissions category codes from the PRIMAP-format to
-    the pyCPA format which is closer to the original (but without all the dots)
-
-    Codes that are not part of the official hierarchy (starting with IPCM or CATM)
-    are not converted but returned without the 'CAT' or 'IPC' prefix unless the
-    conversion is explicitly defined in the code_mapping dict.
-    TODO: add other primap terminologies?
-
-    Parameters
-    ----------
-
-    code: str
-        String containing the IPCC code in PRIMAP format (IPCC1996 and IPCC2006 can be
-        converted). The PRIMAP format codes consist of upper case letters and numbers
-        only. These are converted back to the original formatting which includes lower
-        case letters and roman numerals.
-
-    Returns
-    -------
-
-    :str:
-        string containing the category code in primap2 format
-
-    Examples
-    --------
-
-    >>> convert_ipcc_code_primap_to_primap2("IPC1A3B34")
-    '1.A.3.b.iii.4'
-
-    """
-
-    arabic_to_roman = {
-        "1": "i",
-        "2": "ii",
-        "3": "iii",
-        "4": "iv",
-        "5": "v",
-        "6": "vi",
-        "7": "vii",
-        "8": "viii",
-        "9": "ix",
-    }
-
-    code_mapping = {
-        "MAG": "M.AG",
-        "MAGELV": "M.AG.ELV",
-        "MBK": "M.BK",
-        "MBKA": "M.BK.A",
-        "MBKM": "M.BK.M",
-        "MLULUCF": "M.LULUCF",
-        "MMULTIOP": "M.MULTIOP",
-        "M0EL": "M.0.EL",
-    }
-
-    if len(code) < 4:
-        return code_invalid_warn(code, "Too short to be a PRIMAP IPCC code.")
-    if code[0:3] not in ["IPC", "CAT"]:
-        return code_invalid_warn(
-            code, "Prefix is missing, must be one of 'IPC' or 'CAT'."
-        )
-
-    # it's an IPCC code. convert it
-    # check if it's a custom code (beginning with 'M'). Currently these are the same
-    # in pyCPA as in PRIMAP
-    if code[3] == "M":
-        code_remaining = code[3:]
-        if code_remaining in code_mapping.keys():
-            new_code = code_mapping[code_remaining]
-            return new_code
-        else:
-            new_code = "M."
-            code_remaining = code_remaining[1:]
-    else:
-        new_code = ""
-        # only work with the part without 'IPC' or 'CAT'
-        code_remaining = code[3:]
-
-    # actual conversion happening here
-    # first level is a digit
-    if code_remaining[0].isdigit():
-        new_code = new_code + code_remaining[0]
-    else:
-        return code_invalid_warn(code, "No digit found on first level.")
-    # second level is a letter
-    if len(code_remaining) > 1:
-        code_remaining = code_remaining[1:]
-        if code_remaining[0].isalpha():
-            new_code = new_code + "." + code_remaining[0]
-        else:
-            return code_invalid_warn(code, "No letter found on second level.")
-        # third level is a number. might be more than one char, so use regexp
-        if len(code_remaining) > 1:
-            code_remaining = code_remaining[1:]
-            match = re.match("^[0-9]+", code_remaining)
-            if match is not None:
-                new_code = new_code + "." + match.group(0)
-            else:
-                return code_invalid_warn(code, "No number found on third level.")
-            # fourth level is a letter. has to be transformed to lower case
-            if len(code_remaining) > len(match.group(0)):
-                code_remaining = code_remaining[len(match.group(0)) :]
-                if code_remaining[0].isalpha():
-                    new_code = new_code + "." + code_remaining[0].lower()
-                else:
-                    return code_invalid_warn(code, "No letter found on fourth level.")
-                # fifth level is digit in PRIMAP1 format but roman numeral in IPCC
-                # and PRIMAP2
-                if len(code_remaining) > 1:
-                    code_remaining = code_remaining[1:]
-                    if code_remaining[0].isdigit():
-                        new_code = new_code + "." + arabic_to_roman[code_remaining[0]]
-                    else:
-                        return code_invalid_warn(code, "No digit found on fifth level.")
-                    # sixth and last level is a number.
-                    if len(code_remaining) > 1:
-                        code_remaining = code_remaining[1:]
-                        match = re.match("^[0-9]+", code_remaining)
-                        if match is not None:
-                            new_code = new_code + "." + match.group(0)
-                            # check if anything left
-                            if not code_remaining == match.group(0):
-                                return code_invalid_warn(
-                                    code, "Chars left after sixth level."
-                                )
-                        else:
-                            return code_invalid_warn(
-                                code, "No number found on sixth level."
-                            )
-
-    return new_code
 
 
 def read_wide_csv_file_if(
@@ -302,6 +28,7 @@ def read_wide_csv_file_if(
     filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
+    time_format: str = "%Y",
 ) -> pd.DataFrame:
     """
     This function reads a csv file and returns the data as a pandas DataFrame in PRIMAP2
@@ -313,11 +40,11 @@ def read_wide_csv_file_if(
     terminology information will be added by this function. You can not use the short
     dimension names in the attributes (e.g. "cat" instead of "category")
 
-    Currently duplicate datapoints will not be detected.
+    TODO: Currently duplicate data points will not be detected.
 
     TODO: enable filtering through query strings
 
-    TODO: sort the metadata columns before returning the data
+    TODO: enable specification of the
 
     Parameters
     ----------
@@ -338,10 +65,10 @@ def read_wide_csv_file_if(
 
     coords_terminologies : dict, optional
         Dict defining the terminologies used for the different coordinates (e.g. ISO3
-        for area). Only possible coordinates here are: area, category, scenario, and
-        secondary categories. For secondary categories use a ``sec_cats__`` prefix.
-        All entries different from "area", "category", "scenario", and "sec_cats__<name>
-        will raise an error.
+        for area). Only possible coordinates here are: area, category, scenario,
+        entity, and secondary categories. For secondary categories use a ``sec_cats__``#
+        prefix. All entries different from "area", "category", "scenario", "entity", and
+        "sec_cats__<name> will raise a ValueError.
 
     coords_value_mapping : dict, optional
         A dict with primap2 dimension names as keys. Values are dicts with input values
@@ -353,9 +80,6 @@ def read_wide_csv_file_if(
         translating metadata values. The only defined rule at the moment is "PRIMAP1"
         which can be used for the "category", "entity", and "unit" columns to translate
         from PRIMAP1 metadata to PRIMAP2 metadata.
-        Meta mapping is only possible for columns read from the input file not for
-        columns defined via columns_defaults - for defaults, specify the mapped values
-        directly in columns_defaults.
 
     filter_keep : dict, optional
         Dict defining filters of data to keep. Filtering is done before metadata
@@ -375,6 +99,10 @@ def read_wide_csv_file_if(
         and "history". Documentation about the format and meaning of the meta data can
         be found in the
         `data format documentation <https://primap2.readthedocs.io/en/stable/data_format_details.html#dataset-attributes>`_.  # noqa: E501
+
+    time_format : str, optional
+        strftime style format used to parse the time information for the data columns.
+        Default: "%Y", which will match years.
 
     Returns
     -------
@@ -429,30 +157,48 @@ def read_wide_csv_file_if(
     check_mandatory_dimensions(coords_cols, coords_defaults)
     check_overlapping_specifications(coords_cols, coords_defaults)
 
-    data = read_csv(filepath_or_buffer, coords_cols)
+    data, time_columns = read_wide_csv(
+        filepath_or_buffer, coords_cols, time_format=time_format
+    )
 
     filter_data(data, filter_keep, filter_remove)
 
     add_dimensions_from_defaults(data, coords_defaults)
-
-    if coords_value_mapping is not None:
-        map_metadata(data, coords_cols, coords_value_mapping)
 
     naming_attrs = rename_columns(
         data, coords_cols, coords_defaults, coords_terminologies
     )
     attrs.update(naming_attrs)
 
-    if coords_value_mapping and "unit" in coords_value_mapping:
-        harmonize_units(data, unit_terminology=coords_value_mapping["unit"])
-    else:
-        harmonize_units(data)
+    if coords_value_mapping is not None:
+        map_metadata(data, attrs=attrs, meta_mapping=coords_value_mapping)
 
-    data = sort_columns_and_rows(data)
+    coords = list(set(data.columns.values) - set(time_columns))
 
-    data.attrs = attrs
+    harmonize_units(data, dimensions=coords)
+
+    data = sort_columns_and_rows(data, dimensions=coords)
+
+    data.attrs = interchange_format_attrs_dict(
+        data, xr_attrs=attrs, time_format=time_format, dimensions=coords
+    )
 
     return data
+
+
+def interchange_format_attrs_dict(
+    data: pd.DataFrame, *, xr_attrs: dict, time_format: str, dimensions
+) -> dict:
+    if "entity_terminology" in xr_attrs:
+        entity_col = f"entity ({xr_attrs['entity_terminology']})"
+    else:
+        entity_col = "entity"
+
+    return {
+        "attrs": xr_attrs,
+        "time_format": time_format,
+        "dimensions": {entity: dimensions for entity in data[entity_col].unique()},
+    }
 
 
 def check_mandatory_dimensions(
@@ -482,10 +228,19 @@ def check_overlapping_specifications(
         raise ValueError(f"{both!r} given in coords_cols and coords_defaults.")
 
 
-def read_csv(
+def matches_time_format(value: str, time_format: str):
+    try:
+        datetime.datetime.strptime(value, time_format)
+        return True
+    except ValueError:
+        return False
+
+
+def read_wide_csv(
     filepath_or_buffer,
     coords_cols: Dict[str, str],
-) -> pd.DataFrame:
+    time_format: str,
+) -> (pd.DataFrame, List[str]):
 
     na_values = [
         "nan",
@@ -498,28 +253,27 @@ def read_csv(
         "NE0",
         "NO, NE",
     ]
-    read_data = pd.read_csv(filepath_or_buffer, na_values=na_values)
+    data = pd.read_csv(filepath_or_buffer, na_values=na_values)
 
     # get all the columns that are actual data not metadata (usually the years)
-    year_regex = re.compile(r"\d")
-    year_cols = list(filter(year_regex.match, read_data.columns.values))
+    time_cols = [
+        col for col in data.columns.values if matches_time_format(col, time_format)
+    ]
 
     # remove all non-numeric values from year columns
     # (what is left after mapping to nan when reading data)
-    for col in year_cols:
-        read_data[col] = read_data[col][
-            pd.to_numeric(read_data[col], errors="coerce").notnull()
-        ]
+    for col in time_cols:
+        data[col] = data[col][pd.to_numeric(data[col], errors="coerce").notnull()]
 
     # remove all cols not in the specification
-    columns = read_data.columns.values
-    read_data.drop(
-        columns=list(set(columns) - set(coords_cols.values()) - set(year_cols)),
+    columns = data.columns.values
+    data.drop(
+        columns=list(set(columns) - set(coords_cols.values()) - set(time_cols)),
         inplace=True,
     )
 
     # check that all cols in the specification could be read
-    missing = set(coords_cols.values()) - set(read_data.columns.values)
+    missing = set(coords_cols.values()) - set(data.columns.values)
     if missing:
         logger.error(
             f"Column(s) {missing} specified in coords_cols, but not found in "
@@ -527,7 +281,7 @@ def read_csv(
         )
         raise ValueError(f"Columns {missing} not found in CSV.")
 
-    return read_data
+    return data, time_cols
 
 
 def spec_to_query_string(filter_spec: Dict[str, Union[list, Any]]) -> str:
@@ -547,7 +301,7 @@ def spec_to_query_string(filter_spec: Dict[str, Union[list, Any]]) -> str:
 
 
 def filter_data(
-    read_data: pd.DataFrame,
+    data: pd.DataFrame,
     filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
 ):
@@ -559,7 +313,7 @@ def filter_data(
             q = spec_to_query_string(filter_spec)
             queries.append(f"({q})")
         query = " | ".join(queries)
-        read_data.query(query, inplace=True)
+        data.query(query, inplace=True)
 
     # Filters for removing data are negated and combined with "and" so that
     # only rows which don't match any rule are kept.
@@ -569,13 +323,13 @@ def filter_data(
             q = spec_to_query_string(filter_spec)
             queries.append(f"~({q})")
         query = " & ".join(queries)
-        read_data.query(query, inplace=True)
+        data.query(query, inplace=True)
 
-    read_data.reset_index(drop=True, inplace=True)
+    data.reset_index(drop=True, inplace=True)
 
 
 def add_dimensions_from_defaults(
-    read_data: pd.DataFrame,
+    data: pd.DataFrame,
     coords_defaults: Dict[str, Any],
 ):
     if_columns = (
@@ -584,7 +338,7 @@ def add_dimensions_from_defaults(
     for coord in coords_defaults.keys():
         if coord in if_columns or coord.startswith(SEC_CATS_PREFIX):
             # add column to dataframe with default value
-            read_data[coord] = coords_defaults[coord]
+            data[coord] = coords_defaults[coord]
         else:
             raise ValueError(
                 f"{coord!r} given in coords_defaults is unknown - prefix with "
@@ -593,55 +347,75 @@ def add_dimensions_from_defaults(
 
 
 def map_metadata(
-    read_data: pd.DataFrame,
-    coords_cols: Dict[str, str],
+    data: pd.DataFrame,
+    *,
     meta_mapping: Dict[str, Union[str, Callable, dict]],
+    attrs: Dict[str, Any],
 ):
     """Map the metadata according to specifications given in meta_mapping."""
 
     # TODO: add additional mapping functions here
+    # values: (function, additional arguments)
     mapping_functions = {
         "PRIMAP1": {
-            "category": convert_ipcc_code_primap_to_primap2,
-            "entity": convert_entity_gwp_primap,
+            "category": (_conversion.convert_ipcc_code_primap_to_primap2, []),
+            "entity": (_conversion.convert_entity_gwp_primap_to_primap2, []),
+            "unit": (
+                _conversion.convert_unit_primap_to_primap2,
+                ["entity"],
+            ),
         }
     }
 
     meta_mapping_df = {}
     # preprocess meta_mapping
     for column, mapping in meta_mapping.items():
-        if column == "unit":  # handled in harmonize_units
-            continue
-
+        column_name = attrs.get(column, column)
+        print(column_name)
         if isinstance(mapping, str) or callable(mapping):
             if isinstance(mapping, str):  # need to translate to function first
                 try:
-                    func = mapping_functions[mapping][column]
+                    func, args = mapping_functions[mapping][column]
                 except KeyError:
                     logger.error(
                         f"Unknown metadata mapping {mapping} for column {column}, "
-                        f"known mappings are: {mapping_functions}."
+                        f"known mappings are: {list(mapping_functions.keys())}."
                     )
                     raise ValueError(
                         f"Unknown metadata mapping {mapping} for column {column}."
                     )
             else:
                 func = mapping
+                args = []
 
-            values_to_map = read_data[coords_cols[column]].unique()
-            values_mapped = map(func, values_to_map)
-            meta_mapping_df[coords_cols[column]] = dict(
-                zip(values_to_map, values_mapped)
-            )
+            if not args:  # simple case: no additional args needed
+                values_to_map = data[column].unique()
+                values_mapped = map(func, values_to_map)
+                meta_mapping_df[column] = dict(zip(values_to_map, values_mapped))
+
+            else:  # need to supply additional arguments
+                # this can't be handled using the replace()-call later since the mapped
+                # values don't depend on the original values only, therefore
+                # we do it directly
+                sel = [column] + args
+                values_to_map = np.unique(data[sel].to_records(index=False))
+                for vals_to_map in values_to_map:
+                    # we replace values where all the arguments match - build a
+                    # selector for that, then do the replacement
+                    selector = data[column] == vals_to_map[0]
+                    for i, arg in enumerate(args):
+                        selector &= data[arg] == vals_to_map[i + 1]
+
+                    data.loc[selector, column] = func(*vals_to_map)
 
         else:
-            meta_mapping_df[coords_cols[column]] = mapping
+            meta_mapping_df[column] = mapping
 
-    read_data.replace(meta_mapping_df, inplace=True)
+    data.replace(meta_mapping_df, inplace=True)
 
 
 def rename_columns(
-    read_data: pd.DataFrame,
+    data: pd.DataFrame,
     coords_cols: Dict[str, str],
     coords_defaults: Dict[str, Any],
     coords_terminologies: Dict[str, str],
@@ -668,7 +442,7 @@ def rename_columns(
 
         coord_renaming[coords_cols.get(coord, coord)] = name
 
-    read_data.rename(columns=coord_renaming, inplace=True)
+    data.rename(columns=coord_renaming, inplace=True)
 
     if sec_cats:
         attrs["sec_cats"] = sec_cats
@@ -678,54 +452,35 @@ def rename_columns(
 
 def harmonize_units(
     data: pd.DataFrame,
-    unit_terminology: str = "PRIMAP1",
+    *,
     unit_col: str = "unit",
     entity_col: str = "entity",
-    data_col_regex_str: str = r"\d",
-):
+    dimensions: Iterable[str],
+) -> None:
     """
     Harmonize the units of the input data. For each entity, convert
-    all time series to the same unit (the unit that occurs first). The unit strings
-    are converted to PRIMAP2 style. The input data unit style is defined via the
-    "unit_terminology" parameter.
+    all time series to the same unit (the unit that occurs first). Units must already
+    be in PRIMAP2 style.
 
     Parameters
     ----------
     data: pd.DataFrame
         data for which the units should be harmonized
-    unit_terminology: str
-        unit terminology of input data. This defines how the units are written. E.g.
-        with entity given or without, or with or without timeframe.
-        Default (and currently only option): PRIMAP1
     unit_col: str
         column name for unit column. Default: "unit"
     entity_col: str
         column name for entity column. Default: "entity"
-    data_col_regex_str: str
-        regular expression to match the columns with data. default: matches digits only
+    dimensions: list of str
+        the dimensions, i.e. the metadata columns.
 
     Returns
     -------
-    obj: pd.DataFrame
-        pandas DataFrame with the converted data
-
+    None
+        The data is altered in place.
     """
-    # we need to convert the units to primap2 (pint) style and
-    # then convert the data such that we have one unit per entity
-    # first convert the units such that pint understands them
-    if unit_terminology == "PRIMAP1":
-        convert_dataframe_units_primap_to_primap2(
-            data, unit_col="unit", entity_col="entity"
-        )
-    else:
-        logger.error("Unknown unit terminology " + unit_terminology + ".")
-        raise ValueError("Unknown unit terminology " + unit_terminology + ".")
+    # we need to convert the data such that we have one unit per entity
+    data_cols = list(set(data.columns.values) - set(dimensions))
 
-    # find the data columns
-    data_col_regex = re.compile(data_col_regex_str)
-    data_cols = list(filter(data_col_regex.match, data.columns.values))
-
-    # get entities from read data
     entities = data[entity_col].unique()
     for entity in entities:
         # get all units for this entity
@@ -749,7 +504,10 @@ def harmonize_units(
                 data.loc[mask, unit_col] = unit_to
 
 
-def sort_columns_and_rows(data: pd.DataFrame) -> pd.DataFrame:
+def sort_columns_and_rows(
+    data: pd.DataFrame,
+    dimensions: Iterable[Hashable],
+) -> pd.DataFrame:
     """Sort the data.
 
     The columns are ordered according to the order in
@@ -757,108 +515,35 @@ def sort_columns_and_rows(data: pd.DataFrame) -> pd.DataFrame:
     the category and all date columns in order at the end.
 
     The rows are ordered by values of the non-date columns.
+
+    Parameters
+    ----------
+    data: pd.DataFrame
+        data which should be ordered
+    dimensions: list of str
+        the dimensions, i.e. the metadata columns.
+
+    Returns
+    -------
+    sorted : pd.DataFrame
+        the input data frame with columns and rows ordered.
     """
-    columns = data.columns.values
+    time_cols = list(set(data.columns.values) - set(dimensions))
 
-    date_regex = re.compile(r"\d")
-    date_cols = list(filter(date_regex.match, columns))
-
-    other_cols = set(columns) - set(date_cols)
-
+    other_cols = list(dimensions)
     cols_sorted = []
     for col in INTERCHANGE_FORMAT_COLUMN_ORDER:
         for ocol in other_cols:
-            if ocol == col or ocol.startswith(f"{col} ("):
+            if ocol == col or (isinstance(ocol, str) and ocol.startswith(f"{col} (")):
                 cols_sorted.append(ocol)
                 other_cols.remove(ocol)
                 break
 
     cols_sorted += list(sorted(other_cols))
 
-    data = data[cols_sorted + list(sorted(date_cols))]
+    data = data[cols_sorted + list(sorted(time_cols))]
 
     data.sort_values(by=cols_sorted, inplace=True)
     data.reset_index(inplace=True, drop=True)
 
     return data
-
-
-def convert_entity_gwp_primap(entity_pm1: str) -> str:
-    """
-    This function transforms PRIMAP1 style entity names into PRIMAP2 style variable
-    names. The transformation only considers the GWP, currently the variable itself is
-    unchanged.
-
-    Currently the function uses a limited set of GWP values (defined in gwp_mapping) and
-    works on a limited set of variables (defined in entities_gwp).
-
-    Parameters
-    entity: str
-        entity to process
-
-    Returns
-    -------
-    entity: str
-        entity in PRIMAP2 format
-
-    """
-
-    entities_gwp = [
-        "KYOTOGHG",
-        "HFCS",
-        "PFCS",
-        "FGASES",
-        "OTHERHFCS CO2EQ",
-        "OTHERHFCS",
-        "OTHERPFCS",
-    ]
-
-    # define the mapping of PRIMAP GWP specifications to PRIMAP2 GWP specification
-    # no GWP given will be mapped to SAR
-    gwp_mapping = {
-        "SAR": "SARGWP100",
-        "AR4": "AR4GWP100",
-        "AR5": "AR5GWP100",
-        "AR5CCF": "AR5CCFGWP100",  # not sure if implemented in scmdata units
-    }
-
-    # build regexp to match the GWP conversion variables
-    regexp_str = "("
-    for current_entity in entities_gwp:
-        regexp_str = regexp_str + current_entity + "|"
-    regexp_str = regexp_str[0:-1] + ")"
-
-    # build regexp to match the GWPs
-    regexp_str_gwps = "("
-    for mapping in gwp_mapping.keys():
-        regexp_str_gwps = regexp_str_gwps + mapping + "|"
-    regexp_str_gwps = regexp_str_gwps[0:-1] + ")$"
-
-    # check if entity in entities_gwp
-    found = re.match(regexp_str, entity_pm1)
-    if found is None:
-        # not a basket entity which uses GWPs
-        entity_pm2 = entity_pm1
-    else:
-        # check if GWP information present in entity
-        match = re.search(regexp_str_gwps, entity_pm1)
-        if match is None:
-            # SAR GWPs are default in PRIMAP
-            entity_pm2 = entity_pm1 + " (" + gwp_mapping["SAR"] + ")"
-        else:
-            gwp_out = match.group(0)
-            # in this case the entity has to be replaced as well
-            match = re.search(".*(?=" + gwp_out + ")", entity_pm1)
-            if match.group() == "":
-                logger.error(
-                    "Confused: could not find entity which should be there."
-                    " This indicates a bug in this function."
-                )
-                raise RuntimeError(
-                    "Confused: could not find entity which should be there."
-                    " This indicates a bug in this function."
-                )
-            else:
-                entity_pm2 = match.group(0) + " (" + gwp_mapping[gwp_out] + ")"
-
-    return entity_pm2

@@ -31,9 +31,8 @@ Specifically, the columns consist of:
   :ref:`data_format_details`,
   including the category set (terminology) in brackets as in the standard data format.
 * The entity (with its terminology in brackets, if an entity terminology is defined
-  for the dataset), which is used to store the data variable
-  name. The full variable name including the global warming potential if applicable
-  is used here.
+  for the dataset), which is used to store the data variable name. The full variable
+  name including the global warming potential if applicable is used here.
 * The unit in a format which can be parsed by openscm-units.
 * One column per value in the ``time`` dimension of the Dataset, formatted according
   to the ``time_format`` strftime format string given in the meta data (see below).
