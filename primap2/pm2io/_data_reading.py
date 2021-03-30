@@ -24,7 +24,7 @@ def read_wide_csv_file_if(
     *,
     coords_cols: Dict[str, str],
     coords_defaults: Optional[Dict[str, Any]] = None,
-    coords_terminologies: Optional[Dict[str, str]] = None,
+    coords_terminologies: Dict[str, str],
     coords_value_mapping: Optional[Dict[str, Any]] = None,
     filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
@@ -59,12 +59,10 @@ def read_wide_csv_file_if(
 
     coords_defaults : dict, optional
         Dict for default values of coordinates / dimensions not given in the csv files.
-        The keys are the dimension or metadata names and the values are the values for
-        the dimensions or metadata. The distinction between dimension and metadata is
-        done automatically on the basis of mandatory dimensions. For secondary
-        categories use a ``sec_cats__`` prefix.
+        The keys are the dimension names and the values are the values for
+        the dimensions. For secondary categories use a ``sec_cats__`` prefix.
 
-    coords_terminologies : dict, optional
+    coords_terminologies : dict
         Dict defining the terminologies used for the different coordinates (e.g. ISO3
         for area). Only possible coordinates here are: area, category, scenario,
         entity, and secondary categories. For secondary categories use a ``sec_cats__``#
@@ -148,8 +146,6 @@ def read_wide_csv_file_if(
     # Check and prepare arguments
     if coords_defaults is None:
         coords_defaults = {}
-    if coords_terminologies is None:
-        coords_terminologies = {}
     if meta_data is None:
         attrs = {}
     else:

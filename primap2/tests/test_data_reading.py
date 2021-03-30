@@ -8,6 +8,7 @@ import pytest
 
 import primap2
 import primap2.pm2io as pm2io
+import primap2.pm2io._conversion
 
 from .utils import assert_ds_aligned_equal
 
@@ -274,6 +275,54 @@ def test_read_wide_csv_file_unit_def(tmp_path):
     pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
 
 
+def test_read_wide_csv_file_function_mapping(tmp_path):
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+    file_expected = DATA_PATH / "test_read_wide_csv_file_output_unit_def.csv"
+    df_expected = pd.read_csv(file_expected, index_col=0)
+
+    coords_cols = {
+        "entity": "gas",
+        "area": "country",
+        "category": "category",
+        "sec_cats__Class": "classification",
+    }
+    coords_defaults = {
+        "source": "TESTcsv2021",
+        "sec_cats__Type": "fugitive",
+        "scenario": "HISTORY",
+        "unit": "Gg",
+    }
+    coords_terminologies = {
+        "area": "ISO3",
+        "category": "IPCC2006",
+        "sec_cats__Type": "type",
+        "sec_cats__Class": "class",
+        "scenario": "general",
+    }
+    meta_mapping = {
+        "category": pm2io._conversion.convert_ipcc_code_primap_to_primap2,
+        "unit": "PRIMAP1",
+    }
+    filter_keep = {
+        "f1": {"category": ["IPC0", "IPC2"]},
+        "f2": {"classification": "TOTAL"},
+    }
+    filter_remove = {"f2": {"country": ["USA", "FRA"]}, "f1": {"gas": "KYOTOGHG"}}
+
+    df_result = pm2io.read_wide_csv_file_if(
+        file_input,
+        coords_cols=coords_cols,
+        coords_defaults=coords_defaults,
+        coords_terminologies=coords_terminologies,
+        coords_value_mapping=meta_mapping,
+        filter_keep=filter_keep,
+        filter_remove=filter_remove,
+    )
+    df_result.to_csv(tmp_path / "test.csv")
+    df_result = pd.read_csv(tmp_path / "test.csv", index_col=0)
+    pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
+
+
 def test_read_wide_csv_file_col_missing():
     file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
 
@@ -312,6 +361,85 @@ def test_read_wide_csv_file_col_missing():
             coords_value_mapping=coords_value_mapping,
             filter_keep=filter_keep,
             filter_remove=filter_remove,
+        )
+
+
+def test_read_wide_csv_file_unknown_mapping():
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+
+    coords_cols = {
+        "entity": "gas",
+        "area": "country",
+        "category": "category",
+        "sec_cats__Class": "classification",
+    }
+    coords_defaults = {
+        "source": "TESTcsv2021",
+        "sec_cats__Type": "fugitive",
+        "scenario": "HISTORY",
+        "unit": "Gg",
+    }
+    coords_terminologies = {
+        "area": "ISO3",
+        "category": "IPCC2006",
+        "sec_cats__Type": "type",
+        "sec_cats__Class": "class",
+        "scenario": "general",
+    }
+    meta_mapping = {
+        "category": "non-existing",
+        "unit": "PRIMAP1",
+    }
+
+    with pytest.raises(
+        ValueError, match="Unknown metadata mapping non-existing for column category."
+    ):
+        pm2io.read_wide_csv_file_if(
+            file_input,
+            coords_cols=coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=meta_mapping,
+        )
+
+
+def test_read_wide_csv_file_overlapping_specification():
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+
+    coords_cols = {
+        "entity": "gas",
+        "area": "country",
+        "category": "category",
+        "sec_cats__Class": "classification",
+    }
+    coords_defaults = {
+        "entity": "CO2",
+        "source": "TESTcsv2021",
+        "sec_cats__Type": "fugitive",
+        "scenario": "HISTORY",
+        "unit": "Gg",
+    }
+    coords_terminologies = {
+        "area": "ISO3",
+        "category": "IPCC2006",
+        "sec_cats__Type": "type",
+        "sec_cats__Class": "class",
+        "scenario": "general",
+    }
+    meta_mapping = {
+        "category": "PRIMAP1",
+        "unit": "PRIMAP1",
+    }
+
+    with pytest.raises(
+        ValueError, match="{'entity'} given in coords_cols and coords_defaults."
+    ):
+        pm2io.read_wide_csv_file_if(
+            file_input,
+            coords_cols=coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=meta_mapping,
         )
 
 
