@@ -31,6 +31,40 @@ def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) ->
         return sel
 
 
+def translations_from_attrs(
+    attrs: typing.Dict[typing.Hashable, typing.Any], include_entity=False
+) -> typing.Dict[typing.Hashable, str]:
+    ret: typing.Dict[typing.Hashable, str] = {}
+    for key, abbrev in [("category", "cat"), ("scenario", "scen"), ("area", "area")]:
+        if abbrev in attrs:
+            ret[key] = attrs[abbrev]
+            ret[abbrev] = attrs[abbrev]
+    if "sec_cats" in attrs:
+        for full_name in attrs["sec_cats"]:
+            key = full_name.split("(")[0][:-1]
+            ret[key] = full_name
+
+    if include_entity and "entity_terminology" in attrs:
+        ret["entity"] = f"entity ({attrs['entity_terminology']})"
+    return ret
+
+
+def translations_from_dims(
+    dims: typing.Iterable[typing.Hashable],
+) -> typing.Dict[typing.Hashable, str]:
+    ret: typing.Dict[typing.Hashable, str] = {}
+    for dim in dims:
+        if isinstance(dim, str):
+            if " (" in dim:
+                key: str = dim.split("(")[0][:-1]
+                ret[key] = dim
+    if "scenario" in ret:
+        ret["scen"] = ret["scenario"]
+    if "category" in ret:
+        ret["cat"] = ret["category"]
+    return ret
+
+
 def alias(
     dim: DimOrDimsT,
     translations: typing.Dict[typing.Hashable, str],
@@ -159,17 +193,7 @@ class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
         """
         # we have to do string parsing because the Dataset's attrs are not available
         # in the DataArray context
-        ret: typing.Dict[typing.Hashable, str] = {}
-        for dim in self._da.dims:
-            if isinstance(dim, str):
-                if " (" in dim:
-                    key: str = dim.split("(")[0][:-1]
-                    ret[key] = dim
-        if "scenario" in ret:
-            ret["scen"] = ret["scenario"]
-        if "category" in ret:
-            ret["cat"] = ret["category"]
-        return ret
+        return translations_from_dims(self._da.dims)
 
     @property
     def loc(self):
@@ -213,31 +237,10 @@ class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
         translations : dict
             A mapping of all dimension aliases to full dimension names.
         """
-        ret: typing.Dict[typing.Hashable, str] = {}
         # First guess aliases from the names themselves. The meta data in attrs
-        # is later used to overwrite the guessed values where they are available
-        for dim in self._ds.dims:
-            if isinstance(dim, str):
-                if " (" in dim:
-                    key: str = dim.split("(")[0][:-1]
-                    ret[key] = dim
-        if "scenario" in ret:
-            ret["scen"] = ret["scenario"]
-        if "category" in ret:
-            ret["cat"] = ret["category"]
-
-        for key, abbrev in [
-            ("category", "cat"),
-            ("scenario", "scen"),
-            ("area", "area"),
-        ]:
-            if abbrev in self._ds.attrs:
-                ret[key] = self._ds.attrs[abbrev]
-                ret[abbrev] = self._ds.attrs[abbrev]
-        if "sec_cats" in self._ds.attrs:
-            for full_name in self._ds.attrs["sec_cats"]:
-                key = full_name.split("(")[0][:-1]
-                ret[key] = full_name
+        # is used to overwrite the guessed values where they are available
+        ret = translations_from_dims(self._ds.dims)
+        ret.update(translations_from_attrs(self._ds.attrs))
         return ret
 
     @typing.overload

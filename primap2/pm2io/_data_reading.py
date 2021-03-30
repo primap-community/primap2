@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
+from .. import _alias_selection
 from .._units import ureg
 from . import _conversion
 from ._interchange_format import (
@@ -353,6 +354,7 @@ def map_metadata(
     attrs: Dict[str, Any],
 ):
     """Map the metadata according to specifications given in meta_mapping."""
+    dim_aliases = _alias_selection.translations_from_attrs(attrs, include_entity=True)
 
     # TODO: add additional mapping functions here
     # values: (function, additional arguments)
@@ -362,7 +364,7 @@ def map_metadata(
             "entity": (_conversion.convert_entity_gwp_primap_to_primap2, []),
             "unit": (
                 _conversion.convert_unit_primap_to_primap2,
-                ["entity"],
+                [dim_aliases.get("entity", "entity")],
             ),
         }
     }
@@ -370,8 +372,7 @@ def map_metadata(
     meta_mapping_df = {}
     # preprocess meta_mapping
     for column, mapping in meta_mapping.items():
-        column_name = attrs.get(column, column)
-        print(column_name)
+        column_name = dim_aliases.get(column, column)
         if isinstance(mapping, str) or callable(mapping):
             if isinstance(mapping, str):  # need to translate to function first
                 try:
@@ -389,27 +390,27 @@ def map_metadata(
                 args = []
 
             if not args:  # simple case: no additional args needed
-                values_to_map = data[column].unique()
+                values_to_map = data[column_name].unique()
                 values_mapped = map(func, values_to_map)
-                meta_mapping_df[column] = dict(zip(values_to_map, values_mapped))
+                meta_mapping_df[column_name] = dict(zip(values_to_map, values_mapped))
 
             else:  # need to supply additional arguments
                 # this can't be handled using the replace()-call later since the mapped
                 # values don't depend on the original values only, therefore
                 # we do it directly
-                sel = [column] + args
+                sel = [column_name] + args
                 values_to_map = np.unique(data[sel].to_records(index=False))
                 for vals_to_map in values_to_map:
                     # we replace values where all the arguments match - build a
                     # selector for that, then do the replacement
-                    selector = data[column] == vals_to_map[0]
+                    selector = data[column_name] == vals_to_map[0]
                     for i, arg in enumerate(args):
                         selector &= data[arg] == vals_to_map[i + 1]
 
-                    data.loc[selector, column] = func(*vals_to_map)
+                    data.loc[selector, column_name] = func(*vals_to_map)
 
         else:
-            meta_mapping_df[column] = mapping
+            meta_mapping_df[column_name] = mapping
 
     data.replace(meta_mapping_df, inplace=True)
 
