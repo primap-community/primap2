@@ -88,6 +88,8 @@ Methods
 
     Dataset.pr.ensure_valid
     Dataset.pr.to_netcdf
+    Dataset.pr.to_df
+    Dataset.pr.to_interchange_format
     Dataset.pr.quantify
     Dataset.pr.dequantify
     Dataset.pr.fill_all_na
@@ -100,4 +102,3 @@ Methods
     Dataset.pr.__getitem__
     Dataset.pr.set
     Dataset.pr.coverage
-    Dataset.pr.to_df

@@ -5,4 +5,33 @@ attrs:
   sec_cats:
   - Class (class)
   - Type (type)
+time_format: '%Y'
+dimensions:
+  CO2:
+  - scenario (general)
+  - source
+  - area (ISO3)
+  - entity
+  - category (IPCC2006)
+  - Class (class)
+  - Type (type)
+  - unit
+  KYOTOGHG (SARGWP100):
+  - scenario (general)
+  - source
+  - area (ISO3)
+  - entity
+  - category (IPCC2006)
+  - Class (class)
+  - Type (type)
+  - unit
+  CH4:
+  - scenario (general)
+  - source
+  - area (ISO3)
+  - entity
+  - category (IPCC2006)
+  - Class (class)
+  - Type (type)
+  - unit
 data_file: test_csv_data_sec_cat_if.csv

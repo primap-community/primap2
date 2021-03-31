@@ -31,25 +31,22 @@ def read_wide_csv_file_if(
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y",
 ) -> pd.DataFrame:
-    """
-    This function reads a csv file and returns the data as a pandas DataFrame in PRIMAP2
-    interchange format.
+    """Read a CSV file in wide format into the PRIMAP2 interchange format.
 
     Columns can be renamed or filled with default vales to match the PRIMAP2 structure.
     Where we refer to "dimensions" in the parameter description below we mean the basic
     dimension names without the added terminology (e.g. "area" not "area (ISO3)"). The
     terminology information will be added by this function. You can not use the short
-    dimension names in the attributes (e.g. "cat" instead of "category")
+    dimension names in the attributes (e.g. "cat" instead of "category").
 
     TODO: Currently duplicate data points will not be detected.
 
     TODO: enable filtering through query strings
 
-    TODO: enable specification of the
+    TODO: enable specification of the entity terminology
 
     Parameters
     ----------
-
     filepath_or_buffer: str, pathlib.Path, or file-like
         Wide CSV file which will be read.
 
@@ -65,9 +62,9 @@ def read_wide_csv_file_if(
     coords_terminologies : dict
         Dict defining the terminologies used for the different coordinates (e.g. ISO3
         for area). Only possible coordinates here are: area, category, scenario,
-        entity, and secondary categories. For secondary categories use a ``sec_cats__``#
+        entity, and secondary categories. For secondary categories use a ``sec_cats__``
         prefix. All entries different from "area", "category", "scenario", "entity", and
-        "sec_cats__<name> will raise a ValueError.
+        ``sec_cats__<name>`` will raise a ValueError.
 
     coords_value_mapping : dict, optional
         A dict with primap2 dimension names as keys. Values are dicts with input values
@@ -105,14 +102,11 @@ def read_wide_csv_file_if(
 
     Returns
     -------
-
     obj: pd.DataFrame
         pandas DataFrame with the read data
 
-
     Examples
     --------
-
     *Example for meta_mapping*::
 
         meta_mapping = {
@@ -126,10 +120,10 @@ def read_wide_csv_file_if(
 
     *Example for filter_keep*::
 
-            filter_keep = {
-                'f_1': {'variable': ['CO2', 'CH4'], 'region': 'USA'},
-                'f_2': {'variable': 'N2O'}
-            }
+        filter_keep = {
+            'f_1': {'variable': ['CO2', 'CH4'], 'region': 'USA'},
+            'f_2': {'variable': 'N2O'}
+        }
 
     This example filter keeps all CO2 and CH4 data for the USA and N2O data for all
     countries
@@ -194,7 +188,9 @@ def interchange_format_attrs_dict(
     return {
         "attrs": xr_attrs,
         "time_format": time_format,
-        "dimensions": {entity: dimensions for entity in data[entity_col].unique()},
+        "dimensions": {
+            entity: dimensions.copy() for entity in data[entity_col].unique()
+        },
     }
 
 

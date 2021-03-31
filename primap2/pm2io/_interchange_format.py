@@ -65,9 +65,11 @@ def dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
 
 
 def metadata_for_variable(unit: str, variable: str) -> dict:
-    """
-    This function takes GWP information from the variable name in primap2 style (if
-    present). Information is returned as attrs dict.
+    """Convert a primap2 unit and variable key to a metadata dict.
+
+    Derives the information needed for the data variable's attrs dict from the unit
+    and the variable's key.
+    Takes GWP information from the variable name in primap2 style (if present).
 
     Parameters
     ----------
@@ -88,7 +90,6 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
     {'units': 'Gg CO2 / year', 'gwp_context': 'SARGWP100', 'entity': 'Kyoto-GHG'}
 
     """
-
     attrs = {"units": unit}
 
     regex_gwp = r"\s\(([A-Za-z0-9]*)\)$"
@@ -110,23 +111,23 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
 def write_interchange_format(
     filepath: Union[str, Path], data: pd.DataFrame, attrs: Optional[dict] = None
 ) -> None:
-    """
-    This function writes an interchange format dataset to disk. The data is stored
-    in a csv file while the additional metadata in the attrs dict is written to a
-    yaml file.
+    """Write dataset in interchange format to disk.
+
+    Writes an interchange format dataset consisting of a pandas Dataframe and an
+    additional meta data dict to disk. The data is stored in a csv file while the
+    additional metadata is written to a yaml file.
 
     Parameters
     ----------
     filepath: str or pathlib.Path
-        path and filename for the dataset. If a file ending is given it will be
+        path and filename stem for the dataset. If a file ending is given it will be
         ignored and replaced by .csv for the data and .yaml for the metadata
 
     data: pandas.DataFrame
         DataFrame in PRIMAP2 interchange format
 
     attrs: dict, optional
-        PRIMAP2 dataset attrs dict. If not given explicitly it is assumed to be
-        present in the data DataFrame
+        Interchange format meta data dict. Default: use data.attrs .
     """
     if attrs is None:
         attrs = data.attrs
@@ -142,7 +143,9 @@ def write_interchange_format(
     attrs["data_file"] = data_file.name
 
     yaml = YAML()
+    # settings for strictyaml compatibility: don't use flow style or aliases
     yaml.default_flow_style = False
+    yaml.representer.ignore_aliases = lambda x: True
     with meta_file.open("w") as fd:
         yaml.dump(attrs, fd)
 
@@ -150,9 +153,10 @@ def write_interchange_format(
 def read_interchange_format(
     filepath: Union[str, Path],
 ) -> pd.DataFrame:
-    """
-    This function reads an interchange format dataset from disk. The data is stored
-    in a csv file while the additional metadata in the attrs dict is stored in a yaml
+    """Read a dataset in the interchange format from disk into memory.
+
+    Reads an interchange format dataset from disk. The data is stored
+    in a csv file while the additional metadata is stored in a yaml
     file. This function takes the yaml file as parameter, the data file is specified
     in the yaml file. If no or a wrong ending is given the function tries to load
     a file by the same name with the ending `.yaml`.
@@ -160,15 +164,13 @@ def read_interchange_format(
     Parameters
     ----------
     filepath: str or pathlib.Path
-        path and filename for the dataset (the yaml file, not data file)
+        path and filename for the dataset (the yaml file, not data file).
 
     Returns
     -------
     data: pandas.DataFrame
         DataFrame with the read data in PRIMAP2 interchange format
-
     """
-
     filepath = Path(filepath)
     if not filepath.exists():
         filepath = filepath.with_suffix(".yaml")
@@ -199,18 +201,20 @@ def from_interchange_format(
     attrs: Optional[dict] = None,
     max_array_size: int = 1024 * 1024 * 1024,
 ) -> xr.Dataset:
-    """
-    This function converts an interchange format DataFrame to an PRIMAP2 xarray data
-    structure. All column names and attrs are expected to be already in PRIMAP2 format
-    as defined for the interchange format. The attrs dict is given explicitly as the
-    attrs functionality in pandas is experimental.
+    """Convert dataset from the interchange format to the standard PRIMAP2 format.
+
+    Converts an interchange format DataFrame with added metadata to a PRIMAP2 xarray
+    data structure. All column names and attrs are expected to be already in PRIMAP2
+    format as defined for the interchange format. The attrs dict is given explicitly as
+    the attrs functionality in pandas is experimental.
 
     Parameters
     ----------
     data: pd.DataFrame
         pandas DataFrame in PRIMAP2 interchange format.
     attrs: dict, optional
-        attrs dict as defined for PRIMAP2 xarray datasets. Default: use data.attrs.
+        attrs dict as defined for the PRIMAP2 interchange format. Default: use
+        data.attrs.
     max_array_size: int, optional
         Maximum permitted projected array size. Larger sizes will raise an exception.
         Default: 1 G, corresponding to about 4 GB of memory usage.
@@ -219,7 +223,6 @@ def from_interchange_format(
     -------
     obj: xr.Dataset
         xr dataset with the converted data
-
     """
     if attrs is None:
         attrs = data.attrs
