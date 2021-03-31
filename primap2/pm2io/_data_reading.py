@@ -186,8 +186,7 @@ def read_long_csv_file_if(
 
     harmonize_units(data_long, dimensions=coords)
 
-    data, time_cols = long_to_wide(data_long, time_format=time_format)
-    coords = list(set(data.columns.values) - time_cols)
+    data, coords = long_to_wide(data_long, time_format=time_format)
 
     data = sort_columns_and_rows(data, dimensions=coords)
 
@@ -202,7 +201,6 @@ def long_to_wide(
     data_long: pd.DataFrame, *, time_format: str
 ) -> (pd.DataFrame, Set[str]):
     data_long["time"] = data_long["time"].dt.strftime(time_format)
-    time_cols = set(data_long["time"].unique())
 
     coords = list(set(data_long.columns.values) - {"data", "time"})
 
@@ -219,7 +217,7 @@ def long_to_wide(
 
     data.reset_index(inplace=True)
 
-    return data, time_cols
+    return data, coords + ["unit"]
 
 
 def read_wide_csv_file_if(
