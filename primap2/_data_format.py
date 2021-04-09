@@ -133,7 +133,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
 
         df = pd.concat(dfs, ignore_index=True)
 
-        df = pm2io._data_reading.sort_columns_and_rows(
+        df, dims = pm2io._data_reading.sort_columns_and_rows(
             df,
             dimensions=[dim for dim in dsd.dims if dim != "time"]
             + [entity_col, "unit"],

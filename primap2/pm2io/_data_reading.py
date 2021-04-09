@@ -188,7 +188,7 @@ def read_long_csv_file_if(
 
     data, coords = long_to_wide(data_long, time_format=time_format)
 
-    data = sort_columns_and_rows(data, dimensions=coords)
+    data, coords = sort_columns_and_rows(data, dimensions=coords)
 
     data.attrs = interchange_format_attrs_dict(
         data, xr_attrs=attrs, time_format=time_format, dimensions=coords
@@ -216,6 +216,7 @@ def long_to_wide(
     data["unit"] = unit["unit"]
 
     data.reset_index(inplace=True)
+    data.columns.name = None
 
     return data, coords + ["unit"]
 
@@ -369,7 +370,7 @@ def read_wide_csv_file_if(
 
     harmonize_units(data, dimensions=coords)
 
-    data = sort_columns_and_rows(data, dimensions=coords)
+    data, coords = sort_columns_and_rows(data, dimensions=coords)
 
     data.attrs = interchange_format_attrs_dict(
         xr_attrs=attrs, time_format=time_format, dimensions=coords
@@ -718,7 +719,7 @@ def harmonize_units(
 def sort_columns_and_rows(
     data: pd.DataFrame,
     dimensions: Iterable[Hashable],
-) -> pd.DataFrame:
+) -> (pd.DataFrame, List[Hashable]):
     """Sort the data.
 
     The columns are ordered according to the order in
@@ -736,8 +737,8 @@ def sort_columns_and_rows(
 
     Returns
     -------
-    sorted : pd.DataFrame
-        the input data frame with columns and rows ordered.
+    sorted, dimensions_sorted : (pd.DataFrame, list of str)
+        the input data frame with columns and rows ordered and the dimensions sorted.
     """
     time_cols = list(set(data.columns.values) - set(dimensions))
 
@@ -752,9 +753,9 @@ def sort_columns_and_rows(
 
     cols_sorted += list(sorted(other_cols))
 
-    data = data[cols_sorted + list(sorted(time_cols))]
+    data: pd.DataFrame = data[cols_sorted + list(sorted(time_cols))]
 
     data.sort_values(by=cols_sorted, inplace=True)
     data.reset_index(inplace=True, drop=True)
 
-    return data
+    return data, cols_sorted

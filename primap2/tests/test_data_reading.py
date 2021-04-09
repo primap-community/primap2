@@ -759,6 +759,61 @@ def test_read_write_interchange_format_roundtrip(tmp_path):
     pd.testing.assert_frame_equal(data, read_data)
 
 
+class TestLong:
+    def test_compare_wide(self):
+        file_input_wide = DATA_PATH / "test_csv_data.csv"
+        file_input_long = DATA_PATH / "long.csv"
+
+        coords_cols = {
+            "unit": "unit",
+            "entity": "gas",
+            "area": "country",
+            "category": "category",
+        }
+        coords_defaults = {
+            "source": "TESTcsv2021",
+            "scenario": "HISTORY",
+        }
+        coords_terminologies = {
+            "area": "ISO3",
+            "category": "IPCC2006",
+            "scenario": "general",
+        }
+        coords_value_mapping = {
+            "category": "PRIMAP1",
+            "entity": "PRIMAP1",
+            "unit": "PRIMAP1",
+        }
+        meta_data = {"references": "Just ask around."}
+
+        df_result_wide = pm2io.read_wide_csv_file_if(
+            file_input_wide,
+            coords_cols=coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=coords_value_mapping,
+            meta_data=meta_data,
+        )
+
+        coords_cols["time"] = "year"
+        coords_cols["data"] = "emissions"
+        df_result_long = pm2io.read_long_csv_file_if(
+            file_input_long,
+            coords_cols=coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=coords_value_mapping,
+            meta_data=meta_data,
+            time_format="%Y",
+        )
+
+        pd.testing.assert_frame_equal(df_result_wide, df_result_long)
+        assert df_result_wide.attrs == df_result_long.attrs
+
+
+# TODO: test entity_terminology for reading
+# TODO: read_long_csv special cases (data col not specified, time not in coords_cols)
+
 # functions that still need individual testing
 
 # dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
