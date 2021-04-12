@@ -171,26 +171,19 @@ def read_wide_csv_file_if(
     data = sort_columns_and_rows(data, dimensions=coords)
 
     data.attrs = interchange_format_attrs_dict(
-        data, xr_attrs=attrs, time_format=time_format, dimensions=coords
+        xr_attrs=attrs, time_format=time_format, dimensions=coords
     )
 
     return data
 
 
 def interchange_format_attrs_dict(
-    data: pd.DataFrame, *, xr_attrs: dict, time_format: str, dimensions
+    *, xr_attrs: dict, time_format: str, dimensions
 ) -> dict:
-    if "entity_terminology" in xr_attrs:
-        entity_col = f"entity ({xr_attrs['entity_terminology']})"
-    else:
-        entity_col = "entity"
-
     return {
         "attrs": xr_attrs,
         "time_format": time_format,
-        "dimensions": {
-            entity: dimensions.copy() for entity in data[entity_col].unique()
-        },
+        "dimensions": {"*": dimensions.copy()},
     }
 
 

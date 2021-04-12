@@ -139,12 +139,21 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             + [entity_col, "unit"],
         )
 
+        dimensions = {}
+        all_dimensions = [str(dim) for dim in dsd.dims] + [entity_col, "unit"]
+        for entity in dsd:
+            dims = [str(dim) for dim in dsd[entity].dims] + [entity_col, "unit"]
+            if set(dims) == set(all_dimensions):
+                # use default option for entities which use all the dataset's dimensions
+                if "*" not in dimensions:
+                    dimensions["*"] = all_dimensions
+            else:
+                dimensions[entity] = dims
+
         df.attrs = {
             "attrs": self._ds.attrs,
             "time_format": time_format,
-            "dimensions": {
-                x: [str(dim) for dim in dsd[x].dims] + [entity_col, "unit"] for x in dsd
-            },
+            "dimensions": dimensions,
         }
         return df
 

@@ -245,6 +245,17 @@ def from_interchange_format(
     units = data_xr["unit"]
     del data_xr["unit"]
 
+    # build full dimensions dict from specification with default entry "*"
+    entities = np.unique(data_xr[entity_col].values)
+    dimensions = {}
+    for entity in entities:
+        if entity in attrs["dimensions"]:
+            dims = attrs["dimensions"][entity]
+        else:
+            dims = attrs["dimensions"]["*"]
+        dimensions[entity] = dims
+    attrs["dimensions"] = dimensions
+
     # check resulting shape to estimate memory consumption
     dim_lens = {dim: len(np.unique(data_xr[dim].dropna("index"))) for dim in index_cols}
     dim_lens["time"] = len(time_cols)

@@ -106,7 +106,7 @@ def test_read_wide_csv_file(tmp_path):
         },
         "time_format": "%Y",
         "dimensions": {
-            ent: [
+            "*": [
                 "entity",
                 "source",
                 "area (ISO3)",
@@ -116,7 +116,6 @@ def test_read_wide_csv_file(tmp_path):
                 "Class (class)",
                 "category (IPCC2006)",
             ]
-            for ent in np.unique(df_expected["entity"])
         },
     }
 
