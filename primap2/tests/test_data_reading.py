@@ -6,107 +6,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import primap2 as pm2
-import primap2.pm2io._data_reading as pm2io
+import primap2
+import primap2.pm2io as pm2io
+import primap2.pm2io._conversion
 
 from .utils import assert_ds_aligned_equal
 
 DATA_PATH = Path(__file__).parent / "data"
-
-
-@pytest.mark.parametrize(
-    "code_in, expected_code_out",
-    [("IPC1A", "1.A"), ("CATM0EL", "M.0.EL"), ("IPC1A1B23", "1.A.1.b.ii.3")],
-)
-def test_convert_ipcc_code_primap_to_primap2(code_in, expected_code_out):
-    assert pm2io.convert_ipcc_code_primap_to_primap2(code_in) == expected_code_out
-
-
-def test_convert_ipcc_code_primap_to_primap2_too_short(caplog):
-    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC") == "error_IPC"
-    assert "WARNING" in caplog.text
-    assert "Too short to be a PRIMAP IPCC code." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_wrong_format(caplog):
-    assert pm2io.convert_ipcc_code_primap_to_primap2("IPD1A") == "error_IPD1A"
-    assert "WARNING" in caplog.text
-    assert "Prefix is missing, must be one of 'IPC' or 'CAT'." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_first_lvl(caplog):
-    assert pm2io.convert_ipcc_code_primap_to_primap2("IPCA1") == "error_IPCA1"
-    assert "WARNING" in caplog.text
-    assert "No digit found on first level." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_second_lvl(caplog):
-    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC123") == "error_IPC123"
-    assert "WARNING" in caplog.text
-    assert "No letter found on second level." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_third_lvl(caplog):
-    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC1AC") == "error_IPC1AC"
-    assert "WARNING" in caplog.text
-    assert "No number found on third level." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_fourth_lvl(caplog):
-    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC1A2_") == "error_IPC1A2_"
-    assert "WARNING" in caplog.text
-    assert "No letter found on fourth level." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_fifth_lvl(caplog):
-    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC1A2BB") == "error_IPC1A2BB"
-    assert "WARNING" in caplog.text
-    assert "No digit found on fifth level." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_sixth_lvl(caplog):
-    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC1A2B3X") == "error_IPC1A2B3X"
-    assert "WARNING" in caplog.text
-    assert "No number found on sixth level." in caplog.text
-
-
-def test_convert_ipcc_code_primap_to_primap2_after_sixth_lvl(caplog):
-    assert pm2io.convert_ipcc_code_primap_to_primap2("IPC1A2B33A") == "error_IPC1A2B33A"
-    assert "WARNING" in caplog.text
-    assert "Chars left after sixth level." in caplog.text
-
-
-@pytest.mark.parametrize(
-    "unit_in, entity_in, expected_unit_out",
-    [
-        ("GgCO2eq", "KYOTOGHG", "Gg CO2 / yr"),
-        ("MtC", "CO", "Mt C / yr"),
-        ("GgN2ON", "N2O", "Gg N / yr"),
-        ("t", "CH4", "t CH4 / yr"),
-    ],
-)
-def test_convert_unit_primap_to_primap2(unit_in, entity_in, expected_unit_out):
-    assert pm2io.convert_unit_primap_to_primap2(unit_in, entity_in) == expected_unit_out
-
-
-def test_convert_unit_primap_to_primap2_no_prefix(caplog):
-    assert (
-        pm2io.convert_unit_primap_to_primap2("CO2eq", "FGASES") == "error_CO2eq_FGASES"
-    )
-    assert "WARNING" in caplog.text
-    assert "No unit prefix matched for unit." in caplog.text
-
-
-def test_convert_unit_primap_to_primap2_unit_empty(caplog):
-    assert pm2io.convert_unit_primap_to_primap2("", "FGASES") == "error__FGASES"
-    assert "WARNING" in caplog.text
-    assert "Input unit is empty. Nothing converted." in caplog.text
-
-
-def test_convert_unit_primap_to_primap2_entity_empty(caplog):
-    assert pm2io.convert_unit_primap_to_primap2("GgCO2eq", "") == "error_GgCO2eq_"
-    assert "WARNING" in caplog.text
-    assert "Input entity is empty. Nothing converted." in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -134,19 +40,9 @@ def test_convert_unit_primap_to_primap2_entity_empty(caplog):
     ],
 )
 def test_metadata_for_variable(unit, entity, expected_attrs):
-    assert pm2io.metadata_for_variable(unit, entity) == expected_attrs
-
-
-@pytest.mark.parametrize(
-    "entity_pm1, entity_pm2",
-    [
-        ("CO2", "CO2"),
-        ("KYOTOGHG", "KYOTOGHG (SARGWP100)"),
-        ("KYOTOGHGAR4", "KYOTOGHG (AR4GWP100)"),
-    ],
-)
-def test_convert_entity_gwp_primap(entity_pm1, entity_pm2):
-    assert pm2io.convert_entity_gwp_primap(entity_pm1) == entity_pm2
+    assert (
+        pm2io._interchange_format.metadata_for_variable(unit, entity) == expected_attrs
+    )
 
 
 def test_read_wide_csv_file(tmp_path):
@@ -173,7 +69,11 @@ def test_read_wide_csv_file(tmp_path):
         "sec_cats__Class": "class",
         "scenario": "general",
     }
-    coords_value_mapping = {"category": "PRIMAP1", "entity": "PRIMAP1"}
+    coords_value_mapping = {
+        "category": "PRIMAP1",
+        "entity": "PRIMAP1",
+        "unit": "PRIMAP1",
+    }
     filter_keep = {
         "f1": {"category": ["IPC0", "IPC2"]},
         "f2": {"classification": "TOTAL"},
@@ -196,13 +96,37 @@ def test_read_wide_csv_file(tmp_path):
     df_result = pd.read_csv(tmp_path / "temp.csv", index_col=0)
     pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
 
-    assert attrs_result == {
-        "references": "Just ask around.",
-        "sec_cats": ["Class (class)", "Type (type)"],
-        "scen": "scenario (general)",
-        "area": "area (ISO3)",
-        "cat": "category (IPCC2006)",
+    attrs_expected = {
+        "attrs": {
+            "references": "Just ask around.",
+            "sec_cats": ["Class (class)", "Type (type)"],
+            "scen": "scenario (general)",
+            "area": "area (ISO3)",
+            "cat": "category (IPCC2006)",
+        },
+        "time_format": "%Y",
+        "dimensions": {
+            "*": [
+                "entity",
+                "source",
+                "area (ISO3)",
+                "Type (type)",
+                "unit",
+                "scenario (general)",
+                "Class (class)",
+                "category (IPCC2006)",
+            ]
+        },
     }
+
+    assert attrs_result.keys() == attrs_expected.keys()
+    assert attrs_result["attrs"] == attrs_expected["attrs"]
+    assert attrs_result["time_format"] == attrs_expected["time_format"]
+    assert attrs_result["dimensions"].keys() == attrs_expected["dimensions"].keys()
+    for entity in attrs_result["dimensions"]:
+        assert set(attrs_result["dimensions"][entity]) == set(
+            attrs_expected["dimensions"][entity]
+        )
 
 
 def test_read_wide_csv_file_coords_value_mapping(tmp_path):
@@ -280,6 +204,7 @@ def test_read_wide_csv_file_entity_def(tmp_path):
     }
     meta_mapping = {
         "category": "PRIMAP1",
+        "unit": "PRIMAP1",
     }
     filter_keep = {
         "f1": {"category": ["IPC0", "IPC2"]},
@@ -327,6 +252,55 @@ def test_read_wide_csv_file_unit_def(tmp_path):
     }
     meta_mapping = {
         "category": "PRIMAP1",
+        "unit": "PRIMAP1",
+    }
+    filter_keep = {
+        "f1": {"category": ["IPC0", "IPC2"]},
+        "f2": {"classification": "TOTAL"},
+    }
+    filter_remove = {"f2": {"country": ["USA", "FRA"]}, "f1": {"gas": "KYOTOGHG"}}
+
+    df_result = pm2io.read_wide_csv_file_if(
+        file_input,
+        coords_cols=coords_cols,
+        coords_defaults=coords_defaults,
+        coords_terminologies=coords_terminologies,
+        coords_value_mapping=meta_mapping,
+        filter_keep=filter_keep,
+        filter_remove=filter_remove,
+    )
+    df_result.to_csv(tmp_path / "test.csv")
+    df_result = pd.read_csv(tmp_path / "test.csv", index_col=0)
+    pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
+
+
+def test_read_wide_csv_file_function_mapping(tmp_path):
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+    file_expected = DATA_PATH / "test_read_wide_csv_file_output_unit_def.csv"
+    df_expected = pd.read_csv(file_expected, index_col=0)
+
+    coords_cols = {
+        "entity": "gas",
+        "area": "country",
+        "category": "category",
+        "sec_cats__Class": "classification",
+    }
+    coords_defaults = {
+        "source": "TESTcsv2021",
+        "sec_cats__Type": "fugitive",
+        "scenario": "HISTORY",
+        "unit": "Gg",
+    }
+    coords_terminologies = {
+        "area": "ISO3",
+        "category": "IPCC2006",
+        "sec_cats__Type": "type",
+        "sec_cats__Class": "class",
+        "scenario": "general",
+    }
+    meta_mapping = {
+        "category": pm2io._conversion.convert_ipcc_code_primap_to_primap2,
+        "unit": "PRIMAP1",
     }
     filter_keep = {
         "f1": {"category": ["IPC0", "IPC2"]},
@@ -386,6 +360,85 @@ def test_read_wide_csv_file_col_missing():
             coords_value_mapping=coords_value_mapping,
             filter_keep=filter_keep,
             filter_remove=filter_remove,
+        )
+
+
+def test_read_wide_csv_file_unknown_mapping():
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+
+    coords_cols = {
+        "entity": "gas",
+        "area": "country",
+        "category": "category",
+        "sec_cats__Class": "classification",
+    }
+    coords_defaults = {
+        "source": "TESTcsv2021",
+        "sec_cats__Type": "fugitive",
+        "scenario": "HISTORY",
+        "unit": "Gg",
+    }
+    coords_terminologies = {
+        "area": "ISO3",
+        "category": "IPCC2006",
+        "sec_cats__Type": "type",
+        "sec_cats__Class": "class",
+        "scenario": "general",
+    }
+    meta_mapping = {
+        "category": "non-existing",
+        "unit": "PRIMAP1",
+    }
+
+    with pytest.raises(
+        ValueError, match="Unknown metadata mapping non-existing for column category."
+    ):
+        pm2io.read_wide_csv_file_if(
+            file_input,
+            coords_cols=coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=meta_mapping,
+        )
+
+
+def test_read_wide_csv_file_overlapping_specification():
+    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+
+    coords_cols = {
+        "entity": "gas",
+        "area": "country",
+        "category": "category",
+        "sec_cats__Class": "classification",
+    }
+    coords_defaults = {
+        "entity": "CO2",
+        "source": "TESTcsv2021",
+        "sec_cats__Type": "fugitive",
+        "scenario": "HISTORY",
+        "unit": "Gg",
+    }
+    coords_terminologies = {
+        "area": "ISO3",
+        "category": "IPCC2006",
+        "sec_cats__Type": "type",
+        "sec_cats__Class": "class",
+        "scenario": "general",
+    }
+    meta_mapping = {
+        "category": "PRIMAP1",
+        "unit": "PRIMAP1",
+    }
+
+    with pytest.raises(
+        ValueError, match="{'entity'} given in coords_cols and coords_defaults."
+    ):
+        pm2io.read_wide_csv_file_if(
+            file_input,
+            coords_cols=coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=meta_mapping,
         )
 
 
@@ -632,15 +685,29 @@ def test_read_wide_csv_file_no_function_mapping_col():
 def test_from_interchange_format():
     file_input = DATA_PATH / "test_read_wide_csv_file_output.csv"
     file_expected = DATA_PATH / "test_from_interchange_format_output.nc"
-    ds_expected = pm2.open_dataset(file_expected)
-    attrs = {
-        "area": "area (ISO3)",
-        "cat": "category (IPCC2006)",
-        "scen": "scenario (general)",
-        "sec_cats": ["Class (class)", "Type (type)"],
-    }
+    ds_expected = primap2.open_dataset(file_expected)
     df_input = pd.read_csv(file_input, index_col=0)
-    ds_result = pm2io.from_interchange_format(df_input, attrs, time_col_regex=r"\d")
+    dims = [
+        "area (ISO3)",
+        "category (IPCC2006)",
+        "scenario (general)",
+        "Class (class)",
+        "Type (type)",
+        "unit",
+        "entity",
+        "source",
+    ]
+    attrs = {
+        "attrs": {
+            "area": "area (ISO3)",
+            "cat": "category (IPCC2006)",
+            "scen": "scenario (general)",
+            "sec_cats": ["Class (class)", "Type (type)"],
+        },
+        "time_format": "%Y",
+        "dimensions": {ent: dims for ent in np.unique(df_input["entity"])},
+    }
+    ds_result = pm2io.from_interchange_format(df_input, attrs)
     assert_ds_aligned_equal(ds_result, ds_expected, equal_nan=True)
 
 
@@ -650,31 +717,46 @@ def test_from_interchange_format_too_large(caplog):
             "a": np.arange(10),
             "b": np.arange(10),
             "c": np.arange(10),
+            "entity": ["CO2"] * 10,
             "unit": ["Gg"] * 10,
             "2001": np.arange(10),
         }
     )
-    df.attrs = {}
+    df.attrs = {
+        "attrs": {},
+        "dimensions": {"CO2": ["a", "b", "c"]},
+        "time_format": "%Y",
+    }
     # projected array size should be 1000 > 100
     with pytest.raises(ValueError, match="Resulting array too large"):
         pm2io.from_interchange_format(df, max_array_size=100)
 
     assert "ERROR" in caplog.text
     assert (
-        "Array with 2 dimensions will have a size of 1,000 due to the shape"
-        " [10, 10, 10]." in caplog.text
+        "Set with 1 entities and a total of 3 dimensions will have a size of 1,000"
+        in caplog.text
     )
 
 
-def test_convert_dataframe_units_primap_to_primap2():
-    file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
-    file_expected = DATA_PATH / "test_convert_dataframe_units_primap_to_primap2.csv"
-    df_expected = pd.read_csv(file_expected, index_col=0)
-    df = pd.read_csv(file_input)
-    df_converted = pm2io.convert_dataframe_units_primap_to_primap2(
-        df, unit_col="unit", entity_col="gas"
-    )
-    pd.testing.assert_frame_equal(df_converted, df_expected)
+def test_read_write_interchange_format_roundtrip(tmp_path):
+    file_input = DATA_PATH / "test_read_wide_csv_file_output.csv"
+    file_temp = tmp_path / "test_interchange_format"
+    data = pd.read_csv(file_input, index_col=0)
+    attrs = {
+        "attrs": {
+            "area": "area (ISO3)",
+            "cat": "category (IPCC2006)",
+            "scen": "scenario (general)",
+            "sec_cats": ["Class (class)", "Type (type)"],
+        },
+        "time_format": "%Y",
+        "dimensions": {"CO2": ["area (ISO3)"]},
+    }
+    pm2io.write_interchange_format(file_temp, data, attrs)
+    read_data = pm2io.read_interchange_format(file_temp)
+    read_attrs = read_data.attrs
+    assert read_attrs == attrs
+    pd.testing.assert_frame_equal(data, read_data)
 
 
 # functions that still need individual testing

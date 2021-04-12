@@ -70,7 +70,7 @@ install: clean ## install the package to the active Python's site-packages
 
 virtual-environment: venv ## setup a virtual environment for development
 
-venv: requirements_dev.txt
+venv: requirements_dev.txt setup.cfg
 	[ -d venv ] || python3 -m venv venv
 	venv/bin/python -m pip install -r requirements_dev.txt --upgrade
 	venv/bin/python -m pip install -e .

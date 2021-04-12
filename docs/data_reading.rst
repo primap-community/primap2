@@ -17,13 +17,13 @@ The data reading functionality is bundled in the PRIMAP2 submodule ``pm2io``.
 
 To enable a wider use of the PRIMAP2 data reading functionality we read all
 data into the PRIMAP2 interchange format which is a wide format pandas
-DataFrame with metadata in columns and following PRIMAP2 specifications.
-The attributes (``attrs``) are stored in ``DataFrame.attrs``. As the ``attrs``
+DataFrame with coordinates in columns and following PRIMAP2 specifications.
+Additional meta data is stored in ``DataFrame.attrs``. As the ``attrs``
 functionality in pandas is experimental it is just stored in the DataFrame
 returned by the reading functions and should be stored individually before
 doing any processing with the DataFrame.
 
-For use the data in PRIMAP2 the interchange format can be converted into native
+The PRIMAP2 interchange format can then be converted into native
 PRIMAP2 xarray Datasets.
 
 For details on data reading see the following sections and example code linked
@@ -32,11 +32,14 @@ therein.
 Wide csv file
 -------------
 The function ``read_wide_csv_file_if`` reads wide format csv files which are
-widely used for emissions data. All metadata columns can be defined using dicts
-as input including giving default values for metadata not available in the csv
-files. Data can be filtered for wanted or unwanted metadata.
+widely used for emissions data.
+All coordinate columns can be defined using dicts
+as input including giving default values for coordinates not available in the csv
+files.
+Data can be filtered for wanted or unwanted coordinate values.
 
-To illustrate the use of the function we have two examples. The first example
+To illustrate the use of the function we have two examples.
+The first example
 illustrates the different input parameters using a simple test dataset while
 the second example is a real world use of the function reading the PRIMAP-hist
 v2.2 dataset into PRIMAP2.

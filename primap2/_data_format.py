@@ -1,11 +1,12 @@
 import pathlib
 from typing import IO, Hashable, Iterable, Mapping, Optional, Tuple, Union
 
+import pandas as pd
 import pint
 import xarray as xr
 from loguru import logger
 
-from . import _accessor_base
+from . import _accessor_base, pm2io
 from ._units import ureg
 
 
@@ -94,6 +95,67 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         ensure_valid_coordinate_values(self._ds)
         ensure_valid_data_variables(self._ds)
         ensure_valid_attributes(self._ds)
+
+    def to_interchange_format(self, time_format: str = "%Y") -> pd.DataFrame:
+        """Convert dataset to the interchange format.
+
+        The interchange format consists of a pandas DataFrame in wide format with the
+        meta data dictionary stored in the DataFrame's attrs dict.
+
+        Parameters
+        ----------
+        time_format: str, optional
+          string for strftime formatting of the "time" axis.
+
+        Returns
+        -------
+        df: pd.DataFrame
+        """
+        dsd = self._ds.pr.dequantify()
+        # additional coordinates are not yet supported, so drop them
+        dsd = dsd.reset_coords(drop=True)
+
+        dsd["time"] = dsd["time"].dt.strftime(time_format)
+
+        if "entity_terminology" in self._ds.attrs:
+            entity_col = f"entity ({self._ds.attrs['entity_terminology']})"
+        else:
+            entity_col = "entity"
+
+        dfs = []
+        for x in dsd:
+            df = (
+                dsd[x].to_dataset("time").to_dataframe().dropna(how="all").reset_index()
+            )
+            df[entity_col] = x
+            df["unit"] = dsd[x].attrs["units"]
+            dfs.append(df)
+
+        df = pd.concat(dfs, ignore_index=True)
+
+        df = pm2io._data_reading.sort_columns_and_rows(
+            df,
+            dimensions=[dim for dim in dsd.dims if dim != "time"]
+            + [entity_col, "unit"],
+        )
+
+        dimensions = {}
+        all_dimensions = [str(dim) for dim in dsd.dims] + [entity_col, "unit"]
+        for entity in dsd:
+            dims = [str(dim) for dim in dsd[entity].dims] + [entity_col, "unit"]
+            if set(dims) == set(all_dimensions):
+                # use default option for entities which use all the dataset's dimensions
+                if "*" not in dimensions:
+                    dimensions["*"] = all_dimensions
+            else:
+                dimensions[entity] = dims
+
+        df.attrs = {
+            "attrs": self._ds.attrs,
+            "time_format": time_format,
+            "dimensions": dimensions,
+        }
+        return df
 
     def to_netcdf(
         self,

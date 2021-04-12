@@ -1,3 +1,5 @@
+.. _data_format_details:
+
 ===================
 Data format details
 ===================
