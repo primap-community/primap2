@@ -63,3 +63,13 @@ data_file    str         The relative path to the CSV data file (only when store
 dimensions   dictionary  Mapping of the entities to a list of the dimensions used by them
 time_format  str         strftime style time format string used for the time columns
 ===========  ==========  ================================================================================
+
+In the `dimensions` dictionary, the keys are entities as given in the tabular data in
+the entity column. The values are lists of column names as used in the tabular data,
+i.e. including the terminology.
+To avoid repeating dimension information for many entities with the same dimensions,
+it is possible to use `*` as the entity name in the dimensions dict, which will be used
+as a default for all entities not explicitly listed.
+Dimension information has to be given for all entities, i.e. if no default dimensions
+are specified using `*`, there has to exist an entry in the dimensions dict for each
+unique value in the entity column in the tabular data.
