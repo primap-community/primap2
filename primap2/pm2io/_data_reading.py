@@ -184,7 +184,7 @@ def read_long_csv_file_if(
 
     coords = list(set(data_long.columns.values) - {"data"})
 
-    harmonize_units(data_long, dimensions=coords)
+    harmonize_units(data_long, dimensions=coords, attrs=attrs)
 
     data, coords = long_to_wide(data_long, time_format=time_format)
 
@@ -368,7 +368,7 @@ def read_wide_csv_file_if(
 
     coords = list(set(data.columns.values) - set(time_columns))
 
-    harmonize_units(data, dimensions=coords)
+    harmonize_units(data, dimensions=coords, attrs=attrs)
 
     data, coords = sort_columns_and_rows(data, dimensions=coords)
 
@@ -645,6 +645,8 @@ def rename_columns(
     for coord in itertools.chain(coords_cols, coords_defaults):
         if coord in coords_terminologies:
             name = f"{coord} ({coords_terminologies[coord]})"
+            if coord == "entity":
+                attrs["entity_terminology"] = coords_terminologies[coord]
         else:
             name = coord
 
@@ -668,7 +670,7 @@ def harmonize_units(
     data: pd.DataFrame,
     *,
     unit_col: str = "unit",
-    entity_col: str = "entity",
+    attrs: Optional[dict] = None,
     dimensions: Iterable[str],
 ) -> None:
     """
@@ -680,10 +682,12 @@ def harmonize_units(
     ----------
     data: pd.DataFrame
         data for which the units should be harmonized
-    unit_col: str
+    unit_col: str, optional
         column name for unit column. Default: "unit"
-    entity_col: str
-        column name for entity column. Default: "entity"
+    attrs: dict, optional
+        attrs defining the aliasing of columns. If attrs contains "entity_terminology",
+        "entity (<entity_terminology>)" will be used as the entity column, otherwise
+        simply "entity" will be used as the entity column.
     dimensions: list of str
         the dimensions, i.e. the metadata columns.
 
@@ -694,6 +698,14 @@ def harmonize_units(
     """
     # we need to convert the data such that we have one unit per entity
     data_cols = list(set(data.columns.values) - set(dimensions))
+
+    if attrs is not None:
+        dim_aliases = _alias_selection.translations_from_attrs(
+            attrs, include_entity=True
+        )
+        entity_col = dim_aliases.get("entity", "entity")
+    else:
+        entity_col = "entity"
 
     entities = data[entity_col].unique()
     for entity in entities:

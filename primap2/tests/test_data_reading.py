@@ -1,5 +1,5 @@
 """Tests for _data_reading.py"""
-
+import datetime
 from pathlib import Path
 
 import numpy as np
@@ -227,7 +227,7 @@ class TestReadWideCSVFile:
         file_input = DATA_PATH / "test_csv_data.csv"
         file_expected = DATA_PATH / "test_read_wide_csv_file_no_sec_cats.csv"
         df_expected: pd.DataFrame = pd.read_csv(file_expected, index_col=0)
-        df_expected.rename(columns={"entity": "entity (PRIMAP1)"})
+        df_expected.rename(columns={"entity": "entity (PRIMAP1)"}, inplace=True)
 
         del coords_cols["sec_cats__Class"]
         del coords_defaults["sec_cats__Type"]
@@ -253,6 +253,7 @@ class TestReadWideCSVFile:
                 "scen": "scenario (general)",
                 "area": "area (ISO3)",
                 "cat": "category (IPCC2006)",
+                "entity_terminology": "PRIMAP1",
             },
             "time_format": "%Y",
             "dimensions": {
@@ -708,9 +709,72 @@ class TestLong:
         pd.testing.assert_frame_equal(df_result_wide, df_result_long)
         assert df_result_wide.attrs == df_result_long.attrs
 
+    def test_no_data_specified(
+        self, coords_cols, coords_defaults, coords_terminologies, coords_value_mapping
+    ):
+        file_input_long = DATA_PATH / "long.csv"
 
-# TODO: test entity_terminology for reading
-# TODO: read_long_csv special cases (data col not specified, time not in coords_cols)
+        del coords_cols["sec_cats__Class"]
+        del coords_defaults["sec_cats__Type"]
+        del coords_terminologies["sec_cats__Class"]
+        del coords_terminologies["sec_cats__Type"]
+
+        coords_cols["time"] = "year"
+
+        with pytest.raises(
+            ValueError,
+            match="No data column in the CSV specified in coords_cols, so nothing to"
+            " read.",
+        ):
+            pm2io.read_long_csv_file_if(
+                file_input_long,
+                coords_cols=coords_cols,
+                coords_defaults=coords_defaults,
+                coords_terminologies=coords_terminologies,
+                coords_value_mapping=coords_value_mapping,
+                time_format="%Y",
+            )
+
+    def test_no_time(
+        self, coords_cols, coords_defaults, coords_terminologies, coords_value_mapping
+    ):
+        file_input_long = DATA_PATH / "long_no_time.csv"
+
+        del coords_cols["sec_cats__Class"]
+        del coords_defaults["sec_cats__Type"]
+        del coords_terminologies["sec_cats__Class"]
+        del coords_terminologies["sec_cats__Type"]
+
+        coords_cols["data"] = "emissions"
+        coords_defaults["time"] = datetime.datetime(2020, 1, 1)
+
+        df = pm2io.read_long_csv_file_if(
+            file_input_long,
+            coords_cols=coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=coords_value_mapping,
+            time_format="%Y",
+        )
+
+        df_expected = pd.DataFrame(
+            [
+                ("TESTcsv2021", "HISTORY", "AUS", "CO2", "Gg CO2 / yr", "1", 4.1),
+                ("TESTcsv2021", "HISTORY", "ZAM", "CH4", "Mt CH4 / yr", "2", 7.0),
+            ],
+            columns=[
+                "source",
+                "scenario (general)",
+                "area (ISO3)",
+                "entity",
+                "unit",
+                "category (IPCC2006)",
+                "2020",
+            ],
+        )
+
+        pd.testing.assert_frame_equal(df, df_expected)
+
 
 # functions that still need individual testing
 
