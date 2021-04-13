@@ -530,6 +530,26 @@ class TestReadWideCSVFile:
                 coords_value_mapping=coords_value_mapping,
             )
 
+    def test_unknown_coordinate(
+        self, coords_cols, coords_defaults, coords_terminologies, coords_value_mapping
+    ):
+        file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+
+        coords_defaults["citation"] = "this should go to attrs"
+
+        with pytest.raises(
+            ValueError,
+            match="'citation' given in coords_defaults is unknown - prefix with "
+            "'sec_cats__' to add a secondary category.",
+        ):
+            pm2io.read_wide_csv_file_if(
+                file_input,
+                coords_cols=coords_cols,
+                coords_defaults=coords_defaults,
+                coords_terminologies=coords_terminologies,
+                coords_value_mapping=coords_value_mapping,
+            )
+
 
 class TestInterchangeFormat:
     def test_from(self):
