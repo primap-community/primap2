@@ -191,7 +191,7 @@ def read_long_csv_file_if(
     data, coords = sort_columns_and_rows(data, dimensions=coords)
 
     data.attrs = interchange_format_attrs_dict(
-        data, xr_attrs=attrs, time_format=time_format, dimensions=coords
+        xr_attrs=attrs, time_format=time_format, dimensions=coords
     )
 
     return data
