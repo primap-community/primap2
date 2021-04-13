@@ -1,5 +1,5 @@
 country,category,gas,unit,year,emissions,other
-AUS,IPC1,CO2,Gg,1991,4,a
+AUS,IPC1,CO2,Gg,1991,4.1,a
 AUS,IPC1,CO2,Gg,2000,5,b
 AUS,IPC1,CO2,Gg,2010,6,c
 ZAM,IPC2,CH4,Mt,1991,7,d

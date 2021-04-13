@@ -397,10 +397,10 @@ def check_mandatory_dimensions(
     for coord in INTERCHANGE_FORMAT_MANDATORY_COLUMNS:
         if coord not in coords_cols and coord not in coords_defaults:
             logger.error(
-                f"Mandatory dimension {coord} not found in coords_cols={coords_cols} or"
-                f" coords_defaults={coords_defaults}."
+                f"Mandatory dimension {coord!r} not found in coords_cols={coords_cols}"
+                f" or coords_defaults={coords_defaults}."
             )
-            raise ValueError(f"Mandatory dimension {coord} not defined.")
+            raise ValueError(f"Mandatory dimension {coord!r} not defined.")
 
 
 def check_overlapping_specifications(
@@ -440,7 +440,9 @@ def read_wide_csv(
     # remove all non-numeric values from year columns
     # (what is left after mapping to nan when reading data)
     for col in time_cols:
-        data[col] = data[col][pd.to_numeric(data[col], errors="coerce").notnull()]
+        data[col] = data[col][
+            pd.to_numeric(data[col], errors="coerce").notnull()
+        ].astype(float)
 
     # remove all cols not in the specification
     columns = data.columns.values
@@ -488,7 +490,7 @@ def read_long_csv(
     # remove all non-numeric values from data column
     data[csv_data_column] = data[csv_data_column][
         pd.to_numeric(data[csv_data_column], errors="coerce").notnull()
-    ]
+    ].astype(float)
 
     return data
 
@@ -590,11 +592,11 @@ def map_metadata(
                     func, args = mapping_functions[mapping][column]
                 except KeyError:
                     logger.error(
-                        f"Unknown metadata mapping {mapping} for column {column}, "
+                        f"Unknown metadata mapping {mapping!r} for column {column!r}, "
                         f"known mappings are: {list(mapping_functions.keys())}."
                     )
                     raise ValueError(
-                        f"Unknown metadata mapping {mapping} for column {column}."
+                        f"Unknown metadata mapping {mapping!r} for column {column!r}."
                     )
             else:
                 func = mapping
