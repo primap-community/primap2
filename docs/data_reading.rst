@@ -31,8 +31,8 @@ therein.
 
 Wide csv file
 -------------
-The function ``read_wide_csv_file_if`` reads wide format csv files which are
-widely used for emissions data.
+The function :meth:`primap2.pm2io.read_wide_csv_file_if` reads wide format csv files
+which are widely used for emissions data.
 All coordinate columns can be defined using dicts
 as input including giving default values for coordinates not available in the csv
 files.
@@ -48,15 +48,33 @@ v2.2 dataset into PRIMAP2.
    :maxdepth: 2
    :caption: Examples wide csv:
 
-   data_reading_example_test_data
-   data_reading_example_PRIMAP-hist
+   data_reading_examples/test_data_wide
+   data_reading_examples/PRIMAP-hist
 
+Long (tidy) csv file
+--------------------
+The function :meth:`primap2.pm2io.read_long_csv_file_if` reads long format CSV files
+(also often called tidy CSV files), which are for example used by the FAOstat for
+agriculture emissions data.
+The input for the function is very similar to the input for
+:meth:`primap2.pm2io.read_wide_csv_file_if` described previously, with the difference
+mainly that you have to specify the column where to find the data and time information.
+
+To illustrate the use of the function, we have again two examples.
+The first example just reads in some example data to understand how the function works.
+The second example shows how to read in FAOstat data into PRIMAP2.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Examples long CSV:
+
+   data_reading_examples/test_data_long
+   data_reading_examples/FAOstat
 
 
 Further formats
 ---------------
-In the future we will ofer data reading functions for long format csv files,
-automatic reading of several csv files within a folder and further formats.
+In the future we will ofer data reading functions for further formats.
 Information will be added here.
 
 
