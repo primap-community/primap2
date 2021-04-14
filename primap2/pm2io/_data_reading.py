@@ -1,7 +1,18 @@
 import datetime
 import itertools
 from pathlib import Path
-from typing import IO, Any, Callable, Dict, Hashable, Iterable, List, Optional, Union
+from typing import (
+    IO,
+    Any,
+    Callable,
+    Dict,
+    Hashable,
+    Iterable,
+    List,
+    Optional,
+    Set,
+    Union,
+)
 
 import numpy as np
 import pandas as pd
@@ -17,6 +28,197 @@ from ._interchange_format import (
 )
 
 SEC_CATS_PREFIX = "sec_cats__"
+NA_VALUES = [
+    "nan",
+    "NE",
+    "-",
+    "NA, NE",
+    "NO,NE",
+    "NA,NE",
+    "NE,NO",
+    "NE0",
+    "NO, NE",
+]
+
+
+def read_long_csv_file_if(
+    filepath_or_buffer: Union[str, Path, IO],
+    *,
+    coords_cols: Dict[str, str],
+    coords_defaults: Optional[Dict[str, Any]] = None,
+    coords_terminologies: Dict[str, str],
+    coords_value_mapping: Optional[Dict[str, Any]] = None,
+    filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
+    filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
+    meta_data: Optional[Dict[str, Any]] = None,
+    time_format: str = "%Y-%m-%d",
+) -> pd.DataFrame:
+    """Read a CSV file in long (tidy) format into the PRIMAP2 interchange format.
+
+    Columns can be renamed or filled with default values to match the PRIMAP2 structure.
+    Where we refer to "dimensions" in the parameter description below we mean the basic
+    dimension names without the added terminology (e.g. "area" not "area (ISO3)"). The
+    terminology information will be added by this function. You can not use the short
+    dimension names in the attributes (e.g. "cat" instead of "category").
+
+    Parameters
+    ----------
+    filepath_or_buffer: str, pathlib.Path, or file-like
+        Long CSV file which will be read.
+
+    coords_cols : dict
+        Dict where the keys are column names in the files to be read and the value is
+        the dimension in PRIMAP2. To specify the data column containing the observable,
+        use the "data" key. For secondary categories use a ``sec_cats__`` prefix.
+
+    coords_defaults : dict, optional
+        Dict for default values of coordinates / dimensions not given in the csv files.
+        The keys are the dimension names and the values are the values for
+        the dimensions. For secondary categories use a ``sec_cats__`` prefix.
+
+    coords_terminologies : dict
+        Dict defining the terminologies used for the different coordinates (e.g. ISO3
+        for area). Only possible coordinates here are: area, category, scenario,
+        entity, and secondary categories. For secondary categories use a ``sec_cats__``
+        prefix. All entries different from "area", "category", "scenario", "entity", and
+        ``sec_cats__<name>`` will raise a ValueError.
+
+    coords_value_mapping : dict, optional
+        A dict with primap2 dimension names as keys. Values are dicts with input values
+        as keys and output values as values. A standard use case is to map gas names
+        from input data to the standardized names used in primap2.
+        Alternatively a value can also be a function which transforms one CSV metadata
+        value into the new metadata value.
+        A third possibility is to give a string as a value, which defines a rule for
+        translating metadata values. For the "category", "entity", and "unit" columns,
+        the rule "PRIMAP1" is available, which translates from PRIMAP1 metadata to
+        PRIMAP2 metadata.
+
+    filter_keep : dict, optional
+        Dict defining filters of data to keep. Filtering is done before metadata
+        mapping, so use original metadata values to define the filter. Column names are
+        as in the csv file. Each entry in the dict defines an individual filter.
+        The names of the filters have no relevance. Default: keep all data.
+
+    filter_remove : dict, optional
+        Dict defining filters of data to remove. Filtering is done before metadata
+        mapping, so use original metadata values to define the filter. Column names are
+        as in the csv file. Each entry in the dict defines an individual filter.
+        The names of the filters have no relevance.
+
+    meta_data : dict, optional
+        Meta data for the whole dataset. Will end up in the dataset-wide attrs. Allowed
+        keys are "references", "rights", "contact", "title", "comment", "institution",
+        and "history". Documentation about the format and meaning of the meta data can
+        be found in the
+        `data format documentation <https://primap2.readthedocs.io/en/stable/data_format_details.html#dataset-attributes>`_.  # noqa: E501
+
+    time_format : str, optional
+        strftime style format used to format the time information for the data columns
+        in the interchange format.
+        Default: "%F", i.e. the ISO 8601 date format.
+
+    Returns
+    -------
+    obj: pd.DataFrame
+        pandas DataFrame with the read data
+
+    Examples
+    --------
+    *Example for meta_mapping*::
+
+        meta_mapping = {
+            'pyCPA_col_1': {'col_1_value_1_in': 'col_1_value_1_out',
+                            'col_1_value_2_in': 'col_1_value_2_out',
+                            },
+            'pyCPA_col_2': {'col_2_value_1_in': 'col_2_value_1_out',
+                            'col_2_value_2_in': 'col_2_value_2_out',
+                            },
+        }
+
+    *Example for filter_keep*::
+
+        filter_keep = {
+            'f_1': {'variable': ['CO2', 'CH4'], 'region': 'USA'},
+            'f_2': {'variable': 'N2O'}
+        }
+
+    This example filter keeps all CO2 and CH4 data for the USA and N2O data for all
+    countries
+
+    *Example for filter_remove*::
+
+        filter_remove = {
+            'f_1': {'scenario': 'HISTORY'},
+        }
+
+    This filter removes all data with 'HISTORY' as scenario
+
+    """
+    # Check and prepare arguments
+    if coords_defaults is None:
+        coords_defaults = {}
+    if meta_data is None:
+        attrs = {}
+    else:
+        attrs = meta_data.copy()
+
+    check_mandatory_dimensions(coords_cols, coords_defaults)
+    check_overlapping_specifications(coords_cols, coords_defaults)
+
+    data_long = read_long_csv(filepath_or_buffer, coords_cols)
+
+    filter_data(data_long, filter_keep, filter_remove)
+
+    add_dimensions_from_defaults(
+        data_long, coords_defaults, additional_allowed_coords=["time"]
+    )
+
+    naming_attrs = rename_columns(
+        data_long, coords_cols, coords_defaults, coords_terminologies
+    )
+    attrs.update(naming_attrs)
+
+    if coords_value_mapping is not None:
+        map_metadata(data_long, attrs=attrs, meta_mapping=coords_value_mapping)
+
+    coords = list(set(data_long.columns.values) - {"data"})
+
+    harmonize_units(data_long, dimensions=coords, attrs=attrs)
+
+    data, coords = long_to_wide(data_long, time_format=time_format)
+
+    data, coords = sort_columns_and_rows(data, dimensions=coords)
+
+    data.attrs = interchange_format_attrs_dict(
+        xr_attrs=attrs, time_format=time_format, dimensions=coords
+    )
+
+    return data
+
+
+def long_to_wide(
+    data_long: pd.DataFrame, *, time_format: str
+) -> (pd.DataFrame, Set[str]):
+    data_long["time"] = data_long["time"].dt.strftime(time_format)
+
+    coords = list(set(data_long.columns.values) - {"data", "time"})
+
+    # unit is neither a coordinate nor a data column, so has to be handled separately
+    unit = data_long[coords].drop_duplicates()
+    coords.remove("unit")
+    unit.index = pd.MultiIndex.from_frame(unit[coords])
+
+    series = data_long["data"]
+    series.index = pd.MultiIndex.from_frame(data_long[coords + ["time"]])
+    data = series.unstack("time")
+
+    data["unit"] = unit["unit"]
+
+    data.reset_index(inplace=True)
+    data.columns.name = None
+
+    return data, coords + ["unit"]
 
 
 def read_wide_csv_file_if(
@@ -33,7 +235,7 @@ def read_wide_csv_file_if(
 ) -> pd.DataFrame:
     """Read a CSV file in wide format into the PRIMAP2 interchange format.
 
-    Columns can be renamed or filled with default vales to match the PRIMAP2 structure.
+    Columns can be renamed or filled with default values to match the PRIMAP2 structure.
     Where we refer to "dimensions" in the parameter description below we mean the basic
     dimension names without the added terminology (e.g. "area" not "area (ISO3)"). The
     terminology information will be added by this function. You can not use the short
@@ -166,9 +368,9 @@ def read_wide_csv_file_if(
 
     coords = list(set(data.columns.values) - set(time_columns))
 
-    harmonize_units(data, dimensions=coords)
+    harmonize_units(data, dimensions=coords, attrs=attrs)
 
-    data = sort_columns_and_rows(data, dimensions=coords)
+    data, coords = sort_columns_and_rows(data, dimensions=coords)
 
     data.attrs = interchange_format_attrs_dict(
         xr_attrs=attrs, time_format=time_format, dimensions=coords
@@ -195,10 +397,10 @@ def check_mandatory_dimensions(
     for coord in INTERCHANGE_FORMAT_MANDATORY_COLUMNS:
         if coord not in coords_cols and coord not in coords_defaults:
             logger.error(
-                f"Mandatory dimension {coord} not found in coords_cols={coords_cols} or"
-                f" coords_defaults={coords_defaults}."
+                f"Mandatory dimension {coord!r} not found in coords_cols={coords_cols}"
+                f" or coords_defaults={coords_defaults}."
             )
-            raise ValueError(f"Mandatory dimension {coord} not defined.")
+            raise ValueError(f"Mandatory dimension {coord!r} not defined.")
 
 
 def check_overlapping_specifications(
@@ -228,18 +430,7 @@ def read_wide_csv(
     time_format: str,
 ) -> (pd.DataFrame, List[str]):
 
-    na_values = [
-        "nan",
-        "NE",
-        "-",
-        "NA, NE",
-        "NO,NE",
-        "NA,NE",
-        "NE,NO",
-        "NE0",
-        "NO, NE",
-    ]
-    data = pd.read_csv(filepath_or_buffer, na_values=na_values)
+    data = pd.read_csv(filepath_or_buffer, na_values=NA_VALUES)
 
     # get all the columns that are actual data not metadata (usually the years)
     time_cols = [
@@ -249,7 +440,9 @@ def read_wide_csv(
     # remove all non-numeric values from year columns
     # (what is left after mapping to nan when reading data)
     for col in time_cols:
-        data[col] = data[col][pd.to_numeric(data[col], errors="coerce").notnull()]
+        data[col] = data[col][
+            pd.to_numeric(data[col], errors="coerce").notnull()
+        ].astype(float)
 
     # remove all cols not in the specification
     columns = data.columns.values
@@ -268,6 +461,38 @@ def read_wide_csv(
         raise ValueError(f"Columns {missing} not found in CSV.")
 
     return data, time_cols
+
+
+def read_long_csv(
+    filepath_or_buffer, coords_cols: Dict[str, str]
+) -> (pd.DataFrame, List[str]):
+    try:
+        csv_data_column = coords_cols["data"]
+    except KeyError:
+        raise ValueError(
+            "No data column in the CSV specified in coords_cols, so nothing to read."
+        )
+
+    if "time" in coords_cols:
+        parse_dates = [coords_cols["time"]]
+    else:
+        parse_dates = False
+
+    usecols = list(coords_cols.values())
+
+    data = pd.read_csv(
+        filepath_or_buffer,
+        na_values=NA_VALUES,
+        parse_dates=parse_dates,
+        usecols=usecols,
+    )
+
+    # remove all non-numeric values from data column
+    data[csv_data_column] = data[csv_data_column][
+        pd.to_numeric(data[csv_data_column], errors="coerce").notnull()
+    ].astype(float)
+
+    return data
 
 
 def spec_to_query_string(filter_spec: Dict[str, Union[list, Any]]) -> str:
@@ -317,9 +542,12 @@ def filter_data(
 def add_dimensions_from_defaults(
     data: pd.DataFrame,
     coords_defaults: Dict[str, Any],
+    additional_allowed_coords: Iterable[str] = (),
 ):
     if_columns = (
-        INTERCHANGE_FORMAT_OPTIONAL_COLUMNS + INTERCHANGE_FORMAT_MANDATORY_COLUMNS
+        INTERCHANGE_FORMAT_OPTIONAL_COLUMNS
+        + INTERCHANGE_FORMAT_MANDATORY_COLUMNS
+        + list(additional_allowed_coords)
     )
     for coord in coords_defaults.keys():
         if coord in if_columns or coord.startswith(SEC_CATS_PREFIX):
@@ -364,11 +592,11 @@ def map_metadata(
                     func, args = mapping_functions[mapping][column]
                 except KeyError:
                     logger.error(
-                        f"Unknown metadata mapping {mapping} for column {column}, "
+                        f"Unknown metadata mapping {mapping!r} for column {column!r}, "
                         f"known mappings are: {list(mapping_functions.keys())}."
                     )
                     raise ValueError(
-                        f"Unknown metadata mapping {mapping} for column {column}."
+                        f"Unknown metadata mapping {mapping!r} for column {column!r}."
                     )
             else:
                 func = mapping
@@ -417,6 +645,8 @@ def rename_columns(
     for coord in itertools.chain(coords_cols, coords_defaults):
         if coord in coords_terminologies:
             name = f"{coord} ({coords_terminologies[coord]})"
+            if coord == "entity":
+                attrs["entity_terminology"] = coords_terminologies[coord]
         else:
             name = coord
 
@@ -440,7 +670,7 @@ def harmonize_units(
     data: pd.DataFrame,
     *,
     unit_col: str = "unit",
-    entity_col: str = "entity",
+    attrs: Optional[dict] = None,
     dimensions: Iterable[str],
 ) -> None:
     """
@@ -452,10 +682,12 @@ def harmonize_units(
     ----------
     data: pd.DataFrame
         data for which the units should be harmonized
-    unit_col: str
+    unit_col: str, optional
         column name for unit column. Default: "unit"
-    entity_col: str
-        column name for entity column. Default: "entity"
+    attrs: dict, optional
+        attrs defining the aliasing of columns. If attrs contains "entity_terminology",
+        "entity (<entity_terminology>)" will be used as the entity column, otherwise
+        simply "entity" will be used as the entity column.
     dimensions: list of str
         the dimensions, i.e. the metadata columns.
 
@@ -466,6 +698,14 @@ def harmonize_units(
     """
     # we need to convert the data such that we have one unit per entity
     data_cols = list(set(data.columns.values) - set(dimensions))
+
+    if attrs is not None:
+        dim_aliases = _alias_selection.translations_from_attrs(
+            attrs, include_entity=True
+        )
+        entity_col = dim_aliases.get("entity", "entity")
+    else:
+        entity_col = "entity"
 
     entities = data[entity_col].unique()
     for entity in entities:
@@ -493,7 +733,7 @@ def harmonize_units(
 def sort_columns_and_rows(
     data: pd.DataFrame,
     dimensions: Iterable[Hashable],
-) -> pd.DataFrame:
+) -> (pd.DataFrame, List[Hashable]):
     """Sort the data.
 
     The columns are ordered according to the order in
@@ -511,8 +751,8 @@ def sort_columns_and_rows(
 
     Returns
     -------
-    sorted : pd.DataFrame
-        the input data frame with columns and rows ordered.
+    sorted, dimensions_sorted : (pd.DataFrame, list of str)
+        the input data frame with columns and rows ordered and the dimensions sorted.
     """
     time_cols = list(set(data.columns.values) - set(dimensions))
 
@@ -527,9 +767,9 @@ def sort_columns_and_rows(
 
     cols_sorted += list(sorted(other_cols))
 
-    data = data[cols_sorted + list(sorted(time_cols))]
+    data: pd.DataFrame = data[cols_sorted + list(sorted(time_cols))]
 
     data.sort_values(by=cols_sorted, inplace=True)
     data.reset_index(inplace=True, drop=True)
 
-    return data
+    return data, cols_sorted
