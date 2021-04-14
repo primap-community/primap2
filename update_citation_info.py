@@ -1,6 +1,6 @@
 import requests
 
-resp = requests.get("https://zenodo.org/api/records/453590").json()
+resp = requests.get("https://zenodo.org/api/records/4535902").json()
 
 new_link = resp["links"]["doi"]
 new_doi = resp["metadata"]["doi"]
