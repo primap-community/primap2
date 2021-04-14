@@ -2,8 +2,8 @@
 Changelog
 =========
 
-Unreleased
-----------
+0.5.0
+-----
 * Add read and write functionality for interchange format
 * Add csv reading capabilities in pm2io module for wide and long (tidy) CSV files.
 * Add ``da.pr.coverage()`` and ``ds.pr.coverage()`` functions to summarize data
