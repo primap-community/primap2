@@ -76,10 +76,3 @@ Further formats
 ---------------
 In the future we will ofer data reading functions for further formats.
 Information will be added here.
-
-
-Creating a datalad package
---------------------------
-Once the datalad repository is up and running we will add information on how
-to create datalad repositories and how to include them in the PRIMAP2 datalad
-repository.

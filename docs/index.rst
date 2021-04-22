@@ -10,8 +10,9 @@ Welcome to PRIMAP2's documentation!
    data_format_examples
    usage
    data_reading
-   data_format_details
+   datalad
    interchange_format_examples
+   data_format_details
    interchange_format_details
    development
    credits
