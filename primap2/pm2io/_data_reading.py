@@ -331,46 +331,22 @@ def read_long_csv_file_if(
     This filter removes all data with 'HISTORY' as scenario
 
     """
-    # Check and prepare arguments
-    if coords_defaults is None:
-        coords_defaults = {}
-    if meta_data is None:
-        attrs = {}
-    else:
-        attrs = meta_data.copy()
-
     check_mandatory_dimensions(coords_cols, coords_defaults)
     check_overlapping_specifications(coords_cols, coords_defaults)
 
     data_long = read_long_csv(filepath_or_buffer, coords_cols)
 
-    filter_data(data_long, filter_keep, filter_remove)
-
-    add_dimensions_from_defaults(
-        data_long, coords_defaults, additional_allowed_coords=["time"]
+    return convert_long_dataframe_if(
+        data_long=data_long,
+        coords_cols=coords_cols,
+        coords_defaults=coords_defaults,
+        coords_terminologies=coords_terminologies,
+        coords_value_mapping=coords_value_mapping,
+        filter_keep=filter_keep,
+        filter_remove=filter_remove,
+        meta_data=meta_data,
+        time_format=time_format,
     )
-
-    naming_attrs = rename_columns(
-        data_long, coords_cols, coords_defaults, coords_terminologies
-    )
-    attrs.update(naming_attrs)
-
-    if coords_value_mapping is not None:
-        map_metadata(data_long, attrs=attrs, meta_mapping=coords_value_mapping)
-
-    coords = list(set(data_long.columns.values) - {"data"})
-
-    harmonize_units(data_long, dimensions=coords, attrs=attrs)
-
-    data, coords = long_to_wide(data_long, time_format=time_format)
-
-    data, coords = sort_columns_and_rows(data, dimensions=coords)
-
-    data.attrs = interchange_format_attrs_dict(
-        xr_attrs=attrs, time_format=time_format, dimensions=coords
-    )
-
-    return data
 
 
 def long_to_wide(
