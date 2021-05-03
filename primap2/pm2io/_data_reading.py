@@ -100,6 +100,10 @@ def convert_long_dataframe_if(
         values will be filled (or replaced). Vales are dicts with primap2 dimension names
         as keys. These are the source columns. The values are dicts with source value -
         target value mappings.
+        The value filling can do everything that the value mapping can, but while mapping
+        can only replace values within a column using information from that column, the
+        filing function can also fill or replace data based on values from a different
+        column.
         This can be used to e.g. fill missing category codes based on category names or
         to replace category codes which do not meet the terminology using the category
         names.
@@ -745,8 +749,6 @@ def fill_from_other_col(
     -------
     pd.DataFrame
     """
-    df_filled = df.copy()
-
     dim_aliases = _alias_selection.translations_from_attrs(attrs, include_entity=True)
 
     # loop over target columns in value mapping
@@ -759,14 +761,10 @@ def fill_from_other_col(
             target_col_name = dim_aliases.get(target_col, target_col)
             source_col_name = dim_aliases.get(source_col, source_col)
             for source_value in mapping_info:
-                df_filled.loc[
-                    df_filled[source_col_name] == source_value, target_col_name
-                ] = df_filled.loc[
-                    df_filled[source_col_name] == source_value, target_col_name
-                ] = mapping_info[
-                    source_value
-                ]
-    return df_filled
+                df.loc[df[source_col_name] == source_value, target_col_name] = df.loc[
+                    df[source_col_name] == source_value, target_col_name
+                ] = mapping_info[source_value]
+    return df
 
 
 def add_dimensions_from_defaults(
