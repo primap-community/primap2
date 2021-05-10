@@ -3,7 +3,6 @@
 import logging
 
 import pandas as pd
-import pint
 import pytest
 import xarray as xr
 
@@ -202,7 +201,7 @@ def test_multi_units(minimal_ds, caplog):
 def test_invalid_units(minimal_ds, caplog):
     deq = minimal_ds.pint.dequantify()
     deq["CO2"].attrs["units"] = "i_am_not_a_unit"
-    with pytest.raises(pint.UndefinedUnitError):
+    with pytest.raises(ValueError, match="Cannot parse units"):
         deq.pr.ensure_valid()
 
 

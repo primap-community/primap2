@@ -66,8 +66,8 @@ def test_array_coverage(empty_ds):
 
     expected = pd.DataFrame(
         index=da["area (ISO3)"].values,
-        columns=da["time"].values,
-        data=np.zeros((len(da["area (ISO3)"]), len(da["time"]))),
+        columns=da["time"].to_index(),
+        data=np.zeros((len(da["area (ISO3)"]), len(da["time"])), dtype=np.int32),
     )
     expected.loc["COL", "2001"] = 1
     expected.loc["COL", "2002"] = 1
