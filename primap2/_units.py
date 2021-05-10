@@ -12,7 +12,7 @@ from openscm_units import unit_registry as ureg
 
 from . import _accessor_base
 
-pint_xarray.accessors.setup_registry(ureg)
+pint_xarray.setup_registry(ureg)
 
 
 class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
