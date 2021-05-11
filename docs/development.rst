@@ -390,16 +390,13 @@ Deploying
 A reminder for the maintainers on how to deploy.
 
 1.  Commit all your changes.
-2.  Replace the unreleased entry in CHANGELOG.rst with your target version number.
-3.  Run ``tbump X.Y.Z``.
-4.  Go to github and make a release from the tag.
+2.  Run ``tbump X.Y.Z``.
+3.  Go to github and make a release from the tag.
     Use "Version x.y.z" as the release title, and the changelog entries as the release
     description.
     Creating the github release will automatically trigger
     a release on zenodo.
-5.  Run ``make README.rst`` to update the citation information in the README from the
+4.  Run ``make README.rst`` to update the citation information in the README from the
     zenodo API (note that it might take a while for zenodo to build the release, so
-    grab a tee and be a bit patient). Commit the change.
-6.  Upload the release to pyPI: ``make release``
-7.  To prepare for future development, add a new "unreleased" section to CHANGELOG.rst,
-    and commit the result.
+    grab a tea and be a bit patient). Commit the change.
+5.  Upload the release to pyPI: ``make release``
