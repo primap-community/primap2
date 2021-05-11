@@ -398,5 +398,5 @@ A reminder for the maintainers on how to deploy.
     a release on zenodo.
 4.  Run ``make README.rst`` to update the citation information in the README from the
     zenodo API (note that it might take a while for zenodo to build the release, so
-    grab a tee and be a bit patient). Commit the change.
+    grab a tea and be a bit patient). Commit the change.
 5.  Upload the release to pyPI: ``make release``
