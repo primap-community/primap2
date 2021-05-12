@@ -25,6 +25,7 @@ INTERCHANGE_FORMAT_COLUMN_ORDER = [
     "entity",
     "unit",
     "category",
+    "orig_cat_name",
 ]
 
 # Pretty basic schema for now; attrs could be declared more explicitly with the

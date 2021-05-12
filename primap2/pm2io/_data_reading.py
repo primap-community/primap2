@@ -453,7 +453,7 @@ def convert_wide_dataframe_if(
         `data format documentation <https://primap2.readthedocs.io/en/stable/data_format_details.html#dataset-attributes>`_.  # noqa: E501
 
     time_format : str
-        either str with strftime style format used to parse the time information for
+        str with strftime style format used to parse the time information for
         the data columns.
         Default: "%Y", which will match years.
 
