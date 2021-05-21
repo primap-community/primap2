@@ -112,8 +112,6 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         df: pd.DataFrame
         """
         dsd = self._ds.pr.dequantify()
-        # additional coordinates are not yet supported, so drop them
-        dsd = dsd.reset_coords(drop=True)
 
         dsd["time"] = dsd["time"].dt.strftime(time_format)
 
@@ -133,10 +131,12 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
 
         df = pd.concat(dfs, ignore_index=True)
 
+        add_coords = list(set(list(self._ds.coords)) - set(list(self._ds.dims)))
         df, dims = pm2io._data_reading.sort_columns_and_rows(
             df,
             dimensions=[dim for dim in dsd.dims if dim != "time"]
-            + [entity_col, "unit"],
+            + [entity_col, "unit"]
+            + add_coords,
         )
 
         dimensions = {}
@@ -150,11 +150,25 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             else:
                 dimensions[entity] = dims
 
+        # add attrs for additional coords
+        additional_coordinates = {}
+        for coord in add_coords:
+            coords_current = list(self._ds.coords[coord].coords)
+            coords_current = list(set(coords_current) - {coord})
+            if len(coords_current) > 1:
+                logger.error(f"Additional coordinate {coord!r} is not well defined")
+                raise ValueError(f"Additional coordinate {coord!r} is not well defined")
+
+            additional_coordinates[coord] = coords_current[0]
+
         df.attrs = {
             "attrs": self._ds.attrs,
             "time_format": time_format,
             "dimensions": dimensions,
         }
+        if additional_coordinates:
+            df.attrs["additional_coordinates"] = additional_coordinates
+
         return df
 
     def to_netcdf(

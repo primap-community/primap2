@@ -45,6 +45,7 @@ def convert_long_dataframe_if(
     data_long: pd.DataFrame,
     *,
     coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, List[str]] = None,
     coords_defaults: Optional[Dict[str, Any]] = None,
     coords_terminologies: Dict[str, str],
     coords_value_mapping: Optional[Dict[str, Any]] = None,
@@ -71,6 +72,12 @@ def convert_long_dataframe_if(
         Dict where the keys are column names in the files to be read and the value is
         the dimension in PRIMAP2. To specify the data column containing the observable,
         use the "data" key. For secondary categories use a ``sec_cats__`` prefix.
+
+    add_coords_cols : dict, optional
+        Dict where the keys are PRIMAP2 additional coordinate names and the values are
+        lists with two elements where the first is the column in the dataframe to be
+        converted and the second is the primap2 dimension for the coordinate (e.g.
+        ``category`` for a ``category_name`` coordinate.
 
     coords_defaults : dict, optional
         Dict for default values of coordinates / dimensions not given in the csv files.
@@ -172,6 +179,8 @@ def convert_long_dataframe_if(
     # Check and prepare arguments
     if coords_defaults is None:
         coords_defaults = {}
+    if add_coords_cols is None:
+        add_coords_cols = {}
     if meta_data is None:
         attrs = {}
     else:
@@ -179,6 +188,8 @@ def convert_long_dataframe_if(
 
     check_mandatory_dimensions(coords_cols, coords_defaults)
     check_overlapping_specifications(coords_cols, coords_defaults)
+    if add_coords_cols:
+        check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
 
     filter_data(data_long, filter_keep, filter_remove)
 
@@ -187,10 +198,14 @@ def convert_long_dataframe_if(
     )
 
     naming_attrs = rename_columns(
-        data_long, coords_cols, coords_defaults, coords_terminologies
+        data_long, coords_cols, add_coords_cols, coords_defaults, coords_terminologies
     )
 
     attrs.update(naming_attrs)
+
+    additional_coordinates = additional_coordinate_metadata(
+        add_coords_cols, coords_cols, coords_terminologies
+    )
 
     if coords_value_mapping is not None:
         map_metadata(data_long, attrs=attrs, meta_mapping=coords_value_mapping)
@@ -211,7 +226,10 @@ def convert_long_dataframe_if(
     data, coords = sort_columns_and_rows(data, dimensions=coords)
 
     data.attrs = interchange_format_attrs_dict(
-        xr_attrs=attrs, time_format=time_format, dimensions=coords
+        xr_attrs=attrs,
+        time_format=time_format,
+        dimensions=coords,
+        additional_coordinates=additional_coordinates,
     )
 
     return data
@@ -221,6 +239,7 @@ def read_long_csv_file_if(
     filepath_or_buffer: Union[str, Path, IO],
     *,
     coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, List[str]] = None,
     coords_defaults: Optional[Dict[str, Any]] = None,
     coords_terminologies: Dict[str, str],
     coords_value_mapping: Optional[Dict[str, Any]] = None,
@@ -246,6 +265,12 @@ def read_long_csv_file_if(
         Dict where the keys are column names in the files to be read and the value is
         the dimension in PRIMAP2. To specify the data column containing the observable,
         use the "data" key. For secondary categories use a ``sec_cats__`` prefix.
+
+    add_coords_cols : dict, optional
+        Dict where the keys are PRIMAP2 additional coordinate names and the values are
+        lists with two elements where the first is the column in the csv file to be
+        read and the second is the primap2 dimension for the coordinate (e.g.
+        ``category`` for a ``category_name`` coordinate.
 
     coords_defaults : dict, optional
         Dict for default values of coordinates / dimensions not given in the csv files.
@@ -333,12 +358,15 @@ def read_long_csv_file_if(
     """
     check_mandatory_dimensions(coords_cols, coords_defaults)
     check_overlapping_specifications(coords_cols, coords_defaults)
+    if add_coords_cols:
+        check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
 
     data_long = read_long_csv(filepath_or_buffer, coords_cols)
 
     return convert_long_dataframe_if(
         data_long=data_long,
         coords_cols=coords_cols,
+        add_coords_cols=add_coords_cols,
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
         coords_value_mapping=coords_value_mapping,
@@ -377,6 +405,7 @@ def convert_wide_dataframe_if(
     data_wide: pd.DataFrame,
     *,
     coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, List[str]] = None,
     coords_defaults: Optional[Dict[str, Any]] = None,
     coords_terminologies: Dict[str, str],
     coords_value_mapping: Optional[Dict[str, Any]] = None,
@@ -407,11 +436,18 @@ def convert_wide_dataframe_if(
         Wide DataFrame which will be converted.
 
     coords_cols : dict
-        Dict where the keys are column names in the files to be read and the value is
-        the dimension in PRIMAP2. For secondary categories use a ``sec_cats__`` prefix.
+        Dict where the keys are PRIMAP2 dimension names and the values are column
+        names in the dataframe to be converted.
+        For secondary categories use a ``sec_cats__`` prefix.
+
+    add_coords_cols : dict, optional
+        Dict where the keys are PRIMAP2 additional coordinate names and the values are
+        lists with two elements where the first is the column in the dataframe to be
+        converted and the second is the primap2 dimension for the coordinate (e.g.
+        ``category`` for a ``category_name`` coordinate.
 
     coords_defaults : dict, optional
-        Dict for default values of coordinates / dimensions not given in the csv files.
+        Dict for default values of coordinates / dimensions not given in the dataframe.
         The keys are the dimension names and the values are the values for
         the dimensions. For secondary categories use a ``sec_cats__`` prefix.
 
@@ -501,6 +537,8 @@ def convert_wide_dataframe_if(
     # Check and prepare arguments
     if coords_defaults is None:
         coords_defaults = {}
+    if add_coords_cols is None:
+        add_coords_cols = {}
     if meta_data is None:
         attrs = {}
     else:
@@ -508,6 +546,8 @@ def convert_wide_dataframe_if(
 
     check_mandatory_dimensions(coords_cols, coords_defaults)
     check_overlapping_specifications(coords_cols, coords_defaults)
+    if add_coords_cols:
+        check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
 
     # get all the columns that are actual data not metadata (usually the years)
     if time_cols is None:
@@ -524,21 +564,30 @@ def convert_wide_dataframe_if(
     add_dimensions_from_defaults(data_wide, coords_defaults)
 
     naming_attrs = rename_columns(
-        data_wide, coords_cols, coords_defaults, coords_terminologies
+        data_wide, coords_cols, add_coords_cols, coords_defaults, coords_terminologies
     )
     attrs.update(naming_attrs)
+
+    additional_coordinates = additional_coordinate_metadata(
+        add_coords_cols, coords_cols, coords_terminologies
+    )
 
     if coords_value_mapping is not None:
         map_metadata(data_wide, attrs=attrs, meta_mapping=coords_value_mapping)
 
-    coords = list(set(data_wide.columns.values) - set(time_columns))
+    coords = list(
+        set(data_wide.columns.values) - set(time_columns) - set(add_coords_cols.keys())
+    )
 
     harmonize_units(data_wide, dimensions=coords, attrs=attrs)
 
     data_wide, coords = sort_columns_and_rows(data_wide, dimensions=coords)
 
     data_wide.attrs = interchange_format_attrs_dict(
-        xr_attrs=attrs, time_format=time_format, dimensions=coords
+        xr_attrs=attrs,
+        time_format=time_format,
+        dimensions=coords,
+        additional_coordinates=additional_coordinates,
     )
 
     return data_wide
@@ -548,6 +597,7 @@ def read_wide_csv_file_if(
     filepath_or_buffer: Union[str, Path, IO],
     *,
     coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, List[str]] = None,
     coords_defaults: Optional[Dict[str, Any]] = None,
     coords_terminologies: Dict[str, str],
     coords_value_mapping: Optional[Dict[str, Any]] = None,
@@ -576,8 +626,14 @@ def read_wide_csv_file_if(
         Wide CSV file which will be read.
 
     coords_cols : dict
-        Dict where the keys are column names in the files to be read and the value is
-        the dimension in PRIMAP2. For secondary categories use a ``sec_cats__`` prefix.
+        Dict where the keys are PRIMAP2 dimensions and the values are column names in
+        the files to be read. For secondary categories use a ``sec_cats__`` prefix.
+
+    add_coords_cols : dict, optional
+        Dict where the keys are PRIMAP2 additional coordinate names and the values are
+        lists with two elements where the first is the column in the csv file to be
+        read and the second is the primap2 dimension for the coordinate (e.g.
+        ``category`` for a ``category_name`` coordinate.
 
     coords_defaults : dict, optional
         Dict for default values of coordinates / dimensions not given in the csv files.
@@ -668,6 +724,8 @@ def read_wide_csv_file_if(
 
     check_mandatory_dimensions(coords_cols, coords_defaults)
     check_overlapping_specifications(coords_cols, coords_defaults)
+    if add_coords_cols:
+        check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
 
     data, time_columns = read_wide_csv(
         filepath_or_buffer, coords_cols, time_format=time_format
@@ -676,6 +734,7 @@ def read_wide_csv_file_if(
     data = convert_wide_dataframe_if(
         data,
         coords_cols=coords_cols,
+        add_coords_cols=add_coords_cols,
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
         coords_value_mapping=coords_value_mapping,
@@ -690,13 +749,58 @@ def read_wide_csv_file_if(
 
 
 def interchange_format_attrs_dict(
-    *, xr_attrs: dict, time_format: str, dimensions
+    *, xr_attrs: dict, time_format: str, dimensions, additional_coordinates: dict = None
 ) -> dict:
-    return {
+    metadata = {
         "attrs": xr_attrs,
         "time_format": time_format,
         "dimensions": {"*": dimensions.copy()},
     }
+
+    if additional_coordinates:
+        metadata["additional_coordinates"] = additional_coordinates
+
+    return metadata
+
+
+def additional_coordinate_metadata(
+    add_coords_cols: Dict[str, List[str]],
+    coords_cols: Dict[str, str],
+    coords_terminologies: Dict[str, str],
+) -> dict:
+    """Create the `additional_coordinates` dict and do a few consistency checks"""
+
+    additional_coordinates = {}
+    for coord in add_coords_cols:
+        if coord in coords_terminologies:
+            logger.error(
+                f"Additional coordinate {coord} has terminology definition. "
+                f"This is currently not supported by PRIMAP2."
+            )
+            raise ValueError(
+                f"Additional coordinate {coord} has terminology definition. "
+                f"This is currently not supported by PRIMAP2."
+            )
+
+        if add_coords_cols[coord][1] not in coords_cols:
+            logger.error(
+                f"Additional coordinate {coord} refers to unknown coordinate "
+                f"{add_coords_cols[coord][1]}. "
+            )
+            raise ValueError(
+                f"Additional coordinate {coord} refers to unknown coordinate "
+                f"{add_coords_cols[coord][1]}. "
+            )
+
+        if add_coords_cols[coord][1] in coords_terminologies:
+            additional_coordinates[coord] = (
+                f"{add_coords_cols[coord][1]} "
+                f"({coords_terminologies[add_coords_cols[coord][1]]})"
+            )
+        else:
+            additional_coordinates[coord] = add_coords_cols[coord][1]
+
+    return additional_coordinates
 
 
 def check_mandatory_dimensions(
@@ -724,6 +828,20 @@ def check_overlapping_specifications(
             f" it must only be given in one of them."
         )
         raise ValueError(f"{both!r} given in coords_cols and coords_defaults.")
+
+
+def check_overlapping_specifications_add_cols(
+    coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, Any],
+):
+    cols_add = [val[0] for val in add_coords_cols.values()]
+    both = set(coords_cols.values()).intersection(set(cols_add))
+    if both:
+        logger.error(
+            f"columns {both!r} used for dimensions and additional coordinates, but"
+            f" should be used in only one of them."
+        )
+        raise ValueError(f"{both!r} given in coords_cols and add_coords_cols.")
 
 
 def matches_time_format(value: str, time_format: str):
@@ -1010,6 +1128,7 @@ def map_metadata_unordered(
 def rename_columns(
     data: pd.DataFrame,
     coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, List[str]],
     coords_defaults: Dict[str, Any],
     coords_terminologies: Dict[str, str],
 ) -> dict:
@@ -1021,6 +1140,7 @@ def rename_columns(
     attrs = {}
     sec_cats = []
     coord_renaming = {}
+
     for coord in itertools.chain(coords_cols, coords_defaults):
         if coord in coords_terminologies:
             name = f"{coord} ({coords_terminologies[coord]})"
@@ -1036,6 +1156,9 @@ def rename_columns(
             attrs[attr_names[coord]] = name
 
         coord_renaming[coords_cols.get(coord, coord)] = name
+
+    for coord in add_coords_cols:
+        coord_renaming[add_coords_cols[coord][0]] = coord
 
     data.rename(columns=coord_renaming, inplace=True)
 
