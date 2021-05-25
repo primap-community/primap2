@@ -1,0 +1,3 @@
+,source,scenario (general),area (ISO3),entity,unit,category (IPCC2006),category_name,1991,2000,2010
+0,TESTcsv2021,HISTORY,AUS,CO2,Gg CO2 / yr,1,Energy,4.1,5.0,6.0
+1,TESTcsv2021,HISTORY,ZAM,CH4,Mt CH4 / yr,2,IPPU,7.0,8.0,9.0

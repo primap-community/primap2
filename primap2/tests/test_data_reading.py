@@ -216,6 +216,59 @@ class TestReadWideCSVFile:
 
         assert_attrs_equal(attrs_result, attrs_expected)
 
+    def test_add_coords(
+        self,
+        tmp_path,
+        coords_cols,
+        coords_defaults,
+        coords_terminologies,
+        coords_value_mapping,
+    ):
+        file_input = DATA_PATH / "test_csv_data_category_name.csv"
+        file_expected = DATA_PATH / "test_read_wide_csv_file_no_sec_cats_cat_name.csv"
+        df_expected = pd.read_csv(file_expected, index_col=0)
+
+        del coords_cols["sec_cats__Class"]
+        del coords_defaults["sec_cats__Type"]
+        del coords_terminologies["sec_cats__Class"]
+        del coords_terminologies["sec_cats__Type"]
+        add_coords_cols = {"category_name": ["category_name", "category"]}
+
+        df_result = pm2io.read_wide_csv_file_if(
+            file_input,
+            coords_cols=coords_cols,
+            add_coords_cols=add_coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=coords_value_mapping,
+        )
+        attrs_result = df_result.attrs
+        df_result.to_csv(tmp_path / "temp.csv")
+        df_result = pd.read_csv(tmp_path / "temp.csv", index_col=0)
+        pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
+
+        attrs_expected = {
+            "attrs": {
+                "scen": "scenario (general)",
+                "area": "area (ISO3)",
+                "cat": "category (IPCC2006)",
+            },
+            "time_format": "%Y",
+            "dimensions": {
+                "*": [
+                    "entity",
+                    "source",
+                    "area (ISO3)",
+                    "unit",
+                    "scenario (general)",
+                    "category (IPCC2006)",
+                ]
+            },
+            "additional_coordinates": {"category_name": "category (IPCC2006)"},
+        }
+
+        assert_attrs_equal(attrs_result, attrs_expected)
+
     def test_entity_terminology(
         self,
         tmp_path,
@@ -455,6 +508,25 @@ class TestReadWideCSVFile:
             pm2io.read_wide_csv_file_if(
                 file_input,
                 coords_cols=coords_cols,
+                coords_defaults=coords_defaults,
+                coords_terminologies=coords_terminologies,
+                coords_value_mapping=coords_value_mapping,
+            )
+
+    def test_overlapping_specification_add_coords(
+        self, coords_cols, coords_defaults, coords_terminologies, coords_value_mapping
+    ):
+        file_input = DATA_PATH / "test_csv_data_sec_cat.csv"
+
+        add_coords_cols = {"test": ["gas", "category"]}
+
+        with pytest.raises(
+            ValueError, match="{'gas'} given in coords_cols and add_coords_cols."
+        ):
+            pm2io.read_wide_csv_file_if(
+                file_input,
+                coords_cols=coords_cols,
+                add_coords_cols=add_coords_cols,
                 coords_defaults=coords_defaults,
                 coords_terminologies=coords_terminologies,
                 coords_value_mapping=coords_value_mapping,

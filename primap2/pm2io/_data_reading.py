@@ -575,18 +575,20 @@ def convert_wide_dataframe_if(
     if coords_value_mapping is not None:
         map_metadata(data_wide, attrs=attrs, meta_mapping=coords_value_mapping)
 
-    coords = list(
-        set(data_wide.columns.values) - set(time_columns) - set(add_coords_cols.keys())
-    )
+    coords = list(set(data_wide.columns.values) - set(time_columns))
+    # dims = list(set(coords) - set(add_coords_cols.keys()))
 
     harmonize_units(data_wide, dimensions=coords, attrs=attrs)
 
     data_wide, coords = sort_columns_and_rows(data_wide, dimensions=coords)
+    dims = coords.copy()
+    for add_coord in add_coords_cols.keys():
+        dims.remove(add_coord)
 
     data_wide.attrs = interchange_format_attrs_dict(
         xr_attrs=attrs,
         time_format=time_format,
-        dimensions=coords,
+        dimensions=dims,
         additional_coordinates=additional_coordinates,
     )
 
@@ -728,7 +730,10 @@ def read_wide_csv_file_if(
         check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
 
     data, time_columns = read_wide_csv(
-        filepath_or_buffer, coords_cols, time_format=time_format
+        filepath_or_buffer,
+        coords_cols,
+        add_coords_cols=add_coords_cols,
+        time_format=time_format,
     )
 
     data = convert_wide_dataframe_if(
@@ -855,7 +860,8 @@ def matches_time_format(value: str, time_format: str):
 def read_wide_csv(
     filepath_or_buffer,
     coords_cols: Dict[str, str],
-    time_format: str,
+    add_coords_cols: Dict[str, List[str]] = None,
+    time_format: str = "%Y",
 ) -> (pd.DataFrame, List[str]):
 
     data = pd.read_csv(filepath_or_buffer, na_values=NA_VALUES)
@@ -874,8 +880,18 @@ def read_wide_csv(
 
     # remove all cols not in the specification
     columns = data.columns.values
+    if add_coords_cols:
+        add_coords_col_names = set([value[0] for value in add_coords_cols.values()])
+    else:
+        add_coords_col_names = set()
+
     data.drop(
-        columns=list(set(columns) - set(coords_cols.values()) - set(time_cols)),
+        columns=list(
+            set(columns)
+            - set(coords_cols.values())
+            - add_coords_col_names
+            - set(time_cols)
+        ),
         inplace=True,
     )
 
