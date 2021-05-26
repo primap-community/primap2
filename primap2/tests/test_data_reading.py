@@ -684,6 +684,39 @@ class TestInterchangeFormat:
             in caplog.text
         )
 
+    def test_from_add_coord_non_unique(self, caplog):
+        df = pd.DataFrame(
+            {
+                "a": np.arange(3),
+                "b": np.arange(3),
+                "c": np.arange(3),
+                "entity": ["CO2"] * 3,
+                "entity_name": ["Carbondioxide", "Carbondioxide", "Methane"],
+                "unit": ["Gg"] * 3,
+                "2001": np.arange(3),
+            }
+        )
+        df.attrs = {
+            "attrs": {},
+            "dimensions": {"CO2": ["a", "b", "c"]},
+            "time_format": "%Y",
+            "additional_coordinates": {"entity_name": "entity"},
+        }
+
+        with pytest.raises(
+            ValueError,
+            match="Different secondary coordinate values "
+            "for given first coordinate value for "
+            "entity_name.",
+        ):
+            pm2io.from_interchange_format(df)
+
+        assert "ERROR" in caplog.text
+        assert (
+            "Different secondary coordinate values for given first coordinate "
+            "value for entity_name." in caplog.text
+        )
+
     def test_roundtrip(self, tmp_path):
         file_input = DATA_PATH / "test_read_wide_csv_file_output.csv"
         file_temp = tmp_path / "test_interchange_format"
