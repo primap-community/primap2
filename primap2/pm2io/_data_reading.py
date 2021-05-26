@@ -224,11 +224,14 @@ def convert_long_dataframe_if(
     data, coords = long_to_wide(data_long, time_format=time_format)
 
     data, coords = sort_columns_and_rows(data, dimensions=coords)
+    dims = coords.copy()
+    for add_coord in add_coords_cols.keys():
+        dims.remove(add_coord)
 
     data.attrs = interchange_format_attrs_dict(
         xr_attrs=attrs,
         time_format=time_format,
-        dimensions=coords,
+        dimensions=dims,
         additional_coordinates=additional_coordinates,
     )
 
@@ -243,6 +246,7 @@ def read_long_csv_file_if(
     coords_defaults: Optional[Dict[str, Any]] = None,
     coords_terminologies: Dict[str, str],
     coords_value_mapping: Optional[Dict[str, Any]] = None,
+    coords_value_filling: Optional[Dict[str, Dict[str, Dict]]] = None,
     filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
@@ -294,6 +298,19 @@ def read_long_csv_file_if(
         translating metadata values. For the "category", "entity", and "unit" columns,
         the rule "PRIMAP1" is available, which translates from PRIMAP1 metadata to
         PRIMAP2 metadata.
+
+    coords_value_filling : dict, optional
+        A dict with primap2 dimension names as keys. These are the target columns where
+        values will be filled (or replaced). Vales are dicts with primap2 dimension names
+        as keys. These are the source columns. The values are dicts with source value -
+        target value mappings.
+        The value filling can do everything that the value mapping can, but while mapping
+        can only replace values within a column using information from that column, the
+        filing function can also fill or replace data based on values from a different
+        column.
+        This can be used to e.g. fill missing category codes based on category names or
+        to replace category codes which do not meet the terminology using the category
+        names.
 
     filter_keep : dict, optional
         Dict defining filters of data to keep. Filtering is done before metadata
@@ -361,7 +378,7 @@ def read_long_csv_file_if(
     if add_coords_cols:
         check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
 
-    data_long = read_long_csv(filepath_or_buffer, coords_cols)
+    data_long = read_long_csv(filepath_or_buffer, coords_cols, add_coords_cols)
 
     return convert_long_dataframe_if(
         data_long=data_long,
@@ -370,6 +387,7 @@ def read_long_csv_file_if(
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
         coords_value_mapping=coords_value_mapping,
+        coords_value_filling=coords_value_filling,
         filter_keep=filter_keep,
         filter_remove=filter_remove,
         meta_data=meta_data,
@@ -409,6 +427,7 @@ def convert_wide_dataframe_if(
     coords_defaults: Optional[Dict[str, Any]] = None,
     coords_terminologies: Dict[str, str],
     coords_value_mapping: Optional[Dict[str, Any]] = None,
+    coords_value_filling: Optional[Dict[str, Dict[str, Dict]]] = None,
     filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
@@ -468,6 +487,19 @@ def convert_wide_dataframe_if(
         translating metadata values. The only defined rule at the moment is "PRIMAP1"
         which can be used for the "category", "entity", and "unit" columns to translate
         from PRIMAP1 metadata to PRIMAP2 metadata.
+
+    coords_value_filling : dict, optional
+        A dict with primap2 dimension names as keys. These are the target columns where
+        values will be filled (or replaced). Vales are dicts with primap2 dimension names
+        as keys. These are the source columns. The values are dicts with source value -
+        target value mappings.
+        The value filling can do everything that the value mapping can, but while mapping
+        can only replace values within a column using information from that column, the
+        filing function can also fill or replace data based on values from a different
+        column.
+        This can be used to e.g. fill missing category codes based on category names or
+        to replace category codes which do not meet the terminology using the category
+        names.
 
     filter_keep : dict, optional
         Dict defining filters of data to keep. Filtering is done before metadata
@@ -575,6 +607,11 @@ def convert_wide_dataframe_if(
     if coords_value_mapping is not None:
         map_metadata(data_wide, attrs=attrs, meta_mapping=coords_value_mapping)
 
+    if coords_value_filling is not None:
+        data_wide = fill_from_other_col(
+            data_wide, attrs=attrs, coords_value_filling=coords_value_filling
+        )
+
     coords = list(set(data_wide.columns.values) - set(time_columns))
     # dims = list(set(coords) - set(add_coords_cols.keys()))
 
@@ -603,6 +640,7 @@ def read_wide_csv_file_if(
     coords_defaults: Optional[Dict[str, Any]] = None,
     coords_terminologies: Dict[str, str],
     coords_value_mapping: Optional[Dict[str, Any]] = None,
+    coords_value_filling: Optional[Dict[str, Dict[str, Dict]]] = None,
     filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
@@ -659,6 +697,19 @@ def read_wide_csv_file_if(
         translating metadata values. The only defined rule at the moment is "PRIMAP1"
         which can be used for the "category", "entity", and "unit" columns to translate
         from PRIMAP1 metadata to PRIMAP2 metadata.
+
+    coords_value_filling : dict, optional
+        A dict with primap2 dimension names as keys. These are the target columns where
+        values will be filled (or replaced). Vales are dicts with primap2 dimension names
+        as keys. These are the source columns. The values are dicts with source value -
+        target value mappings.
+        The value filling can do everything that the value mapping can, but while mapping
+        can only replace values within a column using information from that column, the
+        filing function can also fill or replace data based on values from a different
+        column.
+        This can be used to e.g. fill missing category codes based on category names or
+        to replace category codes which do not meet the terminology using the category
+        names.
 
     filter_keep : dict, optional
         Dict defining filters of data to keep. Filtering is done before metadata
@@ -743,6 +794,7 @@ def read_wide_csv_file_if(
         coords_defaults=coords_defaults,
         coords_terminologies=coords_terminologies,
         coords_value_mapping=coords_value_mapping,
+        coords_value_filling=coords_value_filling,
         filter_keep=filter_keep,
         filter_remove=filter_remove,
         meta_data=meta_data,
@@ -908,7 +960,9 @@ def read_wide_csv(
 
 
 def read_long_csv(
-    filepath_or_buffer, coords_cols: Dict[str, str]
+    filepath_or_buffer,
+    coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, List[str]] = None,
 ) -> (pd.DataFrame, List[str]):
     try:
         csv_data_column = coords_cols["data"]
@@ -922,7 +976,12 @@ def read_long_csv(
     else:
         parse_dates = False
 
-    usecols = list(coords_cols.values())
+    if add_coords_cols:
+        add_coords_col_names = set([value[0] for value in add_coords_cols.values()])
+    else:
+        add_coords_col_names = set()
+
+    usecols = list(coords_cols.values()) + list(add_coords_col_names)
 
     data = pd.read_csv(
         filepath_or_buffer,

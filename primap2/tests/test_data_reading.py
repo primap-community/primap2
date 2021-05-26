@@ -68,6 +68,11 @@ def coords_cols():
 
 
 @pytest.fixture
+def add_coords_cols():
+    return {"category_name": ["category_name", "category"]}
+
+
+@pytest.fixture
 def coords_defaults():
     return {
         "source": "TESTcsv2021",
@@ -220,6 +225,7 @@ class TestReadWideCSVFile:
         self,
         tmp_path,
         coords_cols,
+        add_coords_cols,
         coords_defaults,
         coords_terminologies,
         coords_value_mapping,
@@ -232,7 +238,6 @@ class TestReadWideCSVFile:
         del coords_defaults["sec_cats__Type"]
         del coords_terminologies["sec_cats__Class"]
         del coords_terminologies["sec_cats__Type"]
-        add_coords_cols = {"category_name": ["category_name", "category"]}
 
         df_result = pm2io.read_wide_csv_file_if(
             file_input,
@@ -772,6 +777,46 @@ class TestLong:
         df_result_long = pm2io.read_long_csv_file_if(
             file_input_long,
             coords_cols=coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=coords_value_mapping,
+            time_format="%Y",
+        )
+
+        pd.testing.assert_frame_equal(df_result_wide, df_result_long)
+        assert df_result_wide.attrs == df_result_long.attrs
+
+    def test_compare_wide_add_cols(
+        self,
+        coords_cols,
+        add_coords_cols,
+        coords_defaults,
+        coords_terminologies,
+        coords_value_mapping,
+    ):
+        file_input_wide = DATA_PATH / "test_csv_data_category_name.csv"
+        file_input_long = DATA_PATH / "test_csv_data_category_name_long.csv"
+
+        del coords_cols["sec_cats__Class"]
+        del coords_defaults["sec_cats__Type"]
+        del coords_terminologies["sec_cats__Class"]
+        del coords_terminologies["sec_cats__Type"]
+
+        df_result_wide = pm2io.read_wide_csv_file_if(
+            file_input_wide,
+            coords_cols=coords_cols,
+            add_coords_cols=add_coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=coords_value_mapping,
+        )
+
+        coords_cols["time"] = "year"
+        coords_cols["data"] = "emissions"
+        df_result_long = pm2io.read_long_csv_file_if(
+            file_input_long,
+            coords_cols=coords_cols,
+            add_coords_cols=add_coords_cols,
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
             coords_value_mapping=coords_value_mapping,
