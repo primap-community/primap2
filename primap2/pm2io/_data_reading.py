@@ -933,7 +933,7 @@ def read_wide_csv(
     # remove all cols not in the specification
     columns = data.columns.values
     if add_coords_cols:
-        add_coords_col_names = set([value[0] for value in add_coords_cols.values()])
+        add_coords_col_names = {value[0] for value in add_coords_cols.values()}
     else:
         add_coords_col_names = set()
 
@@ -977,7 +977,7 @@ def read_long_csv(
         parse_dates = False
 
     if add_coords_cols:
-        add_coords_col_names = set([value[0] for value in add_coords_cols.values()])
+        add_coords_col_names = {value[0] for value in add_coords_cols.values()}
     else:
         add_coords_col_names = set()
 
