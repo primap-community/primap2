@@ -9,6 +9,7 @@ import pytest
 import primap2
 import primap2.pm2io as pm2io
 import primap2.pm2io._conversion
+from primap2.pm2io._data_reading import additional_coordinate_metadata
 
 from .utils import assert_ds_aligned_equal
 
@@ -98,6 +99,18 @@ def coords_value_mapping():
         "category": "PRIMAP1",
         "entity": "PRIMAP1",
         "unit": "PRIMAP1",
+    }
+
+
+@pytest.fixture
+def coords_value_filling():
+    return {
+        "category": {  # col to fill
+            "category_name": {  # col to fill from
+                "Energy": "1",  # from value: to value
+                "IPPU": "2",
+            }
+        }
     }
 
 
@@ -246,6 +259,61 @@ class TestReadWideCSVFile:
             coords_defaults=coords_defaults,
             coords_terminologies=coords_terminologies,
             coords_value_mapping=coords_value_mapping,
+        )
+        attrs_result = df_result.attrs
+        df_result.to_csv(tmp_path / "temp.csv")
+        df_result = pd.read_csv(tmp_path / "temp.csv", index_col=0)
+        pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
+
+        attrs_expected = {
+            "attrs": {
+                "scen": "scenario (general)",
+                "area": "area (ISO3)",
+                "cat": "category (IPCC2006)",
+            },
+            "time_format": "%Y",
+            "dimensions": {
+                "*": [
+                    "entity",
+                    "source",
+                    "area (ISO3)",
+                    "unit",
+                    "scenario (general)",
+                    "category (IPCC2006)",
+                ]
+            },
+            "additional_coordinates": {"category_name": "category (IPCC2006)"},
+        }
+
+        assert_attrs_equal(attrs_result, attrs_expected)
+
+    def test_read_wide_fill_col(
+        self,
+        tmp_path,
+        coords_cols,
+        add_coords_cols,
+        coords_defaults,
+        coords_terminologies,
+        coords_value_mapping,
+        coords_value_filling,
+    ):
+        file_input = DATA_PATH / "test_csv_data_category_name_fill_cat_code.csv"
+        file_expected = DATA_PATH / "test_read_wide_csv_file_no_sec_cats_cat_name.csv"
+        df_expected = pd.read_csv(file_expected, index_col=0)
+
+        del coords_cols["sec_cats__Class"]
+        del coords_defaults["sec_cats__Type"]
+        del coords_terminologies["sec_cats__Class"]
+        del coords_terminologies["sec_cats__Type"]
+
+        df_result = pm2io.read_wide_csv_file_if(
+            file_input,
+            coords_cols=coords_cols,
+            add_coords_cols=add_coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=coords_value_mapping,
+            coords_value_filling=coords_value_filling,
         )
         attrs_result = df_result.attrs
         df_result.to_csv(tmp_path / "temp.csv")
@@ -924,6 +992,40 @@ class TestLong:
         )
 
         pd.testing.assert_frame_equal(df, df_expected)
+
+
+class TestAdditionalCoordinateMetadata:
+    def test_error_coord_terminology(self):
+        add_coords_cols = {"category_name": ["cat_name", "category"]}
+        coords_cols = {"category": "cat_code"}
+        coords_terminologies = {"category_name": "IPCC2006_name"}
+
+        with pytest.raises(
+            ValueError,
+            match="Additional coordinate category_name has terminology definition. "
+            "This is currently not supported by PRIMAP2.",
+        ):
+            additional_coordinate_metadata(
+                coords_cols=coords_cols,
+                add_coords_cols=add_coords_cols,
+                coords_terminologies=coords_terminologies,
+            )
+
+    def test_error_coord_not_present(self):
+        add_coords_cols = {"category_name": ["cat_name", "category"]}
+        coords_cols = {"entity": "entity"}
+        coords_terminologies = {}
+
+        with pytest.raises(
+            ValueError,
+            match="Additional coordinate category_name refers to unknown "
+            "coordinate category",
+        ):
+            additional_coordinate_metadata(
+                coords_cols=coords_cols,
+                add_coords_cols=add_coords_cols,
+                coords_terminologies=coords_terminologies,
+            )
 
 
 # functions that still need individual testing
