@@ -4,7 +4,7 @@ import sys
 
 version = sys.argv[1]
 
-with open("CHANGELOG.rst", "r") as fd:
+with open("CHANGELOG.rst") as fd:
     old_content = fd.read().splitlines(keepends=True)
 
 with open("CHANGELOG.rst", "w") as fd:

@@ -16,7 +16,7 @@ Mika Pflüger and Johannes Gütschow. ({new_date}).
 Zenodo. {new_link}
 """
 
-with open("README.rst", "r") as fd:
+with open("README.rst") as fd:
     old_content = fd.read().splitlines(keepends=True)
 
 with open("README.rst", "w") as fd:
