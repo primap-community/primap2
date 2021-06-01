@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 
@@ -38,7 +38,7 @@ def nir_add_unit_information(
         A dict with the fields
         * regexp_entity: regular expression that extracts the entity from the cell value
         * regexp_unit: regular expression that extracts the unit from the cell value
-        * manual_repl: optional: dict defining unit an d entity for given cell values
+        * manual_repl: optional: dict defining unit and entity for given cell values
         * default_unit: unit to be used if no unit can be extracted an no unit is given
 
     Returns
@@ -89,7 +89,9 @@ def nir_add_unit_information(
     return df_nir
 
 
-def nir_convert_df_to_long(df_nir: pd.DataFrame, year: int) -> pd.DataFrame:
+def nir_convert_df_to_long(
+    df_nir: pd.DataFrame, year: int, header_long: Optional[List[str]] = None
+) -> pd.DataFrame:
     """
     This function converts an entity-wide NIR table for a single year to a long format
     DataFrame. The input DataFrame is required to have the following structure:
@@ -104,12 +106,16 @@ def nir_convert_df_to_long(df_nir: pd.DataFrame, year: int) -> pd.DataFrame:
         Pandas DataFrame with the NIR table to be converted
     year: int
         Year of the given data
+    header_long: list, optional
+        specify a non-standard column header, e.g. with only category code
+        or orig_cat_name
 
     Returns
     -------
 
     """
-    header_long = ["category", "orig_cat_name", "entity", "unit", "time", "data"]
+    if header_long is None:
+        header_long = ["category", "orig_cat_name", "entity", "unit", "time", "data"]
 
     df_stacked = df_nir.stack([0, 1]).to_frame()
     df_stacked.insert(0, "year", str(year))

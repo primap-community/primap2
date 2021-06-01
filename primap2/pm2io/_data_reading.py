@@ -591,12 +591,14 @@ def convert_wide_dataframe_if(
     else:
         time_columns = time_cols
 
-    filter_data(data_wide, filter_keep, filter_remove)
+    # make a copy of the data to not alter the input data
+    data_if = data_wide.copy()
+    filter_data(data_if, filter_keep, filter_remove)
 
-    add_dimensions_from_defaults(data_wide, coords_defaults)
+    add_dimensions_from_defaults(data_if, coords_defaults)
 
     naming_attrs = rename_columns(
-        data_wide, coords_cols, add_coords_cols, coords_defaults, coords_terminologies
+        data_if, coords_cols, add_coords_cols, coords_defaults, coords_terminologies
     )
     attrs.update(naming_attrs)
 
@@ -605,31 +607,30 @@ def convert_wide_dataframe_if(
     )
 
     if coords_value_mapping is not None:
-        map_metadata(data_wide, attrs=attrs, meta_mapping=coords_value_mapping)
+        map_metadata(data_if, attrs=attrs, meta_mapping=coords_value_mapping)
 
     if coords_value_filling is not None:
-        data_wide = fill_from_other_col(
-            data_wide, attrs=attrs, coords_value_filling=coords_value_filling
+        data_if = fill_from_other_col(
+            data_if, attrs=attrs, coords_value_filling=coords_value_filling
         )
 
-    coords = list(set(data_wide.columns.values) - set(time_columns))
-    # dims = list(set(coords) - set(add_coords_cols.keys()))
+    coords = list(set(data_if.columns.values) - set(time_columns))
 
-    harmonize_units(data_wide, dimensions=coords, attrs=attrs)
+    harmonize_units(data_if, dimensions=coords, attrs=attrs)
 
-    data_wide, coords = sort_columns_and_rows(data_wide, dimensions=coords)
+    data_if, coords = sort_columns_and_rows(data_if, dimensions=coords)
     dims = coords.copy()
     for add_coord in add_coords_cols.keys():
         dims.remove(add_coord)
 
-    data_wide.attrs = interchange_format_attrs_dict(
+    data_if.attrs = interchange_format_attrs_dict(
         xr_attrs=attrs,
         time_format=time_format,
         dimensions=dims,
         additional_coordinates=additional_coordinates,
     )
 
-    return data_wide
+    return data_if
 
 
 def read_wide_csv_file_if(
@@ -1246,7 +1247,7 @@ def rename_columns(
 def harmonize_units(
     data: pd.DataFrame,
     *,
-    unit_col: str = "unit",
+    unit_col: str = None,
     attrs: Optional[dict] = None,
     dimensions: Iterable[str],
 ) -> None:
@@ -1283,6 +1284,9 @@ def harmonize_units(
         entity_col = dim_aliases.get("entity", "entity")
     else:
         entity_col = "entity"
+
+    if unit_col is None:
+        unit_col = dim_aliases.get("unit", "unit")
 
     entities = data[entity_col].unique()
     for entity in entities:
