@@ -290,7 +290,7 @@ def from_interchange_format(
     shapes = []
     for entity, dims in attrs["dimensions"].items():
         shapes.append([dim_lens[dim] for dim in dims if dim != "unit"])
-    array_size = np.sum((np.product(shape) for shape in shapes))
+    array_size = sum(np.product(shape) for shape in shapes)
     logger.debug(f"Expected array shapes: {shapes}, resulting in size {array_size:,}.")
     if array_size > max_array_size:
         logger.error(

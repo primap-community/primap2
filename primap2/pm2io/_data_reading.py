@@ -1006,7 +1006,7 @@ def spec_to_query_string(filter_spec: Dict[str, Union[list, Any]]) -> str:
     queries = []
     for col in filter_spec:
         if isinstance(filter_spec[col], list):
-            itemlist = ", ".join((repr(x) for x in filter_spec[col]))
+            itemlist = ", ".join(repr(x) for x in filter_spec[col])
             filter_query = f"{col} in [{itemlist}]"
         else:
             filter_query = f"{col} == {filter_spec[col]!r}"
