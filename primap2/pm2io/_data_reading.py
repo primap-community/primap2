@@ -191,14 +191,17 @@ def convert_long_dataframe_if(
     if add_coords_cols:
         check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
 
-    filter_data(data_long, filter_keep, filter_remove)
+    # make a copy to keep input dataframe unchanged
+    data_copy = data_long.copy()
+
+    filter_data(data_copy, filter_keep, filter_remove)
 
     add_dimensions_from_defaults(
-        data_long, coords_defaults, additional_allowed_coords=["time"]
+        data_copy, coords_defaults, additional_allowed_coords=["time"]
     )
 
     naming_attrs = rename_columns(
-        data_long, coords_cols, add_coords_cols, coords_defaults, coords_terminologies
+        data_copy, coords_cols, add_coords_cols, coords_defaults, coords_terminologies
     )
 
     attrs.update(naming_attrs)
@@ -208,20 +211,20 @@ def convert_long_dataframe_if(
     )
 
     if coords_value_mapping is not None:
-        map_metadata(data_long, attrs=attrs, meta_mapping=coords_value_mapping)
+        map_metadata(data_copy, attrs=attrs, meta_mapping=coords_value_mapping)
 
     if coords_value_filling is not None:
-        data_long = fill_from_other_col(
-            data_long, attrs=attrs, coords_value_filling=coords_value_filling
+        data_copy = fill_from_other_col(
+            data_copy, attrs=attrs, coords_value_filling=coords_value_filling
         )
 
-    coords = list(set(data_long.columns.values) - {"data"})
+    coords = list(set(data_copy.columns.values) - {"data"})
 
-    harmonize_units(data_long, dimensions=coords, attrs=attrs)
+    harmonize_units(data_copy, dimensions=coords, attrs=attrs)
 
-    data_long["time"] = pd.to_datetime(data_long["time"], format=time_format)
+    data_copy["time"] = pd.to_datetime(data_copy["time"], format=time_format)
 
-    data, coords = long_to_wide(data_long, time_format=time_format)
+    data, coords = long_to_wide(data_copy, time_format=time_format)
 
     data, coords = sort_columns_and_rows(data, dimensions=coords)
     dims = coords.copy()
