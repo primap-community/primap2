@@ -73,14 +73,14 @@ virtual-environment: venv ## setup a virtual environment for development
 
 venv: requirements_dev.txt setup.cfg
 	[ -d venv ] || python3 -m venv venv
-	venv/bin/python -m pip install -r requirements_dev.txt --upgrade
-	venv/bin/python -m pip install -e .
+	venv/bin/python -m pip install --upgrade pip wheel
+	venv/bin/python -m pip install --upgrade -e .[dev]
 	touch venv
 
 update-venv:
 	[ -d venv ] || python3 -m venv venv
-	venv/bin/python -m pip install -r requirements_dev.txt --upgrade
-	venv/bin/python -m pip install -e .
+	venv/bin/python -m pip install --upgrade pip wheel
+	venv/bin/python -m pip install --upgrade --upgrade-strategy eager -e .[dev]
 	touch venv
 
 install-pre-commit: update-venv ## install the pre-commit hooks
