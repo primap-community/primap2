@@ -41,19 +41,21 @@ NA_VALUES = [
 ]
 
 
-def read_long_csv_file_if(
-    filepath_or_buffer: Union[str, Path, IO],
+def convert_long_dataframe_if(
+    data_long: pd.DataFrame,
     *,
     coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, List[str]] = None,
     coords_defaults: Optional[Dict[str, Any]] = None,
     coords_terminologies: Dict[str, str],
     coords_value_mapping: Optional[Dict[str, Any]] = None,
+    coords_value_filling: Optional[Dict[str, Dict[str, Dict]]] = None,
     filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y-%m-%d",
 ) -> pd.DataFrame:
-    """Read a CSV file in long (tidy) format into the PRIMAP2 interchange format.
+    """convert a DataFrame in long (tidy) format into the PRIMAP2 interchange format.
 
     Columns can be renamed or filled with default values to match the PRIMAP2 structure.
     Where we refer to "dimensions" in the parameter description below we mean the basic
@@ -63,13 +65,19 @@ def read_long_csv_file_if(
 
     Parameters
     ----------
-    filepath_or_buffer: str, pathlib.Path, or file-like
-        Long CSV file which will be read.
+    data_long: str, pd.DataFrame
+        Long format DataFrame file which will be converted.
 
     coords_cols : dict
         Dict where the keys are column names in the files to be read and the value is
         the dimension in PRIMAP2. To specify the data column containing the observable,
         use the "data" key. For secondary categories use a ``sec_cats__`` prefix.
+
+    add_coords_cols : dict, optional
+        Dict where the keys are PRIMAP2 additional coordinate names and the values are
+        lists with two elements where the first is the column in the dataframe to be
+        converted and the second is the primap2 dimension for the coordinate (e.g.
+        ``category`` for a ``category_name`` coordinate.
 
     coords_defaults : dict, optional
         Dict for default values of coordinates / dimensions not given in the csv files.
@@ -93,6 +101,19 @@ def read_long_csv_file_if(
         translating metadata values. For the "category", "entity", and "unit" columns,
         the rule "PRIMAP1" is available, which translates from PRIMAP1 metadata to
         PRIMAP2 metadata.
+
+    coords_value_filling : dict, optional
+        A dict with primap2 dimension names as keys. These are the target columns where
+        values will be filled (or replaced). Vales are dicts with primap2 dimension names
+        as keys. These are the source columns. The values are dicts with source value -
+        target value mappings.
+        The value filling can do everything that the value mapping can, but while mapping
+        can only replace values within a column using information from that column, the
+        filing function can also fill or replace data based on values from a different
+        column.
+        This can be used to e.g. fill missing category codes based on category names or
+        to replace category codes which do not meet the terminology using the category
+        names.
 
     filter_keep : dict, optional
         Dict defining filters of data to keep. Filtering is done before metadata
@@ -158,6 +179,8 @@ def read_long_csv_file_if(
     # Check and prepare arguments
     if coords_defaults is None:
         coords_defaults = {}
+    if add_coords_cols is None:
+        add_coords_cols = {}
     if meta_data is None:
         attrs = {}
     else:
@@ -165,8 +188,8 @@ def read_long_csv_file_if(
 
     check_mandatory_dimensions(coords_cols, coords_defaults)
     check_overlapping_specifications(coords_cols, coords_defaults)
-
-    data_long = read_long_csv(filepath_or_buffer, coords_cols)
+    if add_coords_cols:
+        check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
 
     filter_data(data_long, filter_keep, filter_remove)
 
@@ -175,26 +198,201 @@ def read_long_csv_file_if(
     )
 
     naming_attrs = rename_columns(
-        data_long, coords_cols, coords_defaults, coords_terminologies
+        data_long, coords_cols, add_coords_cols, coords_defaults, coords_terminologies
     )
+
     attrs.update(naming_attrs)
+
+    additional_coordinates = additional_coordinate_metadata(
+        add_coords_cols, coords_cols, coords_terminologies
+    )
 
     if coords_value_mapping is not None:
         map_metadata(data_long, attrs=attrs, meta_mapping=coords_value_mapping)
+
+    if coords_value_filling is not None:
+        data_long = fill_from_other_col(
+            data_long, attrs=attrs, coords_value_filling=coords_value_filling
+        )
 
     coords = list(set(data_long.columns.values) - {"data"})
 
     harmonize_units(data_long, dimensions=coords, attrs=attrs)
 
+    data_long["time"] = pd.to_datetime(data_long["time"], format=time_format)
+
     data, coords = long_to_wide(data_long, time_format=time_format)
 
     data, coords = sort_columns_and_rows(data, dimensions=coords)
+    dims = coords.copy()
+    for add_coord in add_coords_cols.keys():
+        dims.remove(add_coord)
 
     data.attrs = interchange_format_attrs_dict(
-        xr_attrs=attrs, time_format=time_format, dimensions=coords
+        xr_attrs=attrs,
+        time_format=time_format,
+        dimensions=dims,
+        additional_coordinates=additional_coordinates,
     )
 
     return data
+
+
+def read_long_csv_file_if(
+    filepath_or_buffer: Union[str, Path, IO],
+    *,
+    coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, List[str]] = None,
+    coords_defaults: Optional[Dict[str, Any]] = None,
+    coords_terminologies: Dict[str, str],
+    coords_value_mapping: Optional[Dict[str, Any]] = None,
+    coords_value_filling: Optional[Dict[str, Dict[str, Dict]]] = None,
+    filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
+    filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
+    meta_data: Optional[Dict[str, Any]] = None,
+    time_format: str = "%Y-%m-%d",
+) -> pd.DataFrame:
+    """Read a CSV file in long (tidy) format into the PRIMAP2 interchange format.
+
+    Columns can be renamed or filled with default values to match the PRIMAP2 structure.
+    Where we refer to "dimensions" in the parameter description below we mean the basic
+    dimension names without the added terminology (e.g. "area" not "area (ISO3)"). The
+    terminology information will be added by this function. You can not use the short
+    dimension names in the attributes (e.g. "cat" instead of "category").
+
+    Parameters
+    ----------
+    filepath_or_buffer: str, pathlib.Path, or file-like
+        Long CSV file which will be read.
+
+    coords_cols : dict
+        Dict where the keys are column names in the files to be read and the value is
+        the dimension in PRIMAP2. To specify the data column containing the observable,
+        use the "data" key. For secondary categories use a ``sec_cats__`` prefix.
+
+    add_coords_cols : dict, optional
+        Dict where the keys are PRIMAP2 additional coordinate names and the values are
+        lists with two elements where the first is the column in the csv file to be
+        read and the second is the primap2 dimension for the coordinate (e.g.
+        ``category`` for a ``category_name`` coordinate.
+
+    coords_defaults : dict, optional
+        Dict for default values of coordinates / dimensions not given in the csv files.
+        The keys are the dimension names and the values are the values for
+        the dimensions. For secondary categories use a ``sec_cats__`` prefix.
+
+    coords_terminologies : dict
+        Dict defining the terminologies used for the different coordinates (e.g. ISO3
+        for area). Only possible coordinates here are: area, category, scenario,
+        entity, and secondary categories. For secondary categories use a ``sec_cats__``
+        prefix. All entries different from "area", "category", "scenario", "entity", and
+        ``sec_cats__<name>`` will raise a ValueError.
+
+    coords_value_mapping : dict, optional
+        A dict with primap2 dimension names as keys. Values are dicts with input values
+        as keys and output values as values. A standard use case is to map gas names
+        from input data to the standardized names used in primap2.
+        Alternatively a value can also be a function which transforms one CSV metadata
+        value into the new metadata value.
+        A third possibility is to give a string as a value, which defines a rule for
+        translating metadata values. For the "category", "entity", and "unit" columns,
+        the rule "PRIMAP1" is available, which translates from PRIMAP1 metadata to
+        PRIMAP2 metadata.
+
+    coords_value_filling : dict, optional
+        A dict with primap2 dimension names as keys. These are the target columns where
+        values will be filled (or replaced). Vales are dicts with primap2 dimension names
+        as keys. These are the source columns. The values are dicts with source value -
+        target value mappings.
+        The value filling can do everything that the value mapping can, but while mapping
+        can only replace values within a column using information from that column, the
+        filing function can also fill or replace data based on values from a different
+        column.
+        This can be used to e.g. fill missing category codes based on category names or
+        to replace category codes which do not meet the terminology using the category
+        names.
+
+    filter_keep : dict, optional
+        Dict defining filters of data to keep. Filtering is done before metadata
+        mapping, so use original metadata values to define the filter. Column names are
+        as in the csv file. Each entry in the dict defines an individual filter.
+        The names of the filters have no relevance. Default: keep all data.
+
+    filter_remove : dict, optional
+        Dict defining filters of data to remove. Filtering is done before metadata
+        mapping, so use original metadata values to define the filter. Column names are
+        as in the csv file. Each entry in the dict defines an individual filter.
+        The names of the filters have no relevance.
+
+    meta_data : dict, optional
+        Meta data for the whole dataset. Will end up in the dataset-wide attrs. Allowed
+        keys are "references", "rights", "contact", "title", "comment", "institution",
+        and "history". Documentation about the format and meaning of the meta data can
+        be found in the
+        `data format documentation <https://primap2.readthedocs.io/en/stable/data_format_details.html#dataset-attributes>`_.  # noqa: E501
+
+    time_format : str, optional
+        strftime style format used to format the time information for the data columns
+        in the interchange format.
+        Default: "%F", i.e. the ISO 8601 date format.
+
+    Returns
+    -------
+    obj: pd.DataFrame
+        pandas DataFrame with the read data
+
+    Examples
+    --------
+    *Example for meta_mapping*::
+
+        meta_mapping = {
+            'pyCPA_col_1': {'col_1_value_1_in': 'col_1_value_1_out',
+                            'col_1_value_2_in': 'col_1_value_2_out',
+                            },
+            'pyCPA_col_2': {'col_2_value_1_in': 'col_2_value_1_out',
+                            'col_2_value_2_in': 'col_2_value_2_out',
+                            },
+        }
+
+    *Example for filter_keep*::
+
+        filter_keep = {
+            'f_1': {'variable': ['CO2', 'CH4'], 'region': 'USA'},
+            'f_2': {'variable': 'N2O'}
+        }
+
+    This example filter keeps all CO2 and CH4 data for the USA and N2O data for all
+    countries
+
+    *Example for filter_remove*::
+
+        filter_remove = {
+            'f_1': {'scenario': 'HISTORY'},
+        }
+
+    This filter removes all data with 'HISTORY' as scenario
+
+    """
+    check_mandatory_dimensions(coords_cols, coords_defaults)
+    check_overlapping_specifications(coords_cols, coords_defaults)
+    if add_coords_cols:
+        check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
+
+    data_long = read_long_csv(filepath_or_buffer, coords_cols, add_coords_cols)
+
+    return convert_long_dataframe_if(
+        data_long=data_long,
+        coords_cols=coords_cols,
+        add_coords_cols=add_coords_cols,
+        coords_defaults=coords_defaults,
+        coords_terminologies=coords_terminologies,
+        coords_value_mapping=coords_value_mapping,
+        coords_value_filling=coords_value_filling,
+        filter_keep=filter_keep,
+        filter_remove=filter_remove,
+        meta_data=meta_data,
+        time_format=time_format,
+    )
 
 
 def long_to_wide(
@@ -221,13 +419,229 @@ def long_to_wide(
     return data, coords + ["unit"]
 
 
+def convert_wide_dataframe_if(
+    data_wide: pd.DataFrame,
+    *,
+    coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, List[str]] = None,
+    coords_defaults: Optional[Dict[str, Any]] = None,
+    coords_terminologies: Dict[str, str],
+    coords_value_mapping: Optional[Dict[str, Any]] = None,
+    coords_value_filling: Optional[Dict[str, Dict[str, Dict]]] = None,
+    filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
+    filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
+    meta_data: Optional[Dict[str, Any]] = None,
+    time_format: str = "%Y",
+    time_cols: Optional[List] = None,
+) -> pd.DataFrame:
+    """
+    Convert a DataFrame in wide format into the PRIMAP2 interchange format.
+
+    Columns can be renamed or filled with default values to match the PRIMAP2 structure.
+    Where we refer to "dimensions" in the parameter description below we mean the basic
+    dimension names without the added terminology (e.g. "area" not "area (ISO3)"). The
+    terminology information will be added by this function. You can not use the short
+    dimension names in the attributes (e.g. "cat" instead of "category").
+
+    TODO: Currently duplicate data points will not be detected.
+
+    TODO: enable filtering through query strings
+
+    TODO: enable specification of the entity terminology
+
+    Parameters
+    ----------
+    data_wide: pd.DataFrame
+        Wide DataFrame which will be converted.
+
+    coords_cols : dict
+        Dict where the keys are PRIMAP2 dimension names and the values are column
+        names in the dataframe to be converted.
+        For secondary categories use a ``sec_cats__`` prefix.
+
+    add_coords_cols : dict, optional
+        Dict where the keys are PRIMAP2 additional coordinate names and the values are
+        lists with two elements where the first is the column in the dataframe to be
+        converted and the second is the primap2 dimension for the coordinate (e.g.
+        ``category`` for a ``category_name`` coordinate.
+
+    coords_defaults : dict, optional
+        Dict for default values of coordinates / dimensions not given in the dataframe.
+        The keys are the dimension names and the values are the values for
+        the dimensions. For secondary categories use a ``sec_cats__`` prefix.
+
+    coords_terminologies : dict
+        Dict defining the terminologies used for the different coordinates (e.g. ISO3
+        for area). Only possible coordinates here are: area, category, scenario,
+        entity, and secondary categories. For secondary categories use a ``sec_cats__``
+        prefix. All entries different from "area", "category", "scenario", "entity", and
+        ``sec_cats__<name>`` will raise a ValueError.
+
+    coords_value_mapping : dict, optional
+        A dict with primap2 dimension names as keys. Values are dicts with input values
+        as keys and output values as values. A standard use case is to map gas names
+        from input data to the standardized names used in primap2.
+        Alternatively a value can also be a function which transforms one CSV metadata
+        value into the new metadata value.
+        A third possibility is to give a string as a value, which defines a rule for
+        translating metadata values. The only defined rule at the moment is "PRIMAP1"
+        which can be used for the "category", "entity", and "unit" columns to translate
+        from PRIMAP1 metadata to PRIMAP2 metadata.
+
+    coords_value_filling : dict, optional
+        A dict with primap2 dimension names as keys. These are the target columns where
+        values will be filled (or replaced). Vales are dicts with primap2 dimension names
+        as keys. These are the source columns. The values are dicts with source value -
+        target value mappings.
+        The value filling can do everything that the value mapping can, but while mapping
+        can only replace values within a column using information from that column, the
+        filing function can also fill or replace data based on values from a different
+        column.
+        This can be used to e.g. fill missing category codes based on category names or
+        to replace category codes which do not meet the terminology using the category
+        names.
+
+    filter_keep : dict, optional
+        Dict defining filters of data to keep. Filtering is done before metadata
+        mapping, so use original metadata values to define the filter. Column names are
+        as in the csv file. Each entry in the dict defines an individual filter.
+        The names of the filters have no relevance. Default: keep all data.
+
+    filter_remove : dict, optional
+        Dict defining filters of data to remove. Filtering is done before metadata
+        mapping, so use original metadata values to define the filter. Column names are
+        as in the csv file. Each entry in the dict defines an individual filter.
+        The names of the filters have no relevance.
+
+    meta_data : dict, optional
+        Meta data for the whole dataset. Will end up in the dataset-wide attrs. Allowed
+        keys are "references", "rights", "contact", "title", "comment", "institution",
+        and "history". Documentation about the format and meaning of the meta data can
+        be found in the
+        `data format documentation <https://primap2.readthedocs.io/en/stable/data_format_details.html#dataset-attributes>`_.  # noqa: E501
+
+    time_format : str
+        str with strftime style format used to parse the time information for
+        the data columns.
+        Default: "%Y", which will match years.
+
+    time_cols : list, optional
+        List of column names which contain the data for each time point. If not given
+        cols will be inferred using time_format.
+
+    Returns
+    -------
+    obj: pd.DataFrame
+        pandas DataFrame with the read data
+
+    Examples
+    --------
+    *Example for meta_mapping*::
+
+        meta_mapping = {
+            'pyCPA_col_1': {'col_1_value_1_in': 'col_1_value_1_out',
+                            'col_1_value_2_in': 'col_1_value_2_out',
+                            },
+            'pyCPA_col_2': {'col_2_value_1_in': 'col_2_value_1_out',
+                            'col_2_value_2_in': 'col_2_value_2_out',
+                            },
+        }
+
+    *Example for filter_keep*::
+
+        filter_keep = {
+            'f_1': {'variable': ['CO2', 'CH4'], 'region': 'USA'},
+            'f_2': {'variable': 'N2O'}
+        }
+
+    This example filter keeps all CO2 and CH4 data for the USA and N2O data for all
+    countries
+
+    *Example for filter_remove*::
+
+        filter_remove = {
+            'f_1': {'scenario': 'HISTORY'},
+        }
+
+    This filter removes all data with 'HISTORY' as scenario
+
+    """
+    # Check and prepare arguments
+    if coords_defaults is None:
+        coords_defaults = {}
+    if add_coords_cols is None:
+        add_coords_cols = {}
+    if meta_data is None:
+        attrs = {}
+    else:
+        attrs = meta_data.copy()
+
+    check_mandatory_dimensions(coords_cols, coords_defaults)
+    check_overlapping_specifications(coords_cols, coords_defaults)
+    if add_coords_cols:
+        check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
+
+    # get all the columns that are actual data not metadata (usually the years)
+    if time_cols is None:
+        time_columns = [
+            col
+            for col in data_wide.columns.values
+            if matches_time_format(col, time_format)
+        ]
+    else:
+        time_columns = time_cols
+
+    # make a copy of the data to not alter the input data
+    data_if = data_wide.copy()
+    filter_data(data_if, filter_keep, filter_remove)
+
+    add_dimensions_from_defaults(data_if, coords_defaults)
+
+    naming_attrs = rename_columns(
+        data_if, coords_cols, add_coords_cols, coords_defaults, coords_terminologies
+    )
+    attrs.update(naming_attrs)
+
+    additional_coordinates = additional_coordinate_metadata(
+        add_coords_cols, coords_cols, coords_terminologies
+    )
+
+    if coords_value_mapping is not None:
+        map_metadata(data_if, attrs=attrs, meta_mapping=coords_value_mapping)
+
+    if coords_value_filling is not None:
+        data_if = fill_from_other_col(
+            data_if, attrs=attrs, coords_value_filling=coords_value_filling
+        )
+
+    coords = list(set(data_if.columns.values) - set(time_columns))
+
+    harmonize_units(data_if, dimensions=coords, attrs=attrs)
+
+    data_if, coords = sort_columns_and_rows(data_if, dimensions=coords)
+    dims = coords.copy()
+    for add_coord in add_coords_cols.keys():
+        dims.remove(add_coord)
+
+    data_if.attrs = interchange_format_attrs_dict(
+        xr_attrs=attrs,
+        time_format=time_format,
+        dimensions=dims,
+        additional_coordinates=additional_coordinates,
+    )
+
+    return data_if
+
+
 def read_wide_csv_file_if(
     filepath_or_buffer: Union[str, Path, IO],
     *,
     coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, List[str]] = None,
     coords_defaults: Optional[Dict[str, Any]] = None,
     coords_terminologies: Dict[str, str],
     coords_value_mapping: Optional[Dict[str, Any]] = None,
+    coords_value_filling: Optional[Dict[str, Dict[str, Dict]]] = None,
     filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
@@ -253,8 +667,14 @@ def read_wide_csv_file_if(
         Wide CSV file which will be read.
 
     coords_cols : dict
-        Dict where the keys are column names in the files to be read and the value is
-        the dimension in PRIMAP2. For secondary categories use a ``sec_cats__`` prefix.
+        Dict where the keys are PRIMAP2 dimensions and the values are column names in
+        the files to be read. For secondary categories use a ``sec_cats__`` prefix.
+
+    add_coords_cols : dict, optional
+        Dict where the keys are PRIMAP2 additional coordinate names and the values are
+        lists with two elements where the first is the column in the csv file to be
+        read and the second is the primap2 dimension for the coordinate (e.g.
+        ``category`` for a ``category_name`` coordinate.
 
     coords_defaults : dict, optional
         Dict for default values of coordinates / dimensions not given in the csv files.
@@ -278,6 +698,19 @@ def read_wide_csv_file_if(
         translating metadata values. The only defined rule at the moment is "PRIMAP1"
         which can be used for the "category", "entity", and "unit" columns to translate
         from PRIMAP1 metadata to PRIMAP2 metadata.
+
+    coords_value_filling : dict, optional
+        A dict with primap2 dimension names as keys. These are the target columns where
+        values will be filled (or replaced). Vales are dicts with primap2 dimension names
+        as keys. These are the source columns. The values are dicts with source value -
+        target value mappings.
+        The value filling can do everything that the value mapping can, but while mapping
+        can only replace values within a column using information from that column, the
+        filing function can also fill or replace data based on values from a different
+        column.
+        This can be used to e.g. fill missing category codes based on category names or
+        to replace category codes which do not meet the terminology using the category
+        names.
 
     filter_keep : dict, optional
         Dict defining filters of data to keep. Filtering is done before metadata
@@ -342,51 +775,90 @@ def read_wide_csv_file_if(
     # Check and prepare arguments
     if coords_defaults is None:
         coords_defaults = {}
-    if meta_data is None:
-        attrs = {}
-    else:
-        attrs = meta_data.copy()
 
     check_mandatory_dimensions(coords_cols, coords_defaults)
     check_overlapping_specifications(coords_cols, coords_defaults)
+    if add_coords_cols:
+        check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
 
     data, time_columns = read_wide_csv(
-        filepath_or_buffer, coords_cols, time_format=time_format
+        filepath_or_buffer,
+        coords_cols,
+        add_coords_cols=add_coords_cols,
+        time_format=time_format,
     )
 
-    filter_data(data, filter_keep, filter_remove)
-
-    add_dimensions_from_defaults(data, coords_defaults)
-
-    naming_attrs = rename_columns(
-        data, coords_cols, coords_defaults, coords_terminologies
-    )
-    attrs.update(naming_attrs)
-
-    if coords_value_mapping is not None:
-        map_metadata(data, attrs=attrs, meta_mapping=coords_value_mapping)
-
-    coords = list(set(data.columns.values) - set(time_columns))
-
-    harmonize_units(data, dimensions=coords, attrs=attrs)
-
-    data, coords = sort_columns_and_rows(data, dimensions=coords)
-
-    data.attrs = interchange_format_attrs_dict(
-        xr_attrs=attrs, time_format=time_format, dimensions=coords
+    data = convert_wide_dataframe_if(
+        data,
+        coords_cols=coords_cols,
+        add_coords_cols=add_coords_cols,
+        coords_defaults=coords_defaults,
+        coords_terminologies=coords_terminologies,
+        coords_value_mapping=coords_value_mapping,
+        coords_value_filling=coords_value_filling,
+        filter_keep=filter_keep,
+        filter_remove=filter_remove,
+        meta_data=meta_data,
+        time_format=time_format,
+        time_cols=time_columns,
     )
 
     return data
 
 
 def interchange_format_attrs_dict(
-    *, xr_attrs: dict, time_format: str, dimensions
+    *, xr_attrs: dict, time_format: str, dimensions, additional_coordinates: dict = None
 ) -> dict:
-    return {
+    metadata = {
         "attrs": xr_attrs,
         "time_format": time_format,
         "dimensions": {"*": dimensions.copy()},
     }
+
+    if additional_coordinates:
+        metadata["additional_coordinates"] = additional_coordinates
+
+    return metadata
+
+
+def additional_coordinate_metadata(
+    add_coords_cols: Dict[str, List[str]],
+    coords_cols: Dict[str, str],
+    coords_terminologies: Dict[str, str],
+) -> dict:
+    """Create the `additional_coordinates` dict and do a few consistency checks"""
+
+    additional_coordinates = {}
+    for coord in add_coords_cols:
+        if coord in coords_terminologies:
+            logger.error(
+                f"Additional coordinate {coord} has terminology definition. "
+                f"This is currently not supported by PRIMAP2."
+            )
+            raise ValueError(
+                f"Additional coordinate {coord} has terminology definition. "
+                f"This is currently not supported by PRIMAP2."
+            )
+
+        if add_coords_cols[coord][1] not in coords_cols:
+            logger.error(
+                f"Additional coordinate {coord} refers to unknown coordinate "
+                f"{add_coords_cols[coord][1]}. "
+            )
+            raise ValueError(
+                f"Additional coordinate {coord} refers to unknown coordinate "
+                f"{add_coords_cols[coord][1]}. "
+            )
+
+        if add_coords_cols[coord][1] in coords_terminologies:
+            additional_coordinates[coord] = (
+                f"{add_coords_cols[coord][1]} "
+                f"({coords_terminologies[add_coords_cols[coord][1]]})"
+            )
+        else:
+            additional_coordinates[coord] = add_coords_cols[coord][1]
+
+    return additional_coordinates
 
 
 def check_mandatory_dimensions(
@@ -416,6 +888,20 @@ def check_overlapping_specifications(
         raise ValueError(f"{both!r} given in coords_cols and coords_defaults.")
 
 
+def check_overlapping_specifications_add_cols(
+    coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, Any],
+):
+    cols_add = [val[0] for val in add_coords_cols.values()]
+    both = set(coords_cols.values()).intersection(set(cols_add))
+    if both:
+        logger.error(
+            f"columns {both!r} used for dimensions and additional coordinates, but"
+            f" should be used in only one of them."
+        )
+        raise ValueError(f"{both!r} given in coords_cols and add_coords_cols.")
+
+
 def matches_time_format(value: str, time_format: str):
     try:
         datetime.datetime.strptime(value, time_format)
@@ -427,7 +913,8 @@ def matches_time_format(value: str, time_format: str):
 def read_wide_csv(
     filepath_or_buffer,
     coords_cols: Dict[str, str],
-    time_format: str,
+    add_coords_cols: Dict[str, List[str]] = None,
+    time_format: str = "%Y",
 ) -> (pd.DataFrame, List[str]):
 
     data = pd.read_csv(filepath_or_buffer, na_values=NA_VALUES)
@@ -446,8 +933,18 @@ def read_wide_csv(
 
     # remove all cols not in the specification
     columns = data.columns.values
+    if add_coords_cols:
+        add_coords_col_names = {value[0] for value in add_coords_cols.values()}
+    else:
+        add_coords_col_names = set()
+
     data.drop(
-        columns=list(set(columns) - set(coords_cols.values()) - set(time_cols)),
+        columns=list(
+            set(columns)
+            - set(coords_cols.values())
+            - add_coords_col_names
+            - set(time_cols)
+        ),
         inplace=True,
     )
 
@@ -464,7 +961,9 @@ def read_wide_csv(
 
 
 def read_long_csv(
-    filepath_or_buffer, coords_cols: Dict[str, str]
+    filepath_or_buffer,
+    coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, List[str]] = None,
 ) -> (pd.DataFrame, List[str]):
     try:
         csv_data_column = coords_cols["data"]
@@ -478,7 +977,12 @@ def read_long_csv(
     else:
         parse_dates = False
 
-    usecols = list(coords_cols.values())
+    if add_coords_cols:
+        add_coords_col_names = {value[0] for value in add_coords_cols.values()}
+    else:
+        add_coords_col_names = set()
+
+    usecols = list(coords_cols.values()) + list(add_coords_col_names)
 
     data = pd.read_csv(
         filepath_or_buffer,
@@ -539,6 +1043,58 @@ def filter_data(
     data.reset_index(drop=True, inplace=True)
 
 
+def fill_from_other_col(
+    df: pd.DataFrame,
+    *,
+    coords_value_filling: Dict[str, Dict[str, Dict[str, str]]],
+    attrs: Dict[str, Any],
+) -> pd.DataFrame:
+    """
+    This function fills value in one column based on values in other columns.
+    It can be used to fill NaN values or to replace e.g. non-standard or
+    non-unique category codes based on category names. It operates on pandas
+    DataFrames.
+
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Data to operate on
+
+    coords_value_filling : dict
+        A dict with primap2 dimension names as keys. These are the target columns where
+        values will be filled (or replaced). Vales are dicts with primap2 dimension
+        names as keys. These are the source columns. The values are dicts with source
+        value - target value mappings.
+        This can be used to e.g. fill missing category codes based on category names or
+        to replace category codes which do not meet the terminology using the category
+        names.
+
+    attrs : dict
+        Dataset attributes
+
+    Returns
+    -------
+    pd.DataFrame
+    """
+    dim_aliases = _alias_selection.translations_from_attrs(attrs, include_entity=True)
+
+    # loop over target columns in value mapping
+    for target_col in coords_value_filling:
+        target_info = coords_value_filling[target_col]
+        # loop over source columns
+        for source_col in target_info:
+            mapping_info = target_info[source_col]
+            # loop over cases
+            target_col_name = dim_aliases.get(target_col, target_col)
+            source_col_name = dim_aliases.get(source_col, source_col)
+            for source_value in mapping_info:
+                df.loc[df[source_col_name] == source_value, target_col_name] = df.loc[
+                    df[source_col_name] == source_value, target_col_name
+                ] = mapping_info[source_value]
+    return df
+
+
 def add_dimensions_from_defaults(
     data: pd.DataFrame,
     coords_defaults: Dict[str, Any],
@@ -561,6 +1117,23 @@ def add_dimensions_from_defaults(
 
 
 def map_metadata(
+    data: pd.DataFrame,
+    *,
+    meta_mapping: Dict[str, Union[str, Callable, dict]],
+    attrs: Dict[str, Any],
+):
+    """Map the metadata according to specifications given in meta_mapping.
+    First map entity, then the rest."""
+
+    if "entity" in meta_mapping.keys():
+        meta_mapping_entity = dict(entity=meta_mapping["entity"])
+        meta_mapping.pop("entity")
+        map_metadata_unordered(data, meta_mapping=meta_mapping_entity, attrs=attrs)
+
+    map_metadata_unordered(data, meta_mapping=meta_mapping, attrs=attrs)
+
+
+def map_metadata_unordered(
     data: pd.DataFrame,
     *,
     meta_mapping: Dict[str, Union[str, Callable, dict]],
@@ -631,6 +1204,7 @@ def map_metadata(
 def rename_columns(
     data: pd.DataFrame,
     coords_cols: Dict[str, str],
+    add_coords_cols: Dict[str, List[str]],
     coords_defaults: Dict[str, Any],
     coords_terminologies: Dict[str, str],
 ) -> dict:
@@ -642,6 +1216,7 @@ def rename_columns(
     attrs = {}
     sec_cats = []
     coord_renaming = {}
+
     for coord in itertools.chain(coords_cols, coords_defaults):
         if coord in coords_terminologies:
             name = f"{coord} ({coords_terminologies[coord]})"
@@ -658,6 +1233,9 @@ def rename_columns(
 
         coord_renaming[coords_cols.get(coord, coord)] = name
 
+    for coord in add_coords_cols:
+        coord_renaming[add_coords_cols[coord][0]] = coord
+
     data.rename(columns=coord_renaming, inplace=True)
 
     if sec_cats:
@@ -669,7 +1247,7 @@ def rename_columns(
 def harmonize_units(
     data: pd.DataFrame,
     *,
-    unit_col: str = "unit",
+    unit_col: str = None,
     attrs: Optional[dict] = None,
     dimensions: Iterable[str],
 ) -> None:
@@ -706,6 +1284,9 @@ def harmonize_units(
         entity_col = dim_aliases.get("entity", "entity")
     else:
         entity_col = "entity"
+
+    if unit_col is None:
+        unit_col = dim_aliases.get("unit", "unit")
 
     entities = data[entity_col].unique()
     for entity in entities:

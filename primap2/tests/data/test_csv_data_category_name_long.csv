@@ -1,0 +1,7 @@
+country,category,category_name,gas,unit,year,emissions
+AUS,IPC1,Energy,CO2,Gg,1991,4.1
+ZAM,IPC2,IPPU,CH4,Mt,1991,7
+AUS,IPC1,Energy,CO2,Gg,2000,5
+ZAM,IPC2,IPPU,CH4,Mt,2000,8
+AUS,IPC1,Energy,CO2,Gg,2010,6
+ZAM,IPC2,IPPU,CH4,Mt,2010,9

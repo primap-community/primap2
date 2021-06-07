@@ -25,6 +25,8 @@ INTERCHANGE_FORMAT_COLUMN_ORDER = [
     "entity",
     "unit",
     "category",
+    "orig_cat_name",
+    "cat_name_translation",
 ]
 
 # Pretty basic schema for now; attrs could be declared more explicitly with the
@@ -35,6 +37,7 @@ INTERCHANGE_FORMAT_STRICTYAML_SCHEMA = sy.Map(
         "attrs": sy.MapPattern(sy.Str(), sy.Any()),
         "dimensions": sy.MapPattern(sy.Str(), sy.Seq(sy.Str())),
         "time_format": sy.Str(),
+        sy.Optional("additional_coordinates"): sy.MapPattern(sy.Str(), sy.Str()),
     }
 )
 
@@ -225,19 +228,44 @@ def from_interchange_format(
         xr dataset with the converted data
     """
     if attrs is None:
-        attrs = data.attrs
+        attrs = data.attrs.copy()
 
     if "entity_terminology" in attrs["attrs"]:
         entity_col = f"entity ({attrs['attrs']['entity_terminology']})"
     else:
         entity_col = "entity"
 
+    if "additional_coordinates" not in attrs:
+        attrs["additional_coordinates"] = {}
+
+    # build dicts for additional coordinates
+    add_coord_mapping_dicts = {}
+    for coord in attrs["additional_coordinates"].keys():
+        values = data[[coord, attrs["additional_coordinates"][coord]]]
+        values = values.drop_duplicates()
+        dim_values = list(values[attrs["additional_coordinates"][coord]])
+        coord_values = list(values[coord])
+        if len(coord_values) != len(set(dim_values)):
+            logger.error(
+                f"Different secondary coordinate values for given first coordinate "
+                f"value for {coord}."
+            )
+            raise ValueError(
+                f"Different secondary coordinate values for given first coordinate "
+                f"value for {coord}."
+            )
+
+        add_coord_mapping_dicts[coord] = dict(zip(dim_values, coord_values))
+
+    # drop additional coordinates. make a copy first to not alter input DF
+    data_drop = data.drop(columns=attrs["additional_coordinates"].keys(), inplace=False)
+
     # find the time columns
     if_index_cols = set(itertools.chain(*attrs["dimensions"].values()))
-    time_cols = set(data.columns.values) - if_index_cols
+    time_cols = set(data_drop.columns.values) - if_index_cols
 
     # convert to xarray
-    data_xr = data.to_xarray()
+    data_xr = data_drop.to_xarray()
     index_cols = if_index_cols - {"unit", "time"}
     data_xr = data_xr.set_index({"index": list(index_cols)})
     # take the units out as they increase dimensionality and we have only one unit per
@@ -292,6 +320,26 @@ def from_interchange_format(
         data_vars[entity] = da_entity.unstack("index")
 
     data_xr = xr.Dataset(data_vars)
+
+    # add the additional coordinates
+    for coord in attrs["additional_coordinates"].keys():
+        dim_values_xr = list(data_xr[attrs["additional_coordinates"][coord]].values)
+        coord_values_ordered = [
+            add_coord_mapping_dicts[coord][value] for value in dim_values_xr
+        ]
+        data_xr = data_xr.assign_coords(
+            {
+                coord: xr.DataArray(
+                    data=np.array(coord_values_ordered),
+                    coords={
+                        attrs["additional_coordinates"][coord]: data_xr.coords[
+                            attrs["additional_coordinates"][coord]
+                        ]
+                    },
+                    dims=[attrs["additional_coordinates"][coord]],
+                )
+            }
+        )
 
     # fill the entity/variable attributes
     for variable in data_xr:
