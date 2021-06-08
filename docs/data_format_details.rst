@@ -75,7 +75,7 @@ attribute    content                                                            
 -----------  ------------------------------------------------------------------------  ----------------------------
 entity       entity code, possibly from the dataset's entity category set              yes
 gwp_context  which global warming potential context was used for calculating the data  if a gwp was used
-units        in which units the data is given                                          if dataset is not quantified
+units        in which units the data is given                                          see rules below
 ===========  ========================================================================  ============================
 
 For the ``entity``, a category set (i.e. a terminology) should be defined for the
@@ -92,11 +92,18 @@ If there is no ``gwp_context``, the name is the entity.
 If there is a ``gwp_context``, the name is the entity, followed by the ``gwp_context``
 in parentheses, separated from the entity by a space.
 
-The unit must be given in the attributes if the dataset is not quantified
-using pint_xarray.
-For storage, the dataset should not be quantified, but for calculations the dataset
-should be quantified using pint_xarray.
-The unit must be parsable by `openscm-units <https://openscm-units.readthedocs.io>`_.
+Units are required for all data variables with a ``dtype`` of ``float``, while
+for data with other data types, the units are required only where they make sense.
+For example, data with an integer data type representing (human or animal) population
+data requires units, while a data variable with a categorical data type representing
+the evaluation method for each data point does not require units.
+If the units are required, they can either be given by quantifying the data variable
+using ``pint_xarray``, or can be included in the variable attributes using the key
+``units`` as a string.
+For storage, the dataset should not be quantified and the units should be given in the
+``attrs``, but for calculations the dataset should be quantified using pint_xarray.
+If given in the ``attrs`` as a string, the units must be parsable by
+`openscm-units <https://openscm-units.readthedocs.io>`_.
 
 Dataset Attributes
 ------------------
