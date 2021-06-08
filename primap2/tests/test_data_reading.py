@@ -788,7 +788,7 @@ class TestInterchangeFormat:
     def test_roundtrip(self, tmp_path):
         file_input = DATA_PATH / "test_read_wide_csv_file_output.csv"
         file_temp = tmp_path / "test_interchange_format"
-        data = pd.read_csv(file_input, index_col=0)
+        data = pd.read_csv(file_input, index_col=0, dtype=object)
         attrs = {
             "attrs": {
                 "area": "area (ISO3)",

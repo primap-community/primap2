@@ -5,13 +5,16 @@ import pint
 import xarray as xr
 
 
-def allclose(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
+def allclose(a: xr.DataArray, b: xr.DataArray, *args, **kwargs) -> bool:
     """Like np.allclose, but converts a to b's units before comparing."""
     try:
         a = a.pint.to(b.pint.units)
     except pint.DimensionalityError:
         return False
-    return np.allclose(a.pint.magnitude, b.pint.magnitude, *args, **kwargs)
+    if a.dtype == float:  # need to use "allclose" to compare floats
+        return np.allclose(a.pint.magnitude, b.pint.magnitude, *args, **kwargs)
+    else:
+        return (a.pint.magnitude == b.pint.magnitude).all()
 
 
 def assert_equal(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):

@@ -155,13 +155,6 @@ def test_missing_entity(minimal_ds, caplog):
     assert "'CO2' has no entity declared in attributes." in caplog.text
 
 
-def test_weird_entity(minimal_ds, caplog):
-    minimal_ds["CO2"].attrs["entity"] = "carbondioxide"
-    minimal_ds.pr.ensure_valid()
-    assert "WARNING" in caplog.text
-    assert "entity 'carbondioxide' of 'CO2' is unknown." in caplog.text
-
-
 def test_missing_gwp_context(minimal_ds, caplog):
     del minimal_ds["SF6 (SARGWP100)"].attrs["gwp_context"]
     minimal_ds.pr.ensure_valid()
@@ -238,7 +231,7 @@ def test_missing_unit(minimal_ds, caplog):
     with pytest.raises(ValueError, match=r"units missing for 'CO2'"):
         minimal_ds.pr.ensure_valid()
     assert "ERROR" in caplog.text
-    assert "'CO2' has no units." in caplog.text
+    assert "'CO2' is numerical (float) data, but has no units." in caplog.text
 
 
 def test_weird_variable_name(minimal_ds, caplog):
