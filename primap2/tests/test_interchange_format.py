@@ -1,5 +1,8 @@
 """Tests for the interchange format."""
+import csv
 
+import pandas as pd
+import pytest
 import xarray as xr
 
 from primap2 import pm2io
@@ -14,3 +17,35 @@ def test_round_trip(any_ds: xr.Dataset, tmp_path):
         print(fd.read())
     actual = pm2io.from_interchange_format(pm2io.read_interchange_format(path))
     utils.assert_ds_aligned_equal(any_ds, actual)
+
+
+def test_missing_file(minimal_ds, tmp_path):
+    path = tmp_path / "if"
+    pm2io.write_interchange_format(path, minimal_ds.pr.to_interchange_format())
+    with path.with_suffix(".yaml").open() as fd:
+        content = fd.readlines()
+    with path.with_suffix(".yaml").open("w") as fd:
+        for line in content:
+            if "data_file" in line:
+                continue
+            fd.write(line)
+
+    # first test automatic discovery
+    actual = pm2io.from_interchange_format(pm2io.read_interchange_format(path))
+    utils.assert_ds_aligned_equal(minimal_ds, actual)
+
+    # now test without csv file
+    path.with_suffix(".csv").unlink()
+    with pytest.raises(FileNotFoundError, match="data file not found at"):
+        pm2io.read_interchange_format(path)
+
+
+def test_inharmonic_units(minimal_ds, tmp_path):
+    path = tmp_path / "if"
+    pm2io.write_interchange_format(path, minimal_ds.pr.to_interchange_format())
+    df = pd.read_csv(path.with_suffix(".csv"))
+    df.loc[3, "unit"] = "m"
+    df.to_csv(path.with_suffix(".csv"), index=False, quoting=csv.QUOTE_NONNUMERIC)
+
+    with pytest.raises(ValueError, match="More than one unit"):
+        pm2io.from_interchange_format(pm2io.read_interchange_format(path))

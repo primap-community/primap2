@@ -1,5 +1,7 @@
+import csv
 import itertools
 import re
+import typing
 from pathlib import Path
 from typing import Optional, Union
 
@@ -38,6 +40,7 @@ INTERCHANGE_FORMAT_STRICTYAML_SCHEMA = sy.Map(
         "dimensions": sy.MapPattern(sy.Str(), sy.Seq(sy.Str())),
         "time_format": sy.Str(),
         sy.Optional("additional_coordinates"): sy.MapPattern(sy.Str(), sy.Str()),
+        sy.Optional("dtypes"): sy.MapPattern(sy.Str(), sy.Str()),
     }
 )
 
@@ -67,7 +70,7 @@ def dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
     return da
 
 
-def metadata_for_variable(unit: str, variable: str) -> dict:
+def metadata_for_variable(unit: str, variable: str) -> typing.Dict[str, str]:
     """Convert a primap2 unit and variable key to a metadata dict.
 
     Derives the information needed for the data variable's attrs dict from the unit
@@ -93,14 +96,17 @@ def metadata_for_variable(unit: str, variable: str) -> dict:
     {'units': 'Gg CO2 / year', 'gwp_context': 'SARGWP100', 'entity': 'Kyoto-GHG'}
 
     """
-    attrs = {"units": unit}
+    attrs = {}
+    if unit != "no unit":
+        attrs["units"] = unit
 
     regex_gwp = r"\s\(([A-Za-z0-9]*)\)$"
-    regex_variable = r"^(.*)\s\([a-zA-z0-9]*\)$"
-
     gwp = re.findall(regex_gwp, variable)
+
     if gwp:
         attrs["gwp_context"] = gwp[0]
+
+        regex_variable = r"^(.*)\s\([a-zA-z0-9]*\)$"
         entity = re.findall(regex_variable, variable)
         if not entity:
             logger.error("Can't extract entity from " + variable)
@@ -141,7 +147,7 @@ def write_interchange_format(
     meta_file = filepath.parent / (filepath.stem + ".yaml")
 
     # write the data
-    data.to_csv(data_file, index=False, float_format="%g")
+    data.to_csv(data_file, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
     attrs["data_file"] = data_file.name
 
@@ -182,17 +188,17 @@ def read_interchange_format(
         meta_data = yaml.data
 
     if "data_file" in meta_data.keys():
-        data = pd.read_csv(filepath.parent / meta_data["data_file"])
+        data_file = filepath.parent / meta_data["data_file"]
     else:
         # no file information given, check for file with same name
-        datafile = filepath.parent / (filepath.stem + ".csv")
-        if datafile.exists():
-            data = pd.read_csv(datafile)
-        else:
+        data_file = filepath.parent / (filepath.stem + ".csv")
+        if not data_file.exists():
             raise FileNotFoundError(
                 f"Data file not specified in {filepath} and data file not found at "
-                f"{datafile}."
+                f"{data_file}."
             )
+
+    data = pd.read_csv(data_file, dtype=object)
 
     data.attrs = meta_data
 
@@ -273,22 +279,26 @@ def from_interchange_format(
     units = data_xr["unit"]
     del data_xr["unit"]
 
-    # build full dimensions dict from specification with default entry "*"
+    # build full dimensions dict from specification with default from entry "*"
     entities = np.unique(data_xr[entity_col].values)
-    dimensions = {}
+    dimensions = attrs["dimensions"]
     for entity in entities:
-        if entity in attrs["dimensions"]:
-            dims = attrs["dimensions"][entity]
-        else:
-            dims = attrs["dimensions"]["*"]
-        dimensions[entity] = dims
-    attrs["dimensions"] = dimensions
+        if entity not in dimensions:
+            dimensions[entity] = dimensions["*"]
+    if "*" in dimensions:
+        del dimensions["*"]
+
+    # build full dtypes dict from specification with default float
+    dtypes = attrs.get("dtypes", {})
+    for entity in entities:
+        if entity not in dtypes:
+            dtypes[entity] = "float"
 
     # check resulting shape to estimate memory consumption
     dim_lens = {dim: len(np.unique(data_xr[dim].dropna("index"))) for dim in index_cols}
     dim_lens["time"] = len(time_cols)
     shapes = []
-    for entity, dims in attrs["dimensions"].items():
+    for entity, dims in dimensions.items():
         shapes.append([dim_lens[dim] for dim in dims if dim != "unit"])
     array_size = sum(np.product(shape) for shape in shapes)
     logger.debug(f"Expected array shapes: {shapes}, resulting in size {array_size:,}.")
@@ -310,14 +320,14 @@ def from_interchange_format(
     else:
         da = dates_to_dimension(data_xr)
     data_vars = {}
-    for entity, dims in attrs["dimensions"].items():
+    for entity, dims in dimensions.items():
         da_entity = da.loc[{entity_col: entity}]
         # we still have a full MultiIndex, so trim it to the relevant dimensions
         da_entity["index"] = da_entity.indexes["index"].droplevel(
             list(index_cols - set(dims))
         )
         # now we can safely unstack the index
-        data_vars[entity] = da_entity.unstack("index")
+        data_vars[entity] = da_entity.unstack("index").astype(dtypes[entity])
 
     data_xr = xr.Dataset(data_vars)
 

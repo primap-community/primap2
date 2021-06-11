@@ -18,12 +18,12 @@ Each row is a time series.
 The columns list first all coordinate values for the time series, then the time points.
 An example table representation is:
 
-===========  ===================  ================  =============  ====  ====  ====  ====
-area (ISO3)  category (IPCC2006)  entity (primap2)  unit           2000  2001  2002  2003
------------  -------------------  ----------------  -------------  ----  ----  ----  ----
-COL          1                    CO2               Gg CO2 / year  2.3   2.2   2.0   1.9
-COL          2                    CO2               Gg CO2 / year  1.5   1.6   1.3   1.2
-===========  ===================  ================  =============  ====  ====  ====  ====
+===========  ===================  ================  ===============  ====  ====  ====  ====
+area (ISO3)  category (IPCC2006)  entity (primap2)  unit             2000  2001  2002  2003
+-----------  -------------------  ----------------  ---------------  ----  ----  ----  ----
+"COL"        "1"                  "CO2"             "Gg CO2 / year"  2.3   2.2   2.0   1.9
+"COL"        "2"                  "CO2"             "Gg CO2 / year"  1.5   1.6   1.3   1.2
+===========  ===================  ================  ===============  ====  ====  ====  ====
 
 Specifically, the columns consist of:
 
@@ -47,7 +47,7 @@ but imposes multiple inefficiencies:
   categories. However, the tabular format imposes to store all entities with the same
   dimensions. Therefore, the dimensions that each entity uses are listed in the
   meta data (see below) and dimensions which are not used for the entity are denoted
-  with the missing data marker (``NaN``) in the tabular data.
+  with an empty string in the tabular data.
 
 Meta Data
 ---------
@@ -55,14 +55,16 @@ Meta Data
 To correctly interpret the tabular data, meta data is necessary.
 The meta data is a dictionary with the following keys:
 
-===========  ==========  ================================================================================
-key          data type   meaning
------------  ----------  --------------------------------------------------------------------------------
-attrs        dictionary  The ``attrs`` dictionary of the dataset as defined in :ref:`data_format_details`
-data_file    str         The relative path to the CSV data file (only when stored, not in-memory)
-dimensions   dictionary  Mapping of the entities to a list of the dimensions used by them
-time_format  str         strftime style time format string used for the time columns
-===========  ==========  ================================================================================
+======================  =========  ================================================================================
+key                     data type   meaning
+----------------------  ---------  --------------------------------------------------------------------------------
+attrs                   dict       The ``attrs`` dictionary of the dataset as defined in :ref:`data_format_details`
+data_file               str        The relative path to the CSV data file (only when stored, not in-memory)
+dimensions              dict       Mapping of the entities to a list of the dimensions used by them
+time_format             str        strftime style time format string used for the time columns
+additional_coordinates  dict       Mapping of additional coordinate entities to the associated dimension (optional)
+dtypes                  dict       Mapping of non-float entities to their data type (optional)
+======================  =========  ================================================================================
 
 In the `dimensions` dictionary, the keys are entities as given in the tabular data in
 the entity column. The values are lists of column names as used in the tabular data,
@@ -73,3 +75,9 @@ as a default for all entities not explicitly listed.
 Dimension information has to be given for all entities, i.e. if no default dimensions
 are specified using `*`, there has to exist an entry in the dimensions dict for each
 unique value in the entity column in the tabular data.
+
+Data Format
+-----------
+
+Numeric values are given unquoted and string values are quoted with ``"``.
+Missing information is denoted by an empty string ``""``.
