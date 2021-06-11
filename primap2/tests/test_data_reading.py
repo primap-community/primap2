@@ -1028,8 +1028,19 @@ class TestAdditionalCoordinateMetadata:
             )
 
 
+class TestRegression:
+    def test_read_published_data(self):
+        actual = pm2io.from_interchange_format(
+            pm2io.read_interchange_format(
+                DATA_PATH / "Guetschow-et-al-2021-PRIMAP-crf96_2021-v1"
+            )
+        )
+        expected = primap2.open_dataset(
+            DATA_PATH / "Guetschow-et-al-2021-PRIMAP-crf96_2021-v1.nc"
+        )
+        assert_ds_aligned_equal(actual, expected, equal_nan=True)
+
+
 # functions that still need individual testing
-
 # dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
-
 # harmonize_units
