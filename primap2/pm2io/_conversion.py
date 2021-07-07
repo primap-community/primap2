@@ -62,6 +62,11 @@ def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
     # remove spaces for more flexibility in input units
     unit = unit.replace(" ", "")
 
+    # check if entity contains GWP information. If so discard
+    # not needed for PRIMAP1 entities but when using the function for data reading
+    entity_match = re.match(r"^[^\(\)\s]*", entity)
+    entity = entity_match[0]
+
     # add entity and time frame to unit
     # special units will be replaced later
     unit_entity = unit + " " + entity + time_frame_str
@@ -157,6 +162,7 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
         "MLULUCF": "M.LULUCF",
         "MMULTIOP": "M.MULTIOP",
         "M0EL": "M.0.EL",
+        "MBIO": "M.BIO",
     }
 
     if len(code) < 4:
@@ -177,6 +183,10 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
         else:
             new_code = "M."
             code_remaining = code_remaining[1:]
+            if len(code_remaining) == 0:
+                return code_invalid_warn(
+                    code, "Nothing follows the 'M' for an 'M'-code."
+                )
     else:
         new_code = ""
         # only work with the part without 'IPC' or 'CAT'

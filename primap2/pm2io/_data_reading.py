@@ -1,5 +1,6 @@
 import datetime
 import itertools
+import re
 from pathlib import Path
 from typing import (
     IO,
@@ -16,6 +17,7 @@ from typing import (
 
 import numpy as np
 import pandas as pd
+import pint
 from loguru import logger
 
 from .. import _alias_selection
@@ -38,6 +40,21 @@ NA_VALUES = [
     "NE,NO",
     "NE0",
     "NO, NE",
+    "NO",
+    "C",
+    "NaN",
+]
+# TODO: distiguish between values mapped to NA and values mapped to 0, e.g. IE which
+# means data is included elsewhere so NA could lead to double counting when completing
+# data using other sources
+
+BASKET_UNITS = [
+    "KYOTOGHG",
+    "FGASES",
+    "HFCS",
+    "PFCS",
+    "OTHERHFCS",
+    "OTHERPFCS",
 ]
 
 
@@ -54,6 +71,7 @@ def convert_long_dataframe_if(
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y-%m-%d",
+    convert_nan: Optional[bool] = False,
 ) -> pd.DataFrame:
     """convert a DataFrame in long (tidy) format into the PRIMAP2 interchange format.
 
@@ -139,6 +157,10 @@ def convert_long_dataframe_if(
         in the interchange format.
         Default: "%F", i.e. the ISO 8601 date format.
 
+    convert_nan : bool, optional
+        If set to true, string values in the data columns as listed in NA_VALUES will be
+        converted to np.nan.
+
     Returns
     -------
     obj: pd.DataFrame
@@ -192,7 +214,7 @@ def convert_long_dataframe_if(
         check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
 
     # make a copy to keep input dataframe unchanged
-    data_copy = data_long.copy()
+    data_copy = data_long.copy(deep=True)
 
     filter_data(data_copy, filter_keep, filter_remove)
 
@@ -203,8 +225,13 @@ def convert_long_dataframe_if(
     naming_attrs = rename_columns(
         data_copy, coords_cols, add_coords_cols, coords_defaults, coords_terminologies
     )
-
     attrs.update(naming_attrs)
+
+    # replace the NA_Values
+    if convert_nan:
+        repl_dict = dict(zip(NA_VALUES, list(np.full(len(NA_VALUES), np.nan))))
+        data_copy["data"] = data_copy["data"].replace(repl_dict)
+        data_copy["data"] = pd.to_numeric(data_copy["data"], errors="coerce")
 
     additional_coordinates = additional_coordinate_metadata(
         add_coords_cols, coords_cols, coords_terminologies
@@ -436,6 +463,7 @@ def convert_wide_dataframe_if(
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y",
     time_cols: Optional[List] = None,
+    convert_nan: Optional[bool] = False,
 ) -> pd.DataFrame:
     """
     Convert a DataFrame in wide format into the PRIMAP2 interchange format.
@@ -532,6 +560,10 @@ def convert_wide_dataframe_if(
         List of column names which contain the data for each time point. If not given
         cols will be inferred using time_format.
 
+    convert_nan : bool, optional
+        If set to true, string values in the data columns as listed in NA_VALUES will be
+        converted to np.nan.
+
     Returns
     -------
     obj: pd.DataFrame
@@ -595,8 +627,14 @@ def convert_wide_dataframe_if(
         time_columns = time_cols
 
     # make a copy of the data to not alter the input data
-    data_if = data_wide.copy()
+    data_if = data_wide.copy(deep=True)
     filter_data(data_if, filter_keep, filter_remove)
+
+    # replace the NA_Values
+    if convert_nan:
+        repl_dict = dict(zip(NA_VALUES, list(np.full(len(NA_VALUES), np.nan))))
+        data_if[time_cols] = data_if[time_cols].replace(repl_dict)
+        data_if[time_cols] = pd.to_numeric(data_if[time_cols], errors="coerce")
 
     add_dimensions_from_defaults(data_if, coords_defaults)
 
@@ -1010,9 +1048,9 @@ def spec_to_query_string(filter_spec: Dict[str, Union[list, Any]]) -> str:
     for col in filter_spec:
         if isinstance(filter_spec[col], list):
             itemlist = ", ".join(repr(x) for x in filter_spec[col])
-            filter_query = f"{col} in [{itemlist}]"
+            filter_query = f"`{col}` in [{itemlist}]"
         else:
-            filter_query = f"{col} == {filter_spec[col]!r}"
+            filter_query = f"`{col}` == {filter_spec[col]!r}"
         queries.append(filter_query)
 
     return " & ".join(queries)
@@ -1127,13 +1165,13 @@ def map_metadata(
 ):
     """Map the metadata according to specifications given in meta_mapping.
     First map entity, then the rest."""
-
+    meta_mapping_copy = meta_mapping.copy()
     if "entity" in meta_mapping.keys():
-        meta_mapping_entity = dict(entity=meta_mapping["entity"])
-        meta_mapping.pop("entity")
+        meta_mapping_entity = dict(entity=meta_mapping_copy["entity"])
+        meta_mapping_copy.pop("entity")
         map_metadata_unordered(data, meta_mapping=meta_mapping_entity, attrs=attrs)
 
-    map_metadata_unordered(data, meta_mapping=meta_mapping, attrs=attrs)
+    map_metadata_unordered(data, meta_mapping=meta_mapping_copy, attrs=attrs)
 
 
 def map_metadata_unordered(
@@ -1259,6 +1297,9 @@ def harmonize_units(
     all time series to the same unit (the unit that occurs first). Units must already
     be in PRIMAP2 style.
 
+    As unit handling is tricky and with new units new problem occur this function has a
+    lot of (currently commented) debug output
+
     Parameters
     ----------
     data: pd.DataFrame
@@ -1292,26 +1333,86 @@ def harmonize_units(
         unit_col = dim_aliases.get("unit", "unit")
 
     entities = data[entity_col].unique()
+    # print(entities)
     for entity in entities:
+        # check if GWP given in entity
+        gwp_match = re.findall(r"\(([A-Z0-9]*)\)$", entity)
+        if gwp_match:
+            gwp_to_use = gwp_match[0]
+            basic_entity = re.findall(r"^[^\(\)\s]*", entity)
+            basic_entity = basic_entity[0]
+        else:
+            gwp_to_use = None
+            basic_entity = entity
+        # print(f"basic_entity: {basic_entity}")
         # get all units for this entity
         data_this_entity = data.loc[data[entity_col] == entity]
         units_this_entity = data_this_entity[unit_col].unique()
-        # print(units_this_entity)
-        if len(units_this_entity) > 1:
-            # need unit conversion. convert to first unit (base units have second as
-            # time that is impractical)
-            unit_to = units_this_entity[0]
-            # print("unit_to: " + unit_to)
-            for unit in units_this_entity[1:]:
-                # print(unit)
-                unit_pint = ureg[unit]
-                unit_pint = unit_pint.to(unit_to)
-                # print(unit_pint)
-                factor = unit_pint.magnitude
-                # print(factor)
-                mask = (data[entity_col] == entity) & (data[unit_col] == unit)
-                data.loc[mask, data_cols] *= factor
-                data.loc[mask, unit_col] = unit_to
+
+        if len(units_this_entity) > 1 or gwp_to_use:
+            # need unit conversion. if possible convert to Gg of substance / year
+            # print(f"Entity: {entity}, units: {units_this_entity}, GWP: {gwp_to_use}")
+
+            unit_fallback = units_this_entity[0]
+            unit_to = None  # to check
+
+            # check if conversion to native unit is possible
+            try:
+                native_unit = "Gg " + basic_entity + " / yr"
+                # print(f"Testing conversion from {ureg[unit_fallback].units} to "
+                #       f"{ureg[native_unit].units} for {basic_entity}.")
+                if gwp_to_use:
+                    if ureg(unit_fallback).is_compatible_with(
+                        ureg[native_unit], gwp_to_use
+                    ):
+                        unit_to = native_unit
+                        entity_conv = True
+                    else:
+                        unit_to = unit_fallback
+                        entity_conv = False
+                else:
+                    if ureg(unit_fallback).is_compatible_with(ureg[native_unit]):
+                        unit_to = native_unit
+                        entity_conv = False
+                    else:
+                        unit_to = unit_fallback
+                        entity_conv = False
+            except pint.UndefinedUnitError:
+                # we have a gas basket or something unknown, so no conversion to native
+                # unit
+                # print(f"Exception occured for entity {entity}")
+                unit_to = unit_fallback
+                entity_conv = False
+                native_unit = "None"
+
+            # print(f"unit_to is {unit_to}, unit_fallback is {unit_fallback}, and
+            # native_unit is {native_unit}")
+            # print(f"Using {unit_to} as target unit and entity_conv = {entity_conv}")
+
+            # if len(units_this_entity) > 1:
+            for unit in units_this_entity:
+                if unit != unit_to:
+                    # print(f"Working on unit {unit}")
+                    unit_pint = ureg[unit]
+                    # could add a try except block here to throw and log an error or add
+                    # error info in DF instead of crashing
+                    if gwp_to_use:
+                        with ureg.context(gwp_to_use):
+                            unit_pint = unit_pint.to(unit_to)
+                    else:
+                        unit_pint = unit_pint.to(unit_to)
+                    # print(f"Pint unit is {unit_pint}")
+                    factor = unit_pint.magnitude
+                    # print(f"Converting with factor {factor} to unit {unit_to}")
+                    mask = (data[entity_col] == entity) & (data[unit_col] == unit)
+                    # print(data.loc[mask, data_cols])
+                    data.loc[mask, data_cols] *= factor
+                    data.loc[mask, unit_col] = unit_to
+
+            if entity_conv:
+                entity_mask = data[entity_col] == entity
+                # print(f"Changing entity from {entity} to {basic_entity}")
+                data.loc[entity_mask, entity_col] = basic_entity
 
 
 def sort_columns_and_rows(

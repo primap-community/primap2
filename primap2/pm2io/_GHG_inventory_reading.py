@@ -13,10 +13,14 @@ import pandas as pd
 
 
 def nir_add_unit_information(
-    df_nir: pd.DataFrame, *, unit_row: Union[str, int], unit_info: Dict[str, Any]
+    df_nir: pd.DataFrame,
+    *,
+    unit_row: Union[str, int],
+    entity_row: Optional[int] = None,
+    unit_info: Dict[str, Any]
 ) -> pd.DataFrame:
     """
-    This functions adds unit information to the header of a "entity-wide" file as
+    This function adds unit information to the header of a "entity-wide" file as
     present in the standard table format of National Inventory Reports (NIRs). The
     unit and entity information is extracted from combined unit and entity information
     in the row defined by `unit_row`. The parameter `unit_info` determines how this is
@@ -34,11 +38,16 @@ def nir_add_unit_information(
     unit_row : str or int
         String "header" to indicate that the column header should be used to derive the
         unit information or an integer specifying the row to use for unit information.
+        If entity and unit information are given in the same row use only unit_row.
+    entity_row : int
+        integer specifying the row to use for entity information.
+        If entity and unit information are given in the same row use only unit_row
     unit_info : dict
         A dict with the fields
         * regexp_entity: regular expression that extracts the entity from the cell value
         * regexp_unit: regular expression that extracts the unit from the cell value
-        * manual_repl: optional: dict defining unit and entity for given cell values
+        * manual_repl_unit: optional: dict defining unit for given cell values
+        * manual_repl_entity: optional: dict defining entity for given cell values
         * default_unit: unit to be used if no unit can be extracted an no unit is given
 
     Returns
@@ -47,8 +56,13 @@ def nir_add_unit_information(
         DataFrame with explicit unit information (as column header)
     """
 
-    if "manual_repl" not in unit_info:
-        unit_info["manual_repl"] = {}
+    if "manual_repl_unit" not in unit_info:
+        unit_info["manual_repl_unit"] = {}
+
+    if "manual_repl_entity" not in unit_info:
+        unit_info["manual_repl_entity"] = {}
+
+    cols_to_drop = []
 
     # get the data to extract the units and entities from
     # can be either the header row or a regular row
@@ -57,24 +71,41 @@ def nir_add_unit_information(
     else:
         # unit_row must be an integer
         values_for_units = list(df_nir.iloc[unit_row])
+        cols_to_drop.append(unit_row)
 
-    re_unit = re.compile(unit_info["regexp_unit"])
+    if entity_row is not None:
+        values_for_entities = list(df_nir.iloc[entity_row])
+        if entity_row != unit_row:
+            cols_to_drop.append(entity_row)
+    else:
+        values_for_entities = values_for_units
+
+    if "regexp_unit" in unit_info:
+        re_unit = re.compile(unit_info["regexp_unit"])
     re_entity = re.compile(unit_info["regexp_entity"])
 
     units = values_for_units.copy()
-    entities = values_for_units.copy()
+    entities = values_for_entities.copy()
 
     for idx, value in enumerate(values_for_units):
-        if value in unit_info["manual_repl"]:
-            units[idx] = unit_info["manual_repl"][value][1]
-            entities[idx] = unit_info["manual_repl"][value][0]
+        if str(value) in unit_info["manual_repl_unit"]:
+            units[idx] = unit_info["manual_repl_unit"][str(value)]
         else:
-            unit = re_unit.findall(value)
+            if "regexp_unit" in unit_info:
+                unit = re_unit.findall(str(value))
+            else:
+                unit = False
+
             if unit:
                 units[idx] = unit[0]
             else:
                 units[idx] = unit_info["default_unit"]
-            entity = re_entity.findall(value)
+
+    for idx, value in enumerate(values_for_entities):
+        if str(value) in unit_info["manual_repl_entity"]:
+            entities[idx] = unit_info["manual_repl_entity"][str(value)]
+        else:
+            entity = re_entity.findall(str(value))
             if entity:
                 entities[idx] = entity[0]
             else:
@@ -82,11 +113,12 @@ def nir_add_unit_information(
 
     new_header = [entities, units]
 
-    df_nir.columns = new_header
-    if unit_row != "header":
-        df_nir.drop(unit_row)
+    df_out = df_nir.copy()
+    df_out.columns = new_header
+    if cols_to_drop:
+        df_out = df_out.drop(df_out.index[cols_to_drop])
 
-    return df_nir
+    return df_out
 
 
 def nir_convert_df_to_long(

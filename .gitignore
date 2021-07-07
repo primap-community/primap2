@@ -107,3 +107,6 @@ ENV/
 .vscode/
 .idea/
 /.dmypy.json
+
+# Johannes' development scripts
+JG_test_scripts
