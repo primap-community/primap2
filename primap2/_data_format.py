@@ -1,3 +1,4 @@
+import datetime
 import pathlib
 from typing import IO, Hashable, Iterable, Mapping, Optional, Tuple, Union
 
@@ -71,6 +72,10 @@ def open_dataset(
     ).pint.quantify(unit_registry=ureg)
     if "sec_cats" in ds.attrs:
         ds.attrs["sec_cats"] = list(ds.attrs["sec_cats"])
+    if "publication_date" in ds.attrs:
+        ds.attrs["publication_date"] = datetime.date.fromisoformat(
+            ds.attrs["publication_date"]
+        )
     return ds
 
 
@@ -216,7 +221,10 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             This allows using any compression plugin installed in the HDF5
             library, e.g. LZF.
         """
-        return self._ds.pint.dequantify().to_netcdf(
+        ds = self._ds.pint.dequantify()
+        if "publication_date" in ds.attrs:
+            ds.attrs["publication_date"] = ds.attrs["publication_date"].isoformat()
+        return ds.to_netcdf(
             path=path,
             mode=mode,
             group=group,
@@ -280,6 +288,16 @@ def ensure_valid_attributes(ds: xr.Dataset):
     except KeyError:
         pass
 
+    try:
+        publication_date = ds.attrs["publication_date"]
+        if not isinstance(publication_date, datetime.date):
+            logger.error(
+                f"Publication date is not a datetime.date object: {publication_date!r}."
+            )
+            raise ValueError("Publication date is not a date object.")
+    except KeyError:
+        pass
+
     valid_attr_keys = {
         "references",
         "rights",
@@ -293,6 +311,7 @@ def ensure_valid_attributes(ds: xr.Dataset):
         "sec_cats",
         "scen",
         "entity_terminology",
+        "publication_date",
     }
     unknown_attr_keys = set(ds.attrs.keys()) - valid_attr_keys
     if unknown_attr_keys:

@@ -15,6 +15,7 @@ from .utils import assert_ds_aligned_equal
 class TestToNetCDF:
     def test_io_roundtrip(self, any_ds: xr.Dataset, caplog, tmp_path):
         ds = any_ds
+        attrs_before = ds.attrs.copy()
         caplog.set_level(logging.INFO)
         ds.pr.to_netcdf(tmp_path / "temp.nc")
         nds = primap2.open_dataset(tmp_path / "temp.nc")
@@ -22,6 +23,8 @@ class TestToNetCDF:
         assert not caplog.records
         xr.testing.assert_identical(ds, nds)
         assert_ds_aligned_equal(ds, nds)
+        assert attrs_before == ds.attrs
+        assert attrs_before == nds.attrs
 
 
 class TestEnsureValid:
@@ -260,6 +263,13 @@ class TestEnsureValid:
         minimal_ds.pr.ensure_valid()
         assert "WARNING" in caplog.text
         assert "Unknown metadata in attrs: {'i_am_not_standard'}, typo?" in caplog.text
+
+    def test_publication_date_not_date(self, minimal_ds, caplog):
+        minimal_ds.attrs["publication_date"] = "2020-12-31"
+        with pytest.raises(ValueError, match="not a date"):
+            minimal_ds.pr.ensure_valid()
+        assert "ERROR" in caplog.text
+        assert "not a datetime.date object" in caplog.text
 
 
 class TestToInterchangeFormat:

@@ -36,7 +36,23 @@ INTERCHANGE_FORMAT_COLUMN_ORDER = [
 INTERCHANGE_FORMAT_STRICTYAML_SCHEMA = sy.Map(
     {
         sy.Optional("data_file"): sy.Str(),
-        "attrs": sy.MapPattern(sy.Str(), sy.Any()),
+        "attrs": sy.Map(
+            {
+                "area": sy.Str(),
+                sy.Optional("cat"): sy.Str(),
+                sy.Optional("sec_cats"): sy.Seq(sy.Str()),
+                sy.Optional("scen"): sy.Str(),
+                sy.Optional("references"): sy.Str(),
+                sy.Optional("rights"): sy.Str(),
+                sy.Optional("contact"): sy.Str(),
+                sy.Optional("title"): sy.Str(),
+                sy.Optional("comment"): sy.Str(),
+                sy.Optional("institution"): sy.Str(),
+                sy.Optional("history"): sy.Str(),
+                sy.Optional("entity_terminology"): sy.Str(),
+                sy.Optional("publication_date"): sy.Datetime(),
+            }
+        ),
         "dimensions": sy.MapPattern(sy.Str(), sy.Seq(sy.Str())),
         "time_format": sy.Str(),
         sy.Optional("additional_coordinates"): sy.MapPattern(sy.Str(), sy.Str()),
@@ -139,7 +155,9 @@ def write_interchange_format(
         Interchange format meta data dict. Default: use data.attrs .
     """
     if attrs is None:
-        attrs = data.attrs
+        attrs = data.attrs.copy()
+    else:
+        attrs = attrs.copy()
 
     # make sure filepath is a Path object
     filepath = Path(filepath)
@@ -187,20 +205,21 @@ def read_interchange_format(
         yaml = sy.load(meta_file.read(), schema=INTERCHANGE_FORMAT_STRICTYAML_SCHEMA)
         meta_data = yaml.data
 
-    if "data_file" in meta_data.keys():
-        data_file = filepath.parent / meta_data["data_file"]
-    else:
-        # no file information given, check for file with same name
-        data_file = filepath.parent / (filepath.stem + ".csv")
-        if not data_file.exists():
-            raise FileNotFoundError(
-                f"Data file not specified in {filepath} and data file not found at "
-                f"{data_file}."
-            )
+    data_file = filepath.parent / meta_data.get("data_file", filepath.stem + ".csv")
+    if not data_file.exists():
+        raise FileNotFoundError(f"Data file not found at {data_file}.")
 
     data = pd.read_csv(data_file, dtype=object)
-
     data.attrs = meta_data
+
+    # strictyaml parses a datetime, we only want a date
+    if "publication_date" in data.attrs["attrs"]:
+        data.attrs["attrs"]["publication_date"] = data.attrs["attrs"][
+            "publication_date"
+        ].date()
+    # already read in
+    if "data_file" in data.attrs:
+        del data.attrs["data_file"]
 
     return data
 

@@ -36,7 +36,7 @@ def test_missing_file(minimal_ds, tmp_path):
 
     # now test without csv file
     path.with_suffix(".csv").unlink()
-    with pytest.raises(FileNotFoundError, match="data file not found at"):
+    with pytest.raises(FileNotFoundError, match="Data file not found at"):
         pm2io.read_interchange_format(path)
 
 
