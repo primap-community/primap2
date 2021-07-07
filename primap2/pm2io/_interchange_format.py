@@ -31,8 +31,6 @@ INTERCHANGE_FORMAT_COLUMN_ORDER = [
     "cat_name_translation",
 ]
 
-# Pretty basic schema for now; attrs could be declared more explicitly with the
-# mandatory columns etc.
 INTERCHANGE_FORMAT_STRICTYAML_SCHEMA = sy.Map(
     {
         sy.Optional("data_file"): sy.Str(),
