@@ -43,6 +43,12 @@ NA_VALUES = [
     "NO",
     "C",
     "NaN",
+    "IE",  # this is a values that should be mapped to 0
+    "IE, NE, NO",
+    "IE,NA,NO",
+    "NA,IE,NO",
+    "NO,NE,IE",
+    "NE, NO",
 ]
 # TODO: distiguish between values mapped to NA and values mapped to 0, e.g. IE which
 # means data is included elsewhere so NA could lead to double counting when completing
@@ -633,8 +639,9 @@ def convert_wide_dataframe_if(
     # replace the NA_Values
     if convert_nan:
         repl_dict = dict(zip(NA_VALUES, list(np.full(len(NA_VALUES), np.nan))))
-        data_if[time_cols] = data_if[time_cols].replace(repl_dict)
-        data_if[time_cols] = pd.to_numeric(data_if[time_cols], errors="coerce")
+        data_if[time_columns] = data_if[time_columns].replace(repl_dict)
+        for col in time_columns:
+            data_if[col] = pd.to_numeric(data_if[col], errors="coerce")
 
     add_dimensions_from_defaults(data_if, coords_defaults)
 
@@ -1104,7 +1111,7 @@ def fill_from_other_col(
 
     coords_value_filling : dict
         A dict with primap2 dimension names as keys. These are the target columns where
-        values will be filled (or replaced). Vales are dicts with primap2 dimension
+        values will be filled (or replaced). Values are dicts with primap2 dimension
         names as keys. These are the source columns. The values are dicts with source
         value - target value mappings.
         This can be used to e.g. fill missing category codes based on category names or
@@ -1406,7 +1413,18 @@ def harmonize_units(
                     # print(f"Converting with factor {factor} to unit {unit_to}")
                     mask = (data[entity_col] == entity) & (data[unit_col] == unit)
                     # print(data.loc[mask, data_cols])
-                    data.loc[mask, data_cols] *= factor
+                    try:
+                        data.loc[mask, data_cols] *= factor
+                    except TypeError:
+                        # print(data.loc[mask, data_cols])
+                        temp = []
+                        for col in data_cols:
+                            temp = temp + list(data[col].unique())
+                        temp = list(set(temp))
+
+                        # print(temp)
+                        strs = [x for x in temp if isinstance(x, str)]
+                        print(strs)
                     data.loc[mask, unit_col] = unit_to
 
             if entity_conv:
