@@ -125,6 +125,7 @@ comment             longer form description                   free-form ``str``
 institution         where the data originates                 free-form ``str``
 history             processing steps done on the data         ``str`` with specific rules (see text)
 entity_terminology  terminology for data variable entities    ``str``
+publication_date    date of publication of the dataset        ``datetime.date``
 ==================  ========================================  =========================================
 
 All of these attributes are optional.

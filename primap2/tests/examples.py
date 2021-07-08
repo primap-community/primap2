@@ -1,3 +1,5 @@
+import datetime
+
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -80,6 +82,7 @@ def opulent_ds():
             "institution": "PIK",
             "history": "2021-01-14 14:50 data invented\n"
             "2021-01-14 14:51 additional processing step",
+            "publication_date": datetime.date(2099, 12, 31),
         },
     )
 
