@@ -788,7 +788,7 @@ class TestInterchangeFormat:
     def test_roundtrip(self, tmp_path):
         file_input = DATA_PATH / "test_read_wide_csv_file_output.csv"
         file_temp = tmp_path / "test_interchange_format"
-        data = pd.read_csv(file_input, index_col=0)
+        data = pd.read_csv(file_input, index_col=0, dtype=object)
         attrs = {
             "attrs": {
                 "area": "area (ISO3)",
@@ -1028,8 +1028,19 @@ class TestAdditionalCoordinateMetadata:
             )
 
 
+class TestRegression:
+    def test_read_published_data(self):
+        actual = pm2io.from_interchange_format(
+            pm2io.read_interchange_format(
+                DATA_PATH / "Guetschow-et-al-2021-PRIMAP-crf96_2021-v1"
+            )
+        )
+        expected = primap2.open_dataset(
+            DATA_PATH / "Guetschow-et-al-2021-PRIMAP-crf96_2021-v1.nc"
+        )
+        assert_ds_aligned_equal(actual, expected, equal_nan=True)
+
+
 # functions that still need individual testing
-
 # dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
-
 # harmonize_units

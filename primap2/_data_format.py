@@ -1,3 +1,4 @@
+import datetime
 import pathlib
 from typing import IO, Hashable, Iterable, Mapping, Optional, Tuple, Union
 
@@ -71,6 +72,10 @@ def open_dataset(
     ).pint.quantify(unit_registry=ureg)
     if "sec_cats" in ds.attrs:
         ds.attrs["sec_cats"] = list(ds.attrs["sec_cats"])
+    if "publication_date" in ds.attrs:
+        ds.attrs["publication_date"] = datetime.date.fromisoformat(
+            ds.attrs["publication_date"]
+        )
     return ds
 
 
@@ -126,12 +131,12 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
                 dsd[x].to_dataset("time").to_dataframe().dropna(how="all").reset_index()
             )
             df[entity_col] = x
-            df["unit"] = dsd[x].attrs["units"]
+            df["unit"] = dsd[x].attrs.get("units", "no unit")
             dfs.append(df)
 
         df = pd.concat(dfs, ignore_index=True)
 
-        add_coords = list(set(list(self._ds.coords)) - set(list(self._ds.dims)))
+        add_coords = list(set(self._ds.coords) - set(self._ds.dims))
         df, dims = pm2io._data_reading.sort_columns_and_rows(
             df,
             dimensions=[dim for dim in dsd.dims if dim != "time"]
@@ -150,16 +155,27 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             else:
                 dimensions[entity] = dims
 
+        # all non-float dtypes are specified
+        dtypes = {
+            entity: str(dsd[entity].dtype)
+            for entity in dsd
+            if dsd[entity].dtype != float
+        }
+
         # add attrs for additional coords
         additional_coordinates = {}
         for coord in add_coords:
-            coords_current = list(self._ds.coords[coord].coords)
-            coords_current = list(set(coords_current) - {coord})
-            if len(coords_current) > 1:
-                logger.error(f"Additional coordinate {coord!r} is not well defined")
-                raise ValueError(f"Additional coordinate {coord!r} is not well defined")
+            coords_current = set(self._ds.coords[coord].coords) - {coord}
+            if len(coords_current) != 1:
+                logger.error(
+                    f"Additional coordinate {coord!r} has more than one dimension, "
+                    f"which is not supported."
+                )
+                raise ValueError(
+                    f"Additional coordinate {coord!r} has more than one dimension"
+                )
 
-            additional_coordinates[coord] = coords_current[0]
+            additional_coordinates[coord] = next(iter(coords_current))
 
         df.attrs = {
             "attrs": self._ds.attrs,
@@ -168,6 +184,8 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         }
         if additional_coordinates:
             df.attrs["additional_coordinates"] = additional_coordinates
+        if dtypes:
+            df.attrs["dtypes"] = dtypes
 
         return df
 
@@ -203,7 +221,10 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             This allows using any compression plugin installed in the HDF5
             library, e.g. LZF.
         """
-        return self._ds.pint.dequantify().to_netcdf(
+        ds = self._ds.pint.dequantify()
+        if "publication_date" in ds.attrs:
+            ds.attrs["publication_date"] = ds.attrs["publication_date"].isoformat()
+        return ds.to_netcdf(
             path=path,
             mode=mode,
             group=group,
@@ -267,6 +288,16 @@ def ensure_valid_attributes(ds: xr.Dataset):
     except KeyError:
         pass
 
+    try:
+        publication_date = ds.attrs["publication_date"]
+        if not isinstance(publication_date, datetime.date):
+            logger.error(
+                f"Publication date is not a datetime.date object: {publication_date!r}."
+            )
+            raise ValueError("Publication date is not a date object.")
+    except KeyError:
+        pass
+
     valid_attr_keys = {
         "references",
         "rights",
@@ -280,6 +311,7 @@ def ensure_valid_attributes(ds: xr.Dataset):
         "sec_cats",
         "scen",
         "entity_terminology",
+        "publication_date",
     }
     unknown_attr_keys = set(ds.attrs.keys()) - valid_attr_keys
     if unknown_attr_keys:
@@ -306,8 +338,8 @@ def ensure_entity_and_units_exist(key: Hashable, da: xr.DataArray):
         logger.error(f"{key!r} has no entity declared in attributes.")
         raise ValueError(f"entity missing for {key!r}")
 
-    if da.pint.units is None:
-        logger.error(f"{key!r} has no units.")
+    if da.pint.units is None and da.dtype == float:
+        logger.error(f"{key!r} is numerical (float) data, but has no units.")
         raise ValueError(f"units missing for {key!r}")
 
 
@@ -335,8 +367,7 @@ def ensure_entity_and_units_valid(key: Hashable, da: xr.DataArray):
                 f"compatible with an emission rate."
             )
     except pint.UndefinedUnitError:
-        if entity not in ("population",) and "(" not in key:
-            logger.warning(f"entity {entity!r} of {key!r} is unknown.")
+        pass  # if the entity is something else, we can't directly check the dimensions
 
 
 def ensure_gwp_context_valid(key: str, da: xr.DataArray):
@@ -363,7 +394,8 @@ def ensure_gwp_context_valid(key: str, da: xr.DataArray):
 
 def ensure_not_gwp(key: Hashable, da: xr.DataArray):
     if (
-        da.pint.units.dimensionality == {"[carbon]": 1, "[mass]": 1, "[time]": -1}
+        da.pint.units is not None
+        and da.pint.units.dimensionality == {"[carbon]": 1, "[mass]": 1, "[time]": -1}
         and da.attrs["entity"] != "CO2"
     ):
         logger.warning(

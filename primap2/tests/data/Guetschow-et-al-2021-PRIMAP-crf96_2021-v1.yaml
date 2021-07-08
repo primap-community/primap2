@@ -1,0 +1,22 @@
+attrs:
+  references: 'doi: 10.5281/zenodo.4723476'
+  rights: CC-BY 4.0
+  contact: johannes.guetschow@pik-potsdam.de
+  title: 'PRIMAP-crf: UNFCCC CRF data in IPCC categories (PRIMAP-crf-2021-v1)'
+  comment: 'The dataset is described by the article: Jeffery et al., PRIMAP-crf: UNFCCC
+    CRF data in IPCC 2006 categories, ESSD 10(3), doi: 10.5194/essd-10-1427-2018'
+  institution: Potsdam Institute for Climate Impact Research
+  area: area (ISO3)
+  scen: scenario (PRIMAP)
+  cat: category (IPCC1996)
+time_format: '%Y'
+dimensions:
+  '*':
+  - source
+  - scenario (PRIMAP)
+  - provenance
+  - area (ISO3)
+  - entity
+  - unit
+  - category (IPCC1996)
+data_file: Guetschow-et-al-2021-PRIMAP-crf96_2021-v1.csv
