@@ -35,6 +35,7 @@ def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
     # define exceptions
     exception_units = {
         "CO2eq": "CO2",  # convert to just CO2
+        "CO2e": "CO2",  # convert to just CO2 (not for PRIMAP but e.g. NIRs)
         "CO₂eq": "CO2",  # convert to just CO2 (not for PRIMAP but e.g. NIRs)
         "<entity>N": "N",
         "C": "C",  # don't add variable here
