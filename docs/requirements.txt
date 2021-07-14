@@ -1,4 +1,5 @@
 -e .
+sphinx==4.0.2
 ipykernel
 nbsphinx
 xarray
