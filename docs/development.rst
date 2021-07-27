@@ -391,12 +391,9 @@ A reminder for the maintainers on how to deploy.
 
 1.  Commit all your changes.
 2.  Run ``tbump X.Y.Z``.
-3.  Go to github and make a release from the tag.
-    Use "Version x.y.z" as the release title, and the changelog entries as the release
-    description.
-    Creating the github release will automatically trigger
-    a release on zenodo.
+3.  Wait a bit that the release on github and zenodo is created.
 4.  Run ``make README.rst`` to update the citation information in the README from the
-    zenodo API (note that it might take a while for zenodo to build the release, so
-    grab a tea and be a bit patient). Commit the change.
+    zenodo API. Check if the version is actually correct, otherwise grab a tea and
+    wait a little more for zenodo to mint the new version. Once it worked, commit the
+    change.
 5.  Upload the release to pyPI: ``make release``

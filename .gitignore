@@ -1,3 +1,5 @@
+.changelog_latest_version.rst
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
