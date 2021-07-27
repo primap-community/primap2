@@ -18,7 +18,7 @@ pint_xarray.setup_registry(ureg)
 class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
     """Provide functions for unit handling"""
 
-    def quantify(self, units=None, **unit_kwargs):
+    def quantify(self, **kwargs):
         """Attaches units to the DataArray.
 
         Units can be specified as a pint.Unit or as a string. If no units are specified
@@ -74,7 +74,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         Coordinates:
           * wavelength  (wavelength) float64 0.0001 0.0002 0.0004 0.0006 0.001 0.002
         """
-        return self._da.pint.quantify(unit_registry=ureg, units=units, **unit_kwargs)
+        return self._da.pint.quantify(unit_registry=ureg, **kwargs)
 
     def dequantify(self) -> xr.DataArray:
         """Removes units from the DataArray and its coordinates.
