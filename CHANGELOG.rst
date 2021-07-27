@@ -2,6 +2,11 @@
 Changelog
 =========
 
+0.7.1
+-----
+* Require openscm-units >= 0.3 to ensure that refrigerants and AR5GWPCCF are available.
+* Make primap2 compatible with pint-xarray v0.2.1.
+
 0.7.0
 -----
 * Add the `publication_date` property for datasets to record the date of publication,
