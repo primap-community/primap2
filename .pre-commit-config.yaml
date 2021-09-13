@@ -15,7 +15,7 @@ repos:
       - id: detect-private-key
       - id: mixed-line-ending
   - repo: https://github.com/psf/black
-    rev: '21.7b0'
+    rev: '21.8b0'
     hooks:
       - id: black
   - repo: https://github.com/keewis/blackdoc
@@ -41,11 +41,11 @@ repos:
         args: [ --nbqa-mutate, --line-length=75 ]
       - id: nbqa-check-ast
   - repo: https://github.com/asottile/blacken-docs
-    rev: 'v1.10.0'
+    rev: 'v1.11.0'
     hooks:
       - id: blacken-docs
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.23.3
+    rev: v2.25.0
     hooks:
       - id: pyupgrade
         args: [ --py37-plus ]
