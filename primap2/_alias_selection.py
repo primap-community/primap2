@@ -16,6 +16,22 @@ class DimensionNotExistingError(ValueError):
 
 
 def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) -> KeyT:
+    """Translates a single str key or the keys of a dict using the given translations.
+
+    If a key is not found in the translations, return it untranslated.
+
+    Parameters
+    ----------
+    item : str or dict with str keys
+        The input to translate. Either a str or a dict with str keys.
+    translations : dict
+        The translations to apply.
+
+    Returns
+    -------
+    translated : str or dict with str keys
+        The same type as the input item, but translated.
+    """
     if isinstance(item, str):
         if item in translations:
             return translations[item]
@@ -54,10 +70,9 @@ def translations_from_dims(
 ) -> typing.Dict[typing.Hashable, str]:
     ret: typing.Dict[typing.Hashable, str] = {}
     for dim in dims:
-        if isinstance(dim, str):
-            if " (" in dim:
-                key: str = dim.split("(")[0][:-1]
-                ret[key] = dim
+        if isinstance(dim, str) and " (" in dim:
+            key: str = dim.split("(")[0][:-1]
+            ret[key] = dim
     if "scenario" in ret:
         ret["scen"] = ret["scenario"]
     if "category" in ret:
@@ -77,10 +92,7 @@ def alias(
         return dim
     else:
         try:
-            rdim = []
-            for idim in dim:
-                rdim.append(alias(idim, translations, dims))
-            return rdim
+            return [alias(idim, translations, dims) for idim in dim]
         except TypeError:  # not iterable, so some other hashable like int
             if dim not in dims:
                 raise DimensionNotExistingError(dim)
