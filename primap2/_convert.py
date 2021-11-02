@@ -1,3 +1,4 @@
+import copy
 import typing
 from typing import Hashable
 
@@ -88,6 +89,106 @@ def applicable_rule(conversion, category):
     return rules[0]
 
 
+def ensure_categorization_instance(
+    cat: typing.Union[str, climate_categories.Categorization]
+) -> climate_categories.Categorization:
+    """Takes a categorization name or object and returns the corresponding
+    categorization object."""
+    if isinstance(cat, climate_categories.Categorization):
+        return cat
+    return climate_categories.cats[cat]
+
+
+def check_valid_sum_rule_types(sum_rule: typing.Optional[str]):
+    """Checks if the sum_rule is either "intensive", "extensive", or None.
+
+    Raises a ValueError if an invalid sum_rule is used."""
+    if sum_rule not in (None, "extensive", "intensive"):
+        raise ValueError(
+            f"if defined, sum_rule must be either 'extensive' or 'intensive', not"
+            f" {sum_rule}"
+        )
+
+
+def initialize_empty_converted_da(
+    *,
+    old_da: xr.DataArray,
+    old_dim: typing.Union[Hashable, str],
+    new_dim: str,
+    new_categorization: climate_categories.Categorization,
+) -> xr.DataArray:
+    """Build a DataArray which can hold the data after conversion to a new
+    categorization.
+
+    Returns a new DataArray with the same dimensions and coordinates as the old
+    DataArray, but with the old_dim dimension replaced by new_dim using the
+    new_categorization.
+    The returned DataArray is filled with NaN.
+
+    Parameters
+    ----------
+    old_da: xr.DataArray
+        The unconverted array.
+    old_dim: str
+        The name of the dimension (including the categorization) which will be
+        converted. Example: "area (ISO3)"
+    new_dim: str
+        The name of the dimension (including the categorization) after conversion.
+        Example: "area (ISO2)"
+    new_categorization: climate_categories.Categorization
+        The new categorization object.
+
+    Returns
+    -------
+    new_da: xr.DataArray
+        An empty array with the right shape to hold the data after conversion.
+    """
+    new_dims = []
+    new_shape = []
+    for i, idim in enumerate(old_da.dims):
+        if idim == old_dim:
+            new_dims.append(new_dim)
+            new_shape.append(len(new_categorization))
+        else:
+            new_dims.append(idim)
+            new_shape.append(old_da.shape[i])
+
+    new_coords = {}
+    for coord in old_da.coords:
+        if coord == old_dim:
+            new_coords[new_dim] = np.array(list(new_categorization.keys()))
+        elif old_dim in old_da.coords[coord].dims:
+            # The additional coordinate has the old_dim as one dimension, but we
+            # won't be able to convert it
+            logger.info(
+                f"Additional coordinate {coord} can not be converted automatically"
+                f" and is skipped."
+            )
+            continue
+        else:
+            new_coords[coord] = old_da.coords[coord]
+
+    new_attrs = copy.deepcopy(old_da.attrs)
+    for pdim in ("area", "cat", "scen"):
+        if pdim in new_attrs and new_attrs[pdim] == old_dim:
+            new_attrs[pdim] = new_dim
+
+    if "sec cats" in new_attrs and old_dim in new_attrs["sec_cats"]:
+        new_attrs["sec_cats"].remove(old_dim)
+        new_attrs["sec_cats"].append(new_dim)
+
+    # initialize the converted array using all NA
+    all_na_array = np.empty(new_shape)
+    all_na_array[:] = np.nan
+    return xr.DataArray(
+        data=all_na_array,
+        dims=new_dims,
+        coords=new_coords,
+        name=old_da.name,
+        attrs=new_attrs,
+    )
+
+
 class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
     @alias_dims(["dim"])
     def convert(
@@ -148,53 +249,19 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
             A copy of the DataArray with the given dimension converted in the new
             categorization.
         """
-        if not isinstance(categorization, climate_categories.Categorization):
-            categorization = climate_categories.cats[categorization]
-
-        if sum_rule not in (None, "extensive", "intensive"):
-            raise ValueError(
-                f"sum_rule must bei either 'extensive' or 'intensive', not {sum_rule}"
-            )
+        new_categorization = ensure_categorization_instance(categorization)
+        check_valid_sum_rule_types(sum_rule)
 
         dim_name, old_categorization_name = extract_categorization_from_dim(dim)
-        old_categorization: climate_categories.Categorization = climate_categories.cats[
-            old_categorization_name
-        ]
-        conversion = old_categorization.conversion_to(categorization)
-        new_dim = f"{dim_name} ({categorization.name})"
+        old_categorization = ensure_categorization_instance(old_categorization_name)
+        conversion = old_categorization.conversion_to(new_categorization)
+        new_dim = f"{dim_name} ({new_categorization.name})"
 
-        new_dims = []
-        new_shape = []
-        for i, old_dim in enumerate(self._da.dims):
-            if old_dim == dim:
-                new_dims.append(new_dim)
-                new_shape.append(len(categorization))
-            else:
-                new_dims.append(old_dim)
-                new_shape.append(self._da.shape[i])
-
-        new_coords = {}
-        for coord in self._da.coords:
-            if coord == dim:
-                new_coords[new_dim] = np.array(list(categorization.keys()))
-            elif dim in self._da.coords[coord].dims:
-                logger.info(
-                    f"Additional coordinate {coord} can not be converted automatically"
-                    f" and is skipped."
-                )
-                continue
-            else:
-                new_coords[coord] = self._da.coords[coord]
-
-        # initialize the converted array using all NA
-        all_na_array = np.empty(new_shape)
-        all_na_array[:] = np.nan
-        converted = xr.DataArray(
-            data=all_na_array,
-            dims=new_dims,
-            coords=new_coords,
-            name=self._da.name,
-            attrs=self._da.attrs,
+        converted = initialize_empty_converted_da(
+            old_da=self._da,
+            old_dim=dim,
+            new_dim=new_dim,
+            new_categorization=new_categorization,
         )
 
         converted_categories = []
