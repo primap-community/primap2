@@ -207,7 +207,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 continue
 
             try:
-                effective_input_weights = weights(
+                effective_input_weights = derive_weights(
                     dim=dim,
                     category=category,
                     rule=rule,
@@ -216,7 +216,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                     sum_rule=sum_rule,
                     weights=input_weights,
                 )
-                effective_output_weights = weights(
+                effective_output_weights = derive_weights(
                     dim=new_dim,
                     category=category,
                     rule=rule,
@@ -463,7 +463,7 @@ class WeightingInfoMissing(ValueError):
         ValueError.__init__(self, full_message)
 
 
-def weights(
+def derive_weights(
     *,
     dim: str,
     category: climate_categories.Category,
