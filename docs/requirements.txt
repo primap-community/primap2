@@ -1,4 +1,5 @@
 -e .
+sphinx==4.0.2
 ipykernel
 nbsphinx
 xarray
@@ -8,6 +9,6 @@ numpy
 pandas
 openscm_units
 loguru
-git+https://github.com/keewis/sphinx-autosummary-accessors
+git+https://github.com/xarray-contrib/sphinx-autosummary-accessors@stable
 numpydoc
 matplotlib

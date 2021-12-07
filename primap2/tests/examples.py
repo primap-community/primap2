@@ -1,3 +1,5 @@
+import datetime
+
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -37,19 +39,21 @@ def minimal_ds():
     return minimal
 
 
+COORDS = {
+    "time": pd.date_range("2000-01-01", "2020-01-01", freq="AS"),
+    "area (ISO3)": np.array(["COL", "ARG", "MEX", "BOL"]),
+    "category (IPCC 2006)": np.array(["0", "1", "2", "3", "4", "5", "1.A", "1.B"]),
+    "animal (FAOSTAT)": np.array(["cow", "swine", "goat"]),
+    "product (FAOSTAT)": np.array(["milk", "meat"]),
+    "scenario (FAOSTAT)": np.array(["highpop", "lowpop"]),
+    "provenance": np.array(["projected"]),
+    "model": np.array(["FANCYFAO"]),
+    "source": np.array(["RAND2020", "RAND2021"]),
+}
+
+
 def opulent_ds():
     """A valid dataset using lots of features."""
-    coords = {
-        "time": pd.date_range("2000-01-01", "2020-01-01", freq="AS"),
-        "area (ISO3)": np.array(["COL", "ARG", "MEX", "BOL"]),
-        "category (IPCC 2006)": np.array(["0", "1", "2", "3", "4", "5", "1.A", "1.B"]),
-        "animal (FAOSTAT)": np.array(["cow", "swine", "goat"]),
-        "product (FAOSTAT)": np.array(["milk", "meat"]),
-        "scenario (FAOSTAT)": np.array(["highpop", "lowpop"]),
-        "provenance": np.array(["projected"]),
-        "model": np.array(["FANCYFAO"]),
-        "source": np.array(["RAND2020", "RAND2021"]),
-    }
 
     # seed the rng with a constant to achieve predictable "randomness"
     rng = np.random.default_rng(1)
@@ -57,9 +61,9 @@ def opulent_ds():
     opulent = xr.Dataset(
         {
             ent: xr.DataArray(
-                data=rng.random(tuple(len(x) for x in coords.values())),
-                coords=coords,
-                dims=list(coords.keys()),
+                data=rng.random(tuple(len(x) for x in COORDS.values())),
+                coords=COORDS,
+                dims=list(COORDS.keys()),
                 attrs={"units": f"{ent} Gg / year", "entity": ent},
             )
             for ent in ("CO2", "SF6", "CH4")
@@ -78,11 +82,12 @@ def opulent_ds():
             "institution": "PIK",
             "history": "2021-01-14 14:50 data invented\n"
             "2021-01-14 14:51 additional processing step",
+            "publication_date": datetime.date(2099, 12, 31),
         },
     )
 
     pop_coords = {
-        x: coords[x]
+        x: COORDS[x]
         for x in (
             "time",
             "area (ISO3)",
@@ -91,8 +96,9 @@ def opulent_ds():
             "source",
         )
     }
+    pop_shape = tuple(len(x) for x in pop_coords.values())
     opulent["population"] = xr.DataArray(
-        data=rng.random(tuple(len(x) for x in pop_coords.values())),
+        data=rng.random(pop_shape),
         coords=pop_coords,
         dims=list(pop_coords.keys()),
         attrs={"entity": "population", "units": ""},
@@ -113,7 +119,7 @@ def opulent_ds():
                         "light industry",
                     ]
                 ),
-                coords={"category (IPCC 2006)": coords["category (IPCC 2006)"]},
+                coords={"category (IPCC 2006)": COORDS["category (IPCC 2006)"]},
                 dims=["category (IPCC 2006)"],
             )
         }
@@ -124,6 +130,34 @@ def opulent_ds():
     with ureg.context("SARGWP100"):
         opulent["SF6 (SARGWP100)"] = opulent["SF6"].pint.to("CO2 Gg / year")
     opulent["SF6 (SARGWP100)"].attrs["gwp_context"] = "SARGWP100"
+
+    return opulent
+
+
+def opulent_str_ds():
+    """Like the opulent dataset, but additionally with a stringly typed data variable
+    "method"."""
+    opulent = opulent_ds()
+
+    method_coords = {
+        x: COORDS[x]
+        for x in (
+            "time",
+            "area (ISO3)",
+            "model",
+            "source",
+        )
+    }
+    method_shape = tuple(len(x) for x in method_coords.values())
+    opulent["method"] = xr.DataArray(
+        data=np.ones(method_shape, dtype=str).astype(object),
+        coords=method_coords,
+        dims=list(method_coords.keys()),
+        attrs={"entity": "method"},
+    )
+    opulent["method"].pr.loc[
+        {"time": "2000", "area": "COL", "source": "RAND2020"}
+    ] = "text"
 
     return opulent
 

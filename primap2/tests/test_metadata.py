@@ -1,4 +1,5 @@
 """Tests for _metadata.py"""
+import datetime
 
 
 def test_metadata_properties(opulent_ds):
@@ -13,6 +14,7 @@ def test_metadata_properties(opulent_ds):
         "2021-01-14 14:50 data invented\n" "2021-01-14 14:51 additional processing step"
     )
     assert ds.pr.entity_terminology == "primap2"
+    assert ds.pr.publication_date == datetime.date(2099, 12, 31)
 
     ds.pr.references = "references"
     assert ds.pr.references == "references"
@@ -30,3 +32,6 @@ def test_metadata_properties(opulent_ds):
     assert ds.pr.history == "history"
     ds.pr.entity_terminology = "entity_terminology"
     assert ds.pr.entity_terminology == "entity_terminology"
+    today = datetime.date.today()
+    ds.pr.publication_date = today
+    assert ds.pr.publication_date == today

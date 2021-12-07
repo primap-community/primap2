@@ -1,3 +1,5 @@
+import datetime
+
 from . import _accessor_base
 
 
@@ -81,3 +83,12 @@ class DatasetMetadataAccessor(_accessor_base.BaseDatasetAccessor):
     @history.setter
     def history(self, value: str):
         self._ds.attrs["history"] = value
+
+    @property
+    def publication_date(self) -> datetime.date:
+        """The original date of publication of the dataset, if published."""
+        return self._ds.attrs["publication_date"]
+
+    @publication_date.setter
+    def publication_date(self, value: datetime.date):
+        self._ds.attrs["publication_date"] = value
