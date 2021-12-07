@@ -2,6 +2,23 @@
 Changelog
 =========
 
+0.7.1
+-----
+* Require openscm-units >= 0.3 to ensure that refrigerants and AR5GWPCCF are available.
+* Make primap2 compatible with pint-xarray v0.2.1.
+
+0.7.0
+-----
+* Add the `publication_date` property for datasets to record the date of publication,
+  which is especially useful to record the publication date for datasets which are
+  published continuously.
+* change to stable sphinx-autosummary-accessors version.
+* pin sphinx version to repair RTD latex builds until the `upstream bug <https://github.com/spatialaudio/nbsphinx/issues/584>`_
+  is fixed.
+* Add stringly typed data variables to the PRIMAP specification.
+* Update `ensure_valid` for the updated specification.
+* Enhance interchange format documentation.
+
 0.6.0
 -----
 * Improve ``venv`` handling in the Makefile.

@@ -12,7 +12,7 @@ from ._types import DimOrDimsT, FunctionT, KeyT
 
 class DimensionNotExistingError(ValueError):
     def __init__(self, dim):
-        ValueError.__init__(self, f"Dimension {dim!r} does not exist.")
+        super().__init__(f"Dimension {dim!r} does not exist.")
 
 
 def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) -> KeyT:
