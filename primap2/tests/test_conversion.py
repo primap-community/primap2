@@ -12,8 +12,10 @@ class TestIPCCCodePrimapToPrimap2:
             ("CATM0EL", "M.0.EL"),
             ("IPC1A1B23", "1.A.1.b.ii.3"),
             ("1A1Bii3", "1.A.1.b.ii.3"),
+            ("IPC_1.A.1.B.ii.3", "1.A.1.b.ii.3"),
             ("IPCM1B1C", "M.1.B.1.c"),
             ("M.1.B.1.C", "M.1.B.1.c"),
+            ("M.1.B.1.C.", "M.1.B.1.c"),
             ("M1B1C", "M.1.B.1.c"),
         ],
     )
@@ -44,6 +46,14 @@ class TestIPCCCodePrimapToPrimap2:
             "Assuming no code is present." in caplog.text
         )
         assert "No digit found on first level." in caplog.text
+
+    def test_end_after_m(self, caplog):
+        assert (
+            pm2io._conversion.convert_ipcc_code_primap_to_primap2("IPCM")
+            == "error_IPCM"
+        )
+        assert "WARNING" in caplog.text
+        assert "Nothing follows the 'M' for an 'M'-code." in caplog.text
 
     def test_first_lvl(self, caplog):
         assert (
