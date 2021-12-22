@@ -11,7 +11,10 @@ class TestIPCCCodePrimapToPrimap2:
             ("IPC1A", "1.A"),
             ("CATM0EL", "M.0.EL"),
             ("IPC1A1B23", "1.A.1.b.ii.3"),
+            ("1A1Bii3", "1.A.1.b.ii.3"),
             ("IPCM1B1C", "M.1.B.1.c"),
+            ("M.1.B.1.C", "M.1.B.1.c"),
+            ("M1B1C", "M.1.B.1.c"),
         ],
     )
     def test_working(self, code_in, expected_code_out):
@@ -25,7 +28,10 @@ class TestIPCCCodePrimapToPrimap2:
             pm2io._conversion.convert_ipcc_code_primap_to_primap2("IPC") == "error_IPC"
         )
         assert "WARNING" in caplog.text
-        assert "Too short to be a PRIMAP IPCC code." in caplog.text
+        assert (
+            "Too short to be a PRIMAP IPCC code after "
+            "removal of prefix." in caplog.text
+        )
 
     def test_wrong_format(self, caplog):
         assert (
@@ -33,7 +39,11 @@ class TestIPCCCodePrimapToPrimap2:
             == "error_IPD1A"
         )
         assert "WARNING" in caplog.text
-        assert "Prefix is missing, must be one of 'IPC' or 'CAT'." in caplog.text
+        assert (
+            "Prefix is missing or unknown, known codes are 'IPC' and 'CAT'. "
+            "Assuming no code is present." in caplog.text
+        )
+        assert "No digit found on first level." in caplog.text
 
     def test_first_lvl(self, caplog):
         assert (
@@ -73,7 +83,7 @@ class TestIPCCCodePrimapToPrimap2:
             == "error_IPC1A2BB"
         )
         assert "WARNING" in caplog.text
-        assert "No digit found on fifth level." in caplog.text
+        assert "No digit or roman numeral found on fifth level." in caplog.text
 
     def test_sixth_lvl(self, caplog):
         assert (
