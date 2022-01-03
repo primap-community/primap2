@@ -3,9 +3,23 @@ import re
 
 from loguru import logger
 
+# basic units
+_basic_units = ["g", "t"]
+
+# prefixes
+_si_unit_multipliers = ["", "k", "M", "G", "T", "P", "E", "Z", "Y"]
+
+# combines basic units with prefixes
+_units_prefixes = list(itertools.product(_si_unit_multipliers, _basic_units))
+_units_prefixes = [i[0] + i[1] for i in _units_prefixes]
+
+# build regexp to match the basic units with prefixes in units
+_units_prefixes_regexp = "(" + "|".join(_units_prefixes) + ")"
+
 
 def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
-    """
+    """Convert PRIMAP1 emissions module style units to primap2 units.
+
     This function converts the emissions module style units which usually neither carry
     information about the substance nor about the time to primap2 units. The function
     also handles the exception cases where PRIMAP units do contain information about the
@@ -13,7 +27,6 @@ def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
 
     Parameters
     ----------
-
     unit : str
         unit to convert
     entity : str
@@ -21,7 +34,8 @@ def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
 
     Returns
     -------
-    :str: converted unit
+    unit : str
+        converted unit
     """
 
     # check inputs
@@ -41,24 +55,8 @@ def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
         "C": "C",  # don't add variable here
     }
 
-    # basic units
-    basic_units = ["g", "t"]
-
-    # prefixes
-    si_unit_multipliers = ["", "k", "M", "G", "T", "P", "E", "Z", "Y"]
-
-    # combines basic units with prefixes
-    units_prefixes = list(itertools.product(si_unit_multipliers, basic_units))
-    units_prefixes = [i[0] + i[1] for i in units_prefixes]
-
     # time information to add
     time_frame_str = " / yr"
-
-    # build regexp to match the basic units with prefixes in units
-    regexp_str = "("
-    for this_unit in units_prefixes:
-        regexp_str = regexp_str + this_unit + "|"
-    regexp_str = regexp_str[0:-1] + ")"
 
     # remove spaces for more flexibility in input units
     unit = unit.replace(" ", "")
@@ -73,14 +71,16 @@ def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
     unit_entity = unit + " " + entity + time_frame_str
 
     # check if unit has prefix
-    match_pref = re.search(regexp_str, unit_entity)
+    match_pref = re.search(_units_prefixes_regexp, unit_entity)
     if match_pref is None:
         logger.warning("No unit prefix matched for unit. " + unit_entity)
         return "error_" + unit + "_" + entity
 
     # check if exception unit
     is_ex_unit = [
-        re.match(regexp_str + ex_unit.replace("<entity>", entity) + "$", unit)
+        re.match(
+            _units_prefixes_regexp + ex_unit.replace("<entity>", entity) + "$", unit
+        )
         is not None
         for ex_unit in exception_units
     ]
@@ -110,9 +110,8 @@ def code_invalid_warn(code: str, message: str) -> str:
 
 
 def convert_ipcc_code_primap_to_primap2(code: str) -> str:
-    """
-    This function converts IPCC emissions category codes from the PRIMAP-format to
-    the pyCPA format which is closer to the original (but without all the dots)
+    """Convert IPCC emissions category codes from PRIMAP1 emissions module style to
+    primap2 style.
 
     Codes that are not part of the official hierarchy (starting with IPCM or CATM)
     are not converted but returned without the 'CAT' or 'IPC' prefix unless the
@@ -121,7 +120,6 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
 
     Parameters
     ----------
-
     code: str
         String containing the IPCC code in PRIMAP format (IPCC1996 and IPCC2006 can be
         converted). The PRIMAP format codes consist of upper case letters and numbers
@@ -130,16 +128,13 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
 
     Returns
     -------
-
-    :str:
-        string containing the category code in primap2 format
+    code: str
+        the category code in primap2 format
 
     Examples
     --------
-
     >>> convert_ipcc_code_primap_to_primap2("IPC1A3B34")
     '1.A.3.b.iii.4'
-
     """
 
     arabic_to_roman = {
@@ -317,9 +312,9 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
 
 
 def convert_entity_gwp_primap_to_primap2(entity_pm1: str) -> str:
-    """
-    This function transforms PRIMAP1 style entity names into PRIMAP2 style variable
-    names. The transformation only considers the GWP, currently the variable itself is
+    """Convert PRIMAP1 emissions module style entity names to primap2 style.
+
+    The conversion only considers the GWP, currently the variable itself is
     unchanged.
 
     Currently the function uses a limited set of GWP values (defined in gwp_mapping) and
@@ -333,7 +328,6 @@ def convert_entity_gwp_primap_to_primap2(entity_pm1: str) -> str:
     -------
     entity: str
         entity in PRIMAP2 format
-
     """
 
     entities_gwp = [
