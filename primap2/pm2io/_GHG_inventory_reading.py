@@ -1,15 +1,15 @@
+"""This file contains functions for reading of country GHG inventories
+from National Inventory Reports (NIR), biannual Update Reports (BUR),
+and other official country emissions inventories
+Most of the functions in this file are exposed to the outside yet they
+currently do not undergo the strict testing applied to the rest of PRIMAP2 as
+they are added during the process of reading an preparing data for the PRIMAP-hist
+update. Testing will be added in the future."""
+
 import re
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
-
-# this file contains functions for reading of country GHG inventories
-# from National Inventory Reports (NIR), biannual Update Reports (BUR),
-# and other official country emissions inventories
-# Most of the functions in this file are exposed to the outside yet they
-# currently do not undergo the strict testing applied to the rest of PRIMAP2 as
-# they are added during the process of reading an preparing data for the PRIMAP-hist
-# update. Testing will be added in the future.
 
 
 def nir_add_unit_information(
@@ -19,8 +19,9 @@ def nir_add_unit_information(
     entity_row: Optional[int] = None,
     unit_info: Dict[str, Any]
 ) -> pd.DataFrame:
-    """
-    This function adds unit information to the header of a "entity-wide" file as
+    """Add unit information to a National Inventory Report (NIR) style DataFrame.
+
+    Add unit information to the header of an "entity-wide" file as
     present in the standard table format of National Inventory Reports (NIRs). The
     unit and entity information is extracted from combined unit and entity information
     in the row defined by `unit_row`. The parameter `unit_info` determines how this is
@@ -124,9 +125,10 @@ def nir_add_unit_information(
 def nir_convert_df_to_long(
     df_nir: pd.DataFrame, year: int, header_long: Optional[List[str]] = None
 ) -> pd.DataFrame:
-    """
-    This function converts an entity-wide NIR table for a single year to a long format
-    DataFrame. The input DataFrame is required to have the following structure:
+    """Convert an entity-wide NIR table for a single year to a long format
+    DataFrame.
+
+    The input DataFrame is required to have the following structure:
     * Columns for category, original category name, and data in this order, where
     category and original category name form a multiindex.
     * Column header as multiindex for entity and unit
@@ -144,7 +146,8 @@ def nir_convert_df_to_long(
 
     Returns
     -------
-
+    pd.DataFrame
+        converted DataFrame
     """
     if header_long is None:
         header_long = ["category", "orig_cat_name", "entity", "unit", "time", "data"]
