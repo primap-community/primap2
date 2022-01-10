@@ -185,11 +185,13 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
     if code[0:3] not in ["IPC", "CAT"]:
         # prefix = ""
         pure_code = code
-        code_invalid_warn(
-            code,
-            "Prefix is missing or unknown, known codes are 'IPC' and 'CAT'. "
-            + "Assuming no code is present.",
-        )
+        # don't use a warning here, it's rather confusing than helping as
+        # conversion works fine
+        # code_invalid_warn(
+        #    code,
+        #    "Prefix is missing or unknown, known codes are 'IPC' and 'CAT'. "
+        #    + "Assuming no code is present.",
+        # )
     elif len(code) < 4:
         return code_invalid_warn(
             code, "Too short to be a PRIMAP IPCC code after " + "removal of prefix."
