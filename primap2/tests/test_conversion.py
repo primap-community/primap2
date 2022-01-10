@@ -41,10 +41,10 @@ class TestIPCCCodePrimapToPrimap2:
             == "error_IPD1A"
         )
         assert "WARNING" in caplog.text
-        assert (
-            "Prefix is missing or unknown, known codes are 'IPC' and 'CAT'. "
-            "Assuming no code is present." in caplog.text
-        )
+        # assert (
+        #    "Prefix is missing or unknown, known codes are 'IPC' and 'CAT'. "
+        #    "Assuming no code is present." in caplog.text
+        # )
         assert "No digit found on first level." in caplog.text
 
     def test_end_after_m(self, caplog):
