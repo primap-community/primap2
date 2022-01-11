@@ -18,11 +18,12 @@ _units_prefixes_regexp = "(" + "|".join(_units_prefixes) + ")"
 
 
 def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
-    """Convert PRIMAP1 emissions module style units to primap2 units.
+    """Convert PRIMAP1 emissions module style units and units in similar formats to
+    primap2 units.
 
     This function converts the emissions module style units which usually neither carry
     information about the substance nor about the time to primap2 units. The function
-    also handles the exception cases where PRIMAP units do contain information about the
+    also handles the exception cases where input units do contain information about the
     substance (e.g. GtC).
 
     Parameters
