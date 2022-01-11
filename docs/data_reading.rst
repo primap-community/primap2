@@ -48,8 +48,8 @@ v2.2 dataset into PRIMAP2.
    :maxdepth: 2
    :caption: Examples wide csv:
 
-   data_reading_examples/test_data_wide
-   data_reading_examples/PRIMAP-hist
+   data_reading_writing_examples/test_data_wide
+   data_reading_writing_examples/PRIMAP-hist
 
 Long (tidy) csv file
 --------------------
@@ -68,11 +68,11 @@ The second example shows how to read in FAOstat data into PRIMAP2.
    :maxdepth: 2
    :caption: Examples long CSV:
 
-   data_reading_examples/test_data_long
-   data_reading_examples/FAOstat
+   data_reading_writing_examples/test_data_long
+   data_reading_writing_examples/FAOstat
 
 
 Further formats
 ---------------
-In the future we will ofer data reading functions for further formats.
+In the future we will offer data reading functions for further formats.
 Information will be added here.

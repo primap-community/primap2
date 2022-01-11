@@ -7,7 +7,7 @@ they are added during the process of reading an preparing data for the PRIMAP-hi
 update. Testing will be added in the future."""
 
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import pandas as pd
 
@@ -17,7 +17,11 @@ def nir_add_unit_information(
     *,
     unit_row: Union[str, int],
     entity_row: Optional[int] = None,
-    unit_info: Dict[str, Any]
+    regexp_entity: str,
+    regexp_unit: str,
+    manual_repl_unit: Optional[Dict[str, str]] = None,
+    manual_repl_entity: Optional[Dict[str, str]] = None,
+    default_unit: str,
 ) -> pd.DataFrame:
     """Add unit information to a National Inventory Report (NIR) style DataFrame.
 
@@ -43,13 +47,16 @@ def nir_add_unit_information(
     entity_row : int
         integer specifying the row to use for entity information.
         If entity and unit information are given in the same row use only unit_row
-    unit_info : dict
-        A dict with the fields
-        * regexp_entity: regular expression that extracts the entity from the cell value
-        * regexp_unit: regular expression that extracts the unit from the cell value
-        * manual_repl_unit: optional: dict defining unit for given cell values
-        * manual_repl_entity: optional: dict defining entity for given cell values
-        * default_unit: unit to be used if no unit can be extracted an no unit is given
+    regexp_entity : str
+        regular expression that extracts the entity from the cell value
+    regexp_unit : str (optional)
+        regular expression that extracts the unit from the cell value
+    manual_repl_unit : dict (optional)
+        dict defining unit for given cell values
+    manual_repl_entity : dict (optional)
+        dict defining entity for given cell values
+    default_unit : str
+        unit to be used if no unit can be extracted an no unit is given
 
     Returns
     -------
@@ -57,11 +64,11 @@ def nir_add_unit_information(
         DataFrame with explicit unit information (as column header)
     """
 
-    if "manual_repl_unit" not in unit_info:
-        unit_info["manual_repl_unit"] = {}
+    if manual_repl_unit is None:
+        manual_repl_unit = {}
 
-    if "manual_repl_entity" not in unit_info:
-        unit_info["manual_repl_entity"] = {}
+    if manual_repl_entity is None:
+        manual_repl_entity = {}
 
     cols_to_drop = []
 
@@ -81,18 +88,18 @@ def nir_add_unit_information(
     else:
         values_for_entities = values_for_units
 
-    if "regexp_unit" in unit_info:
-        re_unit = re.compile(unit_info["regexp_unit"])
-    re_entity = re.compile(unit_info["regexp_entity"])
+    if regexp_unit is not None:
+        re_unit = re.compile(regexp_unit)
+    re_entity = re.compile(regexp_entity)
 
     units = values_for_units.copy()
     entities = values_for_entities.copy()
 
     for idx, value in enumerate(values_for_units):
-        if str(value) in unit_info["manual_repl_unit"]:
-            units[idx] = unit_info["manual_repl_unit"][str(value)]
+        if str(value) in manual_repl_unit:
+            units[idx] = manual_repl_unit[str(value)]
         else:
-            if "regexp_unit" in unit_info:
+            if regexp_unit is not None:
                 unit = re_unit.findall(str(value))
             else:
                 unit = False
@@ -100,11 +107,11 @@ def nir_add_unit_information(
             if unit:
                 units[idx] = unit[0]
             else:
-                units[idx] = unit_info["default_unit"]
+                units[idx] = default_unit
 
     for idx, value in enumerate(values_for_entities):
-        if str(value) in unit_info["manual_repl_entity"]:
-            entities[idx] = unit_info["manual_repl_entity"][str(value)]
+        if str(value) in manual_repl_entity:
+            entities[idx] = manual_repl_entity[str(value)]
         else:
             entity = re_entity.findall(str(value))
             if entity:
