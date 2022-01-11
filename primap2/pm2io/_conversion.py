@@ -17,7 +17,7 @@ _units_prefixes = [i[0] + i[1] for i in _units_prefixes]
 _units_prefixes_regexp = "(" + "|".join(_units_prefixes) + ")"
 
 
-def convert_unit_primap_to_primap2(unit: str, entity: str) -> str:
+def convert_unit_to_primap2(unit: str, entity: str) -> str:
     """Convert PRIMAP1 emissions module style units and units in similar formats to
     primap2 units.
 
