@@ -78,6 +78,7 @@ def convert_long_dataframe_if(
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y-%m-%d",
     convert_nan: bool = False,
+    copy_df: bool = True,
 ) -> pd.DataFrame:
     """convert a DataFrame in long (tidy) format into the PRIMAP2 interchange format.
 
@@ -158,14 +159,19 @@ def convert_long_dataframe_if(
         be found in the
         `data format documentation <https://primap2.readthedocs.io/en/stable/data_format_details.html#dataset-attributes>`_.  # noqa: E501
 
-    time_format : str, optional
+    time_format : str, optional (default: "%Y-%m-%d")
         strftime style format used to format the time information for the data columns
         in the interchange format.
         Default: "%F", i.e. the ISO 8601 date format.
 
-    convert_nan : bool, optional
+    convert_nan : bool, optional (default: True)
         If set to true, string values in the data columns as listed in NA_VALUES will be
         converted to np.nan.
+
+    copy_df : bool, optional (default: True)
+        If set to true, a copy of the input DataFrame is made to keep the input as is.
+        This negatively impacts speed. If set to false the input DataFrame will be
+        altered but performance will be better
 
     Returns
     -------
@@ -219,8 +225,11 @@ def convert_long_dataframe_if(
     if add_coords_cols:
         check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
 
-    # make a copy to keep input dataframe unchanged
-    data_copy = data_long.copy(deep=True)
+    # if desired make a copy to keep input dataframe unchanged
+    if copy_df:
+        data_copy = data_long.copy(deep=True)
+    else:
+        data_copy = data_long
 
     filter_data(data_copy, filter_keep, filter_remove)
 
@@ -425,6 +434,7 @@ def read_long_csv_file_if(
         filter_remove=filter_remove,
         meta_data=meta_data,
         time_format=time_format,
+        copy_df=False,
     )
 
 
@@ -467,6 +477,7 @@ def convert_wide_dataframe_if(
     time_format: str = "%Y",
     time_cols: Optional[List] = None,
     convert_nan: bool = False,
+    copy_df: bool = False,
 ) -> pd.DataFrame:
     """
     Convert a DataFrame in wide format into the PRIMAP2 interchange format.
@@ -567,6 +578,11 @@ def convert_wide_dataframe_if(
         If set to true, string values in the data columns as listed in NA_VALUES will be
         converted to np.nan.
 
+    copy_df : bool, optional (default: True)
+        If set to true, a copy of the input DataFrame is made to keep the input as is.
+        This negatively impacts speed. If set to false the input DataFrame will be
+        altered but performance will be better
+
     Returns
     -------
     obj: pd.DataFrame
@@ -629,8 +645,12 @@ def convert_wide_dataframe_if(
     else:
         time_columns = time_cols
 
-    # make a copy of the data to not alter the input data
-    data_if = data_wide.copy(deep=True)
+    # if desired make a copy of the data to not alter the input data
+    if copy_df:
+        data_if = data_wide.copy(deep=True)
+    else:
+        data_if = data_wide
+
     filter_data(data_if, filter_keep, filter_remove)
 
     if convert_nan:
@@ -842,6 +862,7 @@ def read_wide_csv_file_if(
         meta_data=meta_data,
         time_format=time_format,
         time_cols=time_columns,
+        copy_df=False,
     )
 
     return data
