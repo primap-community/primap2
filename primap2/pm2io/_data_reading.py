@@ -1463,9 +1463,15 @@ def harmonize_units(
                             temp += list(data[col].unique())
                         temp = list(set(temp))
 
-                        # print(temp)
                         strs = [x for x in temp if isinstance(x, str)]
-                        print(strs)
+                        logger.error(
+                            f"The following values string values are present and can "
+                            f"not be converted during unit conversion: {strs}."
+                        )
+                        raise ValueError(
+                            f"String values {strs} prevent unit conversion."
+                        )
+
                     data.loc[mask, unit_col] = unit_to
 
             if gwp_to_use and unit_to not in units_this_entity:
