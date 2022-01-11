@@ -124,13 +124,13 @@ class TestUnitPrimapToPrimap2:
     )
     def test_working(self, unit_in, entity_in, expected_unit_out):
         assert (
-            pm2io._conversion.convert_unit_primap_to_primap2(unit_in, entity_in)
+            pm2io._conversion.convert_unit_to_primap2(unit_in, entity_in)
             == expected_unit_out
         )
 
     def test_no_prefix(self, caplog):
         assert (
-            pm2io._conversion.convert_unit_primap_to_primap2("CO2eq", "FGASES")
+            pm2io._conversion.convert_unit_to_primap2("CO2eq", "FGASES")
             == "error_CO2eq_FGASES"
         )
         assert "WARNING" in caplog.text
@@ -138,16 +138,14 @@ class TestUnitPrimapToPrimap2:
 
     def test_unit_empty(self, caplog):
         assert (
-            pm2io._conversion.convert_unit_primap_to_primap2("", "FGASES")
-            == "error__FGASES"
+            pm2io._conversion.convert_unit_to_primap2("", "FGASES") == "error__FGASES"
         )
         assert "WARNING" in caplog.text
         assert "Input unit is empty. Nothing converted." in caplog.text
 
     def test_entity_empty(self, caplog):
         assert (
-            pm2io._conversion.convert_unit_primap_to_primap2("GgCO2eq", "")
-            == "error_GgCO2eq_"
+            pm2io._conversion.convert_unit_to_primap2("GgCO2eq", "") == "error_GgCO2eq_"
         )
         assert "WARNING" in caplog.text
         assert "Input entity is empty. Nothing converted." in caplog.text

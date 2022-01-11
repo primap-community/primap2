@@ -1211,7 +1211,7 @@ def map_metadata_unordered(
             "category": (_conversion.convert_ipcc_code_primap_to_primap2, []),
             "entity": (_conversion.convert_entity_gwp_primap_to_primap2, []),
             "unit": (
-                _conversion.convert_unit_primap_to_primap2,
+                _conversion.convert_unit_to_primap2,
                 [dim_aliases.get("entity", "entity")],
             ),
         }
