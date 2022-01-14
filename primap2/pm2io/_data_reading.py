@@ -144,7 +144,6 @@ def convert_long_dataframe_if(
     convert_str : bool or dict, optional (default: True)
         If set to false, string values in the data columns will be kept.
         If set to true they will be converted to np.nan or 0 following default rules.
-        TODO: add rules to docs
         If a dict is given mapping will be as given in the dict for values present in
         the dict and default as in parse_code for all other values
 
