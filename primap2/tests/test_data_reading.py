@@ -46,6 +46,82 @@ def test_metadata_for_variable(unit, entity, expected_attrs):
     )
 
 
+@pytest.mark.parametrize(
+    "to_test_for_float, expected_result",
+    [
+        ("0.15", True),
+        ("IE", False),
+        ("NaN", True),
+        (
+            "25,000",
+            False,
+        ),  # be careful when reading data to process thousands seperators
+        ("25,00", False),
+        ("IE, NO", False),
+    ],
+)
+def test_is_float(to_test_for_float, expected_result):
+    assert pm2io._data_reading.is_float(to_test_for_float) == expected_result
+
+
+@pytest.mark.parametrize(
+    "code_to_test, expected_result",
+    [
+        ("IE", 0),
+        ("NO", 0),
+        ("-", 0),
+        ("NO,NE", 0),
+        ("NO, NE", 0),
+        ("NE,NO", 0),
+        ("NE, NO", 0),
+        ("IE, NE, NO", 0),
+        ("IE,NA,NO", 0),
+        ("NA,IE,NO", 0),
+        ("NO,NE,IE", 0),
+    ],
+)
+def test_parse_code(code_to_test, expected_result):
+    assert pm2io._data_reading.parse_code(code_to_test) == expected_result
+
+
+@pytest.mark.parametrize(
+    "code_to_test_nan, expected_result",
+    [
+        ("NE", np.nan),
+        ("NE0", np.nan),
+        ("C", np.nan),
+        ("NaN", np.nan),
+        ("nan", np.nan),
+        ("NA, NE", np.nan),
+        ("NA,NE", np.nan),
+    ],
+)
+def test_parse_code_nan(code_to_test_nan, expected_result):
+    assert np.isnan(pm2io._data_reading.parse_code(code_to_test_nan))
+
+
+@pytest.mark.parametrize(
+    "strs, user_na_conv, expected_result",
+    [
+        (
+            ["IE", "IE,NA", "NA"],
+            {},
+            {"IE": 0, "IE,NA": 0, "NA": np.nan},
+        ),
+        (
+            ["IE", "IE,NA", "NA"],
+            {"NA": 0},
+            {"IE": 0, "IE,NA": 0, "NA": 0},
+        ),
+    ],
+)
+def test_create_na_replacement_dict(strs, user_na_conv, expected_result):
+    assert (
+        pm2io._data_reading.create_str_replacement_dict(strs, user_na_conv)
+        == expected_result
+    )
+
+
 def assert_attrs_equal(attrs_result, attrs_expected):
     assert attrs_result.keys() == attrs_expected.keys()
     assert attrs_result["attrs"] == attrs_expected["attrs"]
@@ -694,6 +770,27 @@ class TestReadWideCSVFile:
                 coords_defaults=coords_defaults,
                 coords_terminologies=coords_terminologies,
                 coords_value_mapping=coords_value_mapping,
+            )
+
+    def test_unprocessed_strs(
+        self,
+        coords_cols,
+        coords_defaults,
+        coords_terminologies,
+        coords_value_mapping,
+    ):
+        file_input = DATA_PATH / "test_csv_data_sec_cat_strings.csv"
+
+        with pytest.raises(ValueError, match="String values"):
+            pm2io.read_wide_csv_file_if(
+                file_input,
+                coords_cols=coords_cols,
+                coords_defaults=coords_defaults,
+                coords_terminologies=coords_terminologies,
+                coords_value_mapping=coords_value_mapping,
+                filter_keep={},
+                filter_remove={},
+                convert_str=False,
             )
 
 

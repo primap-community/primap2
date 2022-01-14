@@ -1,5 +1,6 @@
 import datetime
 import itertools
+import re
 from pathlib import Path
 from typing import (
     IO,
@@ -16,6 +17,7 @@ from typing import (
 
 import numpy as np
 import pandas as pd
+import pint
 from loguru import logger
 
 from .. import _alias_selection
@@ -28,16 +30,14 @@ from ._interchange_format import (
 )
 
 SEC_CATS_PREFIX = "sec_cats__"
-NA_VALUES = [
-    "nan",
-    "NE",
-    "-",
-    "NA, NE",
-    "NO,NE",
-    "NA,NE",
-    "NE,NO",
-    "NE0",
-    "NO, NE",
+
+BASKET_UNITS = [
+    "KYOTOGHG",
+    "FGASES",
+    "HFCS",
+    "PFCS",
+    "OTHERHFCS",
+    "OTHERPFCS",
 ]
 
 
@@ -54,6 +54,8 @@ def convert_long_dataframe_if(
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y-%m-%d",
+    convert_str: Union[bool, Dict[str, float]] = True,
+    copy_df: bool = True,
 ) -> pd.DataFrame:
     """convert a DataFrame in long (tidy) format into the PRIMAP2 interchange format.
 
@@ -134,10 +136,21 @@ def convert_long_dataframe_if(
         be found in the
         `data format documentation <https://primap2.readthedocs.io/en/stable/data_format_details.html#dataset-attributes>`_.  # noqa: E501
 
-    time_format : str, optional
+    time_format : str, optional (default: "%Y-%m-%d")
         strftime style format used to format the time information for the data columns
         in the interchange format.
         Default: "%F", i.e. the ISO 8601 date format.
+
+    convert_str : bool or dict, optional (default: True)
+        If set to false, string values in the data columns will be kept.
+        If set to true they will be converted to np.nan or 0 following default rules.
+        If a dict is given mapping will be as given in the dict for values present in
+        the dict and default as in parse_code for all other values
+
+    copy_df : bool, optional (default: True)
+        If set to true, a copy of the input DataFrame is made to keep the input as is.
+        This negatively impacts speed. If set to false the input DataFrame will be
+        altered but performance will be better
 
     Returns
     -------
@@ -191,37 +204,51 @@ def convert_long_dataframe_if(
     if add_coords_cols:
         check_overlapping_specifications_add_cols(coords_cols, add_coords_cols)
 
-    filter_data(data_long, filter_keep, filter_remove)
+    # if desired make a copy to keep input dataframe unchanged
+    if copy_df:
+        data_copy = data_long.copy(deep=True)
+    else:
+        data_copy = data_long
+
+    filter_data(data_copy, filter_keep, filter_remove)
 
     add_dimensions_from_defaults(
-        data_long, coords_defaults, additional_allowed_coords=["time"]
+        data_copy, coords_defaults, additional_allowed_coords=["time"]
     )
 
     naming_attrs = rename_columns(
-        data_long, coords_cols, add_coords_cols, coords_defaults, coords_terminologies
+        data_copy, coords_cols, add_coords_cols, coords_defaults, coords_terminologies
     )
-
     attrs.update(naming_attrs)
+
+    if convert_str:
+        # get data columns (just one as we have long format)
+        data_cols = ["data"]
+        # find all string values
+        str_values = find_str_values_in_data(data_copy, data_cols)
+        # create replacement dict
+        str_repl_dict = create_str_replacement_dict(str_values, convert_str)
+        replace_values(data_copy, data_cols, str_repl_dict)
 
     additional_coordinates = additional_coordinate_metadata(
         add_coords_cols, coords_cols, coords_terminologies
     )
 
     if coords_value_mapping is not None:
-        map_metadata(data_long, attrs=attrs, meta_mapping=coords_value_mapping)
+        map_metadata(data_copy, attrs=attrs, meta_mapping=coords_value_mapping)
 
     if coords_value_filling is not None:
-        data_long = fill_from_other_col(
-            data_long, attrs=attrs, coords_value_filling=coords_value_filling
+        data_copy = fill_from_other_col(
+            data_copy, attrs=attrs, coords_value_filling=coords_value_filling
         )
 
-    coords = list(set(data_long.columns.values) - {"data"})
+    coords = list(set(data_copy.columns.values) - {"data"})
 
-    harmonize_units(data_long, dimensions=coords, attrs=attrs)
+    harmonize_units(data_copy, dimensions=coords, attrs=attrs)
 
-    data_long["time"] = pd.to_datetime(data_long["time"], format=time_format)
+    data_copy["time"] = pd.to_datetime(data_copy["time"], format=time_format)
 
-    data, coords = long_to_wide(data_long, time_format=time_format)
+    data, coords = long_to_wide(data_copy, time_format=time_format)
 
     data, coords = sort_columns_and_rows(data, dimensions=coords)
     dims = coords.copy()
@@ -251,6 +278,7 @@ def read_long_csv_file_if(
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y-%m-%d",
+    convert_str: Union[bool, Dict[str, float]] = True,
 ) -> pd.DataFrame:
     """Read a CSV file in long (tidy) format into the PRIMAP2 interchange format.
 
@@ -336,6 +364,12 @@ def read_long_csv_file_if(
         in the interchange format.
         Default: "%F", i.e. the ISO 8601 date format.
 
+    convert_str : bool or dict, optional (default: True)
+        If set to false, string values in the data columns will be kept.
+        If set to true they will be converted to np.nan or 0 following default rules.
+        If a dict is given mapping will be as given in the dict for values present in
+        the dict and default as in parse_code for all other values
+
     Returns
     -------
     obj: pd.DataFrame
@@ -392,6 +426,8 @@ def read_long_csv_file_if(
         filter_remove=filter_remove,
         meta_data=meta_data,
         time_format=time_format,
+        convert_str=convert_str,
+        copy_df=False,
     )
 
 
@@ -433,6 +469,8 @@ def convert_wide_dataframe_if(
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y",
     time_cols: Optional[List] = None,
+    convert_str: Union[bool, Dict[str, float]] = True,
+    copy_df: bool = False,
 ) -> pd.DataFrame:
     """
     Convert a DataFrame in wide format into the PRIMAP2 interchange format.
@@ -529,6 +567,17 @@ def convert_wide_dataframe_if(
         List of column names which contain the data for each time point. If not given
         cols will be inferred using time_format.
 
+    convert_str : bool or dict, optional (default: True)
+        If set to false, string values in the data columns will be kept.
+        If set to true they will be converted to np.nan or 0 following default rules.
+        If a dict is given mapping will be as given in the dict for values present in
+        the dict and default as in parse_code for all other values
+
+    copy_df : bool, optional (default: True)
+        If set to true, a copy of the input DataFrame is made to keep the input as is.
+        This negatively impacts speed. If set to false the input DataFrame will be
+        altered but performance will be better
+
     Returns
     -------
     obj: pd.DataFrame
@@ -591,9 +640,21 @@ def convert_wide_dataframe_if(
     else:
         time_columns = time_cols
 
-    # make a copy of the data to not alter the input data
-    data_if = data_wide.copy()
+    # if desired make a copy of the data to not alter the input data
+    if copy_df:
+        data_if = data_wide.copy(deep=True)
+    else:
+        data_if = data_wide
+
     filter_data(data_if, filter_keep, filter_remove)
+
+    if convert_str:
+        # get data columns (just one as we have long format)
+        # find all string values
+        str_values = find_str_values_in_data(data_if, time_columns)
+        # create replacement dict
+        str_repl_dict = create_str_replacement_dict(str_values, convert_str)
+        replace_values(data_if, time_columns, str_repl_dict)
 
     add_dimensions_from_defaults(data_if, coords_defaults)
 
@@ -646,6 +707,7 @@ def read_wide_csv_file_if(
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y",
+    convert_str: Union[bool, Dict[str, float]] = True,
 ) -> pd.DataFrame:
     """Read a CSV file in wide format into the PRIMAP2 interchange format.
 
@@ -735,6 +797,12 @@ def read_wide_csv_file_if(
         strftime style format used to parse the time information for the data columns.
         Default: "%Y", which will match years.
 
+    convert_str : bool or dict, optional (default: True)
+        If set to false, string values in the data columns will be kept.
+        If set to true they will be converted to np.nan or 0 following default rules.
+        If a dict is given mapping will be as given in the dict for values present in
+        the dict and default as in parse_code for all other values
+
     Returns
     -------
     obj: pd.DataFrame
@@ -801,6 +869,8 @@ def read_wide_csv_file_if(
         meta_data=meta_data,
         time_format=time_format,
         time_cols=time_columns,
+        convert_str=convert_str,
+        copy_df=False,
     )
 
     return data
@@ -917,19 +987,14 @@ def read_wide_csv(
     time_format: str = "%Y",
 ) -> (pd.DataFrame, List[str]):
 
-    data = pd.read_csv(filepath_or_buffer, na_values=NA_VALUES)
+    data = pd.read_csv(
+        filepath_or_buffer,
+    )
 
     # get all the columns that are actual data not metadata (usually the years)
     time_cols = [
         col for col in data.columns.values if matches_time_format(col, time_format)
     ]
-
-    # remove all non-numeric values from year columns
-    # (what is left after mapping to nan when reading data)
-    for col in time_cols:
-        data[col] = data[col][
-            pd.to_numeric(data[col], errors="coerce").notnull()
-        ].astype(float)
 
     # remove all cols not in the specification
     columns = data.columns.values
@@ -965,9 +1030,7 @@ def read_long_csv(
     coords_cols: Dict[str, str],
     add_coords_cols: Dict[str, List[str]] = None,
 ) -> (pd.DataFrame, List[str]):
-    try:
-        csv_data_column = coords_cols["data"]
-    except KeyError:
+    if "data" not in coords_cols.keys():
         raise ValueError(
             "No data column in the CSV specified in coords_cols, so nothing to read."
         )
@@ -986,15 +1049,9 @@ def read_long_csv(
 
     data = pd.read_csv(
         filepath_or_buffer,
-        na_values=NA_VALUES,
         parse_dates=parse_dates,
         usecols=usecols,
     )
-
-    # remove all non-numeric values from data column
-    data[csv_data_column] = data[csv_data_column][
-        pd.to_numeric(data[csv_data_column], errors="coerce").notnull()
-    ].astype(float)
 
     return data
 
@@ -1007,9 +1064,9 @@ def spec_to_query_string(filter_spec: Dict[str, Union[list, Any]]) -> str:
     for col in filter_spec:
         if isinstance(filter_spec[col], list):
             itemlist = ", ".join(repr(x) for x in filter_spec[col])
-            filter_query = f"{col} in [{itemlist}]"
+            filter_query = f"`{col}` in [{itemlist}]"
         else:
-            filter_query = f"{col} == {filter_spec[col]!r}"
+            filter_query = f"`{col}` == {filter_spec[col]!r}"
         queries.append(filter_query)
 
     return " & ".join(queries)
@@ -1063,7 +1120,7 @@ def fill_from_other_col(
 
     coords_value_filling : dict
         A dict with primap2 dimension names as keys. These are the target columns where
-        values will be filled (or replaced). Vales are dicts with primap2 dimension
+        values will be filled (or replaced). Values are dicts with primap2 dimension
         names as keys. These are the source columns. The values are dicts with source
         value - target value mappings.
         This can be used to e.g. fill missing category codes based on category names or
@@ -1124,13 +1181,13 @@ def map_metadata(
 ):
     """Map the metadata according to specifications given in meta_mapping.
     First map entity, then the rest."""
-
+    meta_mapping_copy = meta_mapping.copy()
     if "entity" in meta_mapping.keys():
-        meta_mapping_entity = dict(entity=meta_mapping["entity"])
-        meta_mapping.pop("entity")
+        meta_mapping_entity = dict(entity=meta_mapping_copy["entity"])
+        meta_mapping_copy.pop("entity")
         map_metadata_unordered(data, meta_mapping=meta_mapping_entity, attrs=attrs)
 
-    map_metadata_unordered(data, meta_mapping=meta_mapping, attrs=attrs)
+    map_metadata_unordered(data, meta_mapping=meta_mapping_copy, attrs=attrs)
 
 
 def map_metadata_unordered(
@@ -1149,7 +1206,7 @@ def map_metadata_unordered(
             "category": (_conversion.convert_ipcc_code_primap_to_primap2, []),
             "entity": (_conversion.convert_entity_gwp_primap_to_primap2, []),
             "unit": (
-                _conversion.convert_unit_primap_to_primap2,
+                _conversion.convert_unit_to_primap2,
                 [dim_aliases.get("entity", "entity")],
             ),
         }
@@ -1181,8 +1238,8 @@ def map_metadata_unordered(
                 meta_mapping_df[column_name] = dict(zip(values_to_map, values_mapped))
 
             else:  # need to supply additional arguments
-                # this can't be handled using the replace()-call later since the mapped
-                # values don't depend on the original values only, therefore
+                # this can't be handled using the replace()-call later since the
+                # mapped values don't depend on the original values only, therefore
                 # we do it directly
                 sel = [column_name] + args
                 values_to_map = np.unique(data[sel].to_records(index=False))
@@ -1244,6 +1301,147 @@ def rename_columns(
     return attrs
 
 
+_special_codes = {
+    "C": np.nan,
+    "nan": np.nan,
+    "NaN": np.nan,
+    "-": 0,
+    "NE0": np.nan,
+    "": np.nan,
+}
+
+
+def is_float(to_test: Any) -> bool:
+    try:
+        float(to_test)
+        return True
+    except ValueError:
+        return False
+
+
+def find_str_values_in_data(
+    data: pd.DataFrame,
+    columns: List[str],
+) -> list:
+    """Find all string values occurring in given columns of a DataFrame"""
+    # limit our analysis to columns that contain strings
+    # (or other object types)
+    cols_with_strs = (
+        data[columns].select_dtypes(include=[object]).columns.values.tolist()
+    )
+    temp = []
+    for col in cols_with_strs:
+        temp += list(data[col].unique())
+    temp = list(set(temp))
+    strs = [x for x in temp if not is_float(x)]
+    return strs
+
+
+def parse_code(code: str) -> float:
+    """Parse a string code and return 0 or np.nan based on rules to interpret
+    the codes."""
+    code = code.strip()
+    if code in _special_codes:
+        return _special_codes[code]
+
+    parts = code.split(",")
+    parts = [x.replace(".", "").strip() for x in parts]
+    if "IE" in parts or "NO" in parts:
+        return 0
+    if "NE" in parts or "NA" in parts:
+        return np.nan
+    raise ValueError(f"Could not parse code: {code!r}.")
+
+
+def create_str_replacement_dict(
+    strs: List[str],
+    user_str_conv: Dict[str, str] = {},
+) -> Dict[str, str]:
+    """Create a dict for replacement of strings by NaN and 0 based on
+    general rules and user defined rules"""
+
+    if isinstance(user_str_conv, bool):
+        if user_str_conv:
+            user_str_conv = {}
+    elif isinstance(user_str_conv, dict):
+        pass
+    else:
+        raise ValueError(
+            f"Input for user_str_conv to create_str_replacement_dict"
+            f" has to be a bool or a dict. {user_str_conv} is neither."
+        )
+
+    mapping = {}
+    for str_val in strs:
+        if str_val in user_str_conv:
+            mapping[str_val] = user_str_conv[str_val]
+        else:
+            mapping[str_val] = parse_code(str_val)
+
+    return mapping
+
+
+def replace_values(data: pd.DataFrame, columns: List[str], na_repl_dict):
+    """Replace str values indicating not-a-number by float NaN."""
+    for col in columns:
+        data[col] = data[col].replace(na_repl_dict)
+        data[col] = pd.to_numeric(data[col], errors="coerce")
+        data[col] = data[col].astype("float64", copy=False, errors="ignore")
+
+
+def preferred_unit(entity: str, units: List[str], gwp_to_use: Optional[str]) -> str:
+    """Choose the preferred unit for the given entity.
+
+    In general, "Gg <substance> / year" will be preferred if it is compatible with the
+    given input units. Otherwise, the first unit from units will be preferred.
+
+    Parameters
+    ----------
+    entity: str
+        Basic entity, e.g. a gas.
+    units: list of str
+        Units which are in use for the entity.
+    gwp_to_use: str, optional
+        Global warming potential specification which will be used for the conversion.
+        By specifying the gwp_to_use, you can make sure that it will be possible to
+        convert from the input units to the output unit with the given gwp.
+
+    Returns
+    -------
+    preferred_unit: str
+        The best unit for the given entity and units.
+
+    Examples
+    --------
+    >>> preferred_unit("CO2", ["kt CO2 / yr", "mg CO2 / s"], None)
+    'Gg CO2 / yr'
+    >>> preferred_unit("CH4", ["kt CO2 / yr"], "AR4GWP100")
+    'Gg CH4 / yr'
+    >>> preferred_unit("CH4", ["kt CO2 / yr", "Mg CO2 / yr"], None)
+    'kt CO2 / yr'
+    """
+    unit_fallback = units[0]
+    conversion_contexts = []
+    if gwp_to_use:
+        conversion_contexts.append(gwp_to_use)
+
+    # check if conversion to native unit is possible
+    native_unit = "Gg " + entity + " / yr"
+    try:
+        # print(f"Testing conversion from {ureg[unit_fallback].units} to "
+        #       f"{ureg[native_unit].units} for {entity}.")
+        if ureg(unit_fallback).is_compatible_with(
+            ureg[native_unit], *conversion_contexts
+        ):
+            return native_unit
+    except pint.UndefinedUnitError:
+        # we have a gas basket or something unknown, so no conversion to native unit
+        # print(f"Exception occurred for entity {entity}")
+        pass
+
+    return unit_fallback
+
+
 def harmonize_units(
     data: pd.DataFrame,
     *,
@@ -1251,10 +1449,13 @@ def harmonize_units(
     attrs: Optional[dict] = None,
     dimensions: Iterable[str],
 ) -> None:
-    """
-    Harmonize the units of the input data. For each entity, convert
-    all time series to the same unit (the unit that occurs first). Units must already
-    be in PRIMAP2 style.
+    """Harmonize the units of the input data.
+
+    For each entity, convert all time series to the same unit (the unit that occurs
+    first). Units must already be in PRIMAP2 style.
+
+    As unit handling is tricky and with new units new problem occur this function has a
+    lot of (currently commented) debug output
 
     Parameters
     ----------
@@ -1289,26 +1490,63 @@ def harmonize_units(
         unit_col = dim_aliases.get("unit", "unit")
 
     entities = data[entity_col].unique()
+    # print(entities)
     for entity in entities:
+        # check if GWP given in entity
+        gwp_match = re.findall(r"\(([A-Z0-9]*)\)$", entity)
+        if gwp_match:
+            gwp_to_use = gwp_match[0]
+            basic_entity = re.findall(r"^[^\(\)\s]*", entity)
+            basic_entity = basic_entity[0]
+        else:
+            gwp_to_use = None
+            basic_entity = entity
+        # print(f"basic_entity: {basic_entity}")
         # get all units for this entity
         data_this_entity = data.loc[data[entity_col] == entity]
         units_this_entity = data_this_entity[unit_col].unique()
-        # print(units_this_entity)
-        if len(units_this_entity) > 1:
-            # need unit conversion. convert to first unit (base units have second as
-            # time that is impractical)
-            unit_to = units_this_entity[0]
-            # print("unit_to: " + unit_to)
-            for unit in units_this_entity[1:]:
-                # print(unit)
-                unit_pint = ureg[unit]
-                unit_pint = unit_pint.to(unit_to)
-                # print(unit_pint)
-                factor = unit_pint.magnitude
-                # print(factor)
-                mask = (data[entity_col] == entity) & (data[unit_col] == unit)
-                data.loc[mask, data_cols] *= factor
-                data.loc[mask, unit_col] = unit_to
+
+        if len(units_this_entity) > 1 or gwp_to_use:
+            # need unit conversion.
+            unit_to = preferred_unit(basic_entity, units_this_entity, gwp_to_use)
+
+            # if len(units_this_entity) > 1:
+            for unit in units_this_entity:
+                if unit != unit_to:
+                    # print(f"Working on unit {unit}")
+                    unit_pint = ureg[unit]
+                    # could add a try except block here to throw and log an error or add
+                    # error info in DF instead of crashing
+                    if gwp_to_use:
+                        with ureg.context(gwp_to_use):
+                            unit_pint = unit_pint.to(unit_to)
+                    else:
+                        unit_pint = unit_pint.to(unit_to)
+                    # print(f"Pint unit is {unit_pint}")
+                    factor = unit_pint.magnitude
+                    # print(f"Converting with factor {factor} to unit {unit_to}")
+                    mask = (data[entity_col] == entity) & (data[unit_col] == unit)
+                    # print(data.loc[mask, data_cols])
+                    try:
+                        data.loc[mask, data_cols] *= factor
+                    except TypeError:
+                        # print(data.loc[mask, data_cols])
+                        strs = find_str_values_in_data(data, data_cols)
+                        logger.error(
+                            f"The following string values are present and can "
+                            f"not be converted during unit conversion: {strs}."
+                        )
+                        raise ValueError(
+                            f"String values {strs} prevent unit conversion."
+                        )
+
+                    data.loc[mask, unit_col] = unit_to
+
+            if gwp_to_use and unit_to not in units_this_entity:
+                # entity was converted
+                entity_mask = data[entity_col] == entity
+                # print(f"Changing entity from {entity} to {basic_entity}")
+                data.loc[entity_mask, entity_col] = basic_entity
 
 
 def sort_columns_and_rows(
