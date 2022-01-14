@@ -2,7 +2,7 @@
 
 __author__ = """Mika Pflüger"""
 __email__ = "mika.pflueger@pik-potsdam.de"
-__version__ = "0.7.1"
+__version__ = "0.8.0"
 
 from . import accessors, pm2io
 from ._data_format import open_dataset

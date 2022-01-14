@@ -2,6 +2,12 @@
 Changelog
 =========
 
+0.8.0
+-----
+* Make input format more flexible for convert_ipcc_code_primap_to_primap2
+* several bug fixes in data reading
+* in data reading we now work on a copy of the input data frame to leave it unchanged
+
 0.7.1
 -----
 * Require openscm-units >= 0.3 to ensure that refrigerants and AR5GWPCCF are available.
