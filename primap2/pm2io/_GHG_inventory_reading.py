@@ -28,13 +28,14 @@ def nir_add_unit_information(
     Add unit information to the header of an "entity-wide" file as
     present in the standard table format of National Inventory Reports (NIRs). The
     unit and entity information is extracted from combined unit and entity information
-    in the row defined by `unit_row`. The parameter `unit_info` determines how this is
-    done by regular expressions for unit and entity and a dict for manual replacements.
-    For each column the routine tries to extract a unit using the regular expression.
-    If this fails it looks in the `unit_info.manual_repl` dict for unit and entity
-    information. If there is no information the default unit given in
-    `unit_info.default_unit` is used. In this case the analyzed value is used as entity
-    unchanged.
+    in the row defined by `unit_row`. The parameters `regexp_unit` and `regexp_entity`
+    determines how this is done by regular expressions for unit and entity.
+    Additionally, manual mappings can be defined in the `manual_repl_unit` and
+    `manual_repl_entity` dicts. For each column the routine tries to extract a unit
+    using the regular expression. If this fails it looks in the `manual_repl_unit`
+    dict for unit and in `manual_repl_entity` for entity information. If there is no
+    information the default unit given in `default_unit` is used. In this case the
+    analyzed value is used as entity unchanged.
 
     Parameters
     ----------

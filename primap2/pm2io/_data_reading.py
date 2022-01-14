@@ -77,7 +77,7 @@ def convert_long_dataframe_if(
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y-%m-%d",
-    convert_nan: bool = False,
+    convert_str: Union[bool, Dict[str, float]] = True,
     copy_df: bool = True,
 ) -> pd.DataFrame:
     """convert a DataFrame in long (tidy) format into the PRIMAP2 interchange format.
@@ -164,9 +164,12 @@ def convert_long_dataframe_if(
         in the interchange format.
         Default: "%F", i.e. the ISO 8601 date format.
 
-    convert_nan : bool, optional (default: True)
-        If set to true, string values in the data columns as listed in NA_VALUES will be
-        converted to np.nan.
+    convert_str : bool or dict, optional (default: True)
+        If set to false, string values in the data columns will be kept.
+        If set to true they will be converted to np.nan or 0 following default rules.
+        TODO: add rules to docs
+        If a dict is given mapping will be as given in the dict for values present in
+        the dict and default as in parse_code for all other values
 
     copy_df : bool, optional (default: True)
         If set to true, a copy of the input DataFrame is made to keep the input as is.
@@ -242,8 +245,18 @@ def convert_long_dataframe_if(
     )
     attrs.update(naming_attrs)
 
-    if convert_nan:
-        replace_na_values(data_copy, ["data"])
+    if isinstance(convert_str, bool):
+        if convert_str:
+            convert_str = {}
+
+    if isinstance(convert_str, dict):
+        # get data columns (just one as we have long format)
+        data_cols = ["data"]
+        # find all string values
+        str_values = find_str_values_in_data(data_copy, data_cols)
+        # create replacement dict
+        str_repl_dict = create_na_replacement_dict(str_values, convert_str)
+        replace_na_values(data_copy, data_cols, str_repl_dict)
 
     additional_coordinates = additional_coordinate_metadata(
         add_coords_cols, coords_cols, coords_terminologies
@@ -293,6 +306,7 @@ def read_long_csv_file_if(
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y-%m-%d",
+    convert_str: Union[bool, Dict[str, float]] = True,
 ) -> pd.DataFrame:
     """Read a CSV file in long (tidy) format into the PRIMAP2 interchange format.
 
@@ -378,6 +392,12 @@ def read_long_csv_file_if(
         in the interchange format.
         Default: "%F", i.e. the ISO 8601 date format.
 
+    convert_str : bool or dict, optional (default: True)
+        If set to false, string values in the data columns will be kept.
+        If set to true they will be converted to np.nan or 0 following default rules.
+        If a dict is given mapping will be as given in the dict for values present in
+        the dict and default as in parse_code for all other values
+
     Returns
     -------
     obj: pd.DataFrame
@@ -434,6 +454,7 @@ def read_long_csv_file_if(
         filter_remove=filter_remove,
         meta_data=meta_data,
         time_format=time_format,
+        convert_str=convert_str,
         copy_df=False,
     )
 
@@ -476,7 +497,7 @@ def convert_wide_dataframe_if(
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y",
     time_cols: Optional[List] = None,
-    convert_nan: bool = False,
+    convert_str: Union[bool, Dict[str, float]] = True,
     copy_df: bool = False,
 ) -> pd.DataFrame:
     """
@@ -574,9 +595,11 @@ def convert_wide_dataframe_if(
         List of column names which contain the data for each time point. If not given
         cols will be inferred using time_format.
 
-    convert_nan : bool, optional
-        If set to true, string values in the data columns as listed in NA_VALUES will be
-        converted to np.nan.
+    convert_str : bool or dict, optional (default: True)
+        If set to false, string values in the data columns will be kept.
+        If set to true they will be converted to np.nan or 0 following default rules.
+        If a dict is given mapping will be as given in the dict for values present in
+        the dict and default as in parse_code for all other values
 
     copy_df : bool, optional (default: True)
         If set to true, a copy of the input DataFrame is made to keep the input as is.
@@ -653,8 +676,17 @@ def convert_wide_dataframe_if(
 
     filter_data(data_if, filter_keep, filter_remove)
 
-    if convert_nan:
-        replace_na_values(data_if, time_columns)
+    if isinstance(convert_str, bool):
+        if convert_str:
+            convert_str = {}
+
+    if isinstance(convert_str, dict):
+        # get data columns (just one as we have long format)
+        # find all string values
+        str_values = find_str_values_in_data(data_if, time_columns)
+        # create replacement dict
+        str_repl_dict = create_na_replacement_dict(str_values, convert_str)
+        replace_na_values(data_if, time_columns, str_repl_dict)
 
     add_dimensions_from_defaults(data_if, coords_defaults)
 
@@ -707,6 +739,7 @@ def read_wide_csv_file_if(
     filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
     meta_data: Optional[Dict[str, Any]] = None,
     time_format: str = "%Y",
+    convert_str: Union[bool, Dict[str, float]] = True,
 ) -> pd.DataFrame:
     """Read a CSV file in wide format into the PRIMAP2 interchange format.
 
@@ -796,6 +829,12 @@ def read_wide_csv_file_if(
         strftime style format used to parse the time information for the data columns.
         Default: "%Y", which will match years.
 
+    convert_str : bool or dict, optional (default: True)
+        If set to false, string values in the data columns will be kept.
+        If set to true they will be converted to np.nan or 0 following default rules.
+        If a dict is given mapping will be as given in the dict for values present in
+        the dict and default as in parse_code for all other values
+
     Returns
     -------
     obj: pd.DataFrame
@@ -862,6 +901,7 @@ def read_wide_csv_file_if(
         meta_data=meta_data,
         time_format=time_format,
         time_cols=time_columns,
+        convert_str=convert_str,
         copy_df=False,
     )
 
@@ -979,7 +1019,10 @@ def read_wide_csv(
     time_format: str = "%Y",
 ) -> (pd.DataFrame, List[str]):
 
-    data = pd.read_csv(filepath_or_buffer, na_values=NA_VALUES)
+    data = pd.read_csv(
+        filepath_or_buffer,
+        # na_values=NA_VALUES
+    )
 
     # get all the columns that are actual data not metadata (usually the years)
     time_cols = [
@@ -1048,7 +1091,7 @@ def read_long_csv(
 
     data = pd.read_csv(
         filepath_or_buffer,
-        na_values=NA_VALUES,
+        # na_values=NA_VALUES,
         parse_dates=parse_dates,
         usecols=usecols,
     )
@@ -1243,8 +1286,8 @@ def map_metadata_unordered(
                 meta_mapping_df[column_name] = dict(zip(values_to_map, values_mapped))
 
             else:  # need to supply additional arguments
-                # this can't be handled using the replace()-call later since the mapped
-                # values don't depend on the original values only, therefore
+                # this can't be handled using the replace()-call later since the
+                # mapped values don't depend on the original values only, therefore
                 # we do it directly
                 sel = [column_name] + args
                 values_to_map = np.unique(data[sel].to_records(index=False))
@@ -1306,13 +1349,79 @@ def rename_columns(
     return attrs
 
 
-_na_repl_dict = dict(zip(NA_VALUES, list(np.full(len(NA_VALUES), np.nan))))
+_special_codes = {
+    "C": np.nan,
+    "NaN": np.nan,
+    "nan": np.nan,
+    "-": 0,
+    "NE0": np.nan,
+    "": np.nan,
+}
 
 
-def replace_na_values(data: pd.DataFrame, columns: List[str]):
+def is_float(to_test: Any) -> bool:
+    try:
+        float(to_test)
+        return True
+    except ValueError:
+        return False
+
+
+def find_str_values_in_data(
+    data: pd.DataFrame,
+    columns: List[str],
+) -> list:
+    """Find all string values occurring in given columns of a DataFrame"""
+    # limit our analysis to columns that contain strings
+    # (or other object types)
+    cols_with_strs = (
+        data[columns].select_dtypes(include=[object]).columns.values.tolist()
+    )
+    temp = []
+    for col in cols_with_strs:
+        temp += list(data[col].unique())
+    temp = list(set(temp))
+    strs = [x for x in temp if not is_float(x)]
+    return strs
+
+
+def parse_code(code: str) -> float:
+    """Parse a string code and return 0 or np.nan based on rules to interpret
+    the codes."""
+    code = code.strip()
+    if code in _special_codes:
+        return _special_codes[code]
+
+    parts = code.split(",")
+    parts = [x.replace(".", "").strip() for x in parts]
+    if "IE" in parts or "NO" in parts:
+        return 0
+    if "NE" in parts or "NA" in parts:
+        return np.nan
+    raise ValueError(f"Could not parse code: {code!r}.")
+
+
+def create_na_replacement_dict(
+    strs: List[str],
+    user_na_conv: Dict[str, str] = {},
+) -> Dict[str, str]:
+    """Create a dict for replacement of strings by NaN and 0 based on
+    general rules and user defined rules"""
+
+    mapping = {}
+    for str_val in strs:
+        if str_val in user_na_conv:
+            mapping[str_val] = user_na_conv[str_val]
+        else:
+            mapping[str_val] = parse_code(str_val)
+
+    return mapping
+
+
+def replace_na_values(data: pd.DataFrame, columns: List[str], na_repl_dict):
     """Replace str values indicating not-a-number by float NaN."""
     for col in columns:
-        data[col] = data[col].replace(_na_repl_dict)
+        data[col] = data[col].replace(na_repl_dict)
         data[col] = pd.to_numeric(data[col], errors="coerce")
 
 
@@ -1458,14 +1567,9 @@ def harmonize_units(
                         data.loc[mask, data_cols] *= factor
                     except TypeError:
                         # print(data.loc[mask, data_cols])
-                        temp = []
-                        for col in data_cols:
-                            temp += list(data[col].unique())
-                        temp = list(set(temp))
-
-                        strs = [x for x in temp if isinstance(x, str)]
+                        strs = find_str_values_in_data(data, data_cols)
                         logger.error(
-                            f"The following values string values are present and can "
+                            f"The following string values are present and can "
                             f"not be converted during unit conversion: {strs}."
                         )
                         raise ValueError(
