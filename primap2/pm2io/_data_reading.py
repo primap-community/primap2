@@ -221,18 +221,14 @@ def convert_long_dataframe_if(
     )
     attrs.update(naming_attrs)
 
-    if isinstance(convert_str, bool):
-        if convert_str:
-            convert_str = {}
-
-    if isinstance(convert_str, dict):
+    if convert_str:
         # get data columns (just one as we have long format)
         data_cols = ["data"]
         # find all string values
         str_values = find_str_values_in_data(data_copy, data_cols)
         # create replacement dict
-        str_repl_dict = create_na_replacement_dict(str_values, convert_str)
-        replace_na_values(data_copy, data_cols, str_repl_dict)
+        str_repl_dict = create_str_replacement_dict(str_values, convert_str)
+        replace_values(data_copy, data_cols, str_repl_dict)
 
     additional_coordinates = additional_coordinate_metadata(
         add_coords_cols, coords_cols, coords_terminologies
@@ -652,17 +648,13 @@ def convert_wide_dataframe_if(
 
     filter_data(data_if, filter_keep, filter_remove)
 
-    if isinstance(convert_str, bool):
-        if convert_str:
-            convert_str = {}
-
-    if isinstance(convert_str, dict):
+    if convert_str:
         # get data columns (just one as we have long format)
         # find all string values
         str_values = find_str_values_in_data(data_if, time_columns)
         # create replacement dict
-        str_repl_dict = create_na_replacement_dict(str_values, convert_str)
-        replace_na_values(data_if, time_columns, str_repl_dict)
+        str_repl_dict = create_str_replacement_dict(str_values, convert_str)
+        replace_values(data_if, time_columns, str_repl_dict)
 
     add_dimensions_from_defaults(data_if, coords_defaults)
 
@@ -1311,8 +1303,8 @@ def rename_columns(
 
 _special_codes = {
     "C": np.nan,
-    "NaN": np.nan,
     "nan": np.nan,
+    "NaN": np.nan,
     "-": 0,
     "NE0": np.nan,
     "": np.nan,
@@ -1361,24 +1353,35 @@ def parse_code(code: str) -> float:
     raise ValueError(f"Could not parse code: {code!r}.")
 
 
-def create_na_replacement_dict(
+def create_str_replacement_dict(
     strs: List[str],
-    user_na_conv: Dict[str, str] = {},
+    user_str_conv: Dict[str, str] = {},
 ) -> Dict[str, str]:
     """Create a dict for replacement of strings by NaN and 0 based on
     general rules and user defined rules"""
 
+    if isinstance(user_str_conv, bool):
+        if user_str_conv:
+            user_str_conv = {}
+    elif isinstance(user_str_conv, dict):
+        pass
+    else:
+        raise ValueError(
+            f"Input for user_str_conv to create_str_replacement_dict"
+            f" has to be a bool or a dict. {user_str_conv} is neither."
+        )
+
     mapping = {}
     for str_val in strs:
-        if str_val in user_na_conv:
-            mapping[str_val] = user_na_conv[str_val]
+        if str_val in user_str_conv:
+            mapping[str_val] = user_str_conv[str_val]
         else:
             mapping[str_val] = parse_code(str_val)
 
     return mapping
 
 
-def replace_na_values(data: pd.DataFrame, columns: List[str], na_repl_dict):
+def replace_values(data: pd.DataFrame, columns: List[str], na_repl_dict):
     """Replace str values indicating not-a-number by float NaN."""
     for col in columns:
         data[col] = data[col].replace(na_repl_dict)

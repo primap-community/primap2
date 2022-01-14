@@ -91,12 +91,14 @@ The special cases are
 
     _special_codes = {
         "C": np.nan,
-        "NaN": np.nan,
         "nan": np.nan,
+        "NaN": np.nan,
         "-": 0,
         "NE0": np.nan,
         "": np.nan,
     }
+
+`NaN` and `nan` will be detected as `np.nan`.
 
 Users can define custom rules by assigning a dict in the format of `_special_rules`
 to the `convert_str` parameter.

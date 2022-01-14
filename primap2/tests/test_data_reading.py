@@ -117,7 +117,7 @@ def test_parse_code_nan(code_to_test_nan, expected_result):
 )
 def test_create_na_replacement_dict(strs, user_na_conv, expected_result):
     assert (
-        pm2io._data_reading.create_na_replacement_dict(strs, user_na_conv)
+        pm2io._data_reading.create_str_replacement_dict(strs, user_na_conv)
         == expected_result
     )
 
