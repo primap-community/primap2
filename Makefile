@@ -92,5 +92,5 @@ stubs: venv ## generate directory with xarray stubs with inserted primap2 stubs
 	venv/bin/stubgen -p xarray -o stubs
 	(cd stubs; patch -s -p0 < ../primap-stubs.patch)
 
-README.rst:  CHANGELOG.rst  ## Update the citation information from zenodo
+README.rst:  ## Update the citation information from zenodo
 	venv/bin/python update_citation_info.py
