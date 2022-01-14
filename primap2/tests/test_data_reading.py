@@ -772,6 +772,27 @@ class TestReadWideCSVFile:
                 coords_value_mapping=coords_value_mapping,
             )
 
+    def test_unprocessed_strs(
+        self,
+        coords_cols,
+        coords_defaults,
+        coords_terminologies,
+        coords_value_mapping,
+    ):
+        file_input = DATA_PATH / "test_csv_data_sec_cat_strings.csv"
+
+        with pytest.raises(ValueError, match="String values"):
+            pm2io.read_wide_csv_file_if(
+                file_input,
+                coords_cols=coords_cols,
+                coords_defaults=coords_defaults,
+                coords_terminologies=coords_terminologies,
+                coords_value_mapping=coords_value_mapping,
+                filter_keep={},
+                filter_remove={},
+                convert_str=False,
+            )
+
 
 class TestInterchangeFormat:
     def test_from(self):

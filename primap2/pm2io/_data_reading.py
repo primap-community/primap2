@@ -30,29 +30,6 @@ from ._interchange_format import (
 )
 
 SEC_CATS_PREFIX = "sec_cats__"
-NA_VALUES = [
-    "nan",
-    "NE",
-    "-",
-    "NA, NE",
-    "NO,NE",
-    "NA,NE",
-    "NE,NO",
-    "NE0",
-    "NO, NE",
-    "NO",
-    "C",
-    "NaN",
-    "IE",  # this is a values that should be mapped to 0
-    "IE, NE, NO",
-    "IE,NA,NO",
-    "NA,IE,NO",
-    "NO,NE,IE",
-    "NE, NO",
-]
-# TODO: distiguish between values mapped to NA and values mapped to 0, e.g. IE which
-# means data is included elsewhere so NA could lead to double counting when completing
-# data using other sources
 
 BASKET_UNITS = [
     "KYOTOGHG",
@@ -1021,20 +998,12 @@ def read_wide_csv(
 
     data = pd.read_csv(
         filepath_or_buffer,
-        # na_values=NA_VALUES
     )
 
     # get all the columns that are actual data not metadata (usually the years)
     time_cols = [
         col for col in data.columns.values if matches_time_format(col, time_format)
     ]
-
-    # remove all non-numeric values from year columns
-    # (what is left after mapping to nan when reading data)
-    for col in time_cols:
-        data[col] = data[col][
-            pd.to_numeric(data[col], errors="coerce").notnull()
-        ].astype(float)
 
     # remove all cols not in the specification
     columns = data.columns.values
@@ -1070,9 +1039,7 @@ def read_long_csv(
     coords_cols: Dict[str, str],
     add_coords_cols: Dict[str, List[str]] = None,
 ) -> (pd.DataFrame, List[str]):
-    try:
-        csv_data_column = coords_cols["data"]
-    except KeyError:
+    if "data" not in coords_cols.keys():
         raise ValueError(
             "No data column in the CSV specified in coords_cols, so nothing to read."
         )
@@ -1091,15 +1058,9 @@ def read_long_csv(
 
     data = pd.read_csv(
         filepath_or_buffer,
-        # na_values=NA_VALUES,
         parse_dates=parse_dates,
         usecols=usecols,
     )
-
-    # remove all non-numeric values from data column
-    data[csv_data_column] = data[csv_data_column][
-        pd.to_numeric(data[csv_data_column], errors="coerce").notnull()
-    ].astype(float)
 
     return data
 
@@ -1423,6 +1384,7 @@ def replace_na_values(data: pd.DataFrame, columns: List[str], na_repl_dict):
     for col in columns:
         data[col] = data[col].replace(na_repl_dict)
         data[col] = pd.to_numeric(data[col], errors="coerce")
+        data[col] = data[col].astype("float64", copy=False, errors="ignore")
 
 
 def preferred_unit(entity: str, units: List[str], gwp_to_use: Optional[str]) -> str:
