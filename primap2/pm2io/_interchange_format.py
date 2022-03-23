@@ -340,9 +340,12 @@ def from_interchange_format(
     for entity, dims in dimensions.items():
         da_entity = da.loc[{entity_col: entity}]
         # we still have a full MultiIndex, so trim it to the relevant dimensions
-        da_entity["index"] = da_entity.indexes["index"].droplevel(
-            list(index_cols - set(dims))
-        )
+        da_entity = da_entity.reset_index(list(index_cols - set(dims)), drop=True)
+        # depending on the version of xarray, an atomic, 0-dimensional coord
+        # for the entity remains. we have to remove it to be able to combine the
+        # dataset afterwards.
+        if entity_col in da_entity.coords:
+            da_entity = da_entity.drop(entity_col)
         # now we can safely unstack the index
         data_vars[entity] = da_entity.unstack("index").astype(dtypes[entity])
 
