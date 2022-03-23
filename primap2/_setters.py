@@ -276,7 +276,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             # to broadcast value only to sel, but would need more careful handling
             # later.
             if new == "extend":
-                value, expanded = xr.broadcast(value, self._da)
+                expanded, value = xr.broadcast(self._da, value)
             else:
                 expanded = self._da
                 value = value.broadcast_like(expanded)
