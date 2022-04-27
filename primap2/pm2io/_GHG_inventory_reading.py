@@ -16,7 +16,7 @@ def nir_add_unit_information(
     df_nir: pd.DataFrame,
     *,
     unit_row: Union[str, int],
-    entity_row: Optional[int] = None,
+    entity_row: Optional[Union[str, int]] = None,
     regexp_entity: str,
     regexp_unit: str,
     manual_repl_unit: Optional[Dict[str, str]] = None,
@@ -45,8 +45,9 @@ def nir_add_unit_information(
         String "header" to indicate that the column header should be used to derive the
         unit information or an integer specifying the row to use for unit information.
         If entity and unit information are given in the same row use only unit_row.
-    entity_row : int
-        integer specifying the row to use for entity information.
+    entity_row : str or int
+        String "header" to indicate that the column header should be used to derive the
+        unit information or an integer specifying the row to use for entity information.
         If entity and unit information are given in the same row use only unit_row
     regexp_entity : str
         regular expression that extracts the entity from the cell value
@@ -83,9 +84,12 @@ def nir_add_unit_information(
         cols_to_drop.append(unit_row)
 
     if entity_row is not None:
-        values_for_entities = list(df_nir.iloc[entity_row])
-        if entity_row != unit_row:
-            cols_to_drop.append(entity_row)
+        if entity_row == "header":
+            values_for_entities = list(df_nir.columns)
+        else:
+            values_for_entities = list(df_nir.iloc[entity_row])
+            if entity_row != unit_row:
+                cols_to_drop.append(entity_row)
     else:
         values_for_entities = values_for_units
 
@@ -160,7 +164,7 @@ def nir_convert_df_to_long(
     if header_long is None:
         header_long = ["category", "orig_cat_name", "entity", "unit", "time", "data"]
 
-    df_stacked = df_nir.stack([0, 1]).to_frame()
+    df_stacked = df_nir.stack([0, 1], dropna=True).to_frame()
     df_stacked.insert(0, "year", str(year))
     df_stacked.reset_index(inplace=True)
     df_stacked.columns = header_long
