@@ -2,6 +2,14 @@
 Changelog
 =========
 
+0.8.1
+-----
+* The latest (not-yet-released) version of xarray contains a rework of indexing
+  and some small changes to our I/O functions are necessary to support both old
+  and new xarray.
+* make dropna in nir_convert_df_to_long explicit
+* make nir_add_unit_information more flexible
+
 0.8.0
 -----
 * Make input format more flexible for convert_ipcc_code_primap_to_primap2
