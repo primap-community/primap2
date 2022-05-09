@@ -2,6 +2,10 @@
 Changelog
 =========
 
+0.9.1
+-----
+* Re-release of version 0.9.0 due to error in the release procedure.
+
 0.9.0
 -----
 * Drop python 3.7 support and add python 3.10 support following NEP 29.
