@@ -269,13 +269,13 @@ class TestGasBasket:
         ] = np.nan * ureg("Gg CO2 / year")
         return partly_nan_ds
 
-    def test_fill_na_from_contents_skipna_evaluation_dims(self, partly_nan_ds):
-        filled = partly_nan_ds.pr.fill_na_gas_basket_from_contents(
+    def test_fill_na_from_contents_skipna_evaluation_dims(self, partly_filled_ds):
+        filled = partly_filled_ds.pr.fill_na_gas_basket_from_contents(
             basket="KYOTOGHG (AR4GWP100)",
             basket_contents=["CO2", "SF6", "CH4"],
             skipna_evaluation_dims=("time",),
         )
-        expected = partly_nan_ds["KYOTOGHG (AR4GWP100)"].copy()
+        expected = partly_filled_ds["KYOTOGHG (AR4GWP100)"].copy()
         expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6) * ureg("Gg CO2 / year")
         expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (
             1 + self.sf6 + self.ch4

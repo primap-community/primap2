@@ -425,7 +425,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         *,
         basket: str,
         basket_contents: Sequence[str],
-        skipna_evaluation_dims: Sequence[str] = tuple(),
+        skipna_evaluation_dims: Optional[DimOrDimsT] = None,
     ) -> xr.DataArray:
         """The sum of gas basket contents converted using the global warming potential
         of the gas basket.
@@ -439,7 +439,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           equals the basket. Values from `ds.keys()`.
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
-          skipped entirely if missing fully. By default, no NA values are skipped.
+          skipped entirely if missing fully. By default, all NA values are skipped.
 
         Returns
         -------
@@ -466,7 +466,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         basket: str,
         basket_contents: Sequence[str],
         sel: Optional[Mapping[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[str] = tuple(),
+        skipna_evaluation_dims: Optional[DimOrDimsT] = None,
     ) -> xr.DataArray:
         """Fill NA values in a gas basket using the sum of its contents.
 
@@ -486,7 +486,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           filling will be done on `ds.loc[sel]`.
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
-          skipped entirely if missing fully. By default, no NA values are skipped.
+          skipped entirely if missing fully. By default, all NA values are skipped.
 
         Returns
         -------
