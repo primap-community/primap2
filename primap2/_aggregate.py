@@ -371,7 +371,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           equivalent to giving ``dim=set(da.dims) + {"entity"} - {"dim_1"}``, but more
           legible.
         skipna: bool, optional
-          If True, skip missing values (as marked by NaN). By default, only
+          If True (default), skip missing values (as marked by NaN). By default, only
           skips missing values for float dtypes; other dtypes either do not
           have a sentinel missing value (int) or skipna=True has not been
           implemented (object, datetime64 or timedelta64).
@@ -425,6 +425,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         *,
         basket: str,
         basket_contents: Sequence[str],
+        skipna: Optional[bool] = None,
         skipna_evaluation_dims: Optional[DimOrDimsT] = None,
     ) -> xr.DataArray:
         """The sum of gas basket contents converted using the global warming potential
@@ -437,9 +438,17 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         basket_contents: list of str
           The name of the gases in the gas basket. The sum of all basket_contents
           equals the basket. Values from `ds.keys()`.
-        skipna_evaluation_dims: list of str, optional
-          Dimensions which should be evaluated to determine if NA values should be
-          skipped entirely if missing fully. By default, all NA values are skipped.
+        skipna: bool, optional
+          If True (default), skip missing values (as marked by NaN). By default, only
+          skips missing values for float dtypes; other dtypes either do not
+          have a sentinel missing value (int) or skipna=True has not been
+          implemented (object, datetime64 or timedelta64).
+        skipna_evaluation_dims: str or list of str, optional
+          Dimension(s) to evaluate along to determine if values should be skipped.
+          Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
+          If all values along the specified dimensions are NA, the values are skipped,
+          other NA values are not skipped and will lead to NA in the corresponding
+          result.
 
         Returns
         -------
@@ -453,7 +462,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=basket_da)
 
         da = basket_contents_converted.pr.sum(
-            dim="entity", skipna_evaluation_dims=skipna_evaluation_dims
+            dim="entity",
+            skipna_evaluation_dims=skipna_evaluation_dims,
+            skipna=skipna,
         )
         da.attrs["gwp_context"] = basket_da.attrs["gwp_context"]
         da.attrs["entity"] = basket_da.attrs["entity"]
@@ -466,6 +477,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         basket: str,
         basket_contents: Sequence[str],
         sel: Optional[Mapping[Hashable, Sequence]] = None,
+        skipna: Optional[bool] = None,
         skipna_evaluation_dims: Optional[DimOrDimsT] = None,
     ) -> xr.DataArray:
         """Fill NA values in a gas basket using the sum of its contents.
@@ -484,9 +496,17 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           If the filling should only be done on a subset of the Dataset while
           retaining all other values unchanged, give a selection dictionary. The
           filling will be done on `ds.loc[sel]`.
-        skipna_evaluation_dims: list of str, optional
-          Dimensions which should be evaluated to determine if NA values should be
-          skipped entirely if missing fully. By default, all NA values are skipped.
+        skipna: bool, optional
+          If True (default), skip missing values (as marked by NaN). By default, only
+          skips missing values for float dtypes; other dtypes either do not
+          have a sentinel missing value (int) or skipna=True has not been
+          implemented (object, datetime64 or timedelta64).
+        skipna_evaluation_dims: str or list of str, optional
+          Dimension(s) to evaluate along to determine if values should be skipped.
+          Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
+          If all values along the specified dimensions are NA, the values are skipped,
+          other NA values are not skipped and will lead to NA in the corresponding
+          result.
 
         Returns
         -------
@@ -498,5 +518,6 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 basket=basket,
                 basket_contents=basket_contents,
                 skipna_evaluation_dims=skipna_evaluation_dims,
+                skipna=skipna,
             )
         )
