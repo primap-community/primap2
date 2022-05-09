@@ -204,79 +204,117 @@ class TestCount:
         xr.testing.assert_allclose(actual, expected)
 
 
-def test_gas_basket_contents_sum(empty_ds):
-    empty_ds["CO2"][:] = 1 * ureg("Gg CO2 / year")
-    empty_ds["SF6"][:] = 1 * ureg("Gg SF6 / year")
-    empty_ds["CH4"][:] = 1 * ureg("Gg CH4 / year")
-    empty_ds["CH4"].loc[{"area (ISO3)": "COL"}] = np.nan * ureg("Gg CH4 / year")
-
-    summed = empty_ds.pr.gas_basket_contents_sum(
-        basket="KYOTOGHG (AR4GWP100)",
-        basket_contents=["CO2", "SF6", "CH4"],
-        skipna_evaluation_dims=("time",),
-    )
-    expected = empty_ds["KYOTOGHG (AR4GWP100)"].copy()
+class TestGasBasket:
+    # AR4GWP100 values
     sf6 = 22_800
     ch4 = 25
-    expected[:] = (1 + sf6 + ch4) * ureg("Gg CO2 / year")
-    expected.loc[{"area (ISO3)": "COL"}] = (1 + sf6) * ureg("Gg CO2 / year")
-    assert_equal(summed, expected)
 
-    summed = empty_ds.pr.gas_basket_contents_sum(
-        basket="KYOTOGHG (AR4GWP100)",
-        basket_contents=["CO2", "SF6", "CH4"],
-    )
-    expected = empty_ds["KYOTOGHG (AR4GWP100)"].copy()
-    expected[:] = (1 + sf6 + ch4) * ureg("Gg CO2 / year")
-    expected.loc[{"area (ISO3)": "COL"}] = np.nan * ureg("Gg CO2 / year")
-    assert_equal(summed, expected, equal_nan=True)
+    @pytest.fixture
+    def partly_nan_ds(self, empty_ds):
+        empty_ds["CO2"][:] = 1 * ureg("Gg CO2 / year")
+        empty_ds["SF6"][:] = 1 * ureg("Gg SF6 / year")
+        empty_ds["CH4"][:] = 1 * ureg("Gg CH4 / year")
+        empty_ds["CH4"].loc[{"area (ISO3)": "COL"}] = np.nan * ureg("Gg CH4 / year")
+        return empty_ds
 
-
-def test_fill_na_gas_basket_from_contents(empty_ds):
-    empty_ds["CO2"][:] = 1 * ureg("Gg CO2 / year")
-    empty_ds["SF6"][:] = 1 * ureg("Gg SF6 / year")
-    empty_ds["CH4"][:] = 1 * ureg("Gg CH4 / year")
-    empty_ds["CH4"].loc[{"area (ISO3)": "COL"}] = np.nan * ureg("Gg CH4 / year")
-    empty_ds["KYOTOGHG (AR4GWP100)"][:] = 1 * ureg("Gg CO2 / year")
-    empty_ds["KYOTOGHG (AR4GWP100)"].loc[{"area (ISO3)": "COL"}] = np.nan * ureg(
-        "Gg CO2 / year"
-    )
-    empty_ds["KYOTOGHG (AR4GWP100)"].loc[
-        {"area (ISO3)": "BOL", "time": "2020"}
-    ] = np.nan * ureg("Gg CO2 / year")
-
-    filled = empty_ds.pr.fill_na_gas_basket_from_contents(
-        basket="KYOTOGHG (AR4GWP100)",
-        basket_contents=["CO2", "SF6", "CH4"],
-        skipna_evaluation_dims=("time",),
-    )
-    expected = empty_ds["KYOTOGHG (AR4GWP100)"].copy()
-    sf6 = 22_800
-    ch4 = 25
-    expected.loc[{"area (ISO3)": "COL"}] = (1 + sf6) * ureg("Gg CO2 / year")
-    expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (1 + sf6 + ch4) * ureg(
-        "Gg CO2 / year"
-    )
-    assert_equal(filled, expected)
-
-    filled = empty_ds.pr.fill_na_gas_basket_from_contents(
-        basket="KYOTOGHG (AR4GWP100)",
-        basket_contents=["CO2", "SF6", "CH4"],
-        sel={"area (ISO3)": ["BOL"]},
-        skipna_evaluation_dims=("time",),
-    )
-    expected = empty_ds["KYOTOGHG (AR4GWP100)"].copy()
-    expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (1 + sf6 + ch4) * ureg(
-        "Gg CO2 / year"
-    )
-    assert_equal(filled, expected, equal_nan=True)
-
-    with pytest.raises(
-        ValueError, match="The dimension of the selection doesn't match the dimension"
-    ):
-        empty_ds.pr.fill_na_gas_basket_from_contents(
+    def test_contents_sum_default(self, partly_nan_ds):
+        summed = partly_nan_ds.pr.gas_basket_contents_sum(
             basket="KYOTOGHG (AR4GWP100)",
             basket_contents=["CO2", "SF6", "CH4"],
-            sel={"area (ISO3)": "BOL"},
+        )
+        expected = partly_nan_ds["KYOTOGHG (AR4GWP100)"].copy()
+        expected[:] = (1 + self.sf6 + self.ch4) * ureg("Gg CO2 / year")
+        # NaN counted as 0
+        expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6) * ureg("Gg CO2 / year")
+        assert_equal(summed, expected)
+
+    def test_contents_sum_skipna_evaluation_dims(self, partly_nan_ds):
+        partly_nan_ds["CH4"].loc[
+            {"area (ISO3)": "ARG", "time": "2012"}
+        ] = np.nan * ureg("Gg CH4 / year")
+        summed = partly_nan_ds.pr.gas_basket_contents_sum(
+            basket="KYOTOGHG (AR4GWP100)",
+            basket_contents=["CO2", "SF6", "CH4"],
             skipna_evaluation_dims=("time",),
         )
+        expected = partly_nan_ds["KYOTOGHG (AR4GWP100)"].copy()
+        expected[:] = (1 + self.sf6 + self.ch4) * ureg("Gg CO2 / year")
+        # NaN only skipped where all time points NaN
+        expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6) * ureg("Gg CO2 / year")
+        expected.loc[{"area (ISO3)": "ARG", "time": "2012"}] = np.nan * ureg(
+            "Gg CO2 / year"
+        )
+        assert_equal(summed, expected, equal_nan=True)
+
+    def test_contents_sum_skipna(self, partly_nan_ds):
+        summed = partly_nan_ds.pr.gas_basket_contents_sum(
+            basket="KYOTOGHG (AR4GWP100)",
+            basket_contents=["CO2", "SF6", "CH4"],
+            skipna=False,
+        )
+        expected = partly_nan_ds["KYOTOGHG (AR4GWP100)"].copy()
+        expected[:] = (1 + self.sf6 + self.ch4) * ureg("Gg CO2 / year")
+        # NaNs not skipped
+        expected.loc[{"area (ISO3)": "COL"}] = np.nan * ureg("Gg CO2 / year")
+        assert_equal(summed, expected, equal_nan=True)
+
+    @pytest.fixture
+    def partly_filled_ds(self, partly_nan_ds):
+        partly_nan_ds["KYOTOGHG (AR4GWP100)"][:] = 1 * ureg("Gg CO2 / year")
+        partly_nan_ds["KYOTOGHG (AR4GWP100)"].loc[
+            {"area (ISO3)": "COL"}
+        ] = np.nan * ureg("Gg CO2 / year")
+        partly_nan_ds["KYOTOGHG (AR4GWP100)"].loc[
+            {"area (ISO3)": "BOL", "time": "2020"}
+        ] = np.nan * ureg("Gg CO2 / year")
+        return partly_nan_ds
+
+    def test_fill_na_from_contents_skipna_evaluation_dims(self, partly_filled_ds):
+        filled = partly_filled_ds.pr.fill_na_gas_basket_from_contents(
+            basket="KYOTOGHG (AR4GWP100)",
+            basket_contents=["CO2", "SF6", "CH4"],
+            skipna_evaluation_dims=("time",),
+        )
+        expected = partly_filled_ds["KYOTOGHG (AR4GWP100)"].copy()
+        expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6) * ureg("Gg CO2 / year")
+        expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (
+            1 + self.sf6 + self.ch4
+        ) * ureg("Gg CO2 / year")
+        assert_equal(filled, expected)
+
+    def test_fill_na_from_contents_sel(self, partly_filled_ds):
+        filled = partly_filled_ds.pr.fill_na_gas_basket_from_contents(
+            basket="KYOTOGHG (AR4GWP100)",
+            basket_contents=["CO2", "SF6", "CH4"],
+            sel={"area (ISO3)": ["BOL"]},
+            skipna_evaluation_dims=("time",),
+        )
+        expected = partly_filled_ds["KYOTOGHG (AR4GWP100)"].copy()
+        expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (
+            1 + self.sf6 + self.ch4
+        ) * ureg("Gg CO2 / year")
+        assert_equal(filled, expected, equal_nan=True)
+
+        with pytest.raises(
+            ValueError,
+            match="The dimension of the selection doesn't match the dimension",
+        ):
+            partly_filled_ds.pr.fill_na_gas_basket_from_contents(
+                basket="KYOTOGHG (AR4GWP100)",
+                basket_contents=["CO2", "SF6", "CH4"],
+                sel={"area (ISO3)": "BOL"},
+                skipna_evaluation_dims=("time",),
+            )
+
+    def test_fill_na_from_contents_skipna(self, partly_filled_ds):
+        filled = partly_filled_ds.pr.fill_na_gas_basket_from_contents(
+            basket="KYOTOGHG (AR4GWP100)",
+            basket_contents=["CO2", "SF6", "CH4"],
+            skipna=False,
+        )
+        expected = partly_filled_ds["KYOTOGHG (AR4GWP100)"].copy()
+        expected.loc[{"area (ISO3)": "COL"}] = np.nan * ureg("Gg CO2 / year")
+        expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (
+            1 + self.sf6 + self.ch4
+        ) * ureg("Gg CO2 / year")
+        assert_equal(filled, expected, equal_nan=True)
