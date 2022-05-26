@@ -1,8 +1,18 @@
 from typing import Optional
 
 import xarray as xr
+from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+
+# TODO
+# tests:
+# * fail tolerance
+# * pass tolerance
+# * errors thrown or not thrown (dims, coord for DS and DA)
+# * see if error_on_discrepancy works
+# * data merging result (with conflicting data, disjunct data and equal data)
+# * different input datasets triggerign different merge cases
 
 
 # general functions
@@ -14,28 +24,40 @@ def merge_with_tolerance_core(
     combine_attrs: Optional[str] = "drop_conflicts",
 ) -> xr.DataArray:
     """
-    merge dataarrays and check consistency of data using a tolearance threshold
+    Merge two DataArrays with a given tolerance for descrepancies in values
+    present in both DataArrays. If values from the data to merge are already
+    present in da_start they are treated as equal if the relative difference
+    is below the tolerance threshold. The result will use the values present
+     in da_start.
 
-    The function determiens non-unique coordinates and iterated over them to
+    The function determines non-unique coordinates and iterates over them to
     try merging for individual values of the coordinates. Where merge for a value
-    fails because of unequal data the function recursively dives into the other
+    fails because of unequal data, the function recursively dives into the other
     coordinates until single time-series are left which are then analyzed for each
     time step and errors are logged as desired.
 
-    function assumes dataarrays have been checked for identical coordinates etc
-
+    The function assumes dataarrays have been checked for identical coordinates
+    etc as it is called by DataArray.pr.merge() and Dataset.pr.merge() (and itself).
 
 
     Parameters
     ----------
-    da_start
-    da_merge
-    threshold
+    da_start: xr.DataArray
+        data to merge into
+    da_merge: xr.DataArray
+        data to merge into ds_start
+    tolerance: float (optional), default = 0.01
+        The tolerance to use when comparing data
+    error_on_discrepancy (optional), default = True
+        If true throw an exception if false a warning and return values from
+        the calling object in cases of conflict.
+    combine_attrs (optional), default = "drop_conflicts"
+        Governs how to combine conflicting attrs. Is passed on to the xr merge
+        functions.
 
     Returns
     -------
-
-
+        xr.DataArray: DataArray with data from da_merge merged into the calling object
 
     """
 
@@ -51,9 +73,12 @@ def merge_with_tolerance_core(
         # make sure we have a DataArray not a Dataset
         da_result = da_result[entity]
         # all done as no errors occurred and thus no duplicates were present
-    except xr.MergeError as err:
-        print(f"Conflicting data: {err}")
-        print("Doing a merge by coordinates")
+    except xr.MergeError:
+        # print(f"Conflicting data: {err}")
+        # print("Doing a merge by coordinates")
+        # we have conflicting data and try to merge by splitting the DataArray
+        # into pieces along coordinate axes and merge for those to isolate the error
+
         # find non-unique coords to iterate over
         coords_start = da_start.coords
         coords_merge = da_merge.coords
@@ -65,7 +90,7 @@ def merge_with_tolerance_core(
 
             if len(all_values) > 1 and coord != "time":
                 coords_to_iterate.append(coord)
-        print(f"Found non-unique coordinates {coords_to_iterate}.")
+        # print(f"Found non-unique coordinates {coords_to_iterate}.")
 
         if len(coords_to_iterate) > 0:
             coord = coords_to_iterate[0]
@@ -119,16 +144,16 @@ def merge_with_tolerance_core(
                     da_result = da_result[entity]
         else:
             # we've reached a single time series so compare by time step
-
+            # dequantify as we're transforming to pandas dataframe
             da_start_dequ = da_start.pr.dequantify()
             unit = da_start_dequ.attrs["units"]
-            print(unit)
             da_merge_dequ = da_merge.pint.to(unit).pr.dequantify()
             df_start = da_start_dequ.to_dataframe()
             df_merge = da_merge_dequ.to_dataframe()
             index_common = df_start.index.intersection(df_merge.index)
             df_start.loc[index_common].compare(df_merge.loc[index_common])
-
+            # calculate the deviation od data to merge from data start in
+            # % of data start values
             df_comp = abs(
                 (
                     df_start[entity].loc[index_common]
@@ -136,9 +161,10 @@ def merge_with_tolerance_core(
                 )
                 / df_start[entity].loc[index_common]
             )
-
+            # select the values exceeding the tolerance
             df_error = df_comp[df_comp > tolerance]
             if len(df_error) > 0:
+                # to include all discrepancies in one message we loop over them
                 error_str = None
                 for time in df_error.index.get_level_values("time"):
                     idx = df_error.index.get_level_values("time") == time
@@ -152,20 +178,23 @@ def merge_with_tolerance_core(
                             error_str + f": {time.strftime('%d-%m-%Y')}: "
                             f"{float(df_error.loc[idx])*100:.2f}%"
                         )
-                # TODO: more information on other coords
-                print(
-                    f"Found discrepancies larger than tolerance ({tolerance*100:.2f}%) "
-                    f"for times: {error_str}"
+                coords = set(da_start.coords) - {"time"}
+                vals = [da_start.coords[coord].data[0] for coord in coords]
+                coords_vals = [coord + ": " + val for coord, val in zip(coords, vals)]
+                coords_str = ", ".join(coords_vals)
+                log_message = (
+                    f"pr.merge error: found discrepancies larger than tolerance "
+                    f"({tolerance*100:.2f}%) for {coords_str} and times: "
+                    f"{error_str}"
                 )
                 if error_on_discrepancy:
-                    raise xr.MergeError(
-                        "Found discrepancies larger than tolerance "
-                        f"({tolerance*100:.2f}%) for times: {error_str}"
-                    )
+                    logger.error(log_message)
+                    raise xr.MergeError(log_message)
                 else:
+                    logger.warning(log_message)
                     da_result = xr.merge([da_start, da_merge], compat="override")
             else:
-                # take first value as they are the sam egiven the tolerance
+                # take first value as they are the same given the tolerance
                 da_result = xr.merge([da_start, da_merge], compat="override")
     return da_result
 
@@ -179,18 +208,29 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
         combine_attrs: Optional[str] = "drop_conflicts",
     ) -> xr.DataArray:
         """
+        Merge two DataArrays with a given tolerance for descrepancies in values
+        present in both DataArrays. If values from the data to merge are already
+        present in the calling object they are treated as equal if the relative
+        difference is below the tolerance threshold. The result will use the values
+        of the calling object.
 
         Parameters
         ----------
-        da_start
-        da_merge
-        tolerance
-        error_on_discrepancy
-        combine_attrs
+        da_merge: xr.DataArray
+            data to merge to the calling object
+        tolerance: float (optional), default = 0.01
+            The tolerance to use when comparing data
+        error_on_discrepancy (optional), default = True
+            If true throw an exception if false a warning and return values from
+            the calling object in cases of conflict.
+        combine_attrs (optional), default = "drop_conflicts"
+            Governs how to combine conflicting attrs. Is passed on to the xr merge
+            functions.
 
         Returns
         -------
-
+            xr.DataArray: DataArray with data from da_merge merged into the calling
+            object
         """
 
         # check if coordinates and dimensions agree
@@ -199,13 +239,15 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
         coords_merge = list(da_merge.coords)
         if coords_start != coords_merge:
             # ToDo: custom error
-            raise ValueError("Coords of dataarrays to merge must agree")
+            logger.error("pr.merge error: coords of dataarrays to merge must agree")
+            raise ValueError("pr.merge error: coords of dataarrays to merge must agree")
 
         dims_start = da_start.dims
         dims_merge = da_merge.dims
         if dims_start != dims_merge:
             # ToDo: custom error
-            raise ValueError("Dims of dataarrays to merge must agree")
+            logger.error("pr.merge error: dims of dataarrays to merge must agree")
+            raise ValueError("pr/merge error: dims of dataarrays to merge must agree")
 
         da_result = merge_with_tolerance_core(
             da_start,
@@ -227,32 +269,42 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
         combine_attrs: Optional[str] = "drop_conflicts",
     ) -> xr.Dataset:
         """
+        Merge two Datasets with a given tolerance for descrepancies in values
+        present in both Datasets. If values from the data to merge are already
+        present in the calling object they are treated as equal if the relative
+        difference is below the tolerance threshold. The result will use the values
+        of the calling object.
 
         Parameters
         ----------
-        da_start
-        da_merge
-        tolerance
-        error_on_discrepancy
-        combine_attrs
+        da_merge: xr.Dataset
+            data to merge to the calling object
+        tolerance: float (optional), default = 0.01
+            The tolerance to use when comparing data
+        error_on_discrepancy (optional), default = True
+            If true throw an exception if false a warning and return values from
+            the calling object in cases of conflict.
+        combine_attrs (optional), default = "drop_conflicts"
+            Governs how to combine conflicting attrs. Is passed on to the xr merge
+            functions.
 
         Returns
         -------
-
+            xr.Dataset: Dataset with data from da_merge merged into the calling object
         """
         ds_start = self._ds
         # check if coordinates and dimensions agree
         coords_start = list(ds_start.coords)
         coords_merge = list(ds_merge.coords)
         if coords_start != coords_merge:
-            # ToDo: custom error
-            raise ValueError("Coords of datasets to merge must agree")
+            logger.error("pr.merge error: coords of datasets to merge must agree")
+            raise ValueError("pr.merge error: coords of datasets to merge must agree")
 
         dims_start = list(ds_start.dims)
         dims_merge = list(ds_merge.dims)
         if dims_start != dims_merge:
-            # ToDo: custom error
-            raise ValueError("Dims of datasets to merge must agree")
+            logger.error("pr.merge error: dims of datasets to merge must agree")
+            raise ValueError("pr.merge error: dims of datasets to merge must agree")
 
         vars_start = set(ds_start.data_vars)
         vars_merge = set(ds_start.data_vars)
