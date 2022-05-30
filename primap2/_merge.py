@@ -5,15 +5,6 @@ from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 
-# TODO
-# tests:
-# * fail tolerance
-# * pass tolerance
-# * errors thrown or not thrown (dims, coord for DS and DA)
-# * see if error_on_discrepancy works
-# * data merging result (with conflicting data, disjunct data and equal data)
-# * different input datasets triggerign different merge cases
-
 
 # general functions
 def merge_with_tolerance_core(
@@ -235,8 +226,8 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
 
         # check if coordinates and dimensions agree
         da_start = self._da
-        coords_start = list(da_start.coords)
-        coords_merge = list(da_merge.coords)
+        coords_start = set(da_start.coords)
+        coords_merge = set(da_merge.coords)
         if coords_start != coords_merge:
             # ToDo: custom error
             logger.error("pr.merge error: coords of dataarrays to merge must agree")
@@ -294,34 +285,43 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
         """
         ds_start = self._ds
         # check if coordinates and dimensions agree
-        coords_start = list(ds_start.coords)
-        coords_merge = list(ds_merge.coords)
+        coords_start = set(ds_start.coords)
+        coords_merge = set(ds_merge.coords)
         if coords_start != coords_merge:
             logger.error("pr.merge error: coords of datasets to merge must agree")
             raise ValueError("pr.merge error: coords of datasets to merge must agree")
 
-        dims_start = list(ds_start.dims)
-        dims_merge = list(ds_merge.dims)
+        dims_start = set(ds_start.dims)
+        dims_merge = set(ds_merge.dims)
         if dims_start != dims_merge:
             logger.error("pr.merge error: dims of datasets to merge must agree")
             raise ValueError("pr.merge error: dims of datasets to merge must agree")
 
         vars_start = set(ds_start.data_vars)
-        vars_merge = set(ds_start.data_vars)
+        vars_merge = set(ds_merge.data_vars)
         vars_common = vars_start & vars_merge
         vars_only_start = vars_start - vars_common
         vars_only_merge = vars_merge - vars_common
+        print(f"vars_start: {vars_start}, ({vars_only_start})")
+        print(f"vars_merge: {vars_merge}, ({vars_only_merge})")
 
-        if len(vars_only_start) > 0 & len(vars_only_merge) == 0:
+        if (len(vars_only_start) > 0) & (len(vars_only_merge) == 0):
+            print("start with start")
             ds_result = ds_start[vars_only_start]
-        elif len(vars_only_start) == 0 & len(vars_only_merge) > 0:
+        elif (len(vars_only_start) == 0) & (len(vars_only_merge) > 0):
+            print("start with merge")
             ds_result = ds_merge[vars_only_merge]
-        elif len(vars_only_start) == 0 & len(vars_only_merge) == 0:
+        elif (len(vars_only_start) == 0) & (len(vars_only_merge) == 0):
             # use df_start as starting point. All variables will be overwritten
-            # but we have anon-empty dataset structure to fill with the
+            # but we have a non-empty dataset structure to fill with the
             # DataArrays
+            print("start with ds_start to overwrite")
             ds_result = ds_start.copy(deep=True)
         else:
+            print(
+                f"vars_only_start: {vars_only_start}, vars_only_merge:"
+                f" {vars_only_merge}"
+            )
             ds_result = xr.merge([ds_start[vars_only_start], ds_merge[vars_only_merge]])
 
         for var in vars_common:
