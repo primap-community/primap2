@@ -1,25 +1,11 @@
 #!/usr/bin/env python
 """Tests for _merge.py"""
 
-# import pathlib
 
-# import numpy as np
 import pytest
 import xarray as xr
 
-# from . import examples
 from .utils import assert_aligned_equal, assert_ds_aligned_equal
-
-# import xarray.testing
-
-# import primap2
-# from primap2 import ureg
-
-
-# TODO
-# tests:
-# * data merging result (with conflicting data, disjunct data and equal data)
-# * different input datasets triggering different merge cases
 
 
 def test_merge_disjunct(opulent_ds):
@@ -31,8 +17,8 @@ def test_merge_disjunct(opulent_ds):
 
 
 def test_merge_pass_tolerance(opulent_ds):
-    # TODO: change start ds and remove some stuff so it's actually merged
-    da_start = opulent_ds["CO2"]
+    # only take part of the countries to have something to actually merge
+    da_start = opulent_ds["CO2"].pr.loc[{"area": ["ARG", "COL", "MEX"]}]
     data_to_modify = opulent_ds["CO2"].pr.loc[{"area": ["ARG"]}].pr.sum("area")
     data_to_modify.data = data_to_modify.data * 1.009
     da_merge = opulent_ds["CO2"].pr.set(
@@ -40,7 +26,7 @@ def test_merge_pass_tolerance(opulent_ds):
     )
     da_result = da_start.pr.merge(da_merge, tolerance=0.01)
 
-    assert_aligned_equal(da_result, da_start)
+    assert_aligned_equal(da_result, opulent_ds["CO2"])
 
 
 def test_merge_fail_tolerance(opulent_ds):
