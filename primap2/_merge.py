@@ -302,26 +302,17 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
         vars_common = vars_start & vars_merge
         vars_only_start = vars_start - vars_common
         vars_only_merge = vars_merge - vars_common
-        print(f"vars_start: {vars_start}, ({vars_only_start})")
-        print(f"vars_merge: {vars_merge}, ({vars_only_merge})")
 
         if (len(vars_only_start) > 0) & (len(vars_only_merge) == 0):
-            print("start with start")
             ds_result = ds_start[vars_only_start]
         elif (len(vars_only_start) == 0) & (len(vars_only_merge) > 0):
-            print("start with merge")
             ds_result = ds_merge[vars_only_merge]
         elif (len(vars_only_start) == 0) & (len(vars_only_merge) == 0):
             # use df_start as starting point. All variables will be overwritten
             # but we have a non-empty dataset structure to fill with the
             # DataArrays
-            print("start with ds_start to overwrite")
             ds_result = ds_start.copy(deep=True)
         else:
-            print(
-                f"vars_only_start: {vars_only_start}, vars_only_merge:"
-                f" {vars_only_merge}"
-            )
             ds_result = xr.merge([ds_start[vars_only_start], ds_merge[vars_only_merge]])
 
         for var in vars_common:
