@@ -12,7 +12,6 @@ def merge_with_tolerance_core(
     da_merge: xr.DataArray,
     tolerance: Optional[float] = 0.01,
     error_on_discrepancy: Optional[bool] = True,
-    combine_attrs: Optional[str] = "drop_conflicts",
 ) -> xr.DataArray:
     """
     Merge two DataArrays with a given tolerance for descrepancies in values
@@ -53,19 +52,19 @@ def merge_with_tolerance_core(
     """
 
     entity = da_start.attrs["entity"]
+    if "gwp_context" in da_start.attrs:
+        entity = f"{entity} ({da_start.attrs['gwp_context']})"
     # try to merge
     try:
         da_result = xr.merge(
             [da_start, da_merge],
             compat="no_conflicts",
             join="outer",
-            combine_attrs=combine_attrs,
         )
         # make sure we have a DataArray not a Dataset
         da_result = da_result[entity]
         # all done as no errors occurred and thus no duplicates were present
     except xr.MergeError:
-        # print(f"Conflicting data: {err}")
         # print("Doing a merge by coordinates")
         # we have conflicting data and try to merge by splitting the DataArray
         # into pieces along coordinate axes and merge for those to isolate the error
@@ -81,7 +80,6 @@ def merge_with_tolerance_core(
 
             if len(all_values) > 1 and coord != "time":
                 coords_to_iterate.append(coord)
-        # print(f"Found non-unique coordinates {coords_to_iterate}.")
 
         if len(coords_to_iterate) > 0:
             coord = coords_to_iterate[0]
@@ -196,7 +194,6 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
         da_merge: xr.DataArray,
         tolerance: Optional[float] = 0.01,
         error_on_discrepancy: Optional[bool] = True,
-        combine_attrs: Optional[str] = "drop_conflicts",
     ) -> xr.DataArray:
         """
         Merge two DataArrays with a given tolerance for descrepancies in values
@@ -245,7 +242,6 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
             da_merge,
             tolerance=tolerance,
             error_on_discrepancy=error_on_discrepancy,
-            combine_attrs=combine_attrs,
         )
 
         return da_result
@@ -284,44 +280,52 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
             xr.Dataset: Dataset with data from da_merge merged into the calling object
         """
         ds_start = self._ds
-        # check if coordinates and dimensions agree
-        coords_start = set(ds_start.coords)
-        coords_merge = set(ds_merge.coords)
-        if coords_start != coords_merge:
-            logger.error("pr.merge error: coords of datasets to merge must agree")
-            raise ValueError("pr.merge error: coords of datasets to merge must agree")
 
-        dims_start = set(ds_start.dims)
-        dims_merge = set(ds_merge.dims)
-        if dims_start != dims_merge:
-            logger.error("pr.merge error: dims of datasets to merge must agree")
-            raise ValueError("pr.merge error: dims of datasets to merge must agree")
+        try:
+            # if there are no conflicts just merge using xr.merge
+            ds_result = xr.merge(
+                [ds_start, ds_merge],
+                compat="no_conflicts",
+                join="outer",
+                combine_attrs=combine_attrs,
+            )
+        except xr.MergeError:
+            # merge by hand
+            # check if coordinates and dimensions agree
+            coords_start = set(ds_start.coords)
+            coords_merge = set(ds_merge.coords)
+            if coords_start != coords_merge:
+                logger.error("pr.merge error: coords of datasets to merge must agree")
+                raise ValueError(
+                    "pr.merge error: coords of datasets to merge must agree"
+                )
 
-        vars_start = set(ds_start.data_vars)
-        vars_merge = set(ds_merge.data_vars)
-        vars_common = vars_start & vars_merge
-        vars_only_start = vars_start - vars_common
-        vars_only_merge = vars_merge - vars_common
+            dims_start = set(ds_start.dims)
+            dims_merge = set(ds_merge.dims)
+            if dims_start != dims_merge:
+                logger.error("pr.merge error: dims of datasets to merge must agree")
+                raise ValueError("pr.merge error: dims of datasets to merge must agree")
 
-        if (len(vars_only_start) > 0) & (len(vars_only_merge) == 0):
-            ds_result = ds_start[vars_only_start]
-        elif (len(vars_only_start) == 0) & (len(vars_only_merge) > 0):
-            ds_result = ds_merge[vars_only_merge]
-        elif (len(vars_only_start) == 0) & (len(vars_only_merge) == 0):
-            # use df_start as starting point. All variables will be overwritten
-            # but we have a non-empty dataset structure to fill with the
-            # DataArrays
-            ds_result = ds_start.copy(deep=True)
-        else:
-            ds_result = xr.merge([ds_start[vars_only_start], ds_merge[vars_only_merge]])
+            vars_start = set(ds_start.data_vars)
+            vars_merge = set(ds_merge.data_vars)
+            vars_common = vars_start & vars_merge
+            vars_only_start = vars_start - vars_common
+            vars_only_merge = vars_merge - vars_common
 
-        for var in vars_common:
-            ds_result[var] = merge_with_tolerance_core(
-                ds_start[var],
-                ds_merge[var],
-                tolerance=tolerance,
-                error_on_discrepancy=error_on_discrepancy,
+            ds_result = xr.merge(
+                [ds_start[vars_only_start], ds_merge[vars_only_merge]],
                 combine_attrs=combine_attrs,
             )
 
+            for var in vars_common:
+                print(f"merging for {var}")
+                ds_result_new = merge_with_tolerance_core(
+                    ds_start[var],
+                    ds_merge[var],
+                    tolerance=tolerance,
+                    error_on_discrepancy=error_on_discrepancy,
+                )
+                ds_result = xr.merge(
+                    [ds_result, ds_result_new], combine_attrs="override"
+                )
         return ds_result
