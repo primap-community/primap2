@@ -156,19 +156,13 @@ def merge_with_tolerance_core(
             df_error = df_comp[df_comp > tolerance]
             if len(df_error) > 0:
                 # to include all discrepancies in one message we loop over them
-                error_str = None
+                error_str = ""
                 for time in df_error.index.get_level_values("time"):
                     idx = df_error.index.get_level_values("time") == time
-                    if error_str is None:
-                        error_str = (
-                            f"{time.strftime('%d-%m-%Y')}: "
-                            f"{float(df_error.loc[idx])*100:.2f}%"
-                        )
-                    else:
-                        error_str = (
-                            error_str + f": {time.strftime('%d-%m-%Y')}: "
-                            f"{float(df_error.loc[idx])*100:.2f}%"
-                        )
+                    error_str += (
+                        f": {time.strftime('%d-%m-%Y')}: "
+                        f"{float(df_error.loc[idx])*100:.2f}%"
+                    )
                 coords = set(da_start.coords) - {"time"}
                 vals = [da_start.coords[coord].data[0] for coord in coords]
                 coords_vals = [coord + ": " + val for coord, val in zip(coords, vals)]
