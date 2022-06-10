@@ -14,11 +14,30 @@ def merge_with_tolerance_core(
     error_on_discrepancy: Optional[bool] = True,
 ) -> xr.DataArray:
     """
-    Merge two DataArrays with a given tolerance for descrepancies in values
+    Merge two DataArrays with a given tolerance for discrepancies in values
     present in both DataArrays. If values from the data to merge are already
     present in da_start they are treated as equal if the relative difference
     is below the tolerance threshold. The result will use the values present
      in da_start.
+
+    If a merge using xr.merge is not possible the function identifies the conflicting
+    values using the following recursive algorithm:
+
+    * The coordinates which are non-atomic for the combined DataArrays are identified
+    * If non-atomic coordinates exist:
+        * The DataArray is split along the first such coordinate.
+            * First data for coordinate values only present in one of the DataArrays
+            is combined as it can't create conflicts.
+            * Then this function is called for the sub-DataArrays for the values present
+            in both DataArrays
+        * Results from the sub-DataArrays are combined using xr.merge as they can't
+        have conflicts any more.
+    * if no such coordinate exists we have a single time series for the same
+    coordinate values in both DataArrays. The relative deviation is calculated and
+    compared to the threshold. If it exceeds the threshold for at least one point in
+    time this is logged and if desired an error is thrown (default behaviour)
+
+
 
     The function determines non-unique coordinates and iterates over them to
     try merging for individual values of the coordinates. Where merge for a value
@@ -65,7 +84,6 @@ def merge_with_tolerance_core(
         da_result = da_result[entity]
         # all done as no errors occurred and thus no duplicates were present
     except xr.MergeError:
-        # print("Doing a merge by coordinates")
         # we have conflicting data and try to merge by splitting the DataArray
         # into pieces along coordinate axes and merge for those to isolate the error
 
@@ -141,7 +159,7 @@ def merge_with_tolerance_core(
             df_merge = da_merge_dequ.to_dataframe()
             index_common = df_start.index.intersection(df_merge.index)
             df_start.loc[index_common].compare(df_merge.loc[index_common])
-            # calculate the deviation od data to merge from data start in
+            # calculate the deviation of data to merge from data start in
             # % of data start values
             df_comp = abs(
                 (
