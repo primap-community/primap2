@@ -1394,6 +1394,9 @@ def preferred_unit(entity: str, units: List[str], gwp_to_use: Optional[str]) -> 
 
     In general, "Gg <substance> / year" will be preferred if it is compatible with the
     given input units. Otherwise, the first unit from units will be preferred.
+    If gwp_to_use is not None native units without GWP will be preferred. If it is
+    not set but conversion without gwp context is impossible Gg <unit_substance> / yr
+    will be returend as preferred unit if the first unit from units can be converted.
 
     Parameters
     ----------
@@ -1418,7 +1421,7 @@ def preferred_unit(entity: str, units: List[str], gwp_to_use: Optional[str]) -> 
     >>> preferred_unit("CH4", ["kt CO2 / yr"], "AR4GWP100")
     'Gg CH4 / yr'
     >>> preferred_unit("CH4", ["kt CO2 / yr", "Mg CO2 / yr"], None)
-    'kt CO2 / yr'
+    'Gg CO2 / yr'
     """
     unit_fallback = units[0]
     conversion_contexts = []
@@ -1434,8 +1437,15 @@ def preferred_unit(entity: str, units: List[str], gwp_to_use: Optional[str]) -> 
             ureg[native_unit], *conversion_contexts
         ):
             return native_unit
+        else:
+            # try to convert to Gg of the substance present in the unit
+            # extract the substance from the fallback unit
+            substance = unit_fallback.split(" ")[1]
+            native_unit = f"Gg {substance} / yr"
+            if ureg(unit_fallback).is_compatible_with(ureg[native_unit]):
+                return native_unit
     except pint.UndefinedUnitError:
-        # we have a gas basket or something unknown, so no conversion to native unit
+        # we have a gas basket, or something unknown, so no conversion to native unit
         # print(f"Exception occurred for entity {entity}")
         pass
 
@@ -1506,9 +1516,9 @@ def harmonize_units(
         data_this_entity = data.loc[data[entity_col] == entity]
         units_this_entity = data_this_entity[unit_col].unique()
 
-        if len(units_this_entity) > 1 or gwp_to_use:
+        if len(units_this_entity) > 1:
             # need unit conversion.
-            unit_to = preferred_unit(basic_entity, units_this_entity, gwp_to_use)
+            unit_to = preferred_unit(basic_entity, units_this_entity, None)
 
             # if len(units_this_entity) > 1:
             for unit in units_this_entity:
@@ -1517,11 +1527,12 @@ def harmonize_units(
                     unit_pint = ureg[unit]
                     # could add a try except block here to throw and log an error or add
                     # error info in DF instead of crashing
-                    if gwp_to_use:
-                        with ureg.context(gwp_to_use):
-                            unit_pint = unit_pint.to(unit_to)
-                    else:
-                        unit_pint = unit_pint.to(unit_to)
+                    # if gwp_to_use:
+                    #    with ureg.context(gwp_to_use):
+                    #        unit_pint = unit_pint.to(unit_to)
+                    # else:
+                    #    unit_pint = unit_pint.to(unit_to)
+                    unit_pint = unit_pint.to(unit_to)
                     # print(f"Pint unit is {unit_pint}")
                     factor = unit_pint.magnitude
                     # print(f"Converting with factor {factor} to unit {unit_to}")
