@@ -194,7 +194,7 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
         """
         Merge this data array with another using a given tolerance for
         descrepancies in values present in both DataArrays.
-        
+
         If values from the data to merge are already
         present they are treated as equal if the relative
         difference is below the tolerance threshold.
