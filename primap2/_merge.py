@@ -67,7 +67,7 @@ def merge_with_tolerance_core(
         da_result = da_result[entity]
         # all done as no errors occurred and thus no duplicates were present
     except xr.MergeError:
-        # print("Doing a merge by coordinates")
+        logger.debug("Doing a merge by coordinates")
         # we have conflicting data and try to merge by splitting the DataArray
         # into pieces along coordinate axes and merge for those to isolate the error
 
