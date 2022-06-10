@@ -84,20 +84,26 @@ def merge_with_tolerance_core(
         # find non-unique coords to iterate over
         coords_start = da_start.coords
         coords_merge = da_merge.coords
-        coords_to_iterate = []
+        coords_to_iterate = {}
         for coord in coords_start:
             vals_start = set(coords_start[coord].values)
             vals_merge = set(coords_merge[coord].values)
             all_values = vals_start | vals_merge
 
             if len(all_values) > 1 and coord != "time":
-                coords_to_iterate.append(coord)
+                # coords_to_iterate.append(coord)
+                coords_to_iterate[coord] = {
+                    "vals_start": vals_start,
+                    "vals_merge": vals_merge,
+                }
 
-        if len(coords_to_iterate) > 0:
-            coord = coords_to_iterate[0]
+        if len(coords_to_iterate.keys()) > 0:
+            coord = list(coords_to_iterate.keys())[0]
             # determine values in both dataarrays
-            vals_start = set(coords_start[coord].values)
-            vals_merge = set(coords_merge[coord].values)
+            # vals_start = set(coords_start[coord].values)
+            # vals_merge = set(coords_merge[coord].values)
+            vals_start = coords_to_iterate[coord]["vals_start"]
+            vals_merge = coords_to_iterate[coord]["vals_merge"]
             vals_common = vals_start & vals_merge
 
             # First treat the values only present in one of the datasets
