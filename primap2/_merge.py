@@ -14,11 +14,12 @@ def merge_with_tolerance_core(
     error_on_discrepancy: Optional[bool] = True,
 ) -> xr.DataArray:
     """
-    Merge two DataArrays with a given tolerance for discrepancies in values
-    present in both DataArrays. If values from the data to merge are already
-    present in da_start they are treated as equal if the relative difference
-    is below the tolerance threshold. The result will use the values present
-     in da_start.
+    Merge two DataArrays with a given tolerance for descrepancies in values
+    present in both DataArrays.
+
+    If values from the data to merge are already present in da_start they are
+    treated as equal if the relative difference is below the tolerance threshold.
+    The result will use the values present in da_start.
 
     If a merge using xr.merge is not possible the function identifies the conflicting
     values using the following recursive algorithm:
