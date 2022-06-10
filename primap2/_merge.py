@@ -77,6 +77,7 @@ def merge_with_tolerance_core(
         da_result = da_result[entity]
         # all done as no errors occurred and thus no duplicates were present
     except xr.MergeError:
+        logger.debug("Doing a merge by coordinates")
         # we have conflicting data and try to merge by splitting the DataArray
         # into pieces along coordinate axes and merge for those to isolate the error
 
@@ -165,19 +166,13 @@ def merge_with_tolerance_core(
             df_error = df_comp[df_comp > tolerance]
             if len(df_error) > 0:
                 # to include all discrepancies in one message we loop over them
-                error_str = None
+                error_str = ""
                 for time in df_error.index.get_level_values("time"):
                     idx = df_error.index.get_level_values("time") == time
-                    if error_str is None:
-                        error_str = (
-                            f"{time.strftime('%d-%m-%Y')}: "
-                            f"{float(df_error.loc[idx])*100:.2f}%"
-                        )
-                    else:
-                        error_str = (
-                            error_str + f": {time.strftime('%d-%m-%Y')}: "
-                            f"{float(df_error.loc[idx])*100:.2f}%"
-                        )
+                    error_str += (
+                        f": {time.strftime('%d-%m-%Y')}: "
+                        f"{float(df_error.loc[idx])*100:.2f}%"
+                    )
                 coords = set(da_start.coords) - {"time"}
                 vals = [da_start.coords[coord].data[0] for coord in coords]
                 coords_vals = [coord + ": " + val for coord, val in zip(coords, vals)]
@@ -207,11 +202,12 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
         error_on_discrepancy: Optional[bool] = True,
     ) -> xr.DataArray:
         """
-        Merge two DataArrays with a given tolerance for descrepancies in values
-        present in both DataArrays. If values from the data to merge are already
-        present in the calling object they are treated as equal if the relative
-        difference is below the tolerance threshold. The result will use the values
-        of the calling object.
+        Merge this data array with another using a given tolerance for
+        descrepancies in values present in both DataArrays.
+
+        If values from the data to merge are already
+        present they are treated as equal if the relative
+        difference is below the tolerance threshold.
 
         Parameters
         ----------
