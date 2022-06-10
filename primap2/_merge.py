@@ -38,14 +38,6 @@ def merge_with_tolerance_core(
     compared to the threshold. If it exceeds the threshold for at least one point in
     time this is logged and if desired an error is thrown (default behaviour)
 
-
-
-    The function determines non-unique coordinates and iterates over them to
-    try merging for individual values of the coordinates. Where merge for a value
-    fails because of unequal data, the function recursively dives into the other
-    coordinates until single time-series are left which are then analyzed for each
-    time step and errors are logged as desired.
-
     The function assumes dataarrays have been checked for identical coordinates
     etc as it is called by DataArray.pr.merge() and Dataset.pr.merge() (and itself).
 
@@ -92,7 +84,7 @@ def merge_with_tolerance_core(
         coords_start = da_start.coords
         coords_merge = da_merge.coords
         coords_to_iterate = []
-        for coord in list(coords_start):
+        for coord in coords_start:
             vals_start = set(coords_start[coord].values)
             vals_merge = set(coords_merge[coord].values)
             all_values = vals_start | vals_merge
@@ -102,7 +94,7 @@ def merge_with_tolerance_core(
 
         if len(coords_to_iterate) > 0:
             coord = coords_to_iterate[0]
-            # determine value sin both dataarrays
+            # determine values in both dataarrays
             vals_start = set(coords_start[coord].values)
             vals_merge = set(coords_merge[coord].values)
             vals_common = vals_start & vals_merge
@@ -286,7 +278,9 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
         da_merge: xr.Dataset
             data to merge to the calling object
         tolerance: float (optional), default = 0.01
-            The tolerance to use when comparing data
+            The tolerance to use when comparing data. Tolerance is relative to values in
+            the calling Dataset. Thus by default a 1% deviation of values in da_merge
+            from the calling Dataset is tolerated.
         error_on_discrepancy (optional), default = True
             If true throw an exception if false a warning and return values from
             the calling object in cases of conflict.
