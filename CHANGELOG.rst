@@ -2,6 +2,10 @@
 Changelog
 =========
 
+0.9.2
+-----
+* add merge functions in .pr accessors for Dataset and DataArray
+
 0.9.1
 -----
 * Re-release of version 0.9.0 due to error in the release procedure.
