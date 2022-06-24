@@ -1344,7 +1344,7 @@ def parse_code(code: str) -> float:
     if code in _special_codes:
         return _special_codes[code]
 
-    parts = code.split(",")
+    parts = code.upper().split(",")
     parts = [x.replace(".", "").strip() for x in parts]
     if "IE" in parts or "NO" in parts:
         return 0
