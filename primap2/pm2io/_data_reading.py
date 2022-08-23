@@ -1421,7 +1421,7 @@ def preferred_unit(entity: str, units: List[str], gwp_to_use: Optional[str]) -> 
     >>> preferred_unit("CH4", ["kt CO2 / yr"], "AR4GWP100")
     'Gg CH4 / yr'
     >>> preferred_unit("CH4", ["kt CO2 / yr", "Mg CO2 / yr"], None)
-    'Gg CO2 / yr'
+    'kt CO2 / yr'
     """
     unit_fallback = units[0]
     conversion_contexts = []
@@ -1500,6 +1500,7 @@ def harmonize_units(
         unit_col = dim_aliases.get("unit", "unit")
 
     entities = data[entity_col].unique()
+
     # print(entities)
     for entity in entities:
         # check if GWP given in entity
