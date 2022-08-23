@@ -122,21 +122,6 @@ def test_create_na_replacement_dict(strs, user_na_conv, expected_result):
     )
 
 
-@pytest.mark.parametrize(
-    "to_test_entity, to_test_units, to_test_gwp, expected_result",
-    [
-        ("CO2", ["kt CO2 / yr", "mg CO2 / s"], None, "Gg CO2 / yr"),
-        ("CH4", ["kt CO2 / yr"], "AR4GWP100", "Gg CH4 / yr"),
-        ("CH4", ["kt CO2 / yr", "Mg CO2 / yr"], None, "Gg CO2 / yr"),
-    ],
-)
-def test_preferred_unit(to_test_entity, to_test_units, to_test_gwp, expected_result):
-    assert (
-        pm2io._data_reading.preferred_unit(to_test_entity, to_test_units, to_test_gwp)
-        == expected_result
-    )
-
-
 def assert_attrs_equal(attrs_result, attrs_expected):
     assert attrs_result.keys() == attrs_expected.keys()
     assert attrs_result["attrs"] == attrs_expected["attrs"]
