@@ -119,6 +119,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         dsd = self._ds.pr.dequantify()
 
         dsd["time"] = dsd["time"].dt.strftime(time_format)
+        time_cols = list(dsd["time"].values)
 
         if "entity_terminology" in self._ds.attrs:
             entity_col = f"entity ({self._ds.attrs['entity_terminology']})"
@@ -128,7 +129,14 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         dfs = []
         for x in dsd:
             df = (
-                dsd[x].to_dataset("time").to_dataframe().dropna(how="all").reset_index()
+                dsd[x]
+                .to_dataset("time")
+                .to_dataframe()
+                .dropna(
+                    how="all",
+                    subset=time_cols,
+                )
+                .reset_index()
             )
             df[entity_col] = x
             df["unit"] = dsd[x].attrs.get("units", "no unit")
