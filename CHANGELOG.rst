@@ -2,6 +2,12 @@
 Changelog
 =========
 
+0.9.3
+-----
+* Refactor pr.merge.
+* Fix primap2 to work with xarray version 2022.06.
+* Pin Pint to version 0.20 to work around https://github.com/hgrecco/pint/issues/1631 for now.
+
 0.9.2
 -----
 * add merge functions in .pr accessors for Dataset and DataArray
