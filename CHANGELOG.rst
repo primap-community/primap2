@@ -2,6 +2,10 @@
 Changelog
 =========
 
+0.9.4
+-----
+* Update to work with Pint 0.20.1.
+
 0.9.3
 -----
 * Refactor pr.merge.
