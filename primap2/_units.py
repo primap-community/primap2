@@ -91,7 +91,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         return self._da.pint.dequantify()
 
     def convert_to_gwp(
-        self, gwp_context: str, units: Union[str, pint.unit.Unit]
+        self, gwp_context: str, units: Union[str, pint.Unit]
     ) -> xr.DataArray:
         """Convert to a global warming potential
 
