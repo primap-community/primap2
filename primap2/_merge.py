@@ -57,7 +57,7 @@ def merge_with_tolerance_core(
         The tolerance to use when comparing data. Tolerance is relative to values in
         the calling Dataset. Thus by default a 1% deviation of values in da_merge
         from the calling Dataset is tolerated.
-    error_on_discrepancy (optional), default = True
+    error_on_discrepancy: (optional), default = True
         If true throw an exception if false a warning and return values from
         the calling object in cases of conflict.
 
