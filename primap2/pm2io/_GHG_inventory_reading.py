@@ -18,7 +18,7 @@ def nir_add_unit_information(
     unit_row: Union[str, int],
     entity_row: Optional[Union[str, int]] = None,
     regexp_entity: str,
-    regexp_unit: str,
+    regexp_unit: Optional[str] = None,
     manual_repl_unit: Optional[Dict[str, str]] = None,
     manual_repl_entity: Optional[Dict[str, str]] = None,
     default_unit: str,

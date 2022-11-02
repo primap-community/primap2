@@ -39,7 +39,9 @@ def merge_with_tolerance_core(
     da_merge: xr.DataArray
         data to merge into ds_start
     tolerance: float (optional), default = 0.01
-        The tolerance to use when comparing data
+        The tolerance to use when comparing data. Tolerance is relative to values in
+        the calling Dataset. Thus by default a 1% deviation of values in da_merge
+        from the calling Dataset is tolerated.
     error_on_discrepancy: (optional), default = True
         If true throw an exception if false a warning and return values from
         the calling object in cases of conflict.
@@ -139,7 +141,9 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
         da_merge: xr.DataArray
             data to merge to the calling object
         tolerance: float (optional), default = 0.01
-            The tolerance to use when comparing data
+            The tolerance to use when comparing data. Tolerance is relative to values in
+            the calling Dataset. Thus by default a 1% deviation of values in da_merge
+            from the calling Dataset is tolerated.
         error_on_discrepancy: (optional), default = True
             If true throw an exception if false a warning and return values from
             the calling object in cases of conflict.
