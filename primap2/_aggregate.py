@@ -403,6 +403,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             ds = self.fill_all_na(dim=skipna_evaluation_dims, value=0)
         else:
             ds = self._ds
+            if skipna:
+                if "min_count" not in kwargs.keys():
+                    kwargs["min_count"] = 1
 
         if dim is not None and "entity" in dim:
             ndim = set(dim) - {"entity"}
@@ -427,6 +430,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         basket_contents: Sequence[str],
         skipna: Optional[bool] = None,
         skipna_evaluation_dims: Optional[DimOrDimsT] = None,
+        **kwargs,
     ) -> xr.DataArray:
         """The sum of gas basket contents converted using the global warming potential
         of the gas basket.
@@ -449,6 +453,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           If all values along the specified dimensions are NA, the values are skipped,
           other NA values are not skipped and will lead to NA in the corresponding
           result.
+        **kwargs: dict
+          Additional keyword arguments are passed directly to xarray's da.sum().
 
         Returns
         -------
@@ -465,6 +471,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             dim="entity",
             skipna_evaluation_dims=skipna_evaluation_dims,
             skipna=skipna,
+            **kwargs,
         )
         da.attrs["gwp_context"] = basket_da.attrs["gwp_context"]
         da.attrs["entity"] = basket_da.attrs["entity"]
@@ -479,6 +486,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         sel: Optional[Mapping[Hashable, Sequence]] = None,
         skipna: Optional[bool] = None,
         skipna_evaluation_dims: Optional[DimOrDimsT] = None,
+        **kwargs,
     ) -> xr.DataArray:
         """Fill NA values in a gas basket using the sum of its contents.
 
@@ -507,6 +515,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           If all values along the specified dimensions are NA, the values are skipped,
           other NA values are not skipped and will lead to NA in the corresponding
           result.
+        **kwargs: dict
+          Additional keyword arguments are passed directly to xarray's da.sum().
 
         Returns
         -------
@@ -519,5 +529,6 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 basket_contents=basket_contents,
                 skipna_evaluation_dims=skipna_evaluation_dims,
                 skipna=skipna,
+                **kwargs,
             )
         )
