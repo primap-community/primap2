@@ -2,6 +2,13 @@
 Changelog
 =========
 
+0.9.5
+-----
+* pr.merge: use xarray's combine_first instead of own algorithm for better performance.
+* Fix in nan handling of to_interchange_format
+* made regexp_unit optional in nir_add_unit_information as intended already before
+* Add support for Python 3.11
+
 0.9.4
 -----
 * Update to work with Pint 0.20.1.
