@@ -25,6 +25,11 @@ jobs:
         path: ${{ env.pythonLocation }}
         key: 1-${{ env.pythonLocation }}-${{ hashFiles('setup.cfg') }}
 
+    - name: Install system dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get install libhdf5-dev
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip wheel
