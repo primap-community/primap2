@@ -106,7 +106,6 @@ def alias_dims(
     """
 
     def decorator(func: FunctionT) -> FunctionT:
-
         if wraps is not None:
             wrap_func = wraps
         else:
