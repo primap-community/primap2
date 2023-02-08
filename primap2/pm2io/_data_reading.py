@@ -986,7 +986,6 @@ def read_wide_csv(
     add_coords_cols: Dict[str, List[str]] = None,
     time_format: str = "%Y",
 ) -> (pd.DataFrame, List[str]):
-
     data = pd.read_csv(
         filepath_or_buffer,
     )
