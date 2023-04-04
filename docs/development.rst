@@ -131,7 +131,7 @@ dubiously building ASCII art in Python or whatever), use
 `the fmt on/off directive <https://github.com/psf/black#the-black-code-style>`_ so black
 will ignore that part.
 
-We target Python version 3.6 and later, so using
+We target Python version 3.9 and later, so using
 `f-strings <https://docs.python.org/3/tutorial/inputoutput.html#tut-f-strings>`_ is fine
 and generally preferable to old-style format strings.
 
