@@ -149,11 +149,10 @@ they are committed. All the configured checks and fixes are listed in the
 - ``check-ast``: parses all python files and errors if the syntax is not valid.
 - ``check-merge-conflict``: emits an error if it finds unresolved merge conflicts.
 - ``black``: formats all python files using black.
-- ``flake8`` and ``doc8``: static analysis for unused imports and variables etc.
+- ``ruff`` and ``doc8``: static analysis for unused imports and variables etc.
   Sometimes, it is unavoidable to trigger flake8 errors, in that case add a comment of
   the form ``# noqa: E501`` at the end of the offending line (using the error code that
-  flake8 reports).
-- ``isort``: automatically sorts imports according to PEP8, so you don't have to.
+  ruff reports).
 
 At any time, you can run all the checks using::
 
