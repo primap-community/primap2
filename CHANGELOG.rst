@@ -2,6 +2,13 @@
 Changelog
 =========
 
+0.9.6
+-----
+* Add dependency on openscm_units > 0.5.1 for compatibility with latest pandas.
+* stop building pdf output documentation, it doesn't support SVG and isn't used much.
+* Drop support for Python version 3.8 to prepare for it being dropped
+  in Numpy on April 14.
+
 0.9.5
 -----
 * pr.merge: use xarray's combine_first instead of own algorithm for better performance.
