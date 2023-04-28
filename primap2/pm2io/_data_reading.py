@@ -1,19 +1,9 @@
 import datetime
 import itertools
 import re
+from collections.abc import Hashable, Iterable
 from pathlib import Path
-from typing import (
-    IO,
-    Any,
-    Callable,
-    Dict,
-    Hashable,
-    Iterable,
-    List,
-    Optional,
-    Set,
-    Union,
-)
+from typing import IO, Any, Callable, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -44,17 +34,17 @@ BASKET_UNITS = [
 def convert_long_dataframe_if(
     data_long: pd.DataFrame,
     *,
-    coords_cols: Dict[str, str],
-    add_coords_cols: Dict[str, List[str]] = None,
-    coords_defaults: Optional[Dict[str, Any]] = None,
-    coords_terminologies: Dict[str, str],
-    coords_value_mapping: Optional[Dict[str, Any]] = None,
-    coords_value_filling: Optional[Dict[str, Dict[str, Dict]]] = None,
-    filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
-    filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
-    meta_data: Optional[Dict[str, Any]] = None,
+    coords_cols: dict[str, str],
+    add_coords_cols: dict[str, list[str]] = None,
+    coords_defaults: Optional[dict[str, Any]] = None,
+    coords_terminologies: dict[str, str],
+    coords_value_mapping: Optional[dict[str, Any]] = None,
+    coords_value_filling: Optional[dict[str, dict[str, dict]]] = None,
+    filter_keep: Optional[dict[str, dict[str, Any]]] = None,
+    filter_remove: Optional[dict[str, dict[str, Any]]] = None,
+    meta_data: Optional[dict[str, Any]] = None,
     time_format: str = "%Y-%m-%d",
-    convert_str: Union[bool, Dict[str, float]] = True,
+    convert_str: Union[bool, dict[str, float]] = True,
     copy_df: bool = True,
 ) -> pd.DataFrame:
     """convert a DataFrame in long (tidy) format into the PRIMAP2 interchange format.
@@ -268,17 +258,17 @@ def convert_long_dataframe_if(
 def read_long_csv_file_if(
     filepath_or_buffer: Union[str, Path, IO],
     *,
-    coords_cols: Dict[str, str],
-    add_coords_cols: Dict[str, List[str]] = None,
-    coords_defaults: Optional[Dict[str, Any]] = None,
-    coords_terminologies: Dict[str, str],
-    coords_value_mapping: Optional[Dict[str, Any]] = None,
-    coords_value_filling: Optional[Dict[str, Dict[str, Dict]]] = None,
-    filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
-    filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
-    meta_data: Optional[Dict[str, Any]] = None,
+    coords_cols: dict[str, str],
+    add_coords_cols: dict[str, list[str]] = None,
+    coords_defaults: Optional[dict[str, Any]] = None,
+    coords_terminologies: dict[str, str],
+    coords_value_mapping: Optional[dict[str, Any]] = None,
+    coords_value_filling: Optional[dict[str, dict[str, dict]]] = None,
+    filter_keep: Optional[dict[str, dict[str, Any]]] = None,
+    filter_remove: Optional[dict[str, dict[str, Any]]] = None,
+    meta_data: Optional[dict[str, Any]] = None,
     time_format: str = "%Y-%m-%d",
-    convert_str: Union[bool, Dict[str, float]] = True,
+    convert_str: Union[bool, dict[str, float]] = True,
 ) -> pd.DataFrame:
     """Read a CSV file in long (tidy) format into the PRIMAP2 interchange format.
 
@@ -433,7 +423,7 @@ def read_long_csv_file_if(
 
 def long_to_wide(
     data_long: pd.DataFrame, *, time_format: str
-) -> (pd.DataFrame, Set[str]):
+) -> (pd.DataFrame, set[str]):
     data_long["time"] = data_long["time"].dt.strftime(time_format)
 
     coords = list(set(data_long.columns.values) - {"data", "time"})
@@ -444,7 +434,7 @@ def long_to_wide(
     unit.index = pd.MultiIndex.from_frame(unit[coords])
 
     series = data_long["data"]
-    series.index = pd.MultiIndex.from_frame(data_long[coords + ["time"]])
+    series.index = pd.MultiIndex.from_frame(data_long[[*coords, "time"]])
     data = series.unstack("time")
 
     data["unit"] = unit["unit"]
@@ -452,24 +442,24 @@ def long_to_wide(
     data.reset_index(inplace=True)
     data.columns.name = None
 
-    return data, coords + ["unit"]
+    return data, [*coords, "unit"]
 
 
 def convert_wide_dataframe_if(
     data_wide: pd.DataFrame,
     *,
-    coords_cols: Dict[str, str],
-    add_coords_cols: Dict[str, List[str]] = None,
-    coords_defaults: Optional[Dict[str, Any]] = None,
-    coords_terminologies: Dict[str, str],
-    coords_value_mapping: Optional[Dict[str, Any]] = None,
-    coords_value_filling: Optional[Dict[str, Dict[str, Dict]]] = None,
-    filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
-    filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
-    meta_data: Optional[Dict[str, Any]] = None,
+    coords_cols: dict[str, str],
+    add_coords_cols: dict[str, list[str]] = None,
+    coords_defaults: Optional[dict[str, Any]] = None,
+    coords_terminologies: dict[str, str],
+    coords_value_mapping: Optional[dict[str, Any]] = None,
+    coords_value_filling: Optional[dict[str, dict[str, dict]]] = None,
+    filter_keep: Optional[dict[str, dict[str, Any]]] = None,
+    filter_remove: Optional[dict[str, dict[str, Any]]] = None,
+    meta_data: Optional[dict[str, Any]] = None,
     time_format: str = "%Y",
-    time_cols: Optional[List] = None,
-    convert_str: Union[bool, Dict[str, float]] = True,
+    time_cols: Optional[list] = None,
+    convert_str: Union[bool, dict[str, float]] = True,
     copy_df: bool = False,
 ) -> pd.DataFrame:
     """
@@ -697,17 +687,17 @@ def convert_wide_dataframe_if(
 def read_wide_csv_file_if(
     filepath_or_buffer: Union[str, Path, IO],
     *,
-    coords_cols: Dict[str, str],
-    add_coords_cols: Dict[str, List[str]] = None,
-    coords_defaults: Optional[Dict[str, Any]] = None,
-    coords_terminologies: Dict[str, str],
-    coords_value_mapping: Optional[Dict[str, Any]] = None,
-    coords_value_filling: Optional[Dict[str, Dict[str, Dict]]] = None,
-    filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
-    filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
-    meta_data: Optional[Dict[str, Any]] = None,
+    coords_cols: dict[str, str],
+    add_coords_cols: dict[str, list[str]] = None,
+    coords_defaults: Optional[dict[str, Any]] = None,
+    coords_terminologies: dict[str, str],
+    coords_value_mapping: Optional[dict[str, Any]] = None,
+    coords_value_filling: Optional[dict[str, dict[str, dict]]] = None,
+    filter_keep: Optional[dict[str, dict[str, Any]]] = None,
+    filter_remove: Optional[dict[str, dict[str, Any]]] = None,
+    meta_data: Optional[dict[str, Any]] = None,
     time_format: str = "%Y",
-    convert_str: Union[bool, Dict[str, float]] = True,
+    convert_str: Union[bool, dict[str, float]] = True,
 ) -> pd.DataFrame:
     """Read a CSV file in wide format into the PRIMAP2 interchange format.
 
@@ -892,9 +882,9 @@ def interchange_format_attrs_dict(
 
 
 def additional_coordinate_metadata(
-    add_coords_cols: Dict[str, List[str]],
-    coords_cols: Dict[str, str],
-    coords_terminologies: Dict[str, str],
+    add_coords_cols: dict[str, list[str]],
+    coords_cols: dict[str, str],
+    coords_terminologies: dict[str, str],
 ) -> dict:
     """Create the `additional_coordinates` dict and do a few consistency checks"""
 
@@ -932,8 +922,8 @@ def additional_coordinate_metadata(
 
 
 def check_mandatory_dimensions(
-    coords_cols: Dict[str, str],
-    coords_defaults: Dict[str, Any],
+    coords_cols: dict[str, str],
+    coords_defaults: dict[str, Any],
 ):
     """Check if all mandatory dimensions are specified."""
     for coord in INTERCHANGE_FORMAT_MANDATORY_COLUMNS:
@@ -946,8 +936,8 @@ def check_mandatory_dimensions(
 
 
 def check_overlapping_specifications(
-    coords_cols: Dict[str, str],
-    coords_defaults: Dict[str, Any],
+    coords_cols: dict[str, str],
+    coords_defaults: dict[str, Any],
 ):
     both = set(coords_cols.keys()).intersection(set(coords_defaults.keys()))
     if both:
@@ -959,8 +949,8 @@ def check_overlapping_specifications(
 
 
 def check_overlapping_specifications_add_cols(
-    coords_cols: Dict[str, str],
-    add_coords_cols: Dict[str, Any],
+    coords_cols: dict[str, str],
+    add_coords_cols: dict[str, Any],
 ):
     cols_add = [val[0] for val in add_coords_cols.values()]
     both = set(coords_cols.values()).intersection(set(cols_add))
@@ -982,10 +972,10 @@ def matches_time_format(value: str, time_format: str):
 
 def read_wide_csv(
     filepath_or_buffer,
-    coords_cols: Dict[str, str],
-    add_coords_cols: Dict[str, List[str]] = None,
+    coords_cols: dict[str, str],
+    add_coords_cols: dict[str, list[str]] = None,
     time_format: str = "%Y",
-) -> (pd.DataFrame, List[str]):
+) -> (pd.DataFrame, list[str]):
     data = pd.read_csv(
         filepath_or_buffer,
     )
@@ -1026,9 +1016,9 @@ def read_wide_csv(
 
 def read_long_csv(
     filepath_or_buffer,
-    coords_cols: Dict[str, str],
-    add_coords_cols: Dict[str, List[str]] = None,
-) -> (pd.DataFrame, List[str]):
+    coords_cols: dict[str, str],
+    add_coords_cols: dict[str, list[str]] = None,
+) -> (pd.DataFrame, list[str]):
     if "data" not in coords_cols.keys():
         raise ValueError(
             "No data column in the CSV specified in coords_cols, so nothing to read."
@@ -1055,7 +1045,7 @@ def read_long_csv(
     return data
 
 
-def spec_to_query_string(filter_spec: Dict[str, Union[list, Any]]) -> str:
+def spec_to_query_string(filter_spec: dict[str, Union[list, Any]]) -> str:
     """Convert filter specification to query string.
 
     All column conditions in the filter are combined with &."""
@@ -1073,8 +1063,8 @@ def spec_to_query_string(filter_spec: Dict[str, Union[list, Any]]) -> str:
 
 def filter_data(
     data: pd.DataFrame,
-    filter_keep: Optional[Dict[str, Dict[str, Any]]] = None,
-    filter_remove: Optional[Dict[str, Dict[str, Any]]] = None,
+    filter_keep: Optional[dict[str, dict[str, Any]]] = None,
+    filter_remove: Optional[dict[str, dict[str, Any]]] = None,
 ):
     # Filters for keeping data are combined with "or" so that
     # everything matching at least one rule is kept.
@@ -1102,8 +1092,8 @@ def filter_data(
 def fill_from_other_col(
     df: pd.DataFrame,
     *,
-    coords_value_filling: Dict[str, Dict[str, Dict[str, str]]],
-    attrs: Dict[str, Any],
+    coords_value_filling: dict[str, dict[str, dict[str, str]]],
+    attrs: dict[str, Any],
 ) -> pd.DataFrame:
     """
     This function fills value in one column based on values in other columns.
@@ -1153,7 +1143,7 @@ def fill_from_other_col(
 
 def add_dimensions_from_defaults(
     data: pd.DataFrame,
-    coords_defaults: Dict[str, Any],
+    coords_defaults: dict[str, Any],
     additional_allowed_coords: Iterable[str] = (),
 ):
     if_columns = (
@@ -1175,8 +1165,8 @@ def add_dimensions_from_defaults(
 def map_metadata(
     data: pd.DataFrame,
     *,
-    meta_mapping: Dict[str, Union[str, Callable, dict]],
-    attrs: Dict[str, Any],
+    meta_mapping: dict[str, Union[str, Callable, dict]],
+    attrs: dict[str, Any],
 ):
     """Map the metadata according to specifications given in meta_mapping.
     First map entity, then the rest."""
@@ -1192,8 +1182,8 @@ def map_metadata(
 def map_metadata_unordered(
     data: pd.DataFrame,
     *,
-    meta_mapping: Dict[str, Union[str, Callable, dict]],
-    attrs: Dict[str, Any],
+    meta_mapping: dict[str, Union[str, Callable, dict]],
+    attrs: dict[str, Any],
 ):
     """Map the metadata according to specifications given in meta_mapping."""
     dim_aliases = _alias_selection.translations_from_attrs(attrs, include_entity=True)
@@ -1240,7 +1230,7 @@ def map_metadata_unordered(
                 # this can't be handled using the replace()-call later since the
                 # mapped values don't depend on the original values only, therefore
                 # we do it directly
-                sel = [column_name] + args
+                sel = [column_name, *args]
                 values_to_map = np.unique(data[sel].to_records(index=False))
                 for vals_to_map in values_to_map:
                     # we replace values where all the arguments match - build a
@@ -1259,10 +1249,10 @@ def map_metadata_unordered(
 
 def rename_columns(
     data: pd.DataFrame,
-    coords_cols: Dict[str, str],
-    add_coords_cols: Dict[str, List[str]],
-    coords_defaults: Dict[str, Any],
-    coords_terminologies: Dict[str, str],
+    coords_cols: dict[str, str],
+    add_coords_cols: dict[str, list[str]],
+    coords_defaults: dict[str, Any],
+    coords_terminologies: dict[str, str],
 ) -> dict:
     """Rename columns to match PRIMAP2 specifications and generate the corresponding
     dataset-wide attrs for PRIMAP2."""
@@ -1320,7 +1310,7 @@ def is_float(to_test: Any) -> bool:
 
 def find_str_values_in_data(
     data: pd.DataFrame,
-    columns: List[str],
+    columns: list[str],
 ) -> list:
     """Find all string values occurring in given columns of a DataFrame"""
     # limit our analysis to columns that contain strings
@@ -1353,9 +1343,9 @@ def parse_code(code: str) -> float:
 
 
 def create_str_replacement_dict(
-    strs: List[str],
-    user_str_conv: Dict[str, str] = {},
-) -> Dict[str, str]:
+    strs: list[str],
+    user_str_conv: dict[str, str] = {},
+) -> dict[str, str]:
     """Create a dict for replacement of strings by NaN and 0 based on
     general rules and user defined rules"""
 
@@ -1380,7 +1370,7 @@ def create_str_replacement_dict(
     return mapping
 
 
-def replace_values(data: pd.DataFrame, columns: List[str], na_repl_dict):
+def replace_values(data: pd.DataFrame, columns: list[str], na_repl_dict):
     """Replace str values indicating not-a-number by float NaN."""
     for col in columns:
         data[col] = data[col].replace(na_repl_dict)
@@ -1388,7 +1378,7 @@ def replace_values(data: pd.DataFrame, columns: List[str], na_repl_dict):
         data[col] = data[col].astype("float64", copy=False, errors="ignore")
 
 
-def preferred_unit(entity: str, units: List[str], gwp_to_use: Optional[str]) -> str:
+def preferred_unit(entity: str, units: list[str], gwp_to_use: Optional[str]) -> str:
     """Choose the preferred unit for the given entity.
 
     In general, "Gg <substance> / year" will be preferred if it is compatible with the
@@ -1551,7 +1541,7 @@ def harmonize_units(
 def sort_columns_and_rows(
     data: pd.DataFrame,
     dimensions: Iterable[Hashable],
-) -> (pd.DataFrame, List[Hashable]):
+) -> (pd.DataFrame, list[Hashable]):
     """Sort the data.
 
     The columns are ordered according to the order in

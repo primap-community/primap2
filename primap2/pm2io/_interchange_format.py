@@ -1,7 +1,6 @@
 import csv
 import itertools
 import re
-import typing
 from pathlib import Path
 from typing import Optional, Union
 
@@ -84,7 +83,7 @@ def dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
     return da
 
 
-def metadata_for_variable(unit: str, variable: str) -> typing.Dict[str, str]:
+def metadata_for_variable(unit: str, variable: str) -> dict[str, str]:
     """Convert a primap2 unit and variable key to a metadata dict.
 
     Derives the information needed for the data variable's attrs dict from the unit

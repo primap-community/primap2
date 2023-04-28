@@ -7,7 +7,7 @@ they are added during the process of reading an preparing data for the PRIMAP-hi
 update. Testing will be added in the future."""
 
 import re
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 import pandas as pd
 
@@ -19,8 +19,8 @@ def nir_add_unit_information(
     entity_row: Optional[Union[str, int]] = None,
     regexp_entity: str,
     regexp_unit: Optional[str] = None,
-    manual_repl_unit: Optional[Dict[str, str]] = None,
-    manual_repl_entity: Optional[Dict[str, str]] = None,
+    manual_repl_unit: Optional[dict[str, str]] = None,
+    manual_repl_entity: Optional[dict[str, str]] = None,
     default_unit: str,
 ) -> pd.DataFrame:
     """Add unit information to a National Inventory Report (NIR) style DataFrame.
@@ -135,7 +135,7 @@ def nir_add_unit_information(
 
 
 def nir_convert_df_to_long(
-    df_nir: pd.DataFrame, year: int, header_long: Optional[List[str]] = None
+    df_nir: pd.DataFrame, year: int, header_long: Optional[list[str]] = None
 ) -> pd.DataFrame:
     """Convert an entity-wide NIR table for a single year to a long format
     DataFrame.
@@ -166,6 +166,6 @@ def nir_convert_df_to_long(
 
     df_stacked = df_nir.stack([0, 1], dropna=True).to_frame()
     df_stacked.insert(0, "year", str(year))
-    df_stacked.reset_index(inplace=True)
+    df_stacked = df_stacked.reset_index()
     df_stacked.columns = header_long
     return df_stacked

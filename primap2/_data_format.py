@@ -1,6 +1,7 @@
 import datetime
 import pathlib
-from typing import IO, Hashable, Iterable, Mapping, Optional, Tuple, Union
+from collections.abc import Hashable, Iterable, Mapping
+from typing import IO, Optional, Union
 
 import pandas as pd
 import pint
@@ -242,7 +243,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         )
 
 
-def split_dim_name(dim_name: str) -> Tuple[str, str]:
+def split_dim_name(dim_name: str) -> tuple[str, str]:
     """Split a dimension name composed of the dimension, and the category set in
     parentheses into its parts."""
     try:

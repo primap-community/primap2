@@ -1,4 +1,5 @@
-from typing import Dict, Hashable, Optional, Sequence
+from collections.abc import Hashable, Sequence
+from typing import Optional
 
 import xarray as xr
 
@@ -15,7 +16,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[Dict[Hashable, Sequence]] = None,
+        sel: Optional[dict[Hashable, Sequence]] = None,
         skipna_evaluation_dims: Sequence[Hashable] = tuple(),
     ) -> xr.DataArray:
         """Downscale timeseries along a dimension using a basket defined on a
@@ -102,7 +103,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[Dict[Hashable, Sequence]] = None,
+        sel: Optional[dict[Hashable, Sequence]] = None,
         skipna_evaluation_dims: Sequence[Hashable] = tuple(),
     ) -> xr.Dataset:
         """Downscale timeseries along a dimension using a basket defined on a
@@ -192,7 +193,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[Dict[Hashable, Sequence]] = None,
+        sel: Optional[dict[Hashable, Sequence]] = None,
         skipna_evaluation_dims: Sequence[Hashable] = tuple(),
     ) -> xr.Dataset:
         """Downscale a gas basket defined on a broader timeseries to its contents
