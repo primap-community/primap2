@@ -429,7 +429,7 @@ class TestReadWideCSVFile:
         file_input = DATA_PATH / "test_csv_data.csv"
         file_expected = DATA_PATH / "test_read_wide_csv_file_no_sec_cats.csv"
         df_expected: pd.DataFrame = pd.read_csv(file_expected, index_col=0)
-        df_expected.rename(columns={"entity": "entity (PRIMAP1)"}, inplace=True)
+        df_expected = df_expected.rename(columns={"entity": "entity (PRIMAP1)"})
 
         del coords_cols["sec_cats__Class"]
         del coords_defaults["sec_cats__Type"]

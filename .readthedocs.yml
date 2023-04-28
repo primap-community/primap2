@@ -10,8 +10,6 @@ build:
   tools:
     python: "3.9"
 
-formats: all
-
 # Optionally declare the Python requirements required to build your docs
 python:
   install:

@@ -1,5 +1,3 @@
-import typing
-
 import numpy as np
 import pint
 import xarray as xr
@@ -24,9 +22,7 @@ def assert_equal(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
     assert a.name == b.name, (a.name, b.name)
 
 
-def assert_align(
-    a: xr.DataArray, b: xr.DataArray
-) -> typing.Tuple[xr.DataArray, xr.DataArray]:
+def assert_align(a: xr.DataArray, b: xr.DataArray) -> tuple[xr.DataArray, xr.DataArray]:
     """Asserts that a and b have the same shape and returns a and b with axes and
     dimensions aligned and sorted equally so that naive comparisons can be done."""
     assert set(a.dims) == set(b.dims), (a.dims, b.dims)

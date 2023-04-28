@@ -22,7 +22,7 @@ def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) ->
         else:
             return item
     else:
-        sel: typing.Dict[typing.Hashable, typing.Hashable] = {}
+        sel: dict[typing.Hashable, typing.Hashable] = {}
         for key in item:
             if key in translations:
                 sel[translations[key]] = item[key]
@@ -32,9 +32,9 @@ def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) ->
 
 
 def translations_from_attrs(
-    attrs: typing.Dict[typing.Hashable, typing.Any], include_entity=False
-) -> typing.Dict[typing.Hashable, str]:
-    ret: typing.Dict[typing.Hashable, str] = {}
+    attrs: dict[typing.Hashable, typing.Any], include_entity=False
+) -> dict[typing.Hashable, str]:
+    ret: dict[typing.Hashable, str] = {}
     for key, abbrev in [("category", "cat"), ("scenario", "scen"), ("area", "area")]:
         if abbrev in attrs:
             ret[key] = attrs[abbrev]
@@ -51,13 +51,12 @@ def translations_from_attrs(
 
 def translations_from_dims(
     dims: typing.Iterable[typing.Hashable],
-) -> typing.Dict[typing.Hashable, str]:
-    ret: typing.Dict[typing.Hashable, str] = {}
+) -> dict[typing.Hashable, str]:
+    ret: dict[typing.Hashable, str] = {}
     for dim in dims:
-        if isinstance(dim, str):
-            if " (" in dim:
-                key: str = dim.split("(")[0][:-1]
-                ret[key] = dim
+        if isinstance(dim, str) and " (" in dim:
+            key: str = dim.split("(")[0][:-1]
+            ret[key] = dim
     if "scenario" in ret:
         ret["scen"] = ret["scenario"]
     if "category" in ret:
@@ -67,7 +66,7 @@ def translations_from_dims(
 
 def alias(
     dim: DimOrDimsT,
-    translations: typing.Dict[typing.Hashable, str],
+    translations: dict[typing.Hashable, str],
     dims: typing.Iterable[typing.Hashable],
 ) -> DimOrDimsT:
     if isinstance(dim, str):
@@ -77,20 +76,17 @@ def alias(
         return dim
     else:
         try:
-            rdim = []
-            for idim in dim:
-                rdim.append(alias(idim, translations, dims))
-            return rdim
+            return [alias(idim, translations, dims) for idim in dim]
         except TypeError:  # not iterable, so some other hashable like int
             if dim not in dims:
-                raise DimensionNotExistingError(dim)
+                raise DimensionNotExistingError(dim) from None
             return dim
 
 
 def alias_dims(
     args_to_alias: typing.Iterable[str],
     wraps: typing.Optional[typing.Callable] = None,
-    additional_allowed_values: typing.Iterable[str] = tuple(),
+    additional_allowed_values: typing.Iterable[str] = (),
 ) -> typing.Callable[[FunctionT], FunctionT]:
     """Method decorator to automatically translate dimension aliases in parameters.
 
@@ -179,7 +175,7 @@ class DataArrayAliasLocIndexer:
 
 class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
     @property
-    def dim_alias_translations(self) -> typing.Dict[typing.Hashable, str]:
+    def dim_alias_translations(self) -> dict[typing.Hashable, str]:
         """Translate a shortened dimension alias to a full dimension name.
 
         For example, if the full dimension name is ``area (ISO3)``, the alias ``area``
@@ -225,7 +221,7 @@ class DatasetAliasLocIndexer:
 
 class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
     @property
-    def dim_alias_translations(self) -> typing.Dict[typing.Hashable, str]:
+    def dim_alias_translations(self) -> dict[typing.Hashable, str]:
         """Translate a shortened dimension alias to a full dimension name.
 
         For example, if the full dimension name is ``area (ISO3)``, the alias ``area``
