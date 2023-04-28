@@ -192,14 +192,14 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
             except KeyError:
                 raise ValueError(
                     "No gwp_context given and no gwp_context available in the attrs."
-                )
+                ) from None
         if entity is None:
             try:
                 entity = self._da.attrs["entity"]
             except KeyError:
                 raise ValueError(
                     "No entity given and no entity available in the attrs."
-                )
+                ) from None
 
         if isinstance(entity, str):
             entity = ureg.parse_units(entity)

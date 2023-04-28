@@ -54,10 +54,9 @@ def translations_from_dims(
 ) -> dict[typing.Hashable, str]:
     ret: dict[typing.Hashable, str] = {}
     for dim in dims:
-        if isinstance(dim, str):
-            if " (" in dim:
-                key: str = dim.split("(")[0][:-1]
-                ret[key] = dim
+        if isinstance(dim, str) and " (" in dim:
+            key: str = dim.split("(")[0][:-1]
+            ret[key] = dim
     if "scenario" in ret:
         ret["scen"] = ret["scenario"]
     if "category" in ret:
@@ -77,20 +76,17 @@ def alias(
         return dim
     else:
         try:
-            rdim = []
-            for idim in dim:
-                rdim.append(alias(idim, translations, dims))
-            return rdim
+            return [alias(idim, translations, dims) for idim in dim]
         except TypeError:  # not iterable, so some other hashable like int
             if dim not in dims:
-                raise DimensionNotExistingError(dim)
+                raise DimensionNotExistingError(dim) from None
             return dim
 
 
 def alias_dims(
     args_to_alias: typing.Iterable[str],
     wraps: typing.Optional[typing.Callable] = None,
-    additional_allowed_values: typing.Iterable[str] = tuple(),
+    additional_allowed_values: typing.Iterable[str] = (),
 ) -> typing.Callable[[FunctionT], FunctionT]:
     """Method decorator to automatically translate dimension aliases in parameters.
 

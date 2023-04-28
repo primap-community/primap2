@@ -144,12 +144,7 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
                 continue
             ds = ds.drop_vars([x for x in ds if dim not in ds[x].dims])
 
-        all_boolean = True
-        for var in ds:
-            if ds[var].dtype != bool:
-                all_boolean = False
-                break
-
+        all_boolean = all(ds[var].dtype == bool for var in ds)
         if not all_boolean:  # Convert into boolean coverage array
             ds = ds.notnull()
 

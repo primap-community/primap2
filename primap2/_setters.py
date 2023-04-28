@@ -19,7 +19,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             raise KeyError(
                 f"Values {missing!r} not in {dim!r}, use new='extend' to "
                 f"automatically insert new values into dim."
-            )
+            ) from None
 
     @alias_dims(["dim", "value_dims"])
     def set(
@@ -267,7 +267,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             # conform value to given dim: key
             if dim not in value.dims:
                 if dim in value.coords:
-                    value = value.reset_coords(dim, drop=True)
+                    value = value.reset_coords([dim], drop=True)
                 value = value.expand_dims({dim: key})  # type: ignore
             else:
                 value = value.loc[{dim: key}]

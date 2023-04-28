@@ -1,5 +1,7 @@
 """Merge arrays and datasets with optional tolerances."""
 
+
+import contextlib
 import typing
 
 import numpy as np
@@ -50,7 +52,7 @@ def merge_with_tolerance_core(
     -------
         xr.DataArray: DataArray with data from da_merge merged into da_start
     """
-    try:
+    with contextlib.suppress(xr.MergeError):
         da_result = xr.merge(
             [da_start, da_merge],
             compat="no_conflicts",
@@ -59,9 +61,6 @@ def merge_with_tolerance_core(
         # all done as no errors occurred and thus no duplicates were present
         # make sure we have a DataArray not a Dataset
         return da_result[da_start.name]
-    except xr.MergeError:
-        pass
-
     # there are conflicts (overlapping coordinates) between da_start and da_merge
 
     # calculate the deviation between da_start and da_merge
@@ -175,7 +174,7 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
         ds_merge: xr.Dataset,
         tolerance: float = 0.01,
         error_on_discrepancy: bool = True,
-        combine_attrs: str = "drop_conflicts",
+        combine_attrs: xr.core.types.CombineAttrsOptions = "drop_conflicts",
     ) -> xr.Dataset:
         """
         Merge two Datasets with a given tolerance for discrepancies in values
@@ -205,7 +204,7 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
         """
         ds_start = self._ds
 
-        try:
+        with contextlib.suppress(xr.MergeError, ValueError):
             # if there are no conflicts just merge using xr.merge
             return xr.merge(
                 [ds_start, ds_merge],
@@ -213,9 +212,6 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
                 join="outer",
                 combine_attrs=combine_attrs,
             )
-        except (xr.MergeError, ValueError):
-            pass
-
         # merge by hand
         ensure_compatible_coords_dims(ds_merge, ds_start)
 
