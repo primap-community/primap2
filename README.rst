@@ -59,5 +59,5 @@ Citation
 If you use this library and want to cite it, please cite it as:
 
 Mika Pflüger and Johannes Gütschow. (2023-04-28).
-pik-primap/primap2: PRIMAP2 Version 0.9.6.
+pik-primap/primap2: PRIMAP2 Version 0.9.7.
 Zenodo. https://doi.org/10.5281/zenodo.7875234

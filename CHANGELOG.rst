@@ -2,6 +2,10 @@
 Changelog
 =========
 
+0.9.7
+-----
+* Fix the test suite to work with Pint release 0.21.
+
 0.9.6
 -----
 * Add dependency on openscm_units > 0.5.1 for compatibility with latest pandas.
