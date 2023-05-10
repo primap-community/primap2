@@ -173,6 +173,7 @@ class TestSum:
             shared_ds.sum(set(shared_ds.dims) - {"area (ISO3)"}, keep_attrs=True)
             .to_array("entity")
             .sum("entity", keep_attrs=True),
+            atol=0,
         )
 
 
