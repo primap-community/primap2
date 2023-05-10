@@ -1308,6 +1308,7 @@ _special_codes = {
     "-": 0,
     "NE0": np.nan,
     "": np.nan,
+    "Ne": np.nan,
 }
 
 
@@ -1389,7 +1390,7 @@ def replace_values(data: pd.DataFrame, columns: List[str], na_repl_dict):
         data[col] = data[col].astype("float64", copy=False, errors="ignore")
 
 
-def preferred_unit(entity: str, units: List[str], gwp_to_use: Optional[str]) -> str:
+def preferred_unit(entity: str, units: Dict[str, str]) -> str:
     """Choose the preferred unit for the given entity.
 
     In general, "Gg <substance> / year" will be preferred if it is compatible with the
@@ -1399,12 +1400,12 @@ def preferred_unit(entity: str, units: List[str], gwp_to_use: Optional[str]) -> 
     ----------
     entity: str
         Basic entity, e.g. a gas.
-    units: list of str
-        Units which are in use for the entity.
-    gwp_to_use: str, optional
-        Global warming potential specification which will be used for the conversion.
+    units: dict of str, str
+        Keys are the units which are in use for the entity and values the global
+        warming potential specifications which will be used for the conversion.
         By specifying the gwp_to_use, you can make sure that it will be possible to
         convert from the input units to the output unit with the given gwp.
+        If not applicable for a unit use None
 
     Returns
     -------
@@ -1413,33 +1414,65 @@ def preferred_unit(entity: str, units: List[str], gwp_to_use: Optional[str]) -> 
 
     Examples
     --------
-    >>> preferred_unit("CO2", ["kt CO2 / yr", "mg CO2 / s"], None)
+    >>> preferred_unit("CO2", {"kt CO2 / yr": None, "mg CO2 / s": None})
     'Gg CO2 / yr'
-    >>> preferred_unit("CH4", ["kt CO2 / yr"], "AR4GWP100")
+    >>> preferred_unit("CH4", {"kt CO2 / yr": "AR4GWP100"})
     'Gg CH4 / yr'
-    >>> preferred_unit("CH4", ["kt CO2 / yr", "Mg CO2 / yr"], None)
+    >>> preferred_unit("CH4", {"kt CO2 / yr": None, "Mg CO2 / yr": None})
+    'kt CO2 / yr'
+     >>> preferred_unit("CH4", {"kt CO2 / yr": None, "Mg CH4 / yr": None})
+    None
+    >>> preferred_unit(
+    ...     "KYOTOGHG", {"kt CO2 / yr": "AR4GWP100", "Gg CO2 / yr": "SARGWP100"}
+    ... )
     'kt CO2 / yr'
     """
-    unit_fallback = units[0]
-    conversion_contexts = []
-    if gwp_to_use:
-        conversion_contexts.append(gwp_to_use)
-
-    # check if conversion to native unit is possible
+    unit_fallback = list(units.keys())[0]
+    # check if all can be converted to native or fallback units
+    native_conv = []
+    fb_conv = []
     native_unit = "Gg " + entity + " / yr"
-    try:
-        # print(f"Testing conversion from {ureg[unit_fallback].units} to "
-        #       f"{ureg[native_unit].units} for {entity}.")
-        if ureg(unit_fallback).is_compatible_with(
-            ureg[native_unit], *conversion_contexts
-        ):
-            return native_unit
-    except pint.UndefinedUnitError:
-        # we have a gas basket or something unknown, so no conversion to native unit
-        # print(f"Exception occurred for entity {entity}")
-        pass
+    for unit in units.keys():
+        conversion_contexts = []
+        if units[unit] is not None:
+            conversion_contexts.append(units[unit])
 
-    return unit_fallback
+        # check if conversion to native unit is possible
+        try:
+            # print(f"Testing conversion from {ureg[unit_fallback].units} to "
+            #       f"{ureg[native_unit].units} for {entity}.")
+            if ureg(unit).is_compatible_with(ureg[native_unit], *conversion_contexts):
+                native_conv.append(True)
+            else:
+                native_conv.append(False)
+        except pint.UndefinedUnitError:
+            # we have a gas basket or something unknown, so no conversion to native unit
+            # print(f"Exception occurred for entity {entity}")
+            native_conv.append(False)
+            pass
+
+        # check if conversion to fallback unit is possible
+        try:
+            # print(f"Testing conversion from {ureg[unit_fallback].units} to "
+            #       f"{ureg[native_unit].units} for {entity}.")
+            if ureg(unit).is_compatible_with(ureg[unit_fallback], *conversion_contexts):
+                fb_conv.append(True)
+            else:
+                fb_conv.append(False)
+        except pint.UndefinedUnitError:
+            # we have a gas basket or something unknown, so no conversion to native unit
+            # print(f"Exception occurred for entity {entity}")
+            fb_conv.append(False)
+            pass
+
+    if all(native_conv):
+        # print(f"converting {entity} to native unit {native_unit}")
+        return native_unit
+    elif all(fb_conv):
+        # print(f"converting {entity} to fallback unit {unit_fallback}")
+        return unit_fallback
+    else:
+        return None
 
 
 def harmonize_units(
@@ -1451,8 +1484,9 @@ def harmonize_units(
 ) -> None:
     """Harmonize the units of the input data.
 
-    For each entity, convert all time series to the same unit (the unit that occurs
-    first). Units must already be in PRIMAP2 style.
+    For each entity, convert all time series to the same unit (the native unit or
+    the unit that occurs first if conversion to the native unit is not possible). Units
+    must already be in PRIMAP2 style.
 
     As unit handling is tricky and with new units new problem occur this function has a
     lot of (currently commented) debug output
@@ -1489,10 +1523,14 @@ def harmonize_units(
     if unit_col is None:
         unit_col = dim_aliases.get("unit", "unit")
 
+    # find basic entities for all entities and make a list
     entities = data[entity_col].unique()
+    basic_entities = {}
+
     # print(entities)
     for entity in entities:
         # check if GWP given in entity
+        # print(f"entity: {entity}")
         gwp_match = re.findall(r"\(([A-Z0-9]*)\)$", entity)
         if gwp_match:
             gwp_to_use = gwp_match[0]
@@ -1501,52 +1539,89 @@ def harmonize_units(
         else:
             gwp_to_use = None
             basic_entity = entity
+        # print(f"gwp: {gwp_to_use}")
         # print(f"basic_entity: {basic_entity}")
+        if basic_entity in basic_entities.keys():
+            basic_entities[basic_entity][entity] = gwp_to_use
+        else:
+            basic_entities[basic_entity] = {entity: gwp_to_use}
+
+    for basic_entity in basic_entities:
+        # print(f"basic_entity: {basic_entity}")
+        # print(f"entities: {basic_entities[basic_entity]}")
         # get all units for this entity
-        data_this_entity = data.loc[data[entity_col] == entity]
-        units_this_entity = data_this_entity[unit_col].unique()
-
-        if len(units_this_entity) > 1 or gwp_to_use:
-            # need unit conversion.
-            unit_to = preferred_unit(basic_entity, units_this_entity, gwp_to_use)
-
-            # if len(units_this_entity) > 1:
+        data_this_basic_entity = data.loc[
+            data[entity_col].isin(basic_entities[basic_entity])
+        ]
+        units_this_basic_entity = data_this_basic_entity[unit_col].unique()
+        unit_gwp_this_basic_entity = {}
+        gwp_conversion_this_basic_entity = False
+        for entity in basic_entities[basic_entity].keys():
+            data_this_entity = data_this_basic_entity.loc[data[entity_col] == entity]
+            units_this_entity = data_this_entity[unit_col].unique()
             for unit in units_this_entity:
-                if unit != unit_to:
-                    # print(f"Working on unit {unit}")
-                    unit_pint = ureg[unit]
-                    # could add a try except block here to throw and log an error or add
-                    # error info in DF instead of crashing
-                    if gwp_to_use:
-                        with ureg.context(gwp_to_use):
-                            unit_pint = unit_pint.to(unit_to)
-                    else:
-                        unit_pint = unit_pint.to(unit_to)
-                    # print(f"Pint unit is {unit_pint}")
-                    factor = unit_pint.magnitude
-                    # print(f"Converting with factor {factor} to unit {unit_to}")
-                    mask = (data[entity_col] == entity) & (data[unit_col] == unit)
-                    # print(data.loc[mask, data_cols])
-                    try:
-                        data.loc[mask, data_cols] *= factor
-                    except TypeError:
-                        # print(data.loc[mask, data_cols])
-                        strs = find_str_values_in_data(data, data_cols)
-                        logger.error(
-                            f"The following string values are present and can "
-                            f"not be converted during unit conversion: {strs}."
-                        )
-                        raise ValueError(
-                            f"String values {strs} prevent unit conversion."
-                        )
+                unit_gwp_this_basic_entity[unit] = basic_entities[basic_entity][entity]
+            if basic_entities[basic_entity][entity] is not None:
+                gwp_conversion_this_basic_entity = True
 
-                    data.loc[mask, unit_col] = unit_to
+            if len(units_this_basic_entity) > 1 or gwp_conversion_this_basic_entity:
+                # need unit conversion.
+                # determine unit to convert all units to. If none is found no conversion
+                # is carried out at all
+                unit_to = preferred_unit(basic_entity, unit_gwp_this_basic_entity)
+                # print(f"basic_entity: {basic_entity}, unit_to: {unit_to}")
+                if unit_to is not None:
+                    # print(f"unit conversion for {basic_entity}, "
+                    #      f"{basic_entities[basic_entity]}")
+                    for entity in basic_entities[basic_entity]:
+                        data_this_entity = data.loc[data[entity_col] == entity]
+                        units_this_entity = data_this_entity[unit_col].unique()
 
-            if gwp_to_use and unit_to not in units_this_entity:
-                # entity was converted
-                entity_mask = data[entity_col] == entity
-                # print(f"Changing entity from {entity} to {basic_entity}")
-                data.loc[entity_mask, entity_col] = basic_entity
+                        for unit in units_this_entity:
+                            if unit != unit_to:
+                                # print(f"Working on unit {unit}")
+                                unit_pint = ureg[unit]
+                                # could add a try except block here to throw and log an
+                                # error or add error info in DF instead of crashing
+                                gwp_this_entity = basic_entities[basic_entity][entity]
+                                if gwp_this_entity:
+                                    with ureg.context(gwp_this_entity):
+                                        unit_pint = unit_pint.to(unit_to)
+                                else:
+                                    unit_pint = unit_pint.to(unit_to)
+                                # print(f"Pint unit is {unit_pint}")
+                                factor = unit_pint.magnitude
+                                # print(f"Converting with factor {factor} to unit
+                                # {unit_to}")
+                                mask = (data[entity_col] == entity) & (
+                                    data[unit_col] == unit
+                                )
+                                # print(data.loc[mask, data_cols])
+                                try:
+                                    data.loc[mask, data_cols] *= factor
+                                except TypeError:
+                                    # print(data.loc[mask, data_cols])
+                                    strs = find_str_values_in_data(data, data_cols)
+                                    logger.error(
+                                        f"The following string values are present and "
+                                        f"can not be converted during unit conversion: "
+                                        f"{strs}."
+                                    )
+                                    raise ValueError(
+                                        f"String values {strs} prevent unit conversion."
+                                    )
+
+                                data.loc[mask, unit_col] = unit_to
+
+                        # if entity differs from basic entity and the units are not
+                        # compatible we had GWP conversion and have to adapt the entity
+                        if (entity != basic_entity) and not ureg(
+                            unit
+                        ).is_compatible_with(ureg[unit_to]):
+                            # entity was converted
+                            entity_mask = data[entity_col] == entity
+                            # print(f"Changing entity from {entity} to {basic_entity}")
+                            data.loc[entity_mask, entity_col] = basic_entity
 
 
 def sort_columns_and_rows(

@@ -17,6 +17,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         check_consistency: bool = True,
         sel: Optional[Dict[Hashable, Sequence]] = None,
         skipna_evaluation_dims: Sequence[Hashable] = tuple(),
+        skipna: bool = True,
     ) -> xr.DataArray:
         """Downscale timeseries along a dimension using a basket defined on a
         broader timeseries.
@@ -54,6 +55,8 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
           skipped entirely if missing fully. By default, no NA values are skipped.
+        skipna: bool, optional
+          If true it will be passed on to xarray's ds.sum function with min_count=1
 
         Returns
         -------
@@ -64,9 +67,12 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket_contents_da = da_sel.loc[{dim: basket_contents}]
         basket_da = da_sel.loc[{dim: basket}]
 
-        basket_sum = basket_contents_da.pr.sum(
-            dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
-        )
+        if (skipna_evaluation_dims is not None) or (skipna is None) or not skipna:
+            basket_sum = basket_contents_da.pr.sum(
+                dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
+            )
+        else:
+            basket_sum = basket_contents_da.pr.sum(dim=dim, skipna=True, min_count=1)
 
         if check_consistency:
             deviation: xr.DataArray = abs(basket_da / basket_sum - 1)
@@ -103,7 +109,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
         sel: Optional[Dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[Hashable] = tuple(),
+        skipna_evaluation_dims: Sequence[Hashable] = None,
+        skipna: bool = True,
     ) -> xr.Dataset:
         """Downscale timeseries along a dimension using a basket defined on a
         broader timeseries.
@@ -141,6 +148,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
           skipped entirely if missing fully. By default, no NA values are skipped.
+        skipna: bool, optional
+          If true it will be passed on to xarray's ds.sum function with min_count=1
 
         Notes
         -----
@@ -157,9 +166,12 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket_contents_ds = ds_sel.loc[{dim: basket_contents}]
         basket_ds = ds_sel.loc[{dim: basket}]
 
-        basket_sum = basket_contents_ds.pr.sum(
-            dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
-        )
+        if (skipna_evaluation_dims is not None) or (skipna is None) or not skipna:
+            basket_sum = basket_contents_ds.pr.sum(
+                dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
+            )
+        else:
+            basket_sum = basket_contents_ds.pr.sum(dim=dim, skipna=True, min_count=1)
 
         if check_consistency:
             deviation = abs(basket_ds / basket_sum - 1)
@@ -194,6 +206,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         check_consistency: bool = True,
         sel: Optional[Dict[Hashable, Sequence]] = None,
         skipna_evaluation_dims: Sequence[Hashable] = tuple(),
+        skipna=None,
     ) -> xr.Dataset:
         """Downscale a gas basket defined on a broader timeseries to its contents
         known on fewer time points.
@@ -229,6 +242,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
           skipped entirely if missing fully. By default, no NA values are skipped.
+        skipna: bool, optional
+          If true it will be passed on to xarray's ds.sum function with min_count=1
 
         Returns
         -------
@@ -242,9 +257,14 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
             da: xr.DataArray = ds_sel[var]
             basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=da_basket)
 
-        basket_sum = basket_contents_converted.pr.sum(
-            dim="entity", skipna_evaluation_dims=skipna_evaluation_dims
-        )
+        if (skipna_evaluation_dims is not None) or (skipna is None) or not skipna:
+            basket_sum = basket_contents_converted.pr.sum(
+                dim="entity", skipna_evaluation_dims=skipna_evaluation_dims
+            )
+        else:
+            basket_sum = basket_contents_converted.pr.sum(
+                dim="entity", skipna=True, min_count=1
+            )
 
         if check_consistency:
             deviation = abs(da_basket / basket_sum - 1)
@@ -254,6 +274,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                     f"Sum of the basket_contents {basket_contents!r} deviates"
                     f" {devmax * 100} % from the basket"
                     f" {basket!r}, which is more than the allowed 1 %. "
+                    f" {deviation}"
                     "To continue regardless, set check_consistency=False."
                 )
 
