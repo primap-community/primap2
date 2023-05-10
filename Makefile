@@ -60,7 +60,7 @@ servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
 release: venv dist ## package and upload a release
-	venv/bin/twine upload dist/*
+	venv/bin/twine upload --repository primap dist/*
 
 dist: clean venv ## builds source and wheel package
 	venv/bin/python -m build
