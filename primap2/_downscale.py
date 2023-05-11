@@ -1,5 +1,5 @@
 from collections.abc import Hashable, Sequence
-from typing import Optional
+from typing import Optional, Union
 
 import xarray as xr
 
@@ -17,7 +17,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
         sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[Hashable] = tuple(),
+        skipna_evaluation_dims: Union[None, Sequence[Hashable]] = None,
         skipna: bool = True,
     ) -> xr.DataArray:
         """Downscale timeseries along a dimension using a basket defined on a
@@ -56,8 +56,11 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
           skipped entirely if missing fully. By default, no NA values are skipped.
-        skipna: bool, optional
+        skipna: bool, default True
           If true it will be passed on to xarray's ds.sum function with min_count=1
+          for the calculation of the basket.
+          The effect is that NA values in a sum will be ignored and treated as zero
+          in the sum unless all values are NA which results in NA.
 
         Returns
         -------
@@ -68,7 +71,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket_contents_da = da_sel.loc[{dim: basket_contents}]
         basket_da = da_sel.loc[{dim: basket}]
 
-        if (skipna_evaluation_dims is not None) or (skipna is None) or not skipna:
+        if (skipna_evaluation_dims is not None) or not skipna:
             basket_sum = basket_contents_da.pr.sum(
                 dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
             )
@@ -149,8 +152,11 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
           skipped entirely if missing fully. By default, no NA values are skipped.
-        skipna: bool, optional
-          If true it will be passed on to xarray's ds.sum function with min_count=1
+        skipna: bool, default True
+          If true it will be passed on to xarray's ds.sum function with min_count=1 for
+          the calculation of the basket.
+          The effect is that NA values in a sum will be ignored and treated as zero
+          in the sum unless all values are NA which results in NA.
 
         Notes
         -----
@@ -167,7 +173,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket_contents_ds = ds_sel.loc[{dim: basket_contents}]
         basket_ds = ds_sel.loc[{dim: basket}]
 
-        if (skipna_evaluation_dims is not None) or (skipna is None) or not skipna:
+        if (skipna_evaluation_dims is not None) or not skipna:
             basket_sum = basket_contents_ds.pr.sum(
                 dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
             )
@@ -206,8 +212,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
         sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[Hashable] = tuple(),
-        skipna=None,
+        skipna_evaluation_dims: Sequence[Hashable] = None,
+        skipna: bool = True,
     ) -> xr.Dataset:
         """Downscale a gas basket defined on a broader timeseries to its contents
         known on fewer time points.
@@ -244,7 +250,10 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
           Dimensions which should be evaluated to determine if NA values should be
           skipped entirely if missing fully. By default, no NA values are skipped.
         skipna: bool, optional
-          If true it will be passed on to xarray's ds.sum function with min_count=1
+          If true it will be passed on to xarray's ds.sum function with min_count=1 for
+          the calculation of the basket.
+          The effect is that NA values in a sum will be ignored and treated as zero
+          in the sum unless all values are NA which results in NA.
 
         Returns
         -------
@@ -258,7 +267,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
             da: xr.DataArray = ds_sel[var]
             basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=da_basket)
 
-        if (skipna_evaluation_dims is not None) or (skipna is None) or not skipna:
+        if (skipna_evaluation_dims is not None) or not skipna:
             basket_sum = basket_contents_converted.pr.sum(
                 dim="entity", skipna_evaluation_dims=skipna_evaluation_dims
             )
