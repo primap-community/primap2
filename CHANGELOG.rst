@@ -2,6 +2,24 @@
 Changelog
 =========
 
+0.9.7
+-----
+* Fix the test suite to work with Pint release 0.21.
+
+0.9.6
+-----
+* Add dependency on openscm_units > 0.5.1 for compatibility with latest pandas.
+* stop building pdf output documentation, it doesn't support SVG and isn't used much.
+* Drop support for Python version 3.8 to prepare for it being dropped
+  in Numpy on April 14.
+
+0.9.5
+-----
+* pr.merge: use xarray's combine_first instead of own algorithm for better performance.
+* Fix in nan handling of to_interchange_format
+* made regexp_unit optional in nir_add_unit_information as intended already before
+* Add support for Python 3.11
+
 0.9.4
 -----
 * Update to work with Pint 0.20.1.

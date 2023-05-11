@@ -1,4 +1,5 @@
-from typing import Any, Hashable, Iterable, Mapping, Optional, Sequence, Union
+from collections.abc import Hashable, Iterable, Mapping, Sequence
+from typing import Any, Optional, Union
 
 import numpy as np
 import xarray as xr

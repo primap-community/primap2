@@ -1,6 +1,8 @@
+import contextlib
 import datetime
 import pathlib
-from typing import IO, Hashable, Iterable, Mapping, Optional, Tuple, Union
+from collections.abc import Hashable, Iterable, Mapping
+from typing import IO, Optional, Union
 
 import pandas as pd
 import pint
@@ -202,7 +204,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         path: Union[pathlib.Path, str],
         mode: str = "w",
         group: Optional[str] = None,
-        encoding: Mapping = None,
+        encoding: Union[Mapping, None] = None,
     ) -> Union[bytes, None]:
         """Write dataset contents to a netCDF file.
 
@@ -242,14 +244,16 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         )
 
 
-def split_dim_name(dim_name: str) -> Tuple[str, str]:
+def split_dim_name(dim_name: str) -> tuple[str, str]:
     """Split a dimension name composed of the dimension, and the category set in
     parentheses into its parts."""
     try:
         dim, category_set = dim_name.split("(", 1)
     except ValueError:
         logger.error(f"{dim_name!r} not in the format 'dim (category_set)'.")
-        raise ValueError(f"{dim_name!r} not in the format 'dim (category_set)'")
+        raise ValueError(
+            f"{dim_name!r} not in the format 'dim (category_set)'"
+        ) from None
     return dim, category_set[:-1]
 
 
@@ -282,30 +286,21 @@ def ensure_valid_coordinates(ds: xr.Dataset):
 
 
 def ensure_valid_attributes(ds: xr.Dataset):
-    try:
+    with contextlib.suppress(KeyError):
         reference = ds.attrs["references"]
         if not reference.startswith("doi:"):
             logger.info(f"Reference information is not a DOI: {reference!r}")
-    except KeyError:
-        pass
-
-    try:
+    with contextlib.suppress(KeyError):
         contact = ds.attrs["contact"]
         if "@" not in contact:
             logger.info(f"Contact information is not an email address: {contact!r}.")
-    except KeyError:
-        pass
-
-    try:
+    with contextlib.suppress(KeyError):
         publication_date = ds.attrs["publication_date"]
         if not isinstance(publication_date, datetime.date):
             logger.error(
                 f"Publication date is not a datetime.date object: {publication_date!r}."
             )
             raise ValueError("Publication date is not a date object.")
-    except KeyError:
-        pass
-
     valid_attr_keys = {
         "references",
         "rights",
@@ -363,7 +358,7 @@ def ensure_units_exist(ds: xr.Dataset) -> xr.Dataset:
 def ensure_entity_and_units_valid(key: Hashable, da: xr.DataArray):
     entity = da.attrs["entity"]
     units = da.pint.units
-    try:
+    with contextlib.suppress(pint.UndefinedUnitError):
         # if the entity is a gas and it is not converted to a gwp, the dimensions
         # should be compatible with an emission rate
         unit_entity = ureg(entity)
@@ -374,8 +369,6 @@ def ensure_entity_and_units_valid(key: Hashable, da: xr.DataArray):
                 f"{key!r} has a unit of {units}, which is not "
                 f"compatible with an emission rate."
             )
-    except pint.UndefinedUnitError:
-        pass  # if the entity is something else, we can't directly check the dimensions
 
 
 def ensure_gwp_context_valid(key: str, da: xr.DataArray):
@@ -394,7 +387,7 @@ def ensure_gwp_context_valid(key: str, da: xr.DataArray):
             pass
     except KeyError:
         logger.error(f"gwp_context {gwp_context!r} for {key!r} is not valid.")
-        raise ValueError(f"Invalid gwp_context {gwp_context!r} for {key!r}")
+        raise ValueError(f"Invalid gwp_context {gwp_context!r} for {key!r}") from None
 
     if "(" not in key or not key.endswith(")"):
         logger.warning(f"{key!r} has a gwp_context in attrs, but not in its " f"name.")

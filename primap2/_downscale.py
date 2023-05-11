@@ -1,4 +1,5 @@
-from typing import Dict, Hashable, Optional, Sequence
+from collections.abc import Hashable, Sequence
+from typing import Optional
 
 import xarray as xr
 
@@ -15,7 +16,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[Dict[Hashable, Sequence]] = None,
+        sel: Optional[dict[Hashable, Sequence]] = None,
         skipna_evaluation_dims: Sequence[Hashable] = tuple(),
         skipna: bool = True,
     ) -> xr.DataArray:
@@ -108,7 +109,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[Dict[Hashable, Sequence]] = None,
+        sel: Optional[dict[Hashable, Sequence]] = None,
         skipna_evaluation_dims: Sequence[Hashable] = None,
         skipna: bool = True,
     ) -> xr.Dataset:
@@ -204,7 +205,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[Dict[Hashable, Sequence]] = None,
+        sel: Optional[dict[Hashable, Sequence]] = None,
         skipna_evaluation_dims: Sequence[Hashable] = tuple(),
         skipna=None,
     ) -> xr.Dataset:

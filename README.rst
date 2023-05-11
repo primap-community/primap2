@@ -36,7 +36,9 @@ yet.
 
 License
 -------
-Copyright 2020-2021, Potsdam-Institut für Klimafolgenforschung e.V.
+Copyright 2020-2022, Potsdam-Institut für Klimafolgenforschung e.V.
+
+Copyright 2023, Climate Resource Pty Ltd
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this
 file except in compliance with the License. You may obtain a copy of the License at
@@ -56,6 +58,6 @@ Citation
 --------
 If you use this library and want to cite it, please cite it as:
 
-Mika Pflüger and Johannes Gütschow. (2022-10-28).
-pik-primap/primap2: PRIMAP2 Version 0.9.4.
-Zenodo. https://doi.org/10.5281/zenodo.7260627
+Mika Pflüger and Johannes Gütschow. (2023-05-10).
+pik-primap/primap2: PRIMAP2 Version 0.9.7.
+Zenodo. https://doi.org/10.5281/zenodo.7919586

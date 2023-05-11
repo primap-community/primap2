@@ -11,7 +11,7 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest, windows-latest ]
-        python-version: [3.8, 3.9, "3.10"]
+        python-version: [ 3.9, "3.10", "3.11" ]
     steps:
     - uses: actions/checkout@v2
 
@@ -23,7 +23,7 @@ jobs:
     - uses: actions/cache@v2
       with:
         path: ${{ env.pythonLocation }}
-        key: ${{ env.pythonLocation }}-${{ hashFiles('setup.cfg') }}
+        key: 1-${{ env.pythonLocation }}-${{ hashFiles('setup.cfg') }}
 
     - name: Install dependencies
       run: |
