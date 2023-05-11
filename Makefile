@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit stubs update-venv README.rst
+.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit stubs update-venv README.rst check-python-version
 .DEFAULT_GOAL := help
 
 define PRINT_HELP_PYSCRIPT
@@ -72,13 +72,15 @@ install: clean ## install the package to the active Python's site-packages
 virtual-environment: venv ## setup a virtual environment for development
 
 venv: requirements_dev.txt setup.cfg
+	[ -d venv ] || python3 .check_python_version.py
 	[ -d venv ] || python3 -m venv venv
 	venv/bin/python -m pip install --upgrade pip wheel
 	venv/bin/python -m pip install --upgrade -e .[dev]
 	touch venv
 
-update-venv:
+update-venv: ## update all packages in the development environment
 	[ -d venv ] || python3 -m venv venv
+	venv/bin/python .check_python_version.py
 	venv/bin/python -m pip install --upgrade pip wheel
 	venv/bin/python -m pip install --upgrade --upgrade-strategy eager -e .[dev]
 	touch venv
