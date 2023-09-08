@@ -372,8 +372,6 @@ Developing PRIMAP2 with Pycharm works best if you:
       to view and edit CSV files
    * `Matlab support <https://plugins.jetbrains.com/plugin/10941-matlab-support>`_
       to quickly view .m files without starting matlab
-   * `Diff/patch file support <https://plugins.jetbrains.com/plugin/11957-diff--patch-file-support>`_
-      for syntax highlighting of patch files (currently only used for stub generation)
    * `Requirements <https://plugins.jetbrains.com/plugin/10837-requirements>`_
       for managing requirements_dev.txt from within PyCharm
    * `Toml <https://plugins.jetbrains.com/plugin/8195-toml>`_
