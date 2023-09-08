@@ -363,7 +363,7 @@ Developing PRIMAP2 with Pycharm works best if you:
    Afterwards, you can run the tests by selecting this configuration at the top right
    bar and clicking on the "run" or "run with coverage" icons.
 5. If you want to run the ``black`` code formatter from PyCharm, look at their
-   `howto <https://black.readthedocs.io/en/stable/editor_integration.html#pycharm-intellij-idea>`_.
+   `howto <https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea>`_.
 6. A couple of plugins can be useful in PyCharm for PRIMAP2 development:
 
    * `Makefile support <https://plugins.jetbrains.com/plugin/9333-makefile-language>`_
