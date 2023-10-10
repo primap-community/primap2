@@ -1,4 +1,5 @@
 """Check if the used version of Python is good enough for us."""
+# ruff: noqa
 import sys
 
 MIN_VERSION = (3, 9)
