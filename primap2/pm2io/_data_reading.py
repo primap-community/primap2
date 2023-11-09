@@ -1346,7 +1346,7 @@ def parse_code(code: str) -> float:
         return _special_codes[code]
 
     parts = code.split(",")
-    parts = [x.replace(".", "").strip() for x in parts]
+    parts = [x.replace(".", "").strip().upper() for x in parts]
     if "IE" in parts or "NO" in parts:
         return 0
     if "NE" in parts or "NA" in parts:
@@ -1390,7 +1390,7 @@ def replace_values(data: pd.DataFrame, columns: list[str], na_repl_dict):
         data[col] = data[col].astype("float64", copy=False, errors="ignore")
 
 
-def preferred_unit(entity: str, units: dict[str, str]) -> str:
+def preferred_unit(entity: str, units: dict[str, str]) -> Union[str, None]:
     """Choose the preferred unit for the given entity.
 
     In general, "Gg <substance> / year" will be preferred if it is compatible with the
@@ -1418,16 +1418,17 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str:
     'Gg CO2 / yr'
     >>> preferred_unit("CH4", {"kt CO2 / yr": "AR4GWP100"})
     'Gg CH4 / yr'
-    >>> preferred_unit("CH4", {"kt CO2 / yr": None, "Mg CO2 / yr": None})
-    'kt CO2 / yr'
-     >>> preferred_unit("CH4", {"kt CO2 / yr": None, "Mg CH4 / yr": None})
+    >>> preferred_unit("CH4", {"kt CO2 / yr": None, "Mg CH4 / yr": None})
     None
+    >>> preferred_unit("CH4", {"kt CO2 / yr": "AR4GWP100", "Gg CO2 / yr": "SARGWP100"})
+    'Gg CH4 / yr'
     >>> preferred_unit(
     ...     "KYOTOGHG", {"kt CO2 / yr": "AR4GWP100", "Gg CO2 / yr": "SARGWP100"}
     ... )
-    'kt CO2 / yr'
+
     """
     unit_fallback = list(units.keys())[0]
+    context_fallback = units[unit_fallback]
     # check if all can be converted to native or fallback units
     native_conv = []
     fb_conv = []
@@ -1452,18 +1453,25 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str:
             pass
 
         # check if conversion to fallback unit is possible
-        try:
-            # print(f"Testing conversion from {ureg[unit_fallback].units} to "
-            #       f"{ureg[native_unit].units} for {entity}.")
-            if ureg(unit).is_compatible_with(ureg[unit_fallback], *conversion_contexts):
-                fb_conv.append(True)
-            else:
-                fb_conv.append(False)
-        except pint.UndefinedUnitError:
-            # we have a gas basket or something unknown, so no conversion to native unit
-            # print(f"Exception occurred for entity {entity}")
+        if units[unit] != context_fallback:
             fb_conv.append(False)
             pass
+        else:
+            try:
+                # print(f"Testing conversion from {ureg[unit_fallback].units} to "
+                #       f"{ureg[native_unit].units} for {entity}.")
+                if ureg(unit).is_compatible_with(
+                    ureg[unit_fallback], *conversion_contexts
+                ):
+                    fb_conv.append(True)
+                else:
+                    fb_conv.append(False)
+            except pint.UndefinedUnitError:
+                # we have a gas basket or something unknown, so no conversion to native
+                # unit
+                # print(f"Exception occurred for entity {entity}")
+                fb_conv.append(False)
+                pass
 
     if all(native_conv):
         # print(f"converting {entity} to native unit {native_unit}")
