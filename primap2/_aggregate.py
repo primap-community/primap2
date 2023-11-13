@@ -132,6 +132,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
            evaluation dimension ``position`` will skip only those values where all
            values with the same ``position`` are NA.
 
+        ``skipna`` and ``min_count`` work like in xr's ``sum`` function. The behaviour
+        of primap1 reproduced by is ``skipna=True, min_count=1``.
+
         Parameters
         ----------
         dim: str or list of str, optional
@@ -155,8 +158,16 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
           result.
         keep_attrs: bool, optional
           Keep the attr metadata (default True).
-        min_count: int (default none)
-          Minimal number of non-nan values for non-nan result.
+        min_count: int (default None)
+          The minimal number of non-NA values in a sum that is necessary for a non-NA
+          result. This only has an effect if ``skipna=True``. As an example: you sum data
+          for a region for a certain sector, gas and year. If ``skipna=False``,
+          all countries in the region need to have non-NA data for that sector, gas,
+          year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+          non-NA data is enough for a non-NA result. All NA values will be treated as
+          zero. If ``min_count=None`` (or 0) all NA values will be treated as zero
+          also if there is no single non-NA value in the data that is to be summed.
+
 
         Returns
         -------
@@ -361,6 +372,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
            and summed along the data variables (which will only work if the units of
            the DataArrays are compatible).
 
+        ``skipna`` and ``min_count`` work like in xr's ``sum`` function. The behaviour
+        of primap1 reproduced by is ``skipna=True, min_count=1``.
+
         Parameters
         ----------
         dim: str or list of str, optional
@@ -387,7 +401,14 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         keep_attrs: bool, optional
           Keep the attr metadata (default True).
         min_count: int (default none)
-          Minimal number of non-nan values for non-nan result.
+          The minimal number of non-NA values in a sum that is necessary for a non-NA
+          result. This only has an effect if ``skipna=True``. As an example: you sum data
+          for a region for a certain sector, gas and year. If ``skipna=False``,
+          all countries in the region need to have non-NA data for that sector, gas,
+          year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+          non-NA data is enough for a non-NA result. All NA values will be treated as
+          zero. If ``min_count=None`` (or 0) all NA values will be treated as zero
+          also if there is no single non-NA value in the data that is to be summed.
 
         Returns
         -------

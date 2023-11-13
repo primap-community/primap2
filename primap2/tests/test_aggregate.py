@@ -6,7 +6,6 @@ import pathlib
 import numpy as np
 import pytest
 import xarray as xr
-import xarray.testing
 
 import primap2
 from primap2 import ureg
@@ -69,7 +68,7 @@ def test_fill_all_na():
 
 
 class TestSum:
-    def test_skipna(self):
+    def test_skipna_evaluation_dims(self):
         coords = [("a", [1, 2]), ("b", [1, 2]), ("c", [1, 2, 3])]
         da = xr.DataArray(
             data=[
@@ -97,6 +96,45 @@ class TestSum:
             {
                 "1": b_expected,
                 "2": b_expected,
+            }
+        )
+        xr.testing.assert_identical(dss, dss_expected)
+
+    def test_skipna(self):
+        coords = [("a", [1, 2]), ("b", [1, 2]), ("c", [1, 2, 3])]
+        da = xr.DataArray(
+            data=[
+                [[np.nan, np.nan, np.nan], [np.nan, 1, 2]],
+                [[np.nan, np.nan, np.nan], [np.nan, 1, 2]],
+            ],
+            coords=coords,
+        )
+
+        b = da.pr.sum(dim="b", skipna=True)
+        b_expected = xr.DataArray(
+            data=[[0, 1, 2], [0, 1, 2]], coords=[coords[0], coords[2]]
+        )
+        assert np.allclose(b, b_expected, equal_nan=True)
+
+        b1 = da.pr.sum(dim="b", skipna=True, min_count=1)
+        b1_expected = xr.DataArray(
+            data=[[np.nan, 1, 2], [np.nan, 1, 2]], coords=[coords[0], coords[2]]
+        )
+        assert np.allclose(b1, b1_expected, equal_nan=True)
+
+        b2 = da.pr.sum(dim="b", skipna=True, min_count=2)
+        b2_expected = xr.DataArray(
+            data=[[np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan]],
+            coords=[coords[0], coords[2]],
+        )
+        assert np.allclose(b2, b2_expected, equal_nan=True)
+
+        ds = xr.Dataset({"1": da, "2": da.copy()})
+        dss = ds.pr.sum(dim="b", skipna=True, min_count=1)
+        dss_expected = xr.Dataset(
+            {
+                "1": b1_expected,
+                "2": b1_expected,
             }
         )
         xr.testing.assert_identical(dss, dss_expected)
