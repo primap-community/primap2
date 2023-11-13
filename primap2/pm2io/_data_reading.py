@@ -1427,7 +1427,7 @@ def preferred_unit(entity: str, units: dict[str, str]) -> Union[str, None]:
     ... )
 
     """
-    unit_fallback = list(units.keys())[0]
+    unit_fallback = next(iter(units.keys()))
     context_fallback = units[unit_fallback]
     # check if all can be converted to native or fallback units
     native_conv = []

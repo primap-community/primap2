@@ -117,7 +117,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
         sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[Hashable] = None,
+        skipna_evaluation_dims: Optional[Sequence[Hashable]] = None,
         skipna: bool = True,
         tolerance: float = 0.01,
     ) -> xr.Dataset:
@@ -220,7 +220,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
         sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[Hashable] = None,
+        skipna_evaluation_dims: Optional[Sequence[Hashable]] = None,
         skipna: bool = True,
         tolerance: float = 0.01,
     ) -> xr.Dataset:
