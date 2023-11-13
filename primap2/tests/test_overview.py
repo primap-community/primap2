@@ -93,7 +93,7 @@ def test_array_coverage_multidim(opulent_ds):
         columns=da.pr["product"].values,
         data=np.zeros((len(da.pr["animal"]), len(da.pr["product"])), dtype=np.int32),
     )
-    expected[:] = np.product(da.shape) // np.product(expected.shape)
+    expected[:] = np.prod(da.shape) // np.prod(expected.shape)
     expected.loc[:, "milk"] = 0
     expected.index.name = "animal (FAOSTAT)"
     expected.columns.name = "product (FAOSTAT)"
@@ -123,10 +123,8 @@ def test_set_coverage(opulent_ds):
         columns=ds.pr["animal"].values,
         data=np.zeros((len(ds.pr["product"]), len(ds.pr["animal"])), dtype=int),
     )
-    expected[:] = np.product(ds["CO2"].shape) // np.product(expected.shape) * 4
-    expected.loc["milk", :] = (
-        np.product(ds["CO2"].shape) // np.product(expected.shape) * 3
-    )
+    expected[:] = np.prod(ds["CO2"].shape) // np.prod(expected.shape) * 4
+    expected.loc["milk", :] = np.prod(ds["CO2"].shape) // np.prod(expected.shape) * 3
     expected.index.name = "product (FAOSTAT)"
     expected.columns.name = "animal (FAOSTAT)"
     expected.name = "coverage"
@@ -144,9 +142,9 @@ def test_set_coverage_entity(opulent_ds):
         columns=ds.pr["area"].values,
         data=np.zeros((len(ds), len(ds.pr["area"].values)), dtype=int),
     )
-    expected[:] = np.product(ds["CO2"].shape)
-    expected.loc["population", :] = np.product(ds["population"].shape)
-    expected.loc["CO2", :] = np.product(ds["CO2"].shape) - np.product(
+    expected[:] = np.prod(ds["CO2"].shape)
+    expected.loc["population", :] = np.prod(ds["population"].shape)
+    expected.loc["CO2", :] = np.prod(ds["CO2"].shape) - np.prod(
         ds["CO2"].pr.loc[{"product": "milk"}].shape
     )
     expected = expected // len(ds.pr["area"].values)
@@ -176,7 +174,7 @@ def test_set_coverage_entity_other_dim_not_existing(opulent_ds):
         columns=entites_expected,
         data=np.zeros((len(ds.pr["product"]), len(entites_expected)), dtype=int),
     )
-    expected[:] = np.product(ds["CO2"].shape) // len(ds.pr["product"])
+    expected[:] = np.prod(ds["CO2"].shape) // len(ds.pr["product"])
     expected.loc["milk", "CO2"] = 0
     expected.index.name = "product (FAOSTAT)"
     expected.columns.name = "entity"
