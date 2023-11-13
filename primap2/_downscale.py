@@ -75,12 +75,21 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket_contents_da = da_sel.loc[{dim: basket_contents}]
         basket_da = da_sel.loc[{dim: basket}]
 
-        if (skipna_evaluation_dims is not None) or not skipna:
-            basket_sum = basket_contents_da.pr.sum(
-                dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
-            )
-        else:
-            basket_sum = basket_contents_da.pr.sum(dim=dim, skipna=True, min_count=1)
+        if skipna_evaluation_dims is not None:
+            if skipna:
+                raise ValueError(
+                    "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
+                    " both."
+                )
+            else:
+                skipna = None
+
+        basket_sum = basket_contents_da.pr.sum(
+            dim=dim,
+            skipna=skipna,
+            min_count=1,
+            skipna_evaluation_dims=skipna_evaluation_dims,
+        )
 
         if check_consistency:
             deviation: xr.DataArray = abs(basket_da / basket_sum - 1)
@@ -181,12 +190,21 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket_contents_ds = ds_sel.loc[{dim: basket_contents}]
         basket_ds = ds_sel.loc[{dim: basket}]
 
-        if (skipna_evaluation_dims is not None) or not skipna:
-            basket_sum = basket_contents_ds.pr.sum(
-                dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
-            )
-        else:
-            basket_sum = basket_contents_ds.pr.sum(dim=dim, skipna=True, min_count=1)
+        if skipna_evaluation_dims is not None:
+            if skipna:
+                raise ValueError(
+                    "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
+                    " both."
+                )
+            else:
+                skipna = None
+
+        basket_sum = basket_contents_ds.pr.sum(
+            dim=dim,
+            skipna=skipna,
+            min_count=1,
+            skipna_evaluation_dims=skipna_evaluation_dims,
+        )
 
         if check_consistency:
             deviation = abs(basket_ds / basket_sum - 1)
@@ -279,14 +297,21 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
             da: xr.DataArray = ds_sel[var]
             basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=da_basket)
 
-        if (skipna_evaluation_dims is not None) or not skipna:
-            basket_sum = basket_contents_converted.pr.sum(
-                dim="entity", skipna_evaluation_dims=skipna_evaluation_dims
-            )
-        else:
-            basket_sum = basket_contents_converted.pr.sum(
-                dim="entity", skipna=True, min_count=1
-            )
+        if skipna_evaluation_dims is not None:
+            if skipna:
+                raise ValueError(
+                    "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
+                    " both."
+                )
+            else:
+                skipna = None
+
+        basket_sum = basket_contents_converted.pr.sum(
+            dim="entity",
+            skipna=skipna,
+            min_count=1,
+            skipna_evaluation_dims=skipna_evaluation_dims,
+        )
 
         if check_consistency:
             deviation = abs(da_basket / basket_sum - 1)

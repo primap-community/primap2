@@ -121,7 +121,7 @@ def alias_dims(
 
             # translate kwargs
             for arg_to_alias in args_to_alias:
-                if arg_to_alias in kwargs:
+                if arg_to_alias in kwargs and kwargs[arg_to_alias] is not None:
                     kwargs[arg_to_alias] = alias(
                         kwargs[arg_to_alias], translations, dims
                     )

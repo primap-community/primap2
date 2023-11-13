@@ -1403,7 +1403,8 @@ def preferred_unit(entity: str, units: dict[str, str]) -> Union[str, None]:
     units: dict of str, str
         Keys are the units which are in use for the entity and values the global
         warming potential specifications which will be used for the conversion.
-        By specifying the gwp_to_use, you can make sure that it will be possible to
+        By specifying the gwp_context to use, you can make sure that it will be
+        possible to
         convert from the input units to the output unit with the given gwp.
         If not applicable for a unit use None
 
@@ -1542,7 +1543,7 @@ def harmonize_units(
         gwp_match = re.findall(r"\(([A-Z0-9]*)\)$", entity)
         if gwp_match:
             gwp_to_use = gwp_match[0]
-            basic_entity = re.findall(r"^[^\(\)\s]*", entity)
+            basic_entity = re.findall(r"^[^()\s]*", entity)
             basic_entity = basic_entity[0]
         else:
             gwp_to_use = None
