@@ -132,8 +132,8 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
            evaluation dimension ``position`` will skip only those values where all
            values with the same ``position`` are NA.
 
-        ``skipna`` and ``min_count`` work like in xr's ``sum`` function. The behaviour
-        of primap1 reproduced by is ``skipna=True, min_count=1``.
+        ``skipna`` and ``min_count`` work like in the :py:function::`xr.sum` function. The behaviour
+        of primap1 is reproduced by ``skipna=True, min_count=1``.
 
         Parameters
         ----------
@@ -375,8 +375,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
            and summed along the data variables (which will only work if the units of
            the DataArrays are compatible).
 
-        ``skipna`` and ``min_count`` work like in xr's ``sum`` function. The behaviour
-        of primap1 reproduced by is ``skipna=True, min_count=1``.
+        ``skipna`` and ``min_count`` work like in the `:py:function::xr.sum` function. The behaviour
+        of primap1 is reproduced by ``skipna=True, min_count=1``.
 
         Parameters
         ----------
