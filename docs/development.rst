@@ -131,7 +131,7 @@ dubiously building ASCII art in Python or whatever), use
 `the fmt on/off directive <https://github.com/psf/black#the-black-code-style>`_ so black
 will ignore that part.
 
-We target Python version 3.6 and later, so using
+We target Python version 3.9 and later, so using
 `f-strings <https://docs.python.org/3/tutorial/inputoutput.html#tut-f-strings>`_ is fine
 and generally preferable to old-style format strings.
 
@@ -149,11 +149,10 @@ they are committed. All the configured checks and fixes are listed in the
 - ``check-ast``: parses all python files and errors if the syntax is not valid.
 - ``check-merge-conflict``: emits an error if it finds unresolved merge conflicts.
 - ``black``: formats all python files using black.
-- ``flake8`` and ``doc8``: static analysis for unused imports and variables etc.
+- ``ruff`` and ``doc8``: static analysis for unused imports and variables etc.
   Sometimes, it is unavoidable to trigger flake8 errors, in that case add a comment of
   the form ``# noqa: E501`` at the end of the offending line (using the error code that
-  flake8 reports).
-- ``isort``: automatically sorts imports according to PEP8, so you don't have to.
+  ruff reports).
 
 At any time, you can run all the checks using::
 
@@ -364,7 +363,7 @@ Developing PRIMAP2 with Pycharm works best if you:
    Afterwards, you can run the tests by selecting this configuration at the top right
    bar and clicking on the "run" or "run with coverage" icons.
 5. If you want to run the ``black`` code formatter from PyCharm, look at their
-   `howto <https://black.readthedocs.io/en/stable/editor_integration.html#pycharm-intellij-idea>`_.
+   `howto <https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea>`_.
 6. A couple of plugins can be useful in PyCharm for PRIMAP2 development:
 
    * `Makefile support <https://plugins.jetbrains.com/plugin/9333-makefile-language>`_
@@ -373,10 +372,6 @@ Developing PRIMAP2 with Pycharm works best if you:
       to view and edit CSV files
    * `Matlab support <https://plugins.jetbrains.com/plugin/10941-matlab-support>`_
       to quickly view .m files without starting matlab
-   * `Diff/patch file support <https://plugins.jetbrains.com/plugin/11957-diff--patch-file-support>`_
-      for syntax highlighting of patch files (currently only used for stub generation)
-   * `Requirements <https://plugins.jetbrains.com/plugin/10837-requirements>`_
-      for managing requirements_dev.txt from within PyCharm
    * `Toml <https://plugins.jetbrains.com/plugin/8195-toml>`_
       for editing pyproject.toml
    * `.ignore <https://plugins.jetbrains.com/plugin/7495--ignore>`_

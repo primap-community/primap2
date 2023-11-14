@@ -2,6 +2,68 @@
 Changelog
 =========
 
+0.9.7
+-----
+* Fix the test suite to work with Pint release 0.21.
+
+0.9.6
+-----
+* Add dependency on openscm_units > 0.5.1 for compatibility with latest pandas.
+* stop building pdf output documentation, it doesn't support SVG and isn't used much.
+* Drop support for Python version 3.8 to prepare for it being dropped
+  in Numpy on April 14.
+
+0.9.5
+-----
+* pr.merge: use xarray's combine_first instead of own algorithm for better performance.
+* Fix in nan handling of to_interchange_format
+* made regexp_unit optional in nir_add_unit_information as intended already before
+* Add support for Python 3.11
+
+0.9.4
+-----
+* Update to work with Pint 0.20.1.
+
+0.9.3
+-----
+* Refactor pr.merge.
+* Fix primap2 to work with xarray version 2022.06.
+* Pin Pint to version 0.20 to work around https://github.com/hgrecco/pint/issues/1631 for now.
+
+0.9.2
+-----
+* add merge functions in .pr accessors for Dataset and DataArray
+
+0.9.1
+-----
+* Re-release of version 0.9.0 due to error in the release procedure.
+
+0.9.0
+-----
+* Drop python 3.7 support and add python 3.10 support following NEP 29.
+* Change behaviour of gas basket aggregation functions to be the same as
+  other aggregation functions.
+  Now, `ds.pr.gas_basket_contents_sum()` and
+  `ds.pr.fill_na_gas_basket_from_contents()` work like `ds.pr.sum()`.
+  Both now have a `skipna` argument, and operate as if `skipna=True`
+  by default.
+  Note that this is a breaking change, by default NaNs are now
+  treated as zero values when aggregating gas baskets!
+
+0.8.1
+-----
+* The latest (not-yet-released) version of xarray contains a rework of indexing
+  and some small changes to our I/O functions are necessary to support both old
+  and new xarray.
+* make dropna in nir_convert_df_to_long explicit
+* make nir_add_unit_information more flexible
+
+0.8.0
+-----
+* Make input format more flexible for convert_ipcc_code_primap_to_primap2
+* several bug fixes in data reading
+* in data reading we now work on a copy of the input data frame to leave it unchanged
+
 0.7.1
 -----
 * Require openscm-units >= 0.3 to ensure that refrigerants and AR5GWPCCF are available.

@@ -48,8 +48,8 @@ v2.2 dataset into PRIMAP2.
    :maxdepth: 2
    :caption: Examples wide csv:
 
-   data_reading_examples/test_data_wide
-   data_reading_examples/PRIMAP-hist
+   data_reading_writing_examples/test_data_wide
+   data_reading_writing_examples/PRIMAP-hist
 
 Long (tidy) csv file
 --------------------
@@ -68,11 +68,43 @@ The second example shows how to read in FAOstat data into PRIMAP2.
    :maxdepth: 2
    :caption: Examples long CSV:
 
-   data_reading_examples/test_data_long
-   data_reading_examples/FAOstat
+   data_reading_writing_examples/test_data_long
+   data_reading_writing_examples/FAOstat
+
+
+Treatment of string codes
+-------------------------
+String codes like "IE", "NA" etc. need to be mapped to numerical values.
+The codes have to be interpreted to select if they have to be mapped to 0 or
+NaN. For example "IE" stands for "included elsewhere" and thus it has to be
+mapped to 0 to show that emissions in this timeseries are 0 and not missing.
+
+As a default, we use easy rules combined with defined mappings for special cases.
+The rules are
+
+* If the code contains `IE` and/or `NO` it is mapped to 0
+* If the code contains `NE` and/or `NA` but neither `IE` nor `NO`, it is mapped to NaN.
+
+The special cases are
+
+.. code-block:: python
+
+    _special_codes = {
+        "C": np.nan,
+        "nan": np.nan,
+        "NaN": np.nan,
+        "-": 0,
+        "NE0": np.nan,
+        "": np.nan,
+    }
+
+`NaN` and `nan` will be detected as `np.nan`.
+
+Users can define custom rules by assigning a dict in the format of `_special_rules`
+to the `convert_str` parameter.
 
 
 Further formats
 ---------------
-In the future we will ofer data reading functions for further formats.
+In the future we will offer data reading functions for further formats.
 Information will be added here.

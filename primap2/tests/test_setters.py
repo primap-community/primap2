@@ -1,7 +1,6 @@
 """Tests for _setters.py"""
 
 import re
-import typing
 
 import numpy as np
 import pint
@@ -33,7 +32,7 @@ def co2() -> pint.Unit:
 
 
 @pytest.fixture(params=["fillna_empty", "error", "fillna", "overwrite", None])
-def existing(request) -> typing.Dict[str, str]:
+def existing(request) -> dict[str, str]:
     if request.param is not None:
         return {"existing": request.param}
     else:
@@ -41,7 +40,7 @@ def existing(request) -> typing.Dict[str, str]:
 
 
 @pytest.fixture(params=["error", "extend", None])
-def new(request) -> typing.Dict[str, str]:
+def new(request) -> dict[str, str]:
     if request.param is not None:
         return {"new": request.param}
     else:
@@ -61,7 +60,7 @@ class TestDASetter:
 
     def test_new_works(self, da: xr.DataArray, ts, co2, existing):
         actual = da.pr.set("area", ["CUB"], 2 * ts * co2, new="extend", **existing)
-        expected = da.reindex({"area (ISO3)": list(da["area (ISO3)"].values) + ["CUB"]})
+        expected = da.reindex({"area (ISO3)": [*da["area (ISO3)"].values, "CUB"]})
         expected.loc[{"area (ISO3)": "CUB"}] = ts[..., np.newaxis] * 2 * co2
         assert_aligned_equal(actual, expected)
 
@@ -132,7 +131,7 @@ class TestDASetter:
             ["COL", "CUB"],
             np.array([ts, 2 * ts]).T * co2,
         )
-        expected = da.reindex({"area (ISO3)": list(da["area (ISO3)"].values) + ["CUB"]})
+        expected = da.reindex({"area (ISO3)": [*da["area (ISO3)"].values, "CUB"]})
         expected.loc[{"area (ISO3)": "COL"}] = ts[..., np.newaxis] * co2
         expected.loc[{"area (ISO3)": "CUB"}] = ts[..., np.newaxis] * 2 * co2
         assert_aligned_equal(actual, expected)
@@ -159,7 +158,7 @@ class TestDASetter:
             np.array([ts, 2 * ts]).T * co2,
             existing="overwrite",
         )
-        expected = da.reindex({"area (ISO3)": list(da["area (ISO3)"].values) + ["CUB"]})
+        expected = da.reindex({"area (ISO3)": [*da["area (ISO3)"].values, "CUB"]})
         expected.loc[{"area (ISO3)": "COL"}] = ts[..., np.newaxis] * co2
         expected.loc[{"area (ISO3)": "CUB"}] = ts[..., np.newaxis] * 2 * co2
         assert_aligned_equal(actual, expected)
@@ -183,7 +182,7 @@ class TestDASetter:
             np.array([ts, 2 * ts]).T * co2,
             existing="fillna",
         )
-        expected = da.reindex({"area (ISO3)": list(da["area (ISO3)"].values) + ["CUB"]})
+        expected = da.reindex({"area (ISO3)": [*da["area (ISO3)"].values, "CUB"]})
         expected.loc[{"area (ISO3)": "COL", "time": "2009"}] = 9 * co2
         expected.loc[{"area (ISO3)": "CUB"}] = ts[..., np.newaxis] * 2 * co2
         assert_aligned_equal(actual, expected)
@@ -191,7 +190,7 @@ class TestDASetter:
     def test_new_from_array(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
         # with scalar dimension
         actual = da.pr.set("area", "CUB", 2 * da.pr.loc[{"area": "COL"}])
-        expected = da.reindex({"area (ISO3)": list(da["area (ISO3)"].values) + ["CUB"]})
+        expected = da.reindex({"area (ISO3)": [*da["area (ISO3)"].values, "CUB"]})
         expected = expected.fillna(expected.loc[{"area (ISO3)": "COL"}] * 2)
         assert_aligned_equal(actual, expected)
 
@@ -210,7 +209,7 @@ class TestDASetter:
         actual = da.pr.set(
             "area", ["CUB", "COL"], 2 * da.pr.loc[{"area": "COL"}], existing="overwrite"
         )
-        expected = da.reindex({"area (ISO3)": list(da["area (ISO3)"].values) + ["CUB"]})
+        expected = da.reindex({"area (ISO3)": [*da["area (ISO3)"].values, "CUB"]})
         expected.loc[{"area (ISO3)": "COL"}] = np.nan
         expected = expected.fillna(da.loc[{"area (ISO3)": "COL"}] * 2)
         assert_aligned_equal(actual, expected)
@@ -382,7 +381,7 @@ class TestDsSetter:
             "area", "CUB", minimal_ds.pr.loc[{"area": "COL"}] * 2, **existing
         )
         expected = minimal_ds.reindex(
-            {"area (ISO3)": list(minimal_ds["area (ISO3)"].values) + ["CUB"]}
+            {"area (ISO3)": [*minimal_ds["area (ISO3)"].values, "CUB"]}
         )
         for key in expected.keys():
             expected[key] = expected[key].fillna(
@@ -452,7 +451,7 @@ class TestDsSetter:
             "area", "CUB", minimal_ds.pr.loc[{"area": "COL"}] * 2
         )
         expected = minimal_ds.reindex(
-            {"area (ISO3)": list(minimal_ds["area (ISO3)"].values) + ["CUB"]}
+            {"area (ISO3)": [*minimal_ds["area (ISO3)"].values, "CUB"]}
         )
         for key in expected.keys():
             if key == "population":

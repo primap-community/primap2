@@ -28,6 +28,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+html/
+.mutmut-cache
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -109,3 +111,6 @@ ENV/
 .vscode/
 .idea/
 /.dmypy.json
+
+# Johannes' development scripts
+JG_test_scripts

@@ -1,14 +1,9 @@
 -e .
-sphinx==4.0.2
-ipykernel
+Sphinx>=4.2
+sphinx-rtd-theme
 nbsphinx
-xarray
-pint
-pint_xarray
-numpy
-pandas
-openscm_units
-loguru
-git+https://github.com/xarray-contrib/sphinx-autosummary-accessors@stable
+numpydoc
+ipykernel
+sphinx-autosummary-accessors
 numpydoc
 matplotlib

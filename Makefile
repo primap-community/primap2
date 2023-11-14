@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit stubs update-venv
+.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit stubs update-venv README.rst check-python-version
 .DEFAULT_GOAL := help
 
 define PRINT_HELP_PYSCRIPT
@@ -60,7 +60,7 @@ servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 
 release: venv dist ## package and upload a release
-	venv/bin/twine upload dist/*
+	venv/bin/twine upload --repository primap dist/*
 
 dist: clean venv ## builds source and wheel package
 	venv/bin/python -m build
@@ -72,13 +72,15 @@ install: clean ## install the package to the active Python's site-packages
 virtual-environment: venv ## setup a virtual environment for development
 
 venv: requirements_dev.txt setup.cfg
+	[ -d venv ] || python3 .check_python_version.py
 	[ -d venv ] || python3 -m venv venv
 	venv/bin/python -m pip install --upgrade pip wheel
 	venv/bin/python -m pip install --upgrade -e .[dev]
 	touch venv
 
-update-venv:
+update-venv: ## update all packages in the development environment
 	[ -d venv ] || python3 -m venv venv
+	venv/bin/python .check_python_version.py
 	venv/bin/python -m pip install --upgrade pip wheel
 	venv/bin/python -m pip install --upgrade --upgrade-strategy eager -e .[dev]
 	touch venv
@@ -92,5 +94,5 @@ stubs: venv ## generate directory with xarray stubs with inserted primap2 stubs
 	venv/bin/stubgen -p xarray -o stubs
 	(cd stubs; patch -s -p0 < ../primap-stubs.patch)
 
-README.rst:  CHANGELOG.rst  ## Update the citation information from zenodo
+README.rst: ## Update the citation information from zenodo
 	venv/bin/python update_citation_info.py

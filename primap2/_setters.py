@@ -19,7 +19,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             raise KeyError(
                 f"Values {missing!r} not in {dim!r}, use new='extend' to "
                 f"automatically insert new values into dim."
-            )
+            ) from None
 
     @alias_dims(["dim", "value_dims"])
     def set(
@@ -28,7 +28,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         key: typing.Any,
         value: typing.Union[xr.DataArray, np.ndarray],
         *,
-        value_dims: typing.Optional[typing.List[typing.Hashable]] = None,
+        value_dims: typing.Optional[list[typing.Hashable]] = None,
         existing: str = "fillna_empty",
         new: str = "extend",
     ) -> xr.DataArray:
@@ -98,8 +98,8 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         array([[0.5, 0.6, 0.7, 0.8],
                [2. , 3. , 4. , 5. ]])
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
           * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
 
         By default, existing values are only overwritten if all existing values are
         NaN
@@ -194,8 +194,8 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
                [0.5, 0.6, 0.7, 0.8],
                [2. , 3. , 4. , 5. ]])
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'ARG' 'COL' 'MEX'
           * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 'ARG' 'COL' 'MEX'
 
         Instead of overwriting existing values, you can also choose to only fill missing
         values.
@@ -232,7 +232,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
                [ 0., nan,  2.,  3.],
                [ 2.,  3.,  4.,  5.]])
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'ARG' 'COL' 'MEX'
+          * area (ISO3)  (area (ISO3)) object 'ARG' 'COL' 'MEX'
           * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
 
         Returns
@@ -267,7 +267,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             # conform value to given dim: key
             if dim not in value.dims:
                 if dim in value.coords:
-                    value = value.reset_coords(dim, drop=True)
+                    value = value.reset_coords([dim], drop=True)
                 value = value.expand_dims({dim: key})  # type: ignore
             else:
                 value = value.loc[{dim: key}]
@@ -276,7 +276,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             # to broadcast value only to sel, but would need more careful handling
             # later.
             if new == "extend":
-                value, expanded = xr.broadcast(value, self._da)
+                expanded, value = xr.broadcast(self._da, value)
             else:
                 expanded = self._da
                 value = value.broadcast_like(expanded)
@@ -440,7 +440,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         <xarray.Dataset>
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
+          * area (ISO3)  (area (ISO3)) object 'COL' 'MEX'
           * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
             CO2          (area (ISO3), time) float64 0.0 1.0 2.0 3.0 0.0 20.0 40.0 60.0
@@ -455,7 +455,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         <xarray.Dataset>
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
+          * area (ISO3)  (area (ISO3)) object 'COL' 'MEX'
           * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
             CO2          (area (ISO3), time) float64 0.0 1.0 2.0 3.0 2.0 3.0 4.0 5.0
@@ -486,7 +486,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         <xarray.Dataset>
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
+          * area (ISO3)  (area (ISO3)) object 'COL' 'MEX'
           * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
             CO2          (area (ISO3), time) float64 20.0 30.0 40.0 50.0 2.0 3.0 4.0 5.0
@@ -508,7 +508,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         <xarray.Dataset>
         Dimensions:      (area (ISO3): 3, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'BOL' 'COL' 'MEX'
+          * area (ISO3)  (area (ISO3)) object 'BOL' 'COL' 'MEX'
           * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
             CO2          (area (ISO3), time) float64 0.0 20.0 40.0 60.0 ... 3.0 4.0 5.0
@@ -544,7 +544,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         <xarray.Dataset>
         Dimensions:      (area (ISO3): 3, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'BOL' 'COL' 'MEX'
+          * area (ISO3)  (area (ISO3)) object 'BOL' 'COL' 'MEX'
           * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
             CO2          (area (ISO3), time) float64 0.0 20.0 40.0 60.0 ... 3.0 4.0 5.0

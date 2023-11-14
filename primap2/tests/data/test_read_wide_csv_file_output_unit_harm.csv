@@ -1,0 +1,5 @@
+,source,scenario (general),area (ISO3),entity,unit,category (IPCC2006),1991,2000,2010
+0,TESTcsv2021,HISTORY,AUS,CH4,Gg CH4 / yr,1,4.1,5.0,6.0
+1,TESTcsv2021,HISTORY,AUS,CH4,Gg CH4 / yr,2,7,8,9
+2,TESTcsv2021,HISTORY,DEU,SF6,Gg SF6 / yr,1,4.1,5.0,6.0
+3,TESTcsv2021,HISTORY,DEU,SF6,Gg SF6 / yr,2,1,2,3

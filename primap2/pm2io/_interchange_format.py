@@ -1,7 +1,6 @@
 import csv
 import itertools
 import re
-import typing
 from pathlib import Path
 from typing import Optional, Union
 
@@ -84,7 +83,7 @@ def dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
     return da
 
 
-def metadata_for_variable(unit: str, variable: str) -> typing.Dict[str, str]:
+def metadata_for_variable(unit: str, variable: str) -> dict[str, str]:
     """Convert a primap2 unit and variable key to a metadata dict.
 
     Derives the information needed for the data variable's attrs dict from the unit
@@ -123,8 +122,8 @@ def metadata_for_variable(unit: str, variable: str) -> typing.Dict[str, str]:
         regex_variable = r"^(.*)\s\([a-zA-z0-9]*\)$"
         entity = re.findall(regex_variable, variable)
         if not entity:
-            logger.error("Can't extract entity from " + variable)
-            raise ValueError("Can't extract entity from " + variable)
+            logger.error(f"Can't extract entity from {variable}")
+            raise ValueError(f"Can't extract entity from {variable}")
         attrs["entity"] = entity[0]
     else:
         attrs["entity"] = variable
@@ -315,9 +314,9 @@ def from_interchange_format(
     dim_lens = {dim: len(np.unique(data_xr[dim].dropna("index"))) for dim in index_cols}
     dim_lens["time"] = len(time_cols)
     shapes = []
-    for entity, dims in dimensions.items():
+    for _, dims in dimensions.items():
         shapes.append([dim_lens[dim] for dim in dims if dim != "unit"])
-    array_size = sum(np.product(shape) for shape in shapes)
+    array_size = sum(np.prod(shape) for shape in shapes)
     logger.debug(f"Expected array shapes: {shapes}, resulting in size {array_size:,}.")
     if array_size > max_array_size:
         logger.error(
@@ -340,9 +339,12 @@ def from_interchange_format(
     for entity, dims in dimensions.items():
         da_entity = da.loc[{entity_col: entity}]
         # we still have a full MultiIndex, so trim it to the relevant dimensions
-        da_entity["index"] = da_entity.indexes["index"].droplevel(
-            list(index_cols - set(dims))
-        )
+        da_entity = da_entity.reset_index(list(index_cols - set(dims)), drop=True)
+        # depending on the version of xarray, an atomic, 0-dimensional coord
+        # for the entity remains. we have to remove it to be able to combine the
+        # dataset afterwards.
+        if entity_col in da_entity.coords:
+            da_entity = da_entity.drop_vars(entity_col)
         # now we can safely unstack the index
         data_vars[entity] = da_entity.unstack("index").astype(dtypes[entity])
 

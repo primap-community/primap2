@@ -91,7 +91,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         return self._da.pint.dequantify()
 
     def convert_to_gwp(
-        self, gwp_context: str, units: Union[str, pint.unit.Unit]
+        self, gwp_context: str, units: Union[str, pint.Unit]
     ) -> xr.DataArray:
         """Convert to a global warming potential
 
@@ -192,14 +192,14 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
             except KeyError:
                 raise ValueError(
                     "No gwp_context given and no gwp_context available in the attrs."
-                )
+                ) from None
         if entity is None:
             try:
                 entity = self._da.attrs["entity"]
             except KeyError:
                 raise ValueError(
                     "No entity given and no entity available in the attrs."
-                )
+                ) from None
 
         if isinstance(entity, str):
             entity = ureg.parse_units(entity)

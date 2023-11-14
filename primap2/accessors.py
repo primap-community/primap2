@@ -10,6 +10,7 @@ from ._alias_selection import (
 from ._convert import DataArrayConversionAccessor
 from ._data_format import DatasetDataFormatAccessor
 from ._downscale import DataArrayDownscalingAccessor, DatasetDownscalingAccessor
+from ._merge import DataArrayMergeAccessor, DatasetMergeAccessor
 from ._metadata import DatasetMetadataAccessor
 from ._overview import DataArrayOverviewAccessor, DatasetOverviewAccessor
 from ._setters import DataArraySettersAccessor, DatasetSettersAccessor
@@ -22,6 +23,7 @@ class PRIMAP2DatasetAccessor(
     DatasetAliasSelectionAccessor,
     DatasetDataFormatAccessor,
     DatasetDownscalingAccessor,
+    DatasetMergeAccessor,
     DatasetMetadataAccessor,
     DatasetOverviewAccessor,
     DatasetSettersAccessor,
@@ -36,6 +38,7 @@ class PRIMAP2DataArrayAccessor(
     DataArrayAliasSelectionAccessor,
     DataArrayConversionAccessor,
     DataArrayDownscalingAccessor,
+    DataArrayMergeAccessor,
     DataArrayOverviewAccessor,
     DataArraySettersAccessor,
     DataArrayUnitAccessor,

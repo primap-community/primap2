@@ -4,7 +4,6 @@
 import numpy as np
 import pytest
 import xarray as xr
-import xarray.testing
 
 from primap2 import ureg
 
@@ -36,6 +35,17 @@ def test_downscale_gas_timeseries(empty_ds):
     expected["CH4"].loc[{"time": "2020"}] = 2 * ureg("Gg CH4 / year")
 
     xr.testing.assert_identical(downscaled, expected)
+
+    with pytest.raises(
+        ValueError,
+        match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both.",
+    ):
+        empty_ds.pr.downscale_gas_timeseries(
+            basket="KYOTOGHG (AR4GWP100)",
+            basket_contents=["CO2", "SF6", "CH4"],
+            skipna_evaluation_dims=["time"],
+            skipna=True,
+        )
 
     empty_ds["SF6"].loc[{"time": "2002"}] = 2 * ureg("Gg SF6 / year")
 
@@ -74,29 +84,27 @@ def test_downscale_timeseries(empty_ds):
     )
     expected = da.copy()
 
-    expected.loc[{"area (ISO3)": ["COL", "ARG", "MEX"], "source": "RAND2020"}] = (
-        np.broadcast_to(
-            np.concatenate(
-                [
-                    np.array([1, 1]),
-                    np.linspace(1 / 6, 2 / 8, 11) * np.array([6] * 9 + [8] * 2),
-                    np.linspace(2, 2 * 10 / 8, 8),
-                ]
-            ),
-            (3, 21),
-        ).T
-        * ureg("Gg CO2 / year")
-    )
-    expected.loc[{"area (ISO3)": "BOL", "source": "RAND2020"}] = (
+    expected.loc[
+        {"area (ISO3)": ["COL", "ARG", "MEX"], "source": "RAND2020"}
+    ] = np.broadcast_to(
         np.concatenate(
             [
-                np.array([3, 3]),
-                np.linspace(3 / 6, 2 / 8, 11) * np.array([6] * 9 + [8] * 2),
+                np.array([1, 1]),
+                np.linspace(1 / 6, 2 / 8, 11) * np.array([6] * 9 + [8] * 2),
                 np.linspace(2, 2 * 10 / 8, 8),
             ]
-        )
-        * ureg("Gg CO2 / year")
+        ),
+        (3, 21),
+    ).T * ureg(
+        "Gg CO2 / year"
     )
+    expected.loc[{"area (ISO3)": "BOL", "source": "RAND2020"}] = np.concatenate(
+        [
+            np.array([3, 3]),
+            np.linspace(3 / 6, 2 / 8, 11) * np.array([6] * 9 + [8] * 2),
+            np.linspace(2, 2 * 10 / 8, 8),
+        ]
+    ) * ureg("Gg CO2 / year")
 
     # we need a higher atol, because downscale_timeseries actually does the
     # downscaling using a proper calendar while here we use a calendar where all years
@@ -114,19 +122,23 @@ def test_downscale_timeseries(empty_ds):
     )
     assert_equal(downscaled_ds["CO2"], expected, equal_nan=True, atol=0.01)
 
+    with pytest.raises(
+        ValueError,
+        match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both.",
+    ):
+        ds.pr.downscale_timeseries(
+            dim="area (ISO3)",
+            basket="CAMB",
+            basket_contents=["COL", "ARG", "MEX", "BOL"],
+            skipna_evaluation_dims=["time"],
+            skipna=True,
+        )
+
     da.loc[{"area (ISO3)": "BOL", "time": "2002"}] = 2 * ureg("Gg CO2 / year")
     with pytest.raises(
         ValueError, match="To continue regardless, set check_consistency=False"
     ):
         da.pr.downscale_timeseries(
-            dim="area (ISO3)",
-            basket="CAMB",
-            basket_contents=["COL", "ARG", "MEX", "BOL"],
-        )
-    with pytest.raises(
-        ValueError, match="To continue regardless, set check_consistency=False"
-    ):
-        ds.pr.downscale_timeseries(
             dim="area (ISO3)",
             basket="CAMB",
             basket_contents=["COL", "ARG", "MEX", "BOL"],
@@ -141,29 +153,27 @@ def test_downscale_timeseries(empty_ds):
 
     expected = da.copy()
 
-    expected.loc[{"area (ISO3)": ["COL", "ARG", "MEX"], "source": "RAND2020"}] = (
-        np.broadcast_to(
-            np.concatenate(
-                [
-                    np.array([1.2, 1.2, 1]),
-                    (np.linspace(1 / 5, 2 / 8, 11) * np.array([6] * 9 + [8] * 2))[1:],
-                    np.linspace(2, 2 * 10 / 8, 8),
-                ]
-            ),
-            (3, 21),
-        ).T
-        * ureg("Gg CO2 / year")
-    )
-    expected.loc[{"area (ISO3)": "BOL", "source": "RAND2020"}] = (
+    expected.loc[
+        {"area (ISO3)": ["COL", "ARG", "MEX"], "source": "RAND2020"}
+    ] = np.broadcast_to(
         np.concatenate(
             [
-                np.array([2.4, 2.4, 2]),
-                (np.linspace(2 / 5, 2 / 8, 11) * np.array([6] * 9 + [8] * 2))[1:],
+                np.array([1.2, 1.2, 1]),
+                (np.linspace(1 / 5, 2 / 8, 11) * np.array([6] * 9 + [8] * 2))[1:],
                 np.linspace(2, 2 * 10 / 8, 8),
             ]
-        )
-        * ureg("Gg CO2 / year")
+        ),
+        (3, 21),
+    ).T * ureg(
+        "Gg CO2 / year"
     )
+    expected.loc[{"area (ISO3)": "BOL", "source": "RAND2020"}] = np.concatenate(
+        [
+            np.array([2.4, 2.4, 2]),
+            (np.linspace(2 / 5, 2 / 8, 11) * np.array([6] * 9 + [8] * 2))[1:],
+            np.linspace(2, 2 * 10 / 8, 8),
+        ]
+    ) * ureg("Gg CO2 / year")
 
     assert_equal(downscaled, expected, equal_nan=True, atol=0.01)
 
@@ -178,33 +188,32 @@ def test_downscale_timeseries(empty_ds):
 
     expected.loc[
         {"area (ISO3)": ["COL", "ARG", "MEX", "BOL"], "source": "RAND2020"}
-    ] = (
-        np.broadcast_to(
-            np.concatenate(
-                [
-                    np.array(
-                        [
-                            np.nan,
-                            np.nan,
-                            1,
-                            np.nan,
-                            np.nan,
-                            6 / 4,
-                            6 / 4,
-                            6 / 4,
-                            6 / 4,
-                            6 / 4,
-                            6 / 4,
-                            2,
-                            2,
-                        ]
-                    ),
-                    np.linspace(2, 2 * 10 / 8, 8),
-                ]
-            ),
-            (4, 21),
-        ).T
-        * ureg("Gg CO2 / year")
+    ] = np.broadcast_to(
+        np.concatenate(
+            [
+                np.array(
+                    [
+                        np.nan,
+                        np.nan,
+                        1,
+                        np.nan,
+                        np.nan,
+                        6 / 4,
+                        6 / 4,
+                        6 / 4,
+                        6 / 4,
+                        6 / 4,
+                        6 / 4,
+                        2,
+                        2,
+                    ]
+                ),
+                np.linspace(2, 2 * 10 / 8, 8),
+            ]
+        ),
+        (4, 21),
+    ).T * ureg(
+        "Gg CO2 / year"
     )
     expected.loc[{"area (ISO3)": "BOL", "time": "2002"}] = 2 * ureg("Gg CO2 / year")
 
