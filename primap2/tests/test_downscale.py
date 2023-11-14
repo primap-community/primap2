@@ -36,6 +36,17 @@ def test_downscale_gas_timeseries(empty_ds):
 
     xr.testing.assert_identical(downscaled, expected)
 
+    with pytest.raises(
+        ValueError,
+        match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both.",
+    ):
+        empty_ds.pr.downscale_gas_timeseries(
+            basket="KYOTOGHG (AR4GWP100)",
+            basket_contents=["CO2", "SF6", "CH4"],
+            skipna_evaluation_dims=["time"],
+            skipna=True,
+        )
+
     empty_ds["SF6"].loc[{"time": "2002"}] = 2 * ureg("Gg SF6 / year")
 
     with pytest.raises(
@@ -111,19 +122,23 @@ def test_downscale_timeseries(empty_ds):
     )
     assert_equal(downscaled_ds["CO2"], expected, equal_nan=True, atol=0.01)
 
+    with pytest.raises(
+        ValueError,
+        match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both.",
+    ):
+        ds.pr.downscale_timeseries(
+            dim="area (ISO3)",
+            basket="CAMB",
+            basket_contents=["COL", "ARG", "MEX", "BOL"],
+            skipna_evaluation_dims=["time"],
+            skipna=True,
+        )
+
     da.loc[{"area (ISO3)": "BOL", "time": "2002"}] = 2 * ureg("Gg CO2 / year")
     with pytest.raises(
         ValueError, match="To continue regardless, set check_consistency=False"
     ):
         da.pr.downscale_timeseries(
-            dim="area (ISO3)",
-            basket="CAMB",
-            basket_contents=["COL", "ARG", "MEX", "BOL"],
-        )
-    with pytest.raises(
-        ValueError, match="To continue regardless, set check_consistency=False"
-    ):
-        ds.pr.downscale_timeseries(
             dim="area (ISO3)",
             basket="CAMB",
             basket_contents=["COL", "ARG", "MEX", "BOL"],
