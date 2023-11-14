@@ -116,7 +116,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         skipna: Optional[bool] = None,
         skipna_evaluation_dims: Optional[DimOrDimsT] = None,
         keep_attrs: bool = True,
-        **kwargs,
+        min_count: Optional[int] = None,
     ) -> xr.DataArray:
         """Reduce this DataArray's data by applying `sum` along some dimension(s).
 
@@ -131,6 +131,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
            with the dimensions ``time`` and ``position``, summing over ``time`` with the
            evaluation dimension ``position`` will skip only those values where all
            values with the same ``position`` are NA.
+
+        ``skipna`` and ``min_count`` work like in the :py:func:`xr.sum` function. The behaviour
+        of primap1 is reproduced by ``skipna=True, min_count=1``.
 
         Parameters
         ----------
@@ -155,8 +158,16 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
           result.
         keep_attrs: bool, optional
           Keep the attr metadata (default True).
-        **kwargs: dict
-          Additional keyword arguments are passed directly to xarray's da.sum().
+        min_count: int (default None, but set to 1 if skipna=True)
+          The minimal number of non-NA values in a sum that is necessary for a non-NA
+          result. This only has an effect if ``skipna=True``. As an example: you sum data
+          for a region for a certain sector, gas and year. If ``skipna=False``,
+          all countries in the region need to have non-NA data for that sector, gas,
+          year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+          non-NA data is enough for a non-NA result. All NA values will be treated as
+          zero. If ``min_count=0`` all NA values will be treated as zero
+          also if there is no single non-NA value in the data that is to be summed.
+
 
         Returns
         -------
@@ -175,8 +186,13 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
             da = self.fill_all_na(dim=skipna_evaluation_dims, value=0)
         else:
             da = self._da
+            if skipna:
+                if min_count is None:
+                    min_count = 1
 
-        return da.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, **kwargs)
+        return da.sum(
+            dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
+        )
 
     @alias_dims(["dim"])
     def fill_all_na(self, dim: Union[Iterable[Hashable], str], value=0) -> xr.DataArray:
@@ -340,7 +356,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         skipna: Optional[bool] = None,
         skipna_evaluation_dims: Optional[DimOrDimsT] = None,
         keep_attrs: bool = True,
-        **kwargs,
+        min_count: Optional[int] = None,
     ) -> DatasetOrDataArray:
         """Reduce this Dataset's data by applying `sum` along some dimension(s).
 
@@ -358,6 +374,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         4. If you specify ``entity`` in "dim", the Dataset is converted to a DataArray
            and summed along the data variables (which will only work if the units of
            the DataArrays are compatible).
+
+        ``skipna`` and ``min_count`` work like in the :py:func:`xr.sum` function. The behaviour
+        of primap1 is reproduced by ``skipna=True, min_count=1``.
 
         Parameters
         ----------
@@ -384,8 +403,15 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           result.
         keep_attrs: bool, optional
           Keep the attr metadata (default True).
-        **kwargs: dict
-          Additional keyword arguments are passed directly to xarray's da.sum().
+        min_count: int (default None, but set to 1 if skipna=True)
+          The minimal number of non-NA values in a sum that is necessary for a non-NA
+          result. This only has an effect if ``skipna=True``. As an example: you sum data
+          for a region for a certain sector, gas and year. If ``skipna=False``,
+          all countries in the region need to have non-NA data for that sector, gas,
+          year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+          non-NA data is enough for a non-NA result. All NA values will be treated as
+          zero. If ``min_count=0`` all NA values will be treated as zero
+          also if there is no single non-NA value in the data that is to be summed.
 
         Returns
         -------
@@ -404,11 +430,16 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             ds = self.fill_all_na(dim=skipna_evaluation_dims, value=0)
         else:
             ds = self._ds
+            if skipna:
+                if min_count is None:
+                    min_count = 1
 
         if dim is not None and "entity" in dim:
             ndim = set(dim) - {"entity"}
 
-            ds = ds.sum(dim=ndim, skipna=skipna, keep_attrs=keep_attrs, **kwargs)
+            ds = ds.sum(
+                dim=ndim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
+            )
 
             if not ds.pr._all_vars_all_dimensions():
                 raise NotImplementedError(
@@ -416,10 +447,12 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                     "when all entities share the dimensions remaining after summing."
                 )
             return ds.to_array("entity").sum(
-                dim="entity", skipna=skipna, keep_attrs=keep_attrs, **kwargs
+                dim="entity", skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
             )
         else:
-            return ds.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, **kwargs)
+            return ds.sum(
+                dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
+            )
 
     def gas_basket_contents_sum(
         self,
@@ -428,6 +461,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         basket_contents: Sequence[str],
         skipna: Optional[bool] = None,
         skipna_evaluation_dims: Optional[DimOrDimsT] = None,
+        min_count: Optional[int] = None,
     ) -> xr.DataArray:
         """The sum of gas basket contents converted using the global warming potential
         of the gas basket.
@@ -450,6 +484,15 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           If all values along the specified dimensions are NA, the values are skipped,
           other NA values are not skipped and will lead to NA in the corresponding
           result.
+        min_count: int (default None, but set to 1 if skipna=True)
+          The minimal number of non-NA values in a sum that is necessary for a non-NA
+          result. This only has an effect if ``skipna=True``. As an example: you sum data
+          for a region for a certain sector, gas and year. If ``skipna=False``,
+          all countries in the region need to have non-NA data for that sector, gas,
+          year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+          non-NA data is enough for a non-NA result. All NA values will be treated as
+          zero. If ``min_count=0`` all NA values will be treated as zero
+          also if there is no single non-NA value in the data that is to be summed.
 
         Returns
         -------
@@ -466,6 +509,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             dim="entity",
             skipna_evaluation_dims=skipna_evaluation_dims,
             skipna=skipna,
+            min_count=min_count,
         )
         da.attrs["gwp_context"] = basket_da.attrs["gwp_context"]
         da.attrs["entity"] = basket_da.attrs["entity"]
@@ -480,6 +524,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         sel: Optional[Mapping[Hashable, Sequence]] = None,
         skipna: Optional[bool] = None,
         skipna_evaluation_dims: Optional[DimOrDimsT] = None,
+        min_count: Optional[int] = None,
     ) -> xr.DataArray:
         """Fill NA values in a gas basket using the sum of its contents.
 
@@ -508,6 +553,15 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           If all values along the specified dimensions are NA, the values are skipped,
           other NA values are not skipped and will lead to NA in the corresponding
           result.
+        min_count: int (default None, but set to 1 if skipna=True)
+          The minimal number of non-NA values in a sum that is necessary for a non-NA
+          result. This only has an effect if ``skipna=True``. As an example: you sum data
+          for a region for a certain sector, gas and year. If ``skipna=False``,
+          all countries in the region need to have non-NA data for that sector, gas,
+          year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+          non-NA data is enough for a non-NA result. All NA values will be treated as
+          zero. If ``min_count=0`` all NA values will be treated as zero
+          also if there is no single non-NA value in the data that is to be summed.
 
         Returns
         -------
@@ -520,5 +574,6 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 basket_contents=basket_contents,
                 skipna_evaluation_dims=skipna_evaluation_dims,
                 skipna=skipna,
+                min_count=min_count,
             )
         )

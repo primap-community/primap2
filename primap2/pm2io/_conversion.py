@@ -343,6 +343,7 @@ def convert_entity_gwp_primap_to_primap2(entity_pm1: str) -> str:
         "AR4": "AR4GWP100",
         "AR5": "AR5GWP100",
         "AR5CCF": "AR5CCFGWP100",  # not sure if implemented in scmdata units
+        "AR6": "AR6GWP100",
     }
 
     # build regexp to match the GWP conversion variables

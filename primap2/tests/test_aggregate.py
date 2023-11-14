@@ -6,7 +6,6 @@ import pathlib
 import numpy as np
 import pytest
 import xarray as xr
-import xarray.testing
 
 import primap2
 from primap2 import ureg
@@ -69,7 +68,7 @@ def test_fill_all_na():
 
 
 class TestSum:
-    def test_skipna(self):
+    def test_skipna_evaluation_dims(self):
         coords = [("a", [1, 2]), ("b", [1, 2]), ("c", [1, 2, 3])]
         da = xr.DataArray(
             data=[
@@ -100,6 +99,51 @@ class TestSum:
             }
         )
         xr.testing.assert_identical(dss, dss_expected)
+
+    def test_skipna(self):
+        coords = [("a", [1, 2]), ("b", [1, 2]), ("c", [1, 2, 3])]
+        da = xr.DataArray(
+            data=[
+                [[np.nan, np.nan, np.nan], [np.nan, 1, 2]],
+                [[np.nan, np.nan, np.nan], [np.nan, 1, 2]],
+            ],
+            coords=coords,
+        )
+
+        b0 = da.pr.sum(dim="b", skipna=True, min_count=0)
+        b0_expected = xr.DataArray(
+            data=[[0, 1, 2], [0, 1, 2]], coords=[coords[0], coords[2]]
+        )
+        assert np.allclose(b0, b0_expected, equal_nan=True)
+
+        b1 = da.pr.sum(dim="b", skipna=True, min_count=1)
+        b1_expected = xr.DataArray(
+            data=[[np.nan, 1, 2], [np.nan, 1, 2]], coords=[coords[0], coords[2]]
+        )
+        assert np.allclose(b1, b1_expected, equal_nan=True)
+
+        b2 = da.pr.sum(dim="b", skipna=True, min_count=2)
+        b2_expected = xr.DataArray(
+            data=[[np.nan, np.nan, np.nan], [np.nan, np.nan, np.nan]],
+            coords=[coords[0], coords[2]],
+        )
+        assert np.allclose(b2, b2_expected, equal_nan=True)
+
+        bdef = da.pr.sum(dim="b", skipna=True)
+        assert np.allclose(bdef, b1_expected, equal_nan=True)
+
+        ds = xr.Dataset({"1": da, "2": da.copy()})
+        dss1 = ds.pr.sum(dim="b", skipna=True, min_count=1)
+        dss1_expected = xr.Dataset(
+            {
+                "1": b1_expected,
+                "2": b1_expected,
+            }
+        )
+        xr.testing.assert_identical(dss1, dss1_expected)
+
+        dssdef = ds.pr.sum(dim="b", skipna=True)
+        xr.testing.assert_identical(dssdef, dss1_expected)
 
     def test_inhomogeneous_regression(self, opulent_ds: xr.Dataset):
         ds = opulent_ds

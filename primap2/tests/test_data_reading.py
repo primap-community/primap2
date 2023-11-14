@@ -567,6 +567,34 @@ class TestReadWideCSVFile:
         df_result = pd.read_csv(tmp_path / "test.csv", index_col=0)
         pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
 
+    def test_unit_harmonization(
+        self,
+        tmp_path,
+        coords_cols,
+        coords_defaults,
+        coords_terminologies,
+        coords_value_mapping,
+    ):
+        file_input = DATA_PATH / "test_csv_data_unit_harmonization.csv"
+        file_expected = DATA_PATH / "test_read_wide_csv_file_output_unit_harm.csv"
+        df_expected = pd.read_csv(file_expected, index_col=0)
+
+        del coords_cols["sec_cats__Class"]
+        del coords_defaults["sec_cats__Type"]
+        del coords_terminologies["sec_cats__Class"]
+        del coords_terminologies["sec_cats__Type"]
+
+        df_result = pm2io.read_wide_csv_file_if(
+            file_input,
+            coords_cols=coords_cols,
+            coords_defaults=coords_defaults,
+            coords_terminologies=coords_terminologies,
+            coords_value_mapping=coords_value_mapping,
+        )
+        df_result.to_csv(tmp_path / "test.csv")
+        df_result = pd.read_csv(tmp_path / "test.csv", index_col=0)
+        pd.testing.assert_frame_equal(df_result, df_expected, check_column_type=False)
+
     def test_function_mapping(
         self,
         tmp_path,

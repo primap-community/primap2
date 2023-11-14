@@ -1,5 +1,5 @@
 from collections.abc import Hashable, Sequence
-from typing import Optional
+from typing import Optional, Union
 
 import xarray as xr
 
@@ -17,7 +17,9 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
         sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[Hashable] = tuple(),
+        skipna_evaluation_dims: Union[None, Sequence[Hashable]] = None,
+        skipna: bool = True,
+        tolerance: float = 0.01,
     ) -> xr.DataArray:
         """Downscale timeseries along a dimension using a basket defined on a
         broader timeseries.
@@ -55,6 +57,14 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
           skipped entirely if missing fully. By default, no NA values are skipped.
+        skipna: bool, default True
+          If true it will be passed on to xarray's ds.sum function with min_count=1
+          for the calculation of the basket.
+          The effect is that NA values in a sum will be ignored and treated as zero
+          in the sum unless all values are NA which results in NA.
+        tolerance: float
+          If given it overrides the default tolerance for deviations of sums of
+          individual timeseries to given aggregate timeseries. Default is 0.01 (1%)
 
         Returns
         -------
@@ -65,14 +75,26 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket_contents_da = da_sel.loc[{dim: basket_contents}]
         basket_da = da_sel.loc[{dim: basket}]
 
+        if skipna_evaluation_dims is not None:
+            if skipna:
+                raise ValueError(
+                    "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
+                    " both."
+                )
+            else:
+                skipna = None
+
         basket_sum = basket_contents_da.pr.sum(
-            dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
+            dim=dim,
+            skipna=skipna,
+            min_count=1,
+            skipna_evaluation_dims=skipna_evaluation_dims,
         )
 
         if check_consistency:
             deviation: xr.DataArray = abs(basket_da / basket_sum - 1)
-            devmax = deviation.max()
-            if devmax > 0.01:
+            devmax = float(deviation.max().pint.dequantify().data)
+            if devmax > tolerance:
                 raise ValueError(
                     f"Sum of the basket_contents {basket_contents!r} deviates"
                     f" {devmax * 100} % from the basket"
@@ -104,7 +126,9 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
         sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[Hashable] = tuple(),
+        skipna_evaluation_dims: Optional[Sequence[Hashable]] = None,
+        skipna: bool = True,
+        tolerance: float = 0.01,
     ) -> xr.Dataset:
         """Downscale timeseries along a dimension using a basket defined on a
         broader timeseries.
@@ -142,6 +166,14 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
           skipped entirely if missing fully. By default, no NA values are skipped.
+        skipna: bool, default True
+          If true it will be passed on to xarray's ds.sum function with min_count=1 for
+          the calculation of the basket.
+          The effect is that NA values in a sum will be ignored and treated as zero
+          in the sum unless all values are NA which results in NA.
+        tolerance: float
+          If given it overrides the default tolerance for deviations of sums of
+          individual timeseries to given aggregate timeseries. Default is 0.01 (1%)
 
         Notes
         -----
@@ -158,14 +190,26 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket_contents_ds = ds_sel.loc[{dim: basket_contents}]
         basket_ds = ds_sel.loc[{dim: basket}]
 
+        if skipna_evaluation_dims is not None:
+            if skipna:
+                raise ValueError(
+                    "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
+                    " both."
+                )
+            else:
+                skipna = None
+
         basket_sum = basket_contents_ds.pr.sum(
-            dim=dim, skipna_evaluation_dims=skipna_evaluation_dims
+            dim=dim,
+            skipna=skipna,
+            min_count=1,
+            skipna_evaluation_dims=skipna_evaluation_dims,
         )
 
         if check_consistency:
             deviation = abs(basket_ds / basket_sum - 1)
             devmax = deviation.to_array().max()
-            if devmax > 0.01:
+            if devmax > tolerance:
                 raise ValueError(
                     f"Sum of the basket_contents {basket_contents!r} deviates"
                     f" {devmax * 100} % from the basket"
@@ -194,7 +238,9 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
         sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Sequence[Hashable] = tuple(),
+        skipna_evaluation_dims: Optional[Sequence[Hashable]] = None,
+        skipna: bool = True,
+        tolerance: float = 0.01,
     ) -> xr.Dataset:
         """Downscale a gas basket defined on a broader timeseries to its contents
         known on fewer time points.
@@ -230,6 +276,14 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
           skipped entirely if missing fully. By default, no NA values are skipped.
+        skipna: bool, optional
+          If true it will be passed on to xarray's ds.sum function with min_count=1 for
+          the calculation of the basket.
+          The effect is that NA values in a sum will be ignored and treated as zero
+          in the sum unless all values are NA which results in NA.
+        tolerance: float
+          If given it overrides the default tolerance for deviations of sums of
+          individual timeseries to given aggregate timeseries. Default is 0.01 (1%)
 
         Returns
         -------
@@ -243,18 +297,31 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
             da: xr.DataArray = ds_sel[var]
             basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=da_basket)
 
+        if skipna_evaluation_dims is not None:
+            if skipna:
+                raise ValueError(
+                    "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
+                    " both."
+                )
+            else:
+                skipna = None
+
         basket_sum = basket_contents_converted.pr.sum(
-            dim="entity", skipna_evaluation_dims=skipna_evaluation_dims
+            dim="entity",
+            skipna=skipna,
+            min_count=1,
+            skipna_evaluation_dims=skipna_evaluation_dims,
         )
 
         if check_consistency:
             deviation = abs(da_basket / basket_sum - 1)
             devmax = deviation.max().item()
-            if devmax > 0.01:
+            if devmax > tolerance:
                 raise ValueError(
                     f"Sum of the basket_contents {basket_contents!r} deviates"
                     f" {devmax * 100} % from the basket"
                     f" {basket!r}, which is more than the allowed 1 %. "
+                    f" {deviation}"
                     "To continue regardless, set check_consistency=False."
                 )
 
