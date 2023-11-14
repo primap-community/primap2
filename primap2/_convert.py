@@ -1,6 +1,6 @@
 import copy
 import typing
-from typing import Hashable
+from collections.abc import Hashable
 
 import climate_categories
 import numpy as np
@@ -21,7 +21,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         sum_rule: typing.Optional[str] = None,
         input_weights: typing.Optional[xr.DataArray] = None,
         output_weights: typing.Optional[xr.DataArray] = None,
-        auxiliary_dimensions: typing.Optional[typing.Dict[str, str]] = None,
+        auxiliary_dimensions: typing.Optional[dict[str, str]] = None,
     ) -> xr.DataArray:
         """Convert the data along the given dimension into the new categorization.
 
@@ -123,16 +123,16 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         da: xr.DataArray,
         dim: str,
         new_dim: str,
-        already_converted_categories: typing.List[climate_categories.Category],
+        already_converted_categories: list[climate_categories.Category],
         category: climate_categories.Category,
         conversion: climate_categories.Conversion,
         sum_rule: typing.Optional[str],
         auxiliary_dimensions: typing.Optional[
-            typing.Dict[climate_categories.Categorization, str]
+            dict[climate_categories.Categorization, str]
         ],
         input_weights: typing.Optional[xr.DataArray] = None,
         output_weights: typing.Optional[xr.DataArray] = None,
-    ) -> typing.Tuple[typing.List[climate_categories.Category], xr.DataArray]:
+    ) -> tuple[list[climate_categories.Category], xr.DataArray]:
         """Return a copy of da with the given category filled by values converted
         using the given conversion.
 
@@ -279,13 +279,11 @@ def extract_categorization_from_dim(dim: str) -> (str, str):
     try:
         pure, cat = dim.split("(", 1)
     except ValueError:
-        raise ValueError(f"No categorization specified: {dim!r}.")
+        raise ValueError(f"No categorization specified: {dim!r}.") from None
     return pure[:-1], cat[:-1]
 
 
-def applicable_rules(
-    conversion, category
-) -> typing.List[climate_categories.ConversionRule]:
+def applicable_rules(conversion, category) -> list[climate_categories.ConversionRule]:
     """Find the possible rules to derive the category using the given conversion."""
     rules = conversion.relevant_rules({conversion.categorization_b[category]})
     # a + b = c - d  can not be used to derive c nor d, only a and b
@@ -399,12 +397,12 @@ def initialize_empty_converted_da(
 def factors_categories_to_xarray(
     *,
     dim: str,
-    factors_categories: typing.Dict[climate_categories.Category, int],
-    auxiliary_categories: typing.Dict[
-        climate_categories.Categorization, typing.Set[climate_categories.Category]
+    factors_categories: dict[climate_categories.Category, int],
+    auxiliary_categories: dict[
+        climate_categories.Categorization, set[climate_categories.Category]
     ],
-    auxiliary_dimensions: typing.Dict[climate_categories.Categorization, str],
-) -> typing.Tuple[typing.Dict[str, typing.List[str]], xr.DataArray]:
+    auxiliary_dimensions: dict[climate_categories.Categorization, str],
+) -> tuple[dict[str, list[str]], xr.DataArray]:
     """Convert dictionary mapping categories to factors into xarray-compatible objects.
 
     Using the xarray objects ensures that in subsequent calculations, everything
@@ -471,7 +469,7 @@ def derive_weights(
     sum_rule: typing.Optional[str],
     operation_type: str,
     weights: typing.Optional[xr.DataArray],
-    selection: typing.Dict[str, typing.List[str]],
+    selection: dict[str, list[str]],
 ) -> typing.Union[xr.DataArray, float]:
     """Derive the weights to use for applying a specific rule.
 
@@ -543,8 +541,8 @@ def derive_weights(
 
 def prepare_auxiliary_dimensions(
     conversion: climate_categories.Conversion,
-    auxiliary_dimensions: typing.Optional[typing.Dict[str, str]],
-) -> typing.Optional[typing.Dict[climate_categories.Categorization, str]]:
+    auxiliary_dimensions: typing.Optional[dict[str, str]],
+) -> typing.Optional[dict[climate_categories.Categorization, str]]:
     """Prepare and check the auxiliary dimension mapping.
 
     Check if all auxiliary categorizations used in the conversion are matched in
