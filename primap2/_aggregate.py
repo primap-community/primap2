@@ -158,14 +158,14 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
           result.
         keep_attrs: bool, optional
           Keep the attr metadata (default True).
-        min_count: int (default None)
+        min_count: int (default None, but set to 1 if skipna=True)
           The minimal number of non-NA values in a sum that is necessary for a non-NA
           result. This only has an effect if ``skipna=True``. As an example: you sum data
           for a region for a certain sector, gas and year. If ``skipna=False``,
           all countries in the region need to have non-NA data for that sector, gas,
           year combination. If ``skipna=True`` and ``min_count=1`` then one country with
           non-NA data is enough for a non-NA result. All NA values will be treated as
-          zero. If ``min_count=None`` (or 0) all NA values will be treated as zero
+          zero. If ``min_count=0`` all NA values will be treated as zero
           also if there is no single non-NA value in the data that is to be summed.
 
 
@@ -186,6 +186,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
             da = self.fill_all_na(dim=skipna_evaluation_dims, value=0)
         else:
             da = self._da
+            if skipna:
+                if min_count is None:
+                    min_count = 1
 
         return da.sum(
             dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
@@ -400,14 +403,14 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           result.
         keep_attrs: bool, optional
           Keep the attr metadata (default True).
-        min_count: int (default none)
+        min_count: int (default None, but set to 1 if skipna=True)
           The minimal number of non-NA values in a sum that is necessary for a non-NA
           result. This only has an effect if ``skipna=True``. As an example: you sum data
           for a region for a certain sector, gas and year. If ``skipna=False``,
           all countries in the region need to have non-NA data for that sector, gas,
           year combination. If ``skipna=True`` and ``min_count=1`` then one country with
           non-NA data is enough for a non-NA result. All NA values will be treated as
-          zero. If ``min_count=None`` (or 0) all NA values will be treated as zero
+          zero. If ``min_count=0`` all NA values will be treated as zero
           also if there is no single non-NA value in the data that is to be summed.
 
         Returns
@@ -481,8 +484,15 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           If all values along the specified dimensions are NA, the values are skipped,
           other NA values are not skipped and will lead to NA in the corresponding
           result.
-        min_count: int (default none)
-          Minimal number of non-nan values for non-nan result.
+        min_count: int (default None, but set to 1 if skipna=True)
+          The minimal number of non-NA values in a sum that is necessary for a non-NA
+          result. This only has an effect if ``skipna=True``. As an example: you sum data
+          for a region for a certain sector, gas and year. If ``skipna=False``,
+          all countries in the region need to have non-NA data for that sector, gas,
+          year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+          non-NA data is enough for a non-NA result. All NA values will be treated as
+          zero. If ``min_count=0`` all NA values will be treated as zero
+          also if there is no single non-NA value in the data that is to be summed.
 
         Returns
         -------
@@ -543,8 +553,15 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           If all values along the specified dimensions are NA, the values are skipped,
           other NA values are not skipped and will lead to NA in the corresponding
           result.
-        min_count: int (default none)
-          Minimal number of non-nan values for non-nan result.
+        min_count: int (default None, but set to 1 if skipna=True)
+          The minimal number of non-NA values in a sum that is necessary for a non-NA
+          result. This only has an effect if ``skipna=True``. As an example: you sum data
+          for a region for a certain sector, gas and year. If ``skipna=False``,
+          all countries in the region need to have non-NA data for that sector, gas,
+          year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+          non-NA data is enough for a non-NA result. All NA values will be treated as
+          zero. If ``min_count=0`` all NA values will be treated as zero
+          also if there is no single non-NA value in the data that is to be summed.
 
         Returns
         -------
