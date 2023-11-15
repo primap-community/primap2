@@ -238,9 +238,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
             # the right-hand side of the conversion formula split up
             rhs = lhs / output_factors / effective_output_weights
 
-            # TODO: this is slow because it makes copies
-            # fillna behaviour (only overwrites NaN in converted)
-            da = da.combine_first(rhs)
+            da.loc[output_selection] = rhs
 
             if not rule.is_restricted:
                 # stop processing rules for this category
@@ -387,6 +385,7 @@ def initialize_empty_converted_da(
     # initialize the converted array using all NA
     all_na_array = np.empty(new_shape)
     all_na_array[:] = np.nan
+    all_na_array = all_na_array * old_da.pint.units
     return xr.DataArray(
         data=all_na_array,
         dims=new_dims,
