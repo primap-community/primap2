@@ -20,11 +20,20 @@ def test_convert_ipcc(empty_ds: xr.Dataset):
     with pytest.raises(ValueError, match="The conversion uses auxiliary categories"):
         da.pr.convert("category", "IPCC2006", sum_rule="extensive")
 
-    da.pr.convert(
+    result = da.pr.convert(
         "category",
         "IPCC2006",
         sum_rule="extensive",
         auxiliary_dimensions={"gas": "source (gas)"},
     )
 
-    # TODO test that values actually make sense
+    assert (
+        (result.pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
+        .all()
+        .item()
+    )
+    assert (
+        (result.pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year"))
+        .all()
+        .item()
+    )
