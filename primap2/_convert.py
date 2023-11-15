@@ -18,9 +18,9 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         dim: typing.Union[Hashable, str],
         categorization: typing.Union[climate_categories.Categorization, str],
         *,
-        sum_rule: typing.Literal["intensive"]
-        | typing.Literal["extensive"]
-        | None = None,
+        sum_rule: typing.Optional[
+            typing.Union[typing.Literal["intensive"], typing.Literal["extensive"]]
+        ] = None,
         input_weights: typing.Optional[xr.DataArray] = None,
         output_weights: typing.Optional[xr.DataArray] = None,
         auxiliary_dimensions: typing.Optional[dict[str, str]] = None,
