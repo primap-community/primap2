@@ -2,6 +2,15 @@
 Changelog
 =========
 
+0.9.8
+-----
+* add additional control over nan treatment to downscaling functionality
+* Allow kwargs in gas basket summation
+* use min_count=1 as default in pr.sum
+* fix error message for 0-dimensional arrays in pr.merge
+* fix building the documentation on readthedocs.org
+* Modify unit harmonization to return native units if possible
+
 0.9.7
 -----
 * Fix the test suite to work with Pint release 0.21.
