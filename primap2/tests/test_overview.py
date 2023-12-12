@@ -58,7 +58,7 @@ def test_array_empty(empty_ds):
 
 def test_array_coverage(empty_ds):
     da = empty_ds["CO2"]
-    da[:] = np.nan
+    da.pint.magnitude[:] = np.nan
     da.name = None
 
     da.pr.loc[{"time": "2001", "area": "COL"}] = 12.0 * ureg("Gg CO2 / year")
@@ -86,7 +86,7 @@ def test_array_coverage(empty_ds):
 def test_array_coverage_multidim(opulent_ds):
     da = opulent_ds["CO2"]
 
-    da.pr.loc[{"product": "milk"}] = np.nan
+    da.pr.loc[{"product": "milk"}].pint.magnitude[:] = np.nan
 
     expected = pd.DataFrame(
         index=da.pr["animal"].values,
@@ -116,7 +116,7 @@ def test_array_coverage_error(opulent_ds):
 
 def test_set_coverage(opulent_ds):
     ds = opulent_ds
-    ds["CO2"].pr.loc[{"product": "milk"}] = np.nan
+    ds["CO2"].pr.loc[{"product": "milk"}].pint.magnitude[:] = np.nan
 
     expected = pd.DataFrame(
         index=ds.pr["product"].values,
@@ -135,7 +135,7 @@ def test_set_coverage(opulent_ds):
 
 def test_set_coverage_entity(opulent_ds):
     ds = opulent_ds
-    ds["CO2"].pr.loc[{"product": "milk"}] = np.nan
+    ds["CO2"].pr.loc[{"product": "milk"}].pint.magnitude[:] = np.nan
 
     expected = pd.DataFrame(
         index=list(ds.keys()),
@@ -165,7 +165,7 @@ def test_set_coverage_boolean(opulent_ds):
 def test_set_coverage_entity_other_dim_not_existing(opulent_ds):
     ds = opulent_ds
 
-    ds["CO2"].pr.loc[{"product": "milk"}] = np.nan
+    ds["CO2"].pr.loc[{"product": "milk"}].pint.magnitude[:] = np.nan
 
     entites_expected = [x for x in ds.keys() if x != "population"]
 
