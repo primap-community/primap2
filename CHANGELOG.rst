@@ -2,6 +2,10 @@
 Changelog
 =========
 
+0.10.0
+------
+* Fixed compatibility with latest `pint` and `pint-xarray` libraries.
+
 0.9.8
 -----
 * add additional control over nan treatment to downscaling functionality

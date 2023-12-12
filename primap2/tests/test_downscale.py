@@ -12,7 +12,7 @@ from .utils import allclose, assert_equal
 
 def test_downscale_gas_timeseries(empty_ds):
     for key in empty_ds:
-        empty_ds[key][:] = np.nan
+        empty_ds[key].pint.magnitude[:] = np.nan
     empty_ds["CO2"].loc[{"time": "2002"}] = 1 * ureg("Gg CO2 / year")
     empty_ds["SF6"].loc[{"time": "2002"}] = 1 * ureg("Gg SF6 / year")
     empty_ds["CH4"].loc[{"time": "2002"}] = 1 * ureg("Gg CH4 / year")
@@ -59,7 +59,7 @@ def test_downscale_gas_timeseries(empty_ds):
 
 def test_downscale_timeseries(empty_ds):
     for key in empty_ds:
-        empty_ds[key][:] = np.nan
+        empty_ds[key].pint.magnitude[:] = np.nan
     t = empty_ds.loc[{"area (ISO3)": "BOL"}].copy()
     t["area (ISO3)"] = ["CAMB"]  # here, the sum of COL, ARG, MEX, and BOL
     ds = xr.concat([empty_ds, t], dim="area (ISO3)")
