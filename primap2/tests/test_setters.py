@@ -79,7 +79,7 @@ class TestDASetter:
     def test_exists_empty_default(
         self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit, new
     ):
-        da.loc[{"area (ISO3)": "COL"}] = np.nan
+        da.loc[{"area (ISO3)": "COL"}].pint.magnitude[:] = np.nan
         actual = da.pr.set("area", "COL", ts * co2, **new)
         expected = da
         expected.loc[{"area (ISO3)": "COL"}] = ts[..., np.newaxis] * co2
@@ -88,7 +88,7 @@ class TestDASetter:
     def test_exists_somena_default(
         self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit, new
     ):
-        da.loc[{"area (ISO3)": "COL"}] = np.nan
+        da.loc[{"area (ISO3)": "COL"}].pint.magnitude[:] = np.nan
         da.loc[{"area (ISO3)": "COL", "time": "2001"}] = 2 * co2
         with pytest.raises(
             ValueError,
@@ -125,7 +125,7 @@ class TestDASetter:
         assert_aligned_equal(actual, expected)
 
     def test_mixed_default(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
-        da.loc[{"area (ISO3)": "COL"}] = np.nan
+        da.loc[{"area (ISO3)": "COL"}].pint.magnitude[:] = np.nan
         actual = da.pr.set(
             "area",
             ["COL", "CUB"],
@@ -210,7 +210,7 @@ class TestDASetter:
             "area", ["CUB", "COL"], 2 * da.pr.loc[{"area": "COL"}], existing="overwrite"
         )
         expected = da.reindex({"area (ISO3)": [*da["area (ISO3)"].values, "CUB"]})
-        expected.loc[{"area (ISO3)": "COL"}] = np.nan
+        expected.loc[{"area (ISO3)": "COL"}].pint.magnitude[:] = np.nan
         expected = expected.fillna(da.loc[{"area (ISO3)": "COL"}] * 2)
         assert_aligned_equal(actual, expected)
 
@@ -428,7 +428,9 @@ class TestDsSetter:
         assert_ds_aligned_equal(actual, expected)
 
     def test_existing_fillna(self, minimal_ds: xr.Dataset, new):
-        minimal_ds["CO2"].pr.loc[{"area": "COL", "time": "2001"}] = np.nan
+        minimal_ds["CO2"].pr.loc[{"area": "COL", "time": "2001"}].pint.magnitude[
+            :
+        ] = np.nan
         actual = minimal_ds.pr.set(
             "area", "COL", minimal_ds.pr.loc[{"area": "MEX"}], existing="fillna", **new
         )
