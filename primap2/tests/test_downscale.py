@@ -84,19 +84,18 @@ def test_downscale_timeseries(empty_ds):
     )
     expected = da.copy()
 
-    expected.loc[
-        {"area (ISO3)": ["COL", "ARG", "MEX"], "source": "RAND2020"}
-    ] = np.broadcast_to(
-        np.concatenate(
-            [
-                np.array([1, 1]),
-                np.linspace(1 / 6, 2 / 8, 11) * np.array([6] * 9 + [8] * 2),
-                np.linspace(2, 2 * 10 / 8, 8),
-            ]
-        ),
-        (3, 21),
-    ).T * ureg(
-        "Gg CO2 / year"
+    expected.loc[{"area (ISO3)": ["COL", "ARG", "MEX"], "source": "RAND2020"}] = (
+        np.broadcast_to(
+            np.concatenate(
+                [
+                    np.array([1, 1]),
+                    np.linspace(1 / 6, 2 / 8, 11) * np.array([6] * 9 + [8] * 2),
+                    np.linspace(2, 2 * 10 / 8, 8),
+                ]
+            ),
+            (3, 21),
+        ).T
+        * ureg("Gg CO2 / year")
     )
     expected.loc[{"area (ISO3)": "BOL", "source": "RAND2020"}] = np.concatenate(
         [
@@ -153,19 +152,18 @@ def test_downscale_timeseries(empty_ds):
 
     expected = da.copy()
 
-    expected.loc[
-        {"area (ISO3)": ["COL", "ARG", "MEX"], "source": "RAND2020"}
-    ] = np.broadcast_to(
-        np.concatenate(
-            [
-                np.array([1.2, 1.2, 1]),
-                (np.linspace(1 / 5, 2 / 8, 11) * np.array([6] * 9 + [8] * 2))[1:],
-                np.linspace(2, 2 * 10 / 8, 8),
-            ]
-        ),
-        (3, 21),
-    ).T * ureg(
-        "Gg CO2 / year"
+    expected.loc[{"area (ISO3)": ["COL", "ARG", "MEX"], "source": "RAND2020"}] = (
+        np.broadcast_to(
+            np.concatenate(
+                [
+                    np.array([1.2, 1.2, 1]),
+                    (np.linspace(1 / 5, 2 / 8, 11) * np.array([6] * 9 + [8] * 2))[1:],
+                    np.linspace(2, 2 * 10 / 8, 8),
+                ]
+            ),
+            (3, 21),
+        ).T
+        * ureg("Gg CO2 / year")
     )
     expected.loc[{"area (ISO3)": "BOL", "source": "RAND2020"}] = np.concatenate(
         [

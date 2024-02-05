@@ -1,6 +1,5 @@
 """Merge arrays and datasets with optional tolerances."""
 
-
 import contextlib
 import typing
 

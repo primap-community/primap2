@@ -274,9 +274,9 @@ class TestGasBasket:
         assert_equal(summed, expected)
 
     def test_contents_sum_skipna_evaluation_dims(self, partly_nan_ds):
-        partly_nan_ds["CH4"].loc[
-            {"area (ISO3)": "ARG", "time": "2012"}
-        ] = np.nan * ureg("Gg CH4 / year")
+        partly_nan_ds["CH4"].loc[{"area (ISO3)": "ARG", "time": "2012"}] = (
+            np.nan * ureg("Gg CH4 / year")
+        )
         summed = partly_nan_ds.pr.gas_basket_contents_sum(
             basket="KYOTOGHG (AR4GWP100)",
             basket_contents=["CO2", "SF6", "CH4"],
@@ -306,9 +306,9 @@ class TestGasBasket:
     @pytest.fixture
     def partly_filled_ds(self, partly_nan_ds):
         partly_nan_ds["KYOTOGHG (AR4GWP100)"][:] = 1 * ureg("Gg CO2 / year")
-        partly_nan_ds["KYOTOGHG (AR4GWP100)"].loc[
-            {"area (ISO3)": "COL"}
-        ] = np.nan * ureg("Gg CO2 / year")
+        partly_nan_ds["KYOTOGHG (AR4GWP100)"].loc[{"area (ISO3)": "COL"}] = (
+            np.nan * ureg("Gg CO2 / year")
+        )
         partly_nan_ds["KYOTOGHG (AR4GWP100)"].loc[
             {"area (ISO3)": "BOL", "time": "2020"}
         ] = np.nan * ureg("Gg CO2 / year")
