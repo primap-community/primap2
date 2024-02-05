@@ -1,5 +1,6 @@
 """Simple selection and loc-style accessor which automatically translates PRIMAP2 short
 column names to the actual long names including the categorization."""
+
 import functools
 import inspect
 import typing
@@ -239,12 +240,10 @@ class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
         return ret
 
     @typing.overload
-    def __getitem__(self, item: str) -> xr.DataArray:
-        ...
+    def __getitem__(self, item: str) -> xr.DataArray: ...
 
     @typing.overload
-    def __getitem__(self, item: typing.Mapping[str, typing.Any]) -> xr.Dataset:
-        ...
+    def __getitem__(self, item: typing.Mapping[str, typing.Any]) -> xr.Dataset: ...
 
     def __getitem__(self, item):
         """Like ds[], but translates short aliases like "area" into the long names
