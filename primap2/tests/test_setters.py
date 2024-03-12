@@ -428,9 +428,9 @@ class TestDsSetter:
         assert_ds_aligned_equal(actual, expected)
 
     def test_existing_fillna(self, minimal_ds: xr.Dataset, new):
-        minimal_ds["CO2"].pr.loc[{"area": "COL", "time": "2001"}].pint.magnitude[
-            :
-        ] = np.nan
+        minimal_ds["CO2"].pr.loc[{"area": "COL", "time": "2001"}].pint.magnitude[:] = (
+            np.nan
+        )
         actual = minimal_ds.pr.set(
             "area", "COL", minimal_ds.pr.loc[{"area": "MEX"}], existing="fillna", **new
         )

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Tests for _data_format.py"""
+
 import logging
 
 import numpy as np
