@@ -1,8 +1,7 @@
 """Compose a harmonized dataset from multiple input datasets."""
-from collections.abc import Sequence
 
 import xarray as xr
-from attrs import define, frozen
+from attrs import define
 
 
 @define
@@ -25,7 +24,7 @@ class PriorityDefinition:
     """
 
     dimensions: list[str]
-    priorities: list[dict[str, str | int]]
+    priorities: list[dict[str, str]]
 
 
 @define
@@ -34,22 +33,26 @@ class FillingStrategy:
     Fill missing data in a dataset using another dataset.
     """
 
-    def fill(self, result_da: xr.DataArray, fill_da: xr.DataArray):
+    def fill(self, result_ts: xr.DataArray, fill_ts: xr.DataArray):
         """Fill gaps in the result_da using data from the fill_da.
 
-        The result_da will be modified, the fill_da will not be modified.
+        The result_ts will be modified, the fill_ts will not be modified.
 
         The filling may only partly fill missing data.
         """
         ...
 
 
-@frozen
+@define
 class TimeseriesSelector:
-    selections: tuple[str, str | int | Sequence[str | int]]
+    selections: dict[str, str | list[str]]
+    """
+    Example: [("source", "FAOSTAT"), ("scenario", "high")]
+    [("source", ["FAOSTAT", "UNFCCC"])]
+    """
 
-    def match(self, other: dict[str, str | int]) -> bool:
-        """Check if a selector as used for xarray's `loc` matches this selector."""
+    def match(self, fill_ts: xr.DataArray) -> bool:
+        """Check if a selected timeseries for filling matches this selector."""
         ...
 
 
@@ -64,6 +67,11 @@ class StrategyDefinition:
         List of mappings from a timeseries selector to a filling strategy. When a
         timeseries will be used to fill missing data, the list will be checked from the
         start, and the first matching TimeseriesSelector determines the FillingStrategy.
+        Example: [(("source", ["FAOSTAT", "UNFCCC]), StraightStrategy),
+                  ((, ), GlobalStrategy)]
+        Note that the strategy can depend on fixed coordinates as well as priority
+        coordinates.
+
     """
 
     strategies: list[tuple[TimeseriesSelector, FillingStrategy]]
@@ -74,4 +82,5 @@ def compose_timeseries(
     priority_definition: PriorityDefinition,
     strategy_definition: StrategyDefinition,
 ) -> xr.DataArray:
+    """TODO: logging? source tracebility info?"""
     ...
