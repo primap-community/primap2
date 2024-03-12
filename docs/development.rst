@@ -118,7 +118,7 @@ Code format
 .. image:: https://img.shields.io/badge/code%20style-black-000000.svg
     :target: https://github.com/psf/black
 
-We use the ``black`` code format standard, which is also enforced by our CI pipeline and
+We use the ``black`` code format standard (via the ruff linter), which is also enforced by our CI pipeline and
 pre-commit hooks, so you *will* use that standard. Don't worry about it, though, it
 all happens automatically, just running "make lint" will apply the standard.
 We also follow
@@ -128,7 +128,7 @@ lowercase_with_underscores for functions and arguments. "Hide" functions which a
 
 If a part of the code should *not* follow our usual code style (because you are somewhat
 dubiously building ASCII art in Python or whatever), use
-`the fmt on/off directive <https://github.com/psf/black#the-black-code-style>`_ so black
+`the fmt on/off directive <https://github.com/psf/black#the-black-code-style>`_ so ruff
 will ignore that part.
 
 We target Python version 3.10 and later, so using
@@ -148,11 +148,11 @@ they are committed. All the configured checks and fixes are listed in the
 
 - ``check-ast``: parses all python files and errors if the syntax is not valid.
 - ``check-merge-conflict``: emits an error if it finds unresolved merge conflicts.
-- ``black``: formats all python files using black.
 - ``ruff`` and ``doc8``: static analysis for unused imports and variables etc.
   Sometimes, it is unavoidable to trigger flake8 errors, in that case add a comment of
   the form ``# noqa: E501`` at the end of the offending line (using the error code that
   ruff reports).
+- ``ruff format``: source code formatting.
 
 At any time, you can run all the checks using::
 
@@ -362,8 +362,8 @@ Developing PRIMAP2 with Pycharm works best if you:
    ``Run | Edit configurations | + | python tests | pytest``.
    Afterwards, you can run the tests by selecting this configuration at the top right
    bar and clicking on the "run" or "run with coverage" icons.
-5. If you want to run the ``black`` code formatter from PyCharm, look at their
-   `howto <https://black.readthedocs.io/en/stable/integrations/editors.html#pycharm-intellij-idea>`_.
+5. If you want to run the ``ruff`` code formatter from PyCharm, look at the
+   `ruff plugin <https://plugins.jetbrains.com/plugin/20574-ruff>`_.
 6. A couple of plugins can be useful in PyCharm for PRIMAP2 development:
 
    * `Makefile support <https://plugins.jetbrains.com/plugin/9333-makefile-language>`_
