@@ -417,7 +417,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         ...     attrs={"area": "area (ISO3)"},
         ... )
         >>> ds
-        <xarray.Dataset> Size: 184B
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
           * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
@@ -437,7 +437,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         >>> ds.pr.set(
         ...     "area", "MEX", ds.pr.loc[{"area": "COL"}] * 20, existing="overwrite"
         ... )
-        <xarray.Dataset> Size: 176B
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
           * area (ISO3)  (area (ISO3)) object 16B 'COL' 'MEX'
@@ -452,7 +452,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         missing values
 
         >>> ds.pr.set("area", "MEX", ds.pr.loc[{"area": "COL"}] * 20, existing="fillna")
-        <xarray.Dataset> Size: 176B
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
           * area (ISO3)  (area (ISO3)) object 16B 'COL' 'MEX'
@@ -470,7 +470,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         >>> ds_partly_empty["CO2"].pr.loc[{"area": "COL"}] = np.nan
         >>> ds_partly_empty["SF4"].pr.loc[{"area": "COL"}] = np.nan
         >>> ds_partly_empty
-        <xarray.Dataset> Size: 184B
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
           * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
@@ -483,7 +483,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         >>> ds_partly_empty.pr.set(
         ...     "area", "COL", ds_partly_empty.pr.loc[{"area": "MEX"}] * 10
         ... )
-        <xarray.Dataset> Size: 176B
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
           * area (ISO3)  (area (ISO3)) object 16B 'COL' 'MEX'
@@ -505,7 +505,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         Introducing a new value uses the same syntax
 
         >>> ds.pr.set("area", "BOL", ds.pr.loc[{"area": "COL"}] * 20)
-        <xarray.Dataset> Size: 248B
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 3, time: 4)
         Coordinates:
           * area (ISO3)  (area (ISO3)) object 24B 'BOL' 'COL' 'MEX'
@@ -529,7 +529,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
 
         >>> ds["population"] = xr.DataArray([1e6, 1.2e6, 1.3e6, 1.4e6], coords=(time,))
         >>> ds
-        <xarray.Dataset> Size: 216B
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
           * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
@@ -541,7 +541,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         Attributes:
             area:     area (ISO3)
         >>> ds.pr.set("area", "BOL", ds.pr.loc[{"area": "COL"}] * 20)
-        <xarray.Dataset> Size: 280B
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 3, time: 4)
         Coordinates:
           * area (ISO3)  (area (ISO3)) object 24B 'BOL' 'COL' 'MEX'

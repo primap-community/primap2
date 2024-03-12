@@ -270,7 +270,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
         ...     coords={"x": [0, 1, 2], "u": ("x", [-1, 0, 1], {"units": "s"})},
         ... )
         >>> ds
-        <xarray.Dataset> Size: 96B
+        <xarray.Dataset> Size: ...
         Dimensions:  (x: 3)
         Coordinates:
           * x        (x) int... 0 1 2
@@ -280,7 +280,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
             b        (x) int... 5 -2 1
 
         >>> ds.pr.quantify()
-        <xarray.Dataset> Size: 96B
+        <xarray.Dataset> Size: ...
         Dimensions:  (x: 3)
         Coordinates:
           * x        (x) int... 0 1 2
@@ -289,7 +289,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
             a        (x) int... [m] 0 3 2
             b        (x) int... 5 -2 1
         >>> ds.pr.quantify({"b": "dm"})
-        <xarray.Dataset> Size: 96B
+        <xarray.Dataset> Size: ...
         Dimensions:  (x: 3)
         Coordinates:
           * x        (x) int... 0 1 2
