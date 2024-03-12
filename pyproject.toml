@@ -12,4 +12,4 @@ extend-exclude = [
   "climate_categories/tests/data/*.py"
 ]
 extend-select = [ "W", "I", "UP", "B", "NPY", "RUF" ]
-target-version = "py39"
+target-version = "py310"
