@@ -1,9 +1,9 @@
 import datetime
 import itertools
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import IO, Any, Callable, Union
+from typing import IO, Any
 
 import numpy as np
 import pandas as pd
@@ -35,16 +35,16 @@ def convert_long_dataframe_if(
     data_long: pd.DataFrame,
     *,
     coords_cols: dict[str, str],
-    add_coords_cols: Union[None, dict[str, list[str]]] = None,
-    coords_defaults: Union[None, dict[str, Any]] = None,
+    add_coords_cols: None | dict[str, list[str]] = None,
+    coords_defaults: None | dict[str, Any] = None,
     coords_terminologies: dict[str, str],
-    coords_value_mapping: Union[None, dict[str, Any]] = None,
-    coords_value_filling: Union[None, dict[str, dict[str, dict]]] = None,
-    filter_keep: Union[None, dict[str, dict[str, Any]]] = None,
-    filter_remove: Union[None, dict[str, dict[str, Any]]] = None,
-    meta_data: Union[None, dict[str, Any]] = None,
+    coords_value_mapping: None | dict[str, Any] = None,
+    coords_value_filling: None | dict[str, dict[str, dict]] = None,
+    filter_keep: None | dict[str, dict[str, Any]] = None,
+    filter_remove: None | dict[str, dict[str, Any]] = None,
+    meta_data: None | dict[str, Any] = None,
     time_format: str = "%Y-%m-%d",
-    convert_str: Union[bool, dict[str, float]] = True,
+    convert_str: bool | dict[str, float] = True,
     copy_df: bool = True,
 ) -> pd.DataFrame:
     """convert a DataFrame in long (tidy) format into the PRIMAP2 interchange format.
@@ -258,19 +258,19 @@ data_format_details.html#dataset-attributes>`_.
 
 
 def read_long_csv_file_if(
-    filepath_or_buffer: Union[str, Path, IO],
+    filepath_or_buffer: str | Path | IO,
     *,
     coords_cols: dict[str, str],
-    add_coords_cols: Union[None, dict[str, list[str]]] = None,
-    coords_defaults: Union[None, dict[str, Any]] = None,
+    add_coords_cols: None | dict[str, list[str]] = None,
+    coords_defaults: None | dict[str, Any] = None,
     coords_terminologies: dict[str, str],
-    coords_value_mapping: Union[None, dict[str, Any]] = None,
-    coords_value_filling: Union[None, dict[str, dict[str, dict]]] = None,
-    filter_keep: Union[None, dict[str, dict[str, Any]]] = None,
-    filter_remove: Union[None, dict[str, dict[str, Any]]] = None,
-    meta_data: Union[None, dict[str, Any]] = None,
+    coords_value_mapping: None | dict[str, Any] = None,
+    coords_value_filling: None | dict[str, dict[str, dict]] = None,
+    filter_keep: None | dict[str, dict[str, Any]] = None,
+    filter_remove: None | dict[str, dict[str, Any]] = None,
+    meta_data: None | dict[str, Any] = None,
     time_format: str = "%Y-%m-%d",
-    convert_str: Union[bool, dict[str, float]] = True,
+    convert_str: bool | dict[str, float] = True,
 ) -> pd.DataFrame:
     """Read a CSV file in long (tidy) format into the PRIMAP2 interchange format.
 
@@ -453,17 +453,17 @@ def convert_wide_dataframe_if(
     data_wide: pd.DataFrame,
     *,
     coords_cols: dict[str, str],
-    add_coords_cols: Union[None, dict[str, list[str]]] = None,
-    coords_defaults: Union[None, dict[str, Any]] = None,
+    add_coords_cols: None | dict[str, list[str]] = None,
+    coords_defaults: None | dict[str, Any] = None,
     coords_terminologies: dict[str, str],
-    coords_value_mapping: Union[None, dict[str, Any]] = None,
-    coords_value_filling: Union[None, dict[str, dict[str, dict]]] = None,
-    filter_keep: Union[None, dict[str, dict[str, Any]]] = None,
-    filter_remove: Union[None, dict[str, dict[str, Any]]] = None,
-    meta_data: Union[None, dict[str, Any]] = None,
+    coords_value_mapping: None | dict[str, Any] = None,
+    coords_value_filling: None | dict[str, dict[str, dict]] = None,
+    filter_keep: None | dict[str, dict[str, Any]] = None,
+    filter_remove: None | dict[str, dict[str, Any]] = None,
+    meta_data: None | dict[str, Any] = None,
     time_format: str = "%Y",
-    time_cols: Union[None, list] = None,
-    convert_str: Union[bool, dict[str, float]] = True,
+    time_cols: None | list = None,
+    convert_str: bool | dict[str, float] = True,
     copy_df: bool = False,
 ) -> pd.DataFrame:
     """
@@ -691,19 +691,19 @@ data_format_details.html#dataset-attributes>`_.
 
 
 def read_wide_csv_file_if(
-    filepath_or_buffer: Union[str, Path, IO],
+    filepath_or_buffer: str | Path | IO,
     *,
     coords_cols: dict[str, str],
-    add_coords_cols: Union[None, dict[str, list[str]]] = None,
-    coords_defaults: Union[None, dict[str, Any]] = None,
+    add_coords_cols: None | dict[str, list[str]] = None,
+    coords_defaults: None | dict[str, Any] = None,
     coords_terminologies: dict[str, str],
-    coords_value_mapping: Union[None, dict[str, Any]] = None,
-    coords_value_filling: Union[None, dict[str, dict[str, dict]]] = None,
-    filter_keep: Union[None, dict[str, dict[str, Any]]] = None,
-    filter_remove: Union[None, dict[str, dict[str, Any]]] = None,
-    meta_data: Union[None, dict[str, Any]] = None,
+    coords_value_mapping: None | dict[str, Any] = None,
+    coords_value_filling: None | dict[str, dict[str, dict]] = None,
+    filter_keep: None | dict[str, dict[str, Any]] = None,
+    filter_remove: None | dict[str, dict[str, Any]] = None,
+    meta_data: None | dict[str, Any] = None,
     time_format: str = "%Y",
-    convert_str: Union[bool, dict[str, float]] = True,
+    convert_str: bool | dict[str, float] = True,
 ) -> pd.DataFrame:
     """Read a CSV file in wide format into the PRIMAP2 interchange format.
 
@@ -879,7 +879,7 @@ def interchange_format_attrs_dict(
     xr_attrs: dict,
     time_format: str,
     dimensions,
-    additional_coordinates: Union[None, dict] = None,
+    additional_coordinates: None | dict = None,
 ) -> dict:
     metadata = {
         "attrs": xr_attrs,
@@ -985,7 +985,7 @@ def matches_time_format(value: str, time_format: str) -> bool:
 def read_wide_csv(
     filepath_or_buffer,
     coords_cols: dict[str, str],
-    add_coords_cols: Union[None, dict[str, list[str]]] = None,
+    add_coords_cols: None | dict[str, list[str]] = None,
     time_format: str = "%Y",
 ) -> tuple[pd.DataFrame, list[str]]:
     data = pd.read_csv(
@@ -1029,7 +1029,7 @@ def read_wide_csv(
 def read_long_csv(
     filepath_or_buffer,
     coords_cols: dict[str, str],
-    add_coords_cols: Union[None, dict[str, list[str]]] = None,
+    add_coords_cols: None | dict[str, list[str]] = None,
 ) -> pd.DataFrame:
     if "data" not in coords_cols.keys():
         raise ValueError(
@@ -1075,8 +1075,8 @@ def spec_to_query_string(filter_spec: dict[str, Any]) -> str:
 
 def filter_data(
     data: pd.DataFrame,
-    filter_keep: Union[None, dict[str, dict[str, Any]]] = None,
-    filter_remove: Union[None, dict[str, dict[str, Any]]] = None,
+    filter_keep: None | dict[str, dict[str, Any]] = None,
+    filter_remove: None | dict[str, dict[str, Any]] = None,
 ):
     # Filters for keeping data are combined with "or" so that
     # everything matching at least one rule is kept.
@@ -1177,7 +1177,7 @@ def add_dimensions_from_defaults(
 def map_metadata(
     data: pd.DataFrame,
     *,
-    meta_mapping: dict[str, Union[str, Callable, dict]],
+    meta_mapping: dict[str, str | Callable | dict],
     attrs: dict[str, Any],
 ):
     """Map the metadata according to specifications given in meta_mapping.
@@ -1194,7 +1194,7 @@ def map_metadata(
 def map_metadata_unordered(
     data: pd.DataFrame,
     *,
-    meta_mapping: dict[str, Union[str, Callable, dict]],
+    meta_mapping: dict[str, str | Callable | dict],
     attrs: dict[str, Any],
 ):
     """Map the metadata according to specifications given in meta_mapping."""
@@ -1236,7 +1236,9 @@ def map_metadata_unordered(
             if not args:  # simple case: no additional args needed
                 values_to_map = data[column_name].unique()
                 values_mapped = map(func, values_to_map)
-                meta_mapping_df[column_name] = dict(zip(values_to_map, values_mapped))
+                meta_mapping_df[column_name] = dict(
+                    zip(values_to_map, values_mapped, strict=False)
+                )
 
             else:  # need to supply additional arguments
                 # this can't be handled using the replace()-call later since the
@@ -1356,7 +1358,7 @@ def parse_code(code: str) -> float:
 
 def create_str_replacement_dict(
     strs: list[str],
-    user_str_conv: Union[bool, dict[str, float]],
+    user_str_conv: bool | dict[str, float],
 ) -> dict[str, str]:
     """Create a dict for replacement of strings by NaN and 0 based on
     general rules and user defined rules"""
@@ -1390,7 +1392,7 @@ def replace_values(data: pd.DataFrame, columns: list[str], na_repl_dict):
         data[col] = data[col].astype("float64", copy=False, errors="ignore")
 
 
-def preferred_unit(entity: str, units: dict[str, str]) -> Union[str, None]:
+def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
     """Choose the preferred unit for the given entity.
 
     In general, "Gg <substance> / year" will be preferred if it is compatible with the
@@ -1486,8 +1488,8 @@ def preferred_unit(entity: str, units: dict[str, str]) -> Union[str, None]:
 def harmonize_units(
     data: pd.DataFrame,
     *,
-    unit_col: Union[None, str] = None,
-    attrs: Union[None, dict] = None,
+    unit_col: None | str = None,
+    attrs: None | dict = None,
     dimensions: Iterable[str],
 ) -> None:
     """Harmonize the units of the input data.

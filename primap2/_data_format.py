@@ -2,7 +2,7 @@ import contextlib
 import datetime
 import pathlib
 from collections.abc import Hashable, Iterable, Mapping
-from typing import IO, Optional, Union
+from typing import IO
 
 import pandas as pd
 import pint
@@ -14,12 +14,12 @@ from ._units import ureg
 
 
 def open_dataset(
-    filename_or_obj: Union[str, pathlib.Path, IO],
-    group: Optional[str] = None,
-    chunks: Optional[Union[int, dict]] = None,
-    cache: Optional[bool] = None,
-    drop_variables: Optional[Union[str, Iterable]] = None,
-    backend_kwargs: Optional[dict] = None,
+    filename_or_obj: str | pathlib.Path | IO,
+    group: str | None = None,
+    chunks: int | dict | None = None,
+    cache: bool | None = None,
+    drop_variables: str | Iterable | None = None,
+    backend_kwargs: dict | None = None,
 ) -> xr.Dataset:
     """Open and decode a dataset from a file or file-like object.
 
@@ -201,11 +201,11 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
 
     def to_netcdf(
         self,
-        path: Union[pathlib.Path, str],
+        path: pathlib.Path | str,
         mode: str = "w",
-        group: Optional[str] = None,
-        encoding: Union[Mapping, None] = None,
-    ) -> Union[bytes, None]:
+        group: str | None = None,
+        encoding: Mapping | None = None,
+    ) -> bytes | None:
         """Write dataset contents to a netCDF file.
 
         Parameters

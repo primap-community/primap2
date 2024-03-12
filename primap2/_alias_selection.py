@@ -86,7 +86,7 @@ def alias(
 
 def alias_dims(
     args_to_alias: typing.Iterable[str],
-    wraps: typing.Optional[typing.Callable] = None,
+    wraps: typing.Callable | None = None,
     additional_allowed_values: typing.Iterable[str] = (),
 ) -> typing.Callable[[FunctionT], FunctionT]:
     """Method decorator to automatically translate dimension aliases in parameters.

@@ -1,7 +1,6 @@
 """Merge arrays and datasets with optional tolerances."""
 
 import contextlib
-import typing
 
 import numpy as np
 import xarray as xr
@@ -104,7 +103,7 @@ def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
 
 
 def ensure_compatible_coords_dims(
-    a: typing.Union[xr.Dataset, xr.DataArray], b: typing.Union[xr.Dataset, xr.DataArray]
+    a: xr.Dataset | xr.DataArray, b: xr.Dataset | xr.DataArray
 ):
     """Check if coordinates and dimensions of both Datasets or DataArrays agree,
     raise exception otherwise."""

@@ -26,9 +26,9 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         self,
         dim: typing.Hashable,
         key: typing.Any,
-        value: typing.Union[xr.DataArray, np.ndarray],
+        value: xr.DataArray | np.ndarray,
         *,
-        value_dims: typing.Optional[list[typing.Hashable]] = None,
+        value_dims: list[typing.Hashable] | None = None,
         existing: str = "fillna_empty",
         new: str = "extend",
     ) -> xr.DataArray:
