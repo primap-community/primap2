@@ -7,7 +7,6 @@ they are added during the process of reading an preparing data for the PRIMAP-hi
 update. Testing will be added in the future."""
 
 import re
-from typing import Optional, Union
 
 import pandas as pd
 
@@ -15,12 +14,12 @@ import pandas as pd
 def nir_add_unit_information(
     df_nir: pd.DataFrame,
     *,
-    unit_row: Union[str, int],
-    entity_row: Optional[Union[str, int]] = None,
+    unit_row: str | int,
+    entity_row: str | int | None = None,
     regexp_entity: str,
-    regexp_unit: Optional[str] = None,
-    manual_repl_unit: Optional[dict[str, str]] = None,
-    manual_repl_entity: Optional[dict[str, str]] = None,
+    regexp_unit: str | None = None,
+    manual_repl_unit: dict[str, str] | None = None,
+    manual_repl_entity: dict[str, str] | None = None,
     default_unit: str,
 ) -> pd.DataFrame:
     """Add unit information to a National Inventory Report (NIR) style DataFrame.
@@ -135,7 +134,7 @@ def nir_add_unit_information(
 
 
 def nir_convert_df_to_long(
-    df_nir: pd.DataFrame, year: int, header_long: Optional[list[str]] = None
+    df_nir: pd.DataFrame, year: int, header_long: list[str] | None = None
 ) -> pd.DataFrame:
     """Convert an entity-wide NIR table for a single year to a long format
     DataFrame.

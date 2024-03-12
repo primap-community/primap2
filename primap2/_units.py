@@ -3,8 +3,6 @@
 Portions of this file are copied from pint_xarray and are
 Copyright 2020, pint-xarray developers."""
 
-from typing import Optional, Union
-
 import pint
 import pint_xarray
 import xarray as xr
@@ -90,9 +88,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         """
         return self._da.pint.dequantify()
 
-    def convert_to_gwp(
-        self, gwp_context: str, units: Union[str, pint.Unit]
-    ) -> xr.DataArray:
+    def convert_to_gwp(self, gwp_context: str, units: str | pint.Unit) -> xr.DataArray:
         """Convert to a global warming potential
 
         Parameters
@@ -165,7 +161,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         return ureg.context(self._da.attrs["gwp_context"])
 
     def convert_to_mass(
-        self, gwp_context: Optional[str] = None, entity: Optional[str] = None
+        self, gwp_context: str | None = None, entity: str | None = None
     ) -> xr.DataArray:
         """Convert a global warming potential of a greenhouse gas to a mass.
 

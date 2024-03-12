@@ -1,5 +1,4 @@
 from collections.abc import Hashable, Sequence
-from typing import Optional, Union
 
 import xarray as xr
 
@@ -16,8 +15,8 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Union[None, Sequence[Hashable]] = None,
+        sel: dict[Hashable, Sequence] | None = None,
+        skipna_evaluation_dims: None | Sequence[Hashable] = None,
         skipna: bool = True,
         tolerance: float = 0.01,
     ) -> xr.DataArray:
@@ -125,8 +124,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Optional[Sequence[Hashable]] = None,
+        sel: dict[Hashable, Sequence] | None = None,
+        skipna_evaluation_dims: Sequence[Hashable] | None = None,
         skipna: bool = True,
         tolerance: float = 0.01,
     ) -> xr.Dataset:
@@ -237,8 +236,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Optional[Sequence[Hashable]] = None,
+        sel: dict[Hashable, Sequence] | None = None,
+        skipna_evaluation_dims: Sequence[Hashable] | None = None,
         skipna: bool = True,
         tolerance: float = 0.01,
     ) -> xr.Dataset:

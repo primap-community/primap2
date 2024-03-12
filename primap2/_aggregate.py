@@ -1,5 +1,5 @@
 from collections.abc import Hashable, Iterable, Mapping, Sequence
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import xarray as xr
@@ -17,7 +17,7 @@ def dim_names(obj: DatasetOrDataArray):
 
 
 def select_no_scalar_dimension(
-    obj: DatasetOrDataArray, sel: Optional[Mapping[Hashable, Any]]
+    obj: DatasetOrDataArray, sel: Mapping[Hashable, Any] | None
 ) -> DatasetOrDataArray:
     """Select but raise an error if the selection produces a new scalar dimensions.
 
@@ -48,8 +48,8 @@ def select_no_scalar_dimension(
 
 class DataArrayAggregationAccessor(BaseDataArrayAccessor):
     def _reduce_dim(
-        self, dim: Optional[DimOrDimsT], reduce_to_dim: Optional[DimOrDimsT]
-    ) -> Optional[DimOrDimsT]:
+        self, dim: DimOrDimsT | None, reduce_to_dim: DimOrDimsT | None
+    ) -> DimOrDimsT | None:
         if dim is not None and reduce_to_dim is not None:
             raise ValueError(
                 "Only one of 'dim' and 'reduce_to_dim' may be supplied, not both."
@@ -70,9 +70,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
     @alias_dims(["dim", "reduce_to_dim"])
     def count(
         self,
-        dim: Optional[DimOrDimsT] = None,
+        dim: DimOrDimsT | None = None,
         *,
-        reduce_to_dim: Optional[DimOrDimsT] = None,
+        reduce_to_dim: DimOrDimsT | None = None,
         keep_attrs: bool = True,
         **kwargs,
     ) -> xr.DataArray:
@@ -110,13 +110,13 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
     @alias_dims(["dim", "reduce_to_dim", "skipna_evaluation_dims"])
     def sum(
         self,
-        dim: Optional[DimOrDimsT] = None,
+        dim: DimOrDimsT | None = None,
         *,
-        reduce_to_dim: Optional[DimOrDimsT] = None,
-        skipna: Optional[bool] = None,
-        skipna_evaluation_dims: Optional[DimOrDimsT] = None,
+        reduce_to_dim: DimOrDimsT | None = None,
+        skipna: bool | None = None,
+        skipna_evaluation_dims: DimOrDimsT | None = None,
         keep_attrs: bool = True,
-        min_count: Optional[int] = None,
+        min_count: int | None = None,
     ) -> xr.DataArray:
         """Reduce this DataArray's data by applying `sum` along some dimension(s).
 
@@ -195,7 +195,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         )
 
     @alias_dims(["dim"])
-    def fill_all_na(self, dim: Union[Iterable[Hashable], str], value=0) -> xr.DataArray:
+    def fill_all_na(self, dim: Iterable[Hashable] | str, value=0) -> xr.DataArray:
         """Fill NA values only where all values along the specified dimension(s) are NA.
 
         Example: having a data array with dimensions ``time`` and ``position``,
@@ -224,7 +224,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 class DatasetAggregationAccessor(BaseDatasetAccessor):
     @staticmethod
     def _apply_fill_all_na(
-        da: xr.DataArray, dim: Union[Iterable[Hashable], str], value
+        da: xr.DataArray, dim: Iterable[Hashable] | str, value
     ) -> xr.DataArray:
         if isinstance(dim, str):
             dim = [dim]
@@ -265,8 +265,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         )
 
     def _reduce_dim(
-        self, dim: Optional[DimOrDimsT], reduce_to_dim: Optional[DimOrDimsT]
-    ) -> Optional[Iterable[Hashable]]:
+        self, dim: DimOrDimsT | None, reduce_to_dim: DimOrDimsT | None
+    ) -> Iterable[Hashable] | None:
         if dim is not None and reduce_to_dim is not None:
             raise ValueError(
                 "Only one of 'dim' and 'reduce_to_dim' may be supplied, not both."
@@ -292,9 +292,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
     @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
     def count(
         self,
-        dim: Optional[DimOrDimsT] = None,
+        dim: DimOrDimsT | None = None,
         *,
-        reduce_to_dim: Optional[DimOrDimsT] = None,
+        reduce_to_dim: DimOrDimsT | None = None,
         keep_attrs: bool = True,
         **kwargs,
     ) -> DatasetOrDataArray:
@@ -350,13 +350,13 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
     @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
     def sum(
         self,
-        dim: Optional[DimOrDimsT] = None,
+        dim: DimOrDimsT | None = None,
         *,
-        reduce_to_dim: Optional[DimOrDimsT] = None,
-        skipna: Optional[bool] = None,
-        skipna_evaluation_dims: Optional[DimOrDimsT] = None,
+        reduce_to_dim: DimOrDimsT | None = None,
+        skipna: bool | None = None,
+        skipna_evaluation_dims: DimOrDimsT | None = None,
         keep_attrs: bool = True,
-        min_count: Optional[int] = None,
+        min_count: int | None = None,
     ) -> DatasetOrDataArray:
         """Reduce this Dataset's data by applying `sum` along some dimension(s).
 
@@ -459,9 +459,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         *,
         basket: str,
         basket_contents: Sequence[str],
-        skipna: Optional[bool] = None,
-        skipna_evaluation_dims: Optional[DimOrDimsT] = None,
-        min_count: Optional[int] = None,
+        skipna: bool | None = None,
+        skipna_evaluation_dims: DimOrDimsT | None = None,
+        min_count: int | None = None,
     ) -> xr.DataArray:
         """The sum of gas basket contents converted using the global warming potential
         of the gas basket.
@@ -521,10 +521,10 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         *,
         basket: str,
         basket_contents: Sequence[str],
-        sel: Optional[Mapping[Hashable, Sequence]] = None,
-        skipna: Optional[bool] = None,
-        skipna_evaluation_dims: Optional[DimOrDimsT] = None,
-        min_count: Optional[int] = None,
+        sel: Mapping[Hashable, Sequence] | None = None,
+        skipna: bool | None = None,
+        skipna_evaluation_dims: DimOrDimsT | None = None,
+        min_count: int | None = None,
     ) -> xr.DataArray:
         """Fill NA values in a gas basket using the sum of its contents.
 

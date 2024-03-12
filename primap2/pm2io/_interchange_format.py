@@ -2,7 +2,6 @@ import csv
 import itertools
 import re
 from pathlib import Path
-from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -131,7 +130,7 @@ def metadata_for_variable(unit: str, variable: str) -> dict[str, str]:
 
 
 def write_interchange_format(
-    filepath: Union[str, Path], data: pd.DataFrame, attrs: Optional[dict] = None
+    filepath: str | Path, data: pd.DataFrame, attrs: dict | None = None
 ) -> None:
     """Write dataset in interchange format to disk.
 
@@ -175,7 +174,7 @@ def write_interchange_format(
 
 
 def read_interchange_format(
-    filepath: Union[str, Path],
+    filepath: str | Path,
 ) -> pd.DataFrame:
     """Read a dataset in the interchange format from disk into memory.
 
@@ -223,7 +222,7 @@ def read_interchange_format(
 
 def from_interchange_format(
     data: pd.DataFrame,
-    attrs: Optional[dict] = None,
+    attrs: dict | None = None,
     max_array_size: int = 1024 * 1024 * 1024,
 ) -> xr.Dataset:
     """Convert dataset from the interchange format to the standard PRIMAP2 format.
@@ -277,7 +276,9 @@ def from_interchange_format(
                 f"value for {coord}."
             )
 
-        add_coord_mapping_dicts[coord] = dict(zip(dim_values, coord_values))
+        add_coord_mapping_dicts[coord] = dict(
+            zip(dim_values, coord_values, strict=False)
+        )
 
     # drop additional coordinates. make a copy first to not alter input DF
     data_drop = data.drop(columns=attrs["additional_coordinates"].keys(), inplace=False)

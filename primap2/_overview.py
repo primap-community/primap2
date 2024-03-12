@@ -10,9 +10,7 @@ from ._alias_selection import alias_dims
 
 
 class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
-    def to_df(
-        self, name: typing.Optional[str] = None
-    ) -> typing.Union[pd.DataFrame, pd.Series]:
+    def to_df(self, name: str | None = None) -> pd.DataFrame | pd.Series:
         """Convert this array into an unstacked (i.e. non-tidy) pandas.DataFrame.
 
         Converting to an unstacked pandas.DataFrame is most useful for two-dimensional
@@ -41,7 +39,7 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
             return pandas_obj
 
     @alias_dims(["dims"])
-    def coverage(self, *dims: typing.Hashable) -> typing.Union[pd.DataFrame, pd.Series]:
+    def coverage(self, *dims: typing.Hashable) -> pd.DataFrame | pd.Series:
         """Summarize how many data points exist for a dimension combination.
 
         For each combinations of values in the given dimensions, count the number of
@@ -83,7 +81,7 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
 class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
     def to_df(
         self,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
     ) -> pd.DataFrame:
         """Convert this dataset into a pandas.DataFrame.
 
@@ -105,7 +103,7 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
         return df
 
     @alias_dims(["dims"], additional_allowed_values=["entity"])
-    def coverage(self, *dims: typing.Hashable) -> typing.Union[pd.DataFrame, pd.Series]:
+    def coverage(self, *dims: typing.Hashable) -> pd.DataFrame | pd.Series:
         """Summarize how many data points exist for a dimension combination.
 
         For each combinations of values in the given dimensions, count the number of
