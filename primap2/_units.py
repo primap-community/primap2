@@ -69,10 +69,10 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         ...     coords={"wavelength": [1e-4, 2e-4, 4e-4, 6e-4, 1e-3, 2e-3]},
         ... )
         >>> da.pint.quantify(units="Hz")
-        <xarray.DataArray (wavelength: 6)>
+        <xarray.DataArray (wavelength: 6)> Size: 48B
         <Quantity([0.4 0.9 1.7 4.8 3.2 9.1], 'hertz')>
         Coordinates:
-          * wavelength  (wavelength) float64 0.0001 0.0002 0.0004 0.0006 0.001 0.002
+          * wavelength  (wavelength) float64 48B 0.0001 0.0002 0.0004 0.0006 0.001 0.002
         """
         return self._da.pint.quantify(unit_registry=ureg, **kwargs)
 
@@ -270,7 +270,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
         ...     coords={"x": [0, 1, 2], "u": ("x", [-1, 0, 1], {"units": "s"})},
         ... )
         >>> ds
-        <xarray.Dataset>
+        <xarray.Dataset> Size: 96B
         Dimensions:  (x: 3)
         Coordinates:
           * x        (x) int... 0 1 2
@@ -280,7 +280,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
             b        (x) int... 5 -2 1
 
         >>> ds.pr.quantify()
-        <xarray.Dataset>
+        <xarray.Dataset> Size: 96B
         Dimensions:  (x: 3)
         Coordinates:
           * x        (x) int... 0 1 2
@@ -289,7 +289,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
             a        (x) int... [m] 0 3 2
             b        (x) int... 5 -2 1
         >>> ds.pr.quantify({"b": "dm"})
-        <xarray.Dataset>
+        <xarray.Dataset> Size: 96B
         Dimensions:  (x: 3)
         Coordinates:
           * x        (x) int... 0 1 2
