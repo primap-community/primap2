@@ -78,12 +78,12 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         ...     ],
         ... )
         >>> da
-        <xarray.DataArray (area (ISO3): 2, time: 4)>
+        <xarray.DataArray (area (ISO3): 2, time: 4)> Size: 64B
         array([[0., 1., 2., 3.],
                [2., 3., 4., 5.]])
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
 
         Setting an existing value
 
@@ -94,12 +94,12 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         >>> da.pr.set(
         ...     "area", "COL", np.array([0.5, 0.6, 0.7, 0.8]), existing="overwrite"
         ... )
-        <xarray.DataArray (area (ISO3): 2, time: 4)>
+        <xarray.DataArray (area (ISO3): 2, time: 4)> Size: 64B
         array([[0.5, 0.6, 0.7, 0.8],
                [2. , 3. , 4. , 5. ]])
         Coordinates:
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
 
         By default, existing values are only overwritten if all existing values are
         NaN
@@ -107,28 +107,28 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         >>> da_partly_empty = da.copy(deep=True)
         >>> da_partly_empty.pr.loc[{"area": "COL"}] = np.nan
         >>> da_partly_empty
-        <xarray.DataArray (area (ISO3): 2, time: 4)>
+        <xarray.DataArray (area (ISO3): 2, time: 4)> Size: 64B
         array([[nan, nan, nan, nan],
                [ 2.,  3.,  4.,  5.]])
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
         >>> da_partly_empty.pr.set("area", "COL", np.array([0.5, 0.6, 0.7, 0.8]))
-        <xarray.DataArray (area (ISO3): 2, time: 4)>
+        <xarray.DataArray (area (ISO3): 2, time: 4)> Size: 64B
         array([[0.5, 0.6, 0.7, 0.8],
                [2. , 3. , 4. , 5. ]])
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
         >>> # if even one value contains data, the default is to raise an Error
         >>> da_partly_empty.pr.loc[{"area": "COL", "time": "2001"}] = 0.6
         >>> da_partly_empty
-        <xarray.DataArray (area (ISO3): 2, time: 4)>
+        <xarray.DataArray (area (ISO3): 2, time: 4)> Size: 64B
         array([[nan, 0.6, nan, nan],
                [2. , 3. , 4. , 5. ]])
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
         >>> da_partly_empty.pr.set("area", "COL", np.array([0.5, 0.6, 0.7, 0.8]))
         Traceback (most recent call last):
         ...
@@ -137,13 +137,13 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         Introducing a new value uses the same syntax as modifying existing values
 
         >>> da.pr.set("area", "ARG", np.array([0.5, 0.6, 0.7, 0.8]))
-        <xarray.DataArray (area (ISO3): 3, time: 4)>
+        <xarray.DataArray (area (ISO3): 3, time: 4)> Size: 96B
         array([[0.5, 0.6, 0.7, 0.8],
                [0. , 1. , 2. , 3. ],
                [2. , 3. , 4. , 5. ]])
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'ARG' 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 36B 'ARG' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
 
         You can also mix existing and new values
 
@@ -153,13 +153,13 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         ...     np.array([[0.5, 0.6, 0.7, 0.8], [5, 6, 7, 8]]),
         ...     existing="overwrite",
         ... )
-        <xarray.DataArray (area (ISO3): 3, time: 4)>
+        <xarray.DataArray (area (ISO3): 3, time: 4)> Size: 96B
         array([[5. , 6. , 7. , 8. ],
                [0.5, 0.6, 0.7, 0.8],
                [2. , 3. , 4. , 5. ]])
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'ARG' 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 36B 'ARG' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
 
         If you don't want to automatically extend the dimensions with new values, you
         can request checking that all keys already exist using ``new="error"``:
@@ -189,25 +189,25 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         ...     value_dims=["time"],
         ...     existing="overwrite",
         ... )
-        <xarray.DataArray (area (ISO3): 3, time: 4)>
+        <xarray.DataArray (area (ISO3): 3, time: 4)> Size: 96B
         array([[0.5, 0.6, 0.7, 0.8],
                [0.5, 0.6, 0.7, 0.8],
                [2. , 3. , 4. , 5. ]])
         Coordinates:
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
-          * area (ISO3)  (area (ISO3)) <U3 'ARG' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 36B 'ARG' 'COL' 'MEX'
 
         Instead of overwriting existing values, you can also choose to only fill missing
         values.
 
         >>> da.pr.loc[{"area": "COL", "time": "2001"}] = np.nan
         >>> da
-        <xarray.DataArray (area (ISO3): 2, time: 4)>
+        <xarray.DataArray (area (ISO3): 2, time: 4)> Size: 64B
         array([[ 0., nan,  2.,  3.],
                [ 2.,  3.,  4.,  5.]])
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
         >>> da.pr.set(
         ...     "area",
         ...     ["COL", "ARG"],
@@ -215,25 +215,25 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         ...     value_dims=["time"],
         ...     existing="fillna",
         ... )
-        <xarray.DataArray (area (ISO3): 3, time: 4)>
+        <xarray.DataArray (area (ISO3): 3, time: 4)> Size: 96B
         array([[0.5, 0.6, 0.7, 0.8],
                [0. , 0.6, 2. , 3. ],
                [2. , 3. , 4. , 5. ]])
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'ARG' 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 36B 'ARG' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
 
         Because you can also supply a DataArray as a value, it is easy to define values
         from existing values using arithmetic
 
         >>> da.pr.set("area", "ARG", da.pr.loc[{"area": "COL"}] * 2)
-        <xarray.DataArray (area (ISO3): 3, time: 4)>
+        <xarray.DataArray (area (ISO3): 3, time: 4)> Size: 96B
         array([[ 0., nan,  4.,  6.],
                [ 0., nan,  2.,  3.],
                [ 2.,  3.,  4.,  5.]])
         Coordinates:
-          * area (ISO3)  (area (ISO3)) object 'ARG' 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) object 24B 'ARG' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
 
         Returns
         -------
@@ -417,14 +417,14 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         ...     attrs={"area": "area (ISO3)"},
         ... )
         >>> ds
-        <xarray.Dataset>
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
-            CO2          (area (ISO3), time) float64 0.0 1.0 2.0 3.0 2.0 3.0 4.0 5.0
-            SF4          (area (ISO3), time) float64 0.5 1.5 2.5 3.5 2.5 3.5 nan 5.5
+            CO2          (area (ISO3), time) float64 64B 0.0 1.0 2.0 3.0 2.0 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 64B 0.5 1.5 2.5 3.5 2.5 3.5 nan 5.5
         Attributes:
             area:     area (ISO3)
 
@@ -437,14 +437,14 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         >>> ds.pr.set(
         ...     "area", "MEX", ds.pr.loc[{"area": "COL"}] * 20, existing="overwrite"
         ... )
-        <xarray.Dataset>
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) object 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) object 16B 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
-            CO2          (area (ISO3), time) float64 0.0 1.0 2.0 3.0 0.0 20.0 40.0 60.0
-            SF4          (area (ISO3), time) float64 0.5 1.5 2.5 3.5 10.0 30.0 50.0 70.0
+            CO2          (area (ISO3), time) float64 64B 0.0 1.0 2.0 ... 20.0 40.0 60.0
+            SF4          (area (ISO3), time) float64 64B 0.5 1.5 2.5 ... 30.0 50.0 70.0
         Attributes:
             area:     area (ISO3)
 
@@ -452,14 +452,14 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         missing values
 
         >>> ds.pr.set("area", "MEX", ds.pr.loc[{"area": "COL"}] * 20, existing="fillna")
-        <xarray.Dataset>
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) object 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) object 16B 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
-            CO2          (area (ISO3), time) float64 0.0 1.0 2.0 3.0 2.0 3.0 4.0 5.0
-            SF4          (area (ISO3), time) float64 0.5 1.5 2.5 3.5 2.5 3.5 50.0 5.5
+            CO2          (area (ISO3), time) float64 64B 0.0 1.0 2.0 3.0 2.0 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 64B 0.5 1.5 2.5 ... 3.5 50.0 5.5
         Attributes:
             area:     area (ISO3)
 
@@ -470,27 +470,27 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         >>> ds_partly_empty["CO2"].pr.loc[{"area": "COL"}] = np.nan
         >>> ds_partly_empty["SF4"].pr.loc[{"area": "COL"}] = np.nan
         >>> ds_partly_empty
-        <xarray.Dataset>
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
-            CO2          (area (ISO3), time) float64 nan nan nan nan 2.0 3.0 4.0 5.0
-            SF4          (area (ISO3), time) float64 nan nan nan nan 2.5 3.5 nan 5.5
+            CO2          (area (ISO3), time) float64 64B nan nan nan nan 2.0 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 64B nan nan nan nan 2.5 3.5 nan 5.5
         Attributes:
             area:     area (ISO3)
         >>> ds_partly_empty.pr.set(
         ...     "area", "COL", ds_partly_empty.pr.loc[{"area": "MEX"}] * 10
         ... )
-        <xarray.Dataset>
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) object 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) object 16B 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
-            CO2          (area (ISO3), time) float64 20.0 30.0 40.0 50.0 2.0 3.0 4.0 5.0
-            SF4          (area (ISO3), time) float64 25.0 35.0 nan 55.0 2.5 3.5 nan 5.5
+            CO2          (area (ISO3), time) float64 64B 20.0 30.0 40.0 ... 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 64B 25.0 35.0 nan ... 3.5 nan 5.5
         Attributes:
             area:     area (ISO3)
         >>> # if even one value is non-nan, this fails by default
@@ -505,14 +505,14 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         Introducing a new value uses the same syntax
 
         >>> ds.pr.set("area", "BOL", ds.pr.loc[{"area": "COL"}] * 20)
-        <xarray.Dataset>
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 3, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) object 'BOL' 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) object 24B 'BOL' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
-            CO2          (area (ISO3), time) float64 0.0 20.0 40.0 60.0 ... 3.0 4.0 5.0
-            SF4          (area (ISO3), time) float64 10.0 30.0 50.0 70.0 ... 3.5 nan 5.5
+            CO2          (area (ISO3), time) float64 96B 0.0 20.0 40.0 ... 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 96B 10.0 30.0 50.0 ... 3.5 nan 5.5
         Attributes:
             area:     area (ISO3)
 
@@ -529,27 +529,27 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
 
         >>> ds["population"] = xr.DataArray([1e6, 1.2e6, 1.3e6, 1.4e6], coords=(time,))
         >>> ds
-        <xarray.Dataset>
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) <U3 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
-            CO2          (area (ISO3), time) float64 0.0 1.0 2.0 3.0 2.0 3.0 4.0 5.0
-            SF4          (area (ISO3), time) float64 0.5 1.5 2.5 3.5 2.5 3.5 nan 5.5
-            population   (time) float64 1e+06 1.2e+06 1.3e+06 1.4e+06
+            CO2          (area (ISO3), time) float64 64B 0.0 1.0 2.0 3.0 2.0 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 64B 0.5 1.5 2.5 3.5 2.5 3.5 nan 5.5
+            population   (time) float64 32B 1e+06 1.2e+06 1.3e+06 1.4e+06
         Attributes:
             area:     area (ISO3)
         >>> ds.pr.set("area", "BOL", ds.pr.loc[{"area": "COL"}] * 20)
-        <xarray.Dataset>
+        <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 3, time: 4)
         Coordinates:
-          * area (ISO3)  (area (ISO3)) object 'BOL' 'COL' 'MEX'
-          * time         (time) datetime64[ns] 2000-01-01 2001-01-01 ... 2003-01-01
+          * area (ISO3)  (area (ISO3)) object 24B 'BOL' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
         Data variables:
-            CO2          (area (ISO3), time) float64 0.0 20.0 40.0 60.0 ... 3.0 4.0 5.0
-            SF4          (area (ISO3), time) float64 10.0 30.0 50.0 70.0 ... 3.5 nan 5.5
-            population   (time) float64 1e+06 1.2e+06 1.3e+06 1.4e+06
+            CO2          (area (ISO3), time) float64 96B 0.0 20.0 40.0 ... 3.0 4.0 5.0
+            SF4          (area (ISO3), time) float64 96B 10.0 30.0 50.0 ... 3.5 nan 5.5
+            population   (time) float64 32B 1e+06 1.2e+06 1.3e+06 1.4e+06
         Attributes:
             area:     area (ISO3)
 
