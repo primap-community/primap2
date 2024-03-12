@@ -612,9 +612,9 @@ class TestReadWideCSVFile:
 
         del coords_cols["unit"]
         coords_defaults["unit"] = "Gg"
-        coords_value_mapping["category"] = (
-            pm2io._conversion.convert_ipcc_code_primap_to_primap2
-        )
+        coords_value_mapping[
+            "category"
+        ] = pm2io._conversion.convert_ipcc_code_primap_to_primap2
         filter_remove["f1"] = {"gas": "KYOTOGHG"}
 
         df_result = pm2io.read_wide_csv_file_if(

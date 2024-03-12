@@ -210,9 +210,7 @@ def test_downscale_timeseries(empty_ds):
             ]
         ),
         (4, 21),
-    ).T * ureg(
-        "Gg CO2 / year"
-    )
+    ).T * ureg("Gg CO2 / year")
     expected.loc[{"area (ISO3)": "BOL", "time": "2002"}] = 2 * ureg("Gg CO2 / year")
 
     assert_equal(downscaled, expected, equal_nan=True, atol=0.01)

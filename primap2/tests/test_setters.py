@@ -337,7 +337,7 @@ class TestDASetter:
                 da.pr.loc[{"area": "BOL"}],
                 value_dims=["area", "time", "source"],
                 existing="overwrite",
-                **new
+                **new,
             )
 
     def test_incompatible_units(self, da: xr.DataArray, ts: np.ndarray, new):
@@ -402,7 +402,7 @@ class TestDsSetter:
                 "CUB",
                 minimal_ds.pr.loc[{"area": "COL"}] * 2,
                 new="error",
-                **existing
+                **existing,
             )
 
     def test_existing_default(self, minimal_ds: xr.Dataset, new):
@@ -417,7 +417,7 @@ class TestDsSetter:
             "COL",
             minimal_ds.pr.loc[{"area": "COL"}] * 2,
             existing="overwrite",
-            **new
+            **new,
         )
         expected = minimal_ds.pint.dequantify()
         for key in expected:
