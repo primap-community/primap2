@@ -155,9 +155,9 @@ def opulent_str_ds():
         dims=list(method_coords.keys()),
         attrs={"entity": "method"},
     )
-    opulent["method"].pr.loc[
-        {"time": "2000", "area": "COL", "source": "RAND2020"}
-    ] = "text"
+    opulent["method"].pr.loc[{"time": "2000", "area": "COL", "source": "RAND2020"}] = (
+        "text"
+    )
 
     return opulent
 
