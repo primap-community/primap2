@@ -1,4 +1,5 @@
 """Compose a harmonized dataset from multiple input datasets."""
+import typing
 
 import xarray as xr
 from attrs import define
@@ -27,27 +28,43 @@ class PriorityDefinition:
     priorities: list[dict[str, str]]
 
 
-@define
-class FillingStrategy:
+class FillingStrategyModel(typing.Protocol):
     """
     Fill missing data in a dataset using another dataset.
     """
 
-    def fill(self, result_ts: xr.DataArray, fill_ts: xr.DataArray):
-        """Fill gaps in the result_da using data from the fill_da.
+    type: str
 
-        The result_ts will be modified, the fill_ts will not be modified.
+    def fill(self, ts: xr.DataArray, fill_ts: xr.DataArray) -> xr.DataArray:
+        """Fill gaps in ts using data from the fill_ts.
+
+        ts and fill_ts will not be modified.
 
         The filling may only partly fill missing data.
         """
         ...
 
 
+class SubstitutionStrategy:
+    """Fill missing data in the result dataset by copying.
+
+    The NaNs in the result dataset are substituted with data from the filling
+    dataset.
+    """
+
+    type = "substitution"
+
+    def fill(self, ts: xr.DataArray, fill_ts: xr.DataArray) -> xr.DataArray:
+        """Fill gaps in ts using data from the fill_ts."""
+        return xr.core.ops.fillna(ts, fill_ts, join="exact")
+
+
 @define
 class TimeseriesSelector:
     selections: dict[str, str | list[str]]
     """
-    Example: [("source", "FAOSTAT"), ("scenario", "high")]
+    Examples:
+    [("source", "FAOSTAT"), ("scenario", "high")]
     [("source", ["FAOSTAT", "UNFCCC"])]
     """
 
@@ -74,10 +91,11 @@ class StrategyDefinition:
 
     """
 
-    strategies: list[tuple[TimeseriesSelector, FillingStrategy]]
+    strategies: list[tuple[TimeseriesSelector, FillingStrategyModel]]
 
 
 def compose_timeseries(
+    *,
     input_data: xr.DataArray,
     priority_definition: PriorityDefinition,
     strategy_definition: StrategyDefinition,
