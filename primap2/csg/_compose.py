@@ -1,8 +1,10 @@
 """Compose a harmonized dataset from multiple input datasets."""
+
 import typing
 
 import xarray as xr
 from attrs import define
+from loguru import logger
 
 
 @define
@@ -108,4 +110,40 @@ def compose_timeseries(
     strategy_definition: StrategyDefinition,
 ) -> xr.DataArray:
     """TODO: logging? source tracebility info?"""
-    ...
+    context_logger = logger.bind(
+        fixed_coordinates={k: v for k, v in input_data.coords.items() if v.shape == ()},
+        priority_coordinates={
+            k: list(v.data) for k, v in input_data.coords.items() if v.shape != ()
+        },
+        priorities=priority_definition.priorities,
+        strategies=strategy_definition.strategies,
+    )
+
+    result_ts: None | xr.DataArray = None
+    for selector in priority_definition.priorities:
+        try:
+            fill_ts = input_data.loc[selector]
+        except KeyError:
+            context_logger.debug(f"{selector=} matched no input_data, skipping.")
+            continue
+
+        if result_ts is None:
+            context_logger.debug(
+                f"{ {k: fill_ts[k].item() for k in priority_definition.dimensions} } is"
+                f" the highest-priority source, using as the basis to fill."
+            )
+            result_ts = fill_ts
+        else:
+            strategy = strategy_definition.find_strategy(fill_ts)
+            result_ts = strategy.fill(result_ts, fill_ts)
+
+        if not result_ts.isnull().any():
+            context_logger.debug("No NaNs remaining, skipping the rest of the sources.")
+            break
+
+    if result_ts is None:
+        raise ValueError(
+            f"No selector matched for \n{input_data.coords}\n{priority_definition=}"
+        )
+
+    return result_ts
