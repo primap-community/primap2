@@ -1,9 +1,60 @@
 """Tests for csg/test_compose.py"""
 import numpy as np
 import pandas as pd
+import pytest
 import xarray as xr
 
 import primap2.csg._compose
+
+
+def test_timeseries_selector():
+    time = pd.date_range("1850-01-01", "2022-01-01", freq="YS")
+    anp = np.linspace(0.0, 1.0, len(time))
+    da = xr.DataArray(
+        anp, dims=["time"], coords={"time": time, "source": "A", "category": "1.A"}
+    )
+
+    assert primap2.csg._compose.TimeseriesSelector({"source": "A"}).match(da)
+    assert not primap2.csg._compose.TimeseriesSelector({"source": "B"}).match(da)
+    assert primap2.csg._compose.TimeseriesSelector(
+        {"source": "A", "category": "1.A"}
+    ).match(da)
+    assert not primap2.csg._compose.TimeseriesSelector(
+        {"source": "A", "category": "1"}
+    ).match(da)
+
+
+def test_strategy_definition():
+    time = pd.date_range("1850-01-01", "2022-01-01", freq="YS")
+    anp = np.linspace(0.0, 1.0, len(time))
+    da = xr.DataArray(
+        anp, dims=["time"], coords={"time": time, "source": "A", "category": "1.A"}
+    )
+
+    ts = primap2.csg._compose.TimeseriesSelector
+    assert (
+        primap2.csg._compose.StrategyDefinition(
+            [(ts({"source": "A", "category": "1"}), 1), (ts({"source": "A"}), 2)]
+        ).find_strategy(da)
+        == 2
+    )
+    assert (
+        primap2.csg._compose.StrategyDefinition(
+            [
+                (ts({"source": "A", "category": "1"}), 1),
+                (ts({"source": "A", "category": "1.A"}), 2),
+            ]
+        ).find_strategy(da)
+        == 2
+    )
+    with pytest.raises(KeyError):
+        primap2.csg._compose.StrategyDefinition(
+            [
+                (ts({"source": "A", "category": "1"}), 1),
+                (ts({"source": "A", "category": "1.B"}), 2),
+                (ts({"source": "B", "category": "1.B"}), 3),
+            ]
+        ).find_strategy(da)
 
 
 def test_compose_timeseries_trivial():

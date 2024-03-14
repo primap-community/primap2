@@ -70,7 +70,7 @@ class TimeseriesSelector:
 
     def match(self, fill_ts: xr.DataArray) -> bool:
         """Check if a selected timeseries for filling matches this selector."""
-        ...
+        return all(fill_ts.coords[k] == v for (k, v) in self.selections.items())
 
 
 @define
@@ -92,6 +92,13 @@ class StrategyDefinition:
     """
 
     strategies: list[tuple[TimeseriesSelector, FillingStrategyModel]]
+
+    def find_strategy(self, fill_ts: xr.DataArray) -> FillingStrategyModel:
+        """Find the strategy to use for the given filling timeseries."""
+        for selector, strategy in self.strategies:
+            if selector.match(fill_ts):
+                return strategy
+        raise KeyError(f"No matching strategy found for {fill_ts.coords}")
 
 
 def compose_timeseries(
