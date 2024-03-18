@@ -8,7 +8,7 @@ import primap2  # noqa: F401
 from primap2 import ureg
 
 
-def minimal_ds():
+def minimal_ds() -> xr.Dataset:
     """A valid, minimal dataset."""
     time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
     area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
@@ -52,7 +52,7 @@ COORDS = {
 }
 
 
-def opulent_ds():
+def opulent_ds() -> xr.Dataset:
     """A valid dataset using lots of features."""
 
     # seed the rng with a constant to achieve predictable "randomness"
@@ -134,7 +134,7 @@ def opulent_ds():
     return opulent
 
 
-def opulent_str_ds():
+def opulent_str_ds() -> xr.Dataset:
     """Like the opulent dataset, but additionally with a stringly typed data variable
     "method"."""
     opulent = opulent_ds()
@@ -162,7 +162,7 @@ def opulent_str_ds():
     return opulent
 
 
-def empty_ds():
+def empty_ds() -> xr.Dataset:
     """An empty hull of a dataset with missing data."""
     time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
     area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
