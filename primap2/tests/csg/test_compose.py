@@ -74,9 +74,53 @@ def test_strategy_definition():
         ).find_strategy(da)
 
 
+def test_compose_trivial():
+    input_data = primap2.tests.examples.opulent_ds()
+    input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
+    # we now have dimensions time, area (ISO3), category (IPCC 2006), animal (FAOSTAT)
+    # product (FAOSTAT), scenario (FAOSTAT), provenance, model, source
+    # We have variables (entities): CO2, SF6, CH4
+    # We have sources: RAND2020, RAND2021
+    # We have scenarios: highpop, lowpop
+    # Idea: we use source, scenario as priority dimensions, everything else are fixed
+    # coordinates.
+
+    # generally, prefer source RAND2020, scenario lowpop,
+    # then use source RAND2021, scenario highpop.
+    # however, for Columbia, use source RAND2020, scenario highpop as highest priority
+    # (this combination is not used at all otherwise).
+    priority_definition = primap2.csg._compose.PriorityDefinition(
+        selection_dimensions=["source", "scenario (FAOSTAT)"],
+        priorities=[
+            {
+                "area (ISO3)": "COL",
+                "source": "RAND2020",
+                "scenario (FAOSTAT)": "highpop",
+            },
+            {"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"},
+            {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
+        ],
+    )
+    # we use straight substitution always.
+    strategy_definition = primap2.csg._compose.StrategyDefinition(
+        strategies=[
+            (
+                primap2.csg._compose.TimeseriesSelector({}),
+                primap2.csg._compose.SubstitutionStrategy(),
+            )
+        ]
+    )
+
+    result_ts, result_sources_ts = primap2.csg._compose.compose(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+    )
+
+
 def test_compose_timeseries_trivial():
     priority_definition = primap2.csg._compose.PriorityDefinition(
-        dimensions=["source"], priorities=[{"source": "A"}, {"source": "B"}]
+        selection_dimensions=["source"], priorities=[{"source": "A"}, {"source": "B"}]
     )
     strategy_definition = primap2.csg._compose.StrategyDefinition(
         strategies=[

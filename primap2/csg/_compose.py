@@ -11,24 +11,42 @@ from loguru import logger
 @define
 class PriorityDefinition:
     """
-    Defines source priorities for a single timeseries.
+    Defines source priorities for composing a full dataset or a single timeseries.
 
     Attributes
     ----------
-    dimensions
-        List of dimensions which are used in the prioritisation.
+    selection_dimensions
+        List of dimensions from which source timeseries are selected. These are the
+        priority dimensions, and each priority has to specify all selection dimensions.
     priorities
         List of priority selections. Higher priority selections come first. Each
-        selection consists of a dict which maps dimension names (which have to be
-        in `dimensions`) to values. Example:
-        [{"source": "FAOSTAT"}, {"source": "UNFCCC"}]
-        would prefer the FAOSTAT data over the UNFCCC data.
-        Each selection, applied to the input_data passed, has to yield exactly one
-        timeseries.
+        selection consists of a dict which maps dimension names to values. Each
+        selection has to specify all selection_dimensions, but may specify additional
+        dimensions (fixed dimensions) to limit the selection to specific cases.
+        Examples:
+        [{"area (ISO3)": "COL", "source": "A"}, {"source": "B"}]
+        would select source "A" for Columbia, but source "B" for all other countries.
+        In this case, selection_dimensions = ["source"].
     """
 
-    dimensions: list[str]
+    selection_dimensions: list[str]
     priorities: list[dict[str, str]]
+
+    def limit(self, dim: str, value: str) -> typing.Self:
+        """Remove one additional dimension by limiting to a single value.
+
+        You can't remove selection dimensions, only additional (fixed) dimensions.
+        """
+        new_priorities = []
+        for sel in self.priorities:
+            if dim not in sel:
+                new_priorities.append(sel)
+            elif sel[dim] == value:
+                # filter out the matching value
+                new_priorities.append({k: v for k, v in sel.items() if k != dim})
+        return PriorityDefinition(
+            selection_dimensions=self.selection_dimensions, priorities=new_priorities
+        )
 
 
 class FillingStrategyModel(typing.Protocol):
@@ -135,13 +153,21 @@ class TimeseriesSelector:
     selections: dict[str, str | list[str]]
     """
     Examples:
-    [("source", "FAOSTAT"), ("scenario", "high")]
-    [("source", ["FAOSTAT", "UNFCCC"])]
+    {"source": "FAOSTAT", "scenario": "high"}
+    {"source": ["FAOSTAT", "UNFCCC"]}
     """
 
     def match(self, fill_ts: xr.DataArray) -> bool:
         """Check if a selected timeseries for filling matches this selector."""
         return all(fill_ts.coords[k] == v for (k, v) in self.selections.items())
+
+    def match_single_dim(self, dim: str, value: str) -> bool:
+        """Check if a literal value in one dimension can match this selector."""
+        if dim not in self.selections.keys():
+            return True
+        if isinstance(self.selections[dim], str):
+            return value == self.selections[dim]
+        return value in self.selections[dim]
 
 
 @define
@@ -170,6 +196,16 @@ class StrategyDefinition:
             if selector.match(fill_ts):
                 return strategy
         raise KeyError(f"No matching strategy found for {fill_ts.coords}")
+
+    def limit(self, dim: str, value: str) -> typing.Self:
+        """Limit this strategy definition to strategies applicable with the limit."""
+        return StrategyDefinition(
+            strategies=[
+                (sel, strat)
+                for (sel, strat) in self.strategies
+                if sel.match_single_dim(dim, value)
+            ]
+        )
 
 
 def priority_coordinates_repr(
@@ -233,7 +269,8 @@ def compose_timeseries(
             continue
 
         fill_ts_repr = priority_coordinates_repr(
-            fill_ts=fill_ts, priority_dimensions=priority_definition.dimensions
+            fill_ts=fill_ts,
+            priority_dimensions=priority_definition.selection_dimensions,
         )
 
         if result_ts is None or result_sources_ts is None:
@@ -266,3 +303,72 @@ def compose_timeseries(
         )
 
     return result_ts, result_sources_ts
+
+
+def compose(
+    *,
+    input_data: xr.Dataset,
+    priority_definition: PriorityDefinition,
+    strategy_definition: StrategyDefinition,
+) -> tuple[xr.Dataset, xr.Dataset]:
+    result_das = {}
+    result_sources_das = {}
+
+    for entity in input_data:
+        input_da = input_data[entity]
+        # all dimensions are either time, priority selection dimensions, or need to
+        # be iterated over
+        group_by_dimensions: tuple[str] = tuple(
+            set(input_da.dims)
+            - {"time"}
+            - set(priority_definition.selection_dimensions)
+        )
+        result_tss, result_sources_tss = iterate_next_fixed_dimension(
+            input_da=input_da,
+            priority_definition=priority_definition,
+            strategy_definition=strategy_definition,
+            group_by_dimensions=group_by_dimensions,
+        )
+        result_das[entity] = xr.combine_by_coords(result_tss)
+        result_sources_das[entity] = xr.combine_by_coords(result_sources_tss)
+
+    return xr.Dataset(result_das), xr.Dataset(result_sources_das)
+
+
+# TODO: think about correct datatypes, need to already concat DataArrays along the
+# correct dimensions when collecting.
+def iterate_next_fixed_dimension(
+    *,
+    input_da: xr.DataArray,
+    priority_definition: PriorityDefinition,
+    strategy_definition: StrategyDefinition,
+    group_by_dimensions: tuple[str],
+) -> tuple[list[xr.DataArray], list[xr.DataArray]]:
+    my_dim = group_by_dimensions[0]
+    new_group_by_dimensions = group_by_dimensions[1:]
+    res = []
+    res_sources = []
+    for val_array in input_da[my_dim]:
+        val = val_array.item()
+        strategy_definition = strategy_definition.limit(dim=my_dim, value=val)
+        priority_definition = priority_definition.limit(dim=my_dim, value=val)
+        if new_group_by_dimensions:
+            # have to iterate further until all dimensions are consumed
+            new_res, new_res_sources = iterate_next_fixed_dimension(
+                input_da=input_da.loc[{my_dim: val}],
+                priority_definition=priority_definition,
+                strategy_definition=strategy_definition,
+                group_by_dimensions=new_group_by_dimensions,
+            )
+            res += new_res
+            res_sources += new_res_sources
+        else:
+            # actually compute results
+            new_ts, new_sources_ts = compose_timeseries(
+                input_data=input_da.loc[{my_dim: val}],
+                priority_definition=priority_definition,
+                strategy_definition=strategy_definition,
+            )
+            res.append(new_ts)
+            res_sources.append(new_sources_ts)
+    return res, res_sources
