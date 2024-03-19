@@ -1,5 +1,6 @@
 """Tests for csg/test_compose.py"""
 
+import datetime
 from collections.abc import Sequence
 
 import numpy as np
@@ -116,6 +117,74 @@ def test_compose_trivial():
         priority_definition=priority_definition,
         strategy_definition=strategy_definition,
     )
+
+
+def test_compose_performance():
+    # a test close to full primap-hist
+    # in the input_data we have dimensions:
+    # * time: 1750-2023
+    # * area (ISO3): 215
+    # * category (IPCC2006_PRIMAP): 24
+    # * source: 10
+    primap_hist = primap2.open_dataset(
+        "../data/Guetschow_et_al_2023b-PRIMAP-hist_v2.5_final_no_rounding_15-Oct-2023.nc"
+    )
+    # no GWPs, GWP conversion and aggregation will happen in a later step
+    primap_hist = primap_hist[[x for x in primap_hist if "(" not in x]]
+    sources = []
+    for source_id in range(10):
+        source_ds = primap_hist.copy(deep=True).squeeze("source", drop=True)
+        source_ds *= 1.0 + source_id / 10.0
+        # the lower the source ID, the more areas have all-nan info.
+        source_ds["CO2"].loc[
+            {"area (ISO3)": primap_hist["area (ISO3)"][: 12 - source_id]}
+        ] = np.nan * primap2.ureg("Gg CO2 / year")
+        sources.append(source_ds)
+    input_data = xr.concat(
+        sources,
+        pd.Index([f"source #{source_id}" for source_id in range(10)], name="source"),
+    )
+
+    input_data = input_data[["CO2"]]
+
+    # we use source as priority dimension, everything else are fixed coordinates.
+    # we have one country-specific exception for each country in the prioritization
+    # that's likely a bit more than realistic, but let's aim high
+    priorities = [
+        {
+            "area (ISO3)": iso_code,
+            "category (IPCC2006_PRIMAP)": "1",
+            "source": "source #3",
+        }
+        for iso_code in input_data["area (ISO3)"]
+    ]
+    priorities += [{"source": f"source #{source_id}"} for source_id in range(10)]
+    priority_definition = primap2.csg._compose.PriorityDefinition(
+        selection_dimensions=["source"], priorities=priorities
+    )
+    # we use straight substitution always, but specify it for every source individually
+    strategy_definition = primap2.csg._compose.StrategyDefinition(
+        strategies=[
+            (
+                primap2.csg._compose.TimeseriesSelector(
+                    {"source": f"source #{source_id}"}
+                ),
+                primap2.csg._compose.SubstitutionStrategy(),
+            )
+            for source_id in range(10)
+        ]
+    )
+
+    start = datetime.datetime.now()
+    print(f"starting at {start}")
+    primap2.csg._compose.compose(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+    )
+    end = datetime.datetime.now()
+    print(f"ending at {end}")
+    print(f"took {end-start}")
 
 
 def test_compose_timeseries_trivial():

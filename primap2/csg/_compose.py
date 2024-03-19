@@ -1,6 +1,7 @@
 """Compose a harmonized dataset from multiple input datasets."""
 
 import typing
+from collections.abc import Hashable
 
 import numpy as np
 import xarray as xr
@@ -29,10 +30,10 @@ class PriorityDefinition:
         In this case, selection_dimensions = ["source"].
     """
 
-    selection_dimensions: list[str]
-    priorities: list[dict[str, str]]
+    selection_dimensions: list[Hashable]
+    priorities: list[dict[Hashable, str]]
 
-    def limit(self, dim: str, value: str) -> typing.Self:
+    def limit(self, dim: Hashable, value: str) -> typing.Self:
         """Remove one additional dimension by limiting to a single value.
 
         You can't remove selection dimensions, only additional (fixed) dimensions.
@@ -150,7 +151,7 @@ class SubstitutionStrategy:
 
 @define
 class TimeseriesSelector:
-    selections: dict[str, str | list[str]]
+    selections: dict[Hashable, str | list[str]]
     """
     Examples:
     {"source": "FAOSTAT", "scenario": "high"}
@@ -161,13 +162,13 @@ class TimeseriesSelector:
         """Check if a selected timeseries for filling matches this selector."""
         return all(fill_ts.coords[k] == v for (k, v) in self.selections.items())
 
-    def match_single_dim(self, dim: str, value: str) -> bool:
+    def match_single_dim(self, dim: Hashable, value: str) -> bool:
         """Check if a literal value in one dimension can match this selector."""
         if dim not in self.selections.keys():
             return True
-        if isinstance(self.selections[dim], str):
-            return value == self.selections[dim]
-        return value in self.selections[dim]
+        if isinstance(self.selections[dim], list):
+            return value in self.selections[dim]
+        return value == self.selections[dim]
 
 
 @define
@@ -197,7 +198,7 @@ class StrategyDefinition:
                 return strategy
         raise KeyError(f"No matching strategy found for {fill_ts.coords}")
 
-    def limit(self, dim: str, value: str) -> typing.Self:
+    def limit(self, dim: Hashable, value: str) -> typing.Self:
         """Limit this strategy definition to strategies applicable with the limit."""
         return StrategyDefinition(
             strategies=[
@@ -272,13 +273,18 @@ def compose_timeseries(
             fill_ts=fill_ts,
             priority_dimensions=priority_definition.selection_dimensions,
         )
+        # remove priority dimension information, it messes with automatic alignment
+        # in computations. The corresponding information is now in fill_ts_repr.
+        fill_ts_no_prio_dims = fill_ts.drop_vars(
+            priority_definition.selection_dimensions
+        )
 
         if result_ts is None or result_sources_ts is None:
             context_logger.debug(
                 f"{fill_ts_repr} is the highest-priority source, using as the "
                 f"basis to fill."
             )
-            result_ts = fill_ts
+            result_ts = fill_ts_no_prio_dims
             result_sources_ts = xr.full_like(
                 fill_ts, fill_value=fill_ts_repr, dtype=object
             )
@@ -288,7 +294,7 @@ def compose_timeseries(
             strategy = strategy_definition.find_strategy(fill_ts)
             result_ts, result_sources_ts = strategy.fill(
                 ts=result_ts,
-                fill_ts=fill_ts,
+                fill_ts=fill_ts_no_prio_dims,
                 fill_ts_repr=fill_ts_repr,
                 sources_ts=result_sources_ts,
             )
@@ -318,10 +324,10 @@ def compose(
         input_da = input_data[entity]
         # all dimensions are either time, priority selection dimensions, or need to
         # be iterated over
-        group_by_dimensions: tuple[str] = tuple(
-            set(input_da.dims)
-            - {"time"}
-            - set(priority_definition.selection_dimensions)
+        group_by_dimensions = tuple(
+            dim
+            for dim in input_da.dims
+            if dim != "time" and dim not in priority_definition.selection_dimensions
         )
         result_das[entity], result_sources_das[entity] = iterate_next_fixed_dimension(
             input_da=input_da,
@@ -338,7 +344,7 @@ def iterate_next_fixed_dimension(
     input_da: xr.DataArray,
     priority_definition: PriorityDefinition,
     strategy_definition: StrategyDefinition,
-    group_by_dimensions: tuple[str],
+    group_by_dimensions: tuple[Hashable, ...],
 ) -> tuple[xr.DataArray, xr.DataArray]:
     my_dim = group_by_dimensions[0]
     new_group_by_dimensions = group_by_dimensions[1:]
