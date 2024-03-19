@@ -1,9 +1,11 @@
 """Compose a harmonized dataset from multiple input datasets."""
 
+import math
 import typing
 from collections.abc import Hashable
 
 import numpy as np
+import tqdm
 import xarray as xr
 from attrs import define
 from loguru import logger
@@ -63,8 +65,7 @@ class FillingStrategyModel(typing.Protocol):
         ts: xr.DataArray,
         fill_ts: xr.DataArray,
         fill_ts_repr: str,
-        sources_ts: xr.DataArray,
-    ) -> tuple[xr.DataArray, xr.DataArray]:
+    ) -> xr.DataArray:
         """Fill gaps in ts using data from the fill_ts.
 
         Parameters
@@ -79,17 +80,11 @@ class FillingStrategyModel(typing.Protocol):
         fill_ts_repr
             String representation of fill_ts. Human-readable short representation of
             the fill_ts (e.g. the source).
-        sources_ts
-            Source information timeseries. String representation of the sources
-            for the data in ts, with the same shape as ts.
-            This function must not modify the data in sources_ts.
 
         Returns
         -------
-            filled_ts, filled_sources_ts. filled_ts contains the result, where missing
+            filled_ts. filled_ts contains the result, where missing
             data in ts is (partly) filled using information from fill_ts.
-            filled_sources_ts contains a string representation of the derivation for
-            each data point.
         """
         ...
 
@@ -109,8 +104,7 @@ class SubstitutionStrategy:
         ts: xr.DataArray,
         fill_ts: xr.DataArray,
         fill_ts_repr: str,
-        sources_ts: xr.DataArray,
-    ) -> tuple[xr.DataArray, xr.DataArray]:
+    ) -> xr.DataArray:
         """Fill gaps in ts using data from the fill_ts.
 
         Parameters
@@ -125,28 +119,14 @@ class SubstitutionStrategy:
         fill_ts_repr
             String representation of fill_ts. Human-readable short representation of
             the fill_ts (e.g. the source).
-        sources_ts
-            Source information timeseries. String representation of the sources
-            for the data in ts, with the same shape as ts.
-            This function does not modify the data in sources_ts.
 
         Returns
         -------
-            filled_ts, filled_sources_ts. filled_ts contains the result, where missing
+            filled_ts. filled_ts contains the result, where missing
             data in ts is (partly) filled using unmodified data from fill_ts.
-            filled_sources_ts is the same as sources_ts, but with fill_ts_repr at
-            coordinates which were filled in filled_ts.
         """
-        # data
         filled_ts = xr.core.ops.fillna(ts, fill_ts, join="exact")
-        # source info
-        fill_sources_ts = xr.full_like(fill_ts, fill_ts_repr, dtype=object)
-        fill_sources_ts[fill_ts.isnull()] = np.nan
-        filled_sources_ts = xr.core.ops.fillna(
-            sources_ts, fill_sources_ts, join="exact"
-        )
-
-        return filled_ts, filled_sources_ts
+        return filled_ts
 
 
 @define
@@ -228,7 +208,7 @@ def compose_timeseries(
     input_data: xr.DataArray,
     priority_definition: PriorityDefinition,
     strategy_definition: StrategyDefinition,
-) -> tuple[xr.DataArray, xr.DataArray]:
+) -> xr.DataArray:
     """
     Compute a single timeseries from given input data, priorities, and strategies.
 
@@ -261,7 +241,6 @@ def compose_timeseries(
     )
 
     result_ts: None | xr.DataArray = None
-    result_sources_ts: None | xr.DataArray = None
     for selector in priority_definition.priorities:
         try:
             fill_ts = input_data.loc[selector]
@@ -279,24 +258,19 @@ def compose_timeseries(
             priority_definition.selection_dimensions
         )
 
-        if result_ts is None or result_sources_ts is None:
+        if result_ts is None:
             context_logger.debug(
                 f"{fill_ts_repr} is the highest-priority source, using as the "
                 f"basis to fill."
             )
             result_ts = fill_ts_no_prio_dims
-            result_sources_ts = xr.full_like(
-                fill_ts, fill_value=fill_ts_repr, dtype=object
-            )
-            result_sources_ts[result_ts.isnull()] = np.nan
         else:
             context_logger.debug(f"Filling with {fill_ts_repr} now.")
             strategy = strategy_definition.find_strategy(fill_ts)
-            result_ts, result_sources_ts = strategy.fill(
+            result_ts = strategy.fill(
                 ts=result_ts,
                 fill_ts=fill_ts_no_prio_dims,
                 fill_ts_repr=fill_ts_repr,
-                sources_ts=result_sources_ts,
             )
 
         if not result_ts.isnull().any():
@@ -308,7 +282,7 @@ def compose_timeseries(
             f"No selector matched for \n{input_data.coords}\n{priority_definition=}"
         )
 
-    return result_ts, result_sources_ts
+    return result_ts
 
 
 def compose(
@@ -316,12 +290,11 @@ def compose(
     input_data: xr.Dataset,
     priority_definition: PriorityDefinition,
     strategy_definition: StrategyDefinition,
-) -> tuple[xr.Dataset, xr.Dataset]:
+) -> xr.Dataset:
     result_das = {}
-    result_sources_das = {}
 
-    for entity in input_data:
-        input_da = input_data[entity]
+    for entity in tqdm.tqdm(input_data):
+        input_da = input_data[entity].pr.dequantify()
         # all dimensions are either time, priority selection dimensions, or need to
         # be iterated over
         group_by_dimensions = tuple(
@@ -329,14 +302,27 @@ def compose(
             for dim in input_da.dims
             if dim != "time" and dim not in priority_definition.selection_dimensions
         )
-        result_das[entity], result_sources_das[entity] = iterate_next_fixed_dimension(
+        result_dimensions = ["time", *group_by_dimensions]
+        result_das[entity] = xr.DataArray(
+            data=np.nan,
+            dims=result_dimensions,
+            coords=[input_da.coords[dim] for dim in result_dimensions],
+        )
+        number_of_timeseries = math.prod(
+            len(input_da[dim]) for dim in group_by_dimensions
+        )
+        pbar = tqdm.tqdm(total=number_of_timeseries, unit="ts", unit_scale=True)
+        iterate_next_fixed_dimension(
             input_da=input_da,
             priority_definition=priority_definition,
             strategy_definition=strategy_definition,
             group_by_dimensions=group_by_dimensions,
+            result_da=result_das[entity],
+            progress_bar=pbar,
         )
+        pbar.close()
 
-    return xr.Dataset(result_das), xr.Dataset(result_sources_das)
+    return xr.Dataset(result_das).pr.quantify()
 
 
 def iterate_next_fixed_dimension(
@@ -345,33 +331,30 @@ def iterate_next_fixed_dimension(
     priority_definition: PriorityDefinition,
     strategy_definition: StrategyDefinition,
     group_by_dimensions: tuple[Hashable, ...],
-) -> tuple[xr.DataArray, xr.DataArray]:
+    result_da: xr.DataArray,
+    progress_bar: tqdm.tqdm,
+) -> None:
     my_dim = group_by_dimensions[0]
     new_group_by_dimensions = group_by_dimensions[1:]
-    res = []
-    res_sources = []
     for val_array in input_da[my_dim]:
         val = val_array.item()
         strategy_definition = strategy_definition.limit(dim=my_dim, value=val)
         priority_definition = priority_definition.limit(dim=my_dim, value=val)
         if new_group_by_dimensions:
             # have to iterate further until all dimensions are consumed
-            new_res, new_res_sources = iterate_next_fixed_dimension(
+            iterate_next_fixed_dimension(
                 input_da=input_da.loc[{my_dim: val}],
                 priority_definition=priority_definition,
                 strategy_definition=strategy_definition,
                 group_by_dimensions=new_group_by_dimensions,
+                result_da=result_da.loc[{my_dim: val}],
+                progress_bar=progress_bar,
             )
         else:
             # actually compute results
-            new_res, new_res_sources = compose_timeseries(
+            result_da.loc[{my_dim: val}] = compose_timeseries(
                 input_data=input_da.loc[{my_dim: val}],
                 priority_definition=priority_definition,
                 strategy_definition=strategy_definition,
             )
-        res.append(new_res)
-        res_sources.append(new_res_sources)
-
-    res_da = xr.concat(res, dim=input_da[my_dim], compat="identical")
-    res_sources_da = xr.concat(res, dim=input_da[my_dim], compat="identical")
-    return res_da, res_sources_da
+            progress_bar.update()

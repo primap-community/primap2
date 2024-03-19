@@ -112,7 +112,7 @@ def test_compose_trivial():
         ]
     )
 
-    result_ts, result_sources_ts = primap2.csg._compose.compose(
+    primap2.csg._compose.compose(
         input_data=input_data,
         priority_definition=priority_definition,
         strategy_definition=strategy_definition,
