@@ -323,27 +323,23 @@ def compose(
             - {"time"}
             - set(priority_definition.selection_dimensions)
         )
-        result_tss, result_sources_tss = iterate_next_fixed_dimension(
+        result_das[entity], result_sources_das[entity] = iterate_next_fixed_dimension(
             input_da=input_da,
             priority_definition=priority_definition,
             strategy_definition=strategy_definition,
             group_by_dimensions=group_by_dimensions,
         )
-        result_das[entity] = xr.combine_by_coords(result_tss)
-        result_sources_das[entity] = xr.combine_by_coords(result_sources_tss)
 
     return xr.Dataset(result_das), xr.Dataset(result_sources_das)
 
 
-# TODO: think about correct datatypes, need to already concat DataArrays along the
-# correct dimensions when collecting.
 def iterate_next_fixed_dimension(
     *,
     input_da: xr.DataArray,
     priority_definition: PriorityDefinition,
     strategy_definition: StrategyDefinition,
     group_by_dimensions: tuple[str],
-) -> tuple[list[xr.DataArray], list[xr.DataArray]]:
+) -> tuple[xr.DataArray, xr.DataArray]:
     my_dim = group_by_dimensions[0]
     new_group_by_dimensions = group_by_dimensions[1:]
     res = []
@@ -360,15 +356,16 @@ def iterate_next_fixed_dimension(
                 strategy_definition=strategy_definition,
                 group_by_dimensions=new_group_by_dimensions,
             )
-            res += new_res
-            res_sources += new_res_sources
         else:
             # actually compute results
-            new_ts, new_sources_ts = compose_timeseries(
+            new_res, new_res_sources = compose_timeseries(
                 input_data=input_da.loc[{my_dim: val}],
                 priority_definition=priority_definition,
                 strategy_definition=strategy_definition,
             )
-            res.append(new_ts)
-            res_sources.append(new_sources_ts)
-    return res, res_sources
+        res.append(new_res)
+        res_sources.append(new_res_sources)
+
+    res_da = xr.concat(res, dim=input_da[my_dim], compat="identical")
+    res_sources_da = xr.concat(res, dim=input_da[my_dim], compat="identical")
+    return res_da, res_sources_da
