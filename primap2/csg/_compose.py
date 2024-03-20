@@ -52,6 +52,27 @@ class PriorityDefinition:
         )
 
 
+@define
+class ProcessingStepDescription:
+    """Structured description of a processing step done on a timeseries."""
+
+    time: np.ndarray[np.datetime64] | typing.Literal["all"]
+    processing_description: str
+
+    def __str__(self) -> str:
+        return f"In time={self.time}: {self.processing_description}"
+
+
+@define
+class TimeseriesProcessingDescription:
+    """Structured description of all processing steps done on a timeseries."""
+
+    steps: list[ProcessingStepDescription]
+
+    def __str__(self) -> str:
+        return "\n".join(str(step) for step in self.steps)
+
+
 class FillingStrategyModel(typing.Protocol):
     """
     Fill missing data in a timeseries using another timeseries.
@@ -65,7 +86,7 @@ class FillingStrategyModel(typing.Protocol):
         ts: xr.DataArray,
         fill_ts: xr.DataArray,
         fill_ts_repr: str,
-    ) -> xr.DataArray:
+    ) -> tuple[xr.DataArray, list[ProcessingStepDescription]]:
         """Fill gaps in ts using data from the fill_ts.
 
         Parameters
@@ -83,8 +104,12 @@ class FillingStrategyModel(typing.Protocol):
 
         Returns
         -------
-            filled_ts. filled_ts contains the result, where missing
+            filled_ts, descriptions. filled_ts contains the result, where missing
             data in ts is (partly) filled using information from fill_ts.
+            descriptions contains human-readable, structured descriptions of how the
+            data was processed, grouped by years for which the same processing steps
+            were taken. Every year for which data was changed has to be described and
+            no year for which data was not changed is allowed to be described.
         """
         ...
 
@@ -104,7 +129,7 @@ class SubstitutionStrategy:
         ts: xr.DataArray,
         fill_ts: xr.DataArray,
         fill_ts_repr: str,
-    ) -> xr.DataArray:
+    ) -> tuple[xr.DataArray, list[ProcessingStepDescription]]:
         """Fill gaps in ts using data from the fill_ts.
 
         Parameters
@@ -122,11 +147,20 @@ class SubstitutionStrategy:
 
         Returns
         -------
-            filled_ts. filled_ts contains the result, where missing
+            filled_ts, descriptions. filled_ts contains the result, where missing
             data in ts is (partly) filled using unmodified data from fill_ts.
+            descriptions contains information about which years were affected and
+            filled how.
         """
         filled_ts = xr.core.ops.fillna(ts, fill_ts, join="exact")
-        return filled_ts
+        filled_mask = ts.isnull() & ~fill_ts.isnull()
+        time_filled = filled_mask["time"][filled_mask].to_numpy()
+        description = ProcessingStepDescription(
+            time=time_filled,
+            processing_description="substituted with corresponding values from"
+            f" {fill_ts_repr}",
+        )
+        return filled_ts, [description]
 
 
 @define
@@ -208,7 +242,7 @@ def compose_timeseries(
     input_data: xr.DataArray,
     priority_definition: PriorityDefinition,
     strategy_definition: StrategyDefinition,
-) -> xr.DataArray:
+) -> tuple[xr.DataArray, TimeseriesProcessingDescription]:
     """
     Compute a single timeseries from given input data, priorities, and strategies.
 
@@ -241,6 +275,7 @@ def compose_timeseries(
     )
 
     result_ts: None | xr.DataArray = None
+    processing_steps_descriptions = []
     for selector in priority_definition.priorities:
         try:
             fill_ts = input_data.loc[selector]
@@ -263,15 +298,22 @@ def compose_timeseries(
                 f"{fill_ts_repr} is the highest-priority source, using as the "
                 f"basis to fill."
             )
+            processing_steps_descriptions.append(
+                ProcessingStepDescription(
+                    time="all",
+                    processing_description=f"used values from {fill_ts_repr}",
+                )
+            )
             result_ts = fill_ts_no_prio_dims
         else:
             context_logger.debug(f"Filling with {fill_ts_repr} now.")
             strategy = strategy_definition.find_strategy(fill_ts)
-            result_ts = strategy.fill(
+            result_ts, descriptions = strategy.fill(
                 ts=result_ts,
                 fill_ts=fill_ts_no_prio_dims,
                 fill_ts_repr=fill_ts_repr,
             )
+            processing_steps_descriptions += descriptions
 
         if not result_ts.isnull().any():
             context_logger.debug("No NaNs remaining, skipping the rest of the sources.")
@@ -282,7 +324,9 @@ def compose_timeseries(
             f"No selector matched for \n{input_data.coords}\n{priority_definition=}"
         )
 
-    return result_ts
+    return result_ts, TimeseriesProcessingDescription(
+        steps=processing_steps_descriptions
+    )
 
 
 def compose(
@@ -293,7 +337,9 @@ def compose(
 ) -> xr.Dataset:
     result_das = {}
 
-    for entity in tqdm.tqdm(input_data):
+    entity_pbar = tqdm.tqdm(input_data)
+    for entity in entity_pbar:
+        entity_pbar.set_postfix_str(entity)
         input_da = input_data[entity].pr.dequantify()
         # all dimensions are either time, priority selection dimensions, or need to
         # be iterated over
@@ -302,11 +348,19 @@ def compose(
             for dim in input_da.dims
             if dim != "time" and dim not in priority_definition.selection_dimensions
         )
+        # pre-allocate result arrays which will be filled timeseries-by-timeseries
         result_dimensions = ["time", *group_by_dimensions]
         result_das[entity] = xr.DataArray(
             data=np.nan,
             dims=result_dimensions,
             coords=[input_da.coords[dim] for dim in result_dimensions],
+        )
+        result_das[f"Processing of {entity}"] = xr.DataArray(
+            data=np.empty(
+                [len(input_da.coords[dim]) for dim in group_by_dimensions], dtype=object
+            ),
+            dims=group_by_dimensions,
+            coords=[input_da.coords[dim] for dim in group_by_dimensions],
         )
         number_of_timeseries = math.prod(
             len(input_da[dim]) for dim in group_by_dimensions
@@ -318,6 +372,7 @@ def compose(
             strategy_definition=strategy_definition,
             group_by_dimensions=group_by_dimensions,
             result_da=result_das[entity],
+            result_processing_da=result_das[f"Processing of {entity}"],
             progress_bar=pbar,
         )
         pbar.close()
@@ -332,6 +387,7 @@ def iterate_next_fixed_dimension(
     strategy_definition: StrategyDefinition,
     group_by_dimensions: tuple[Hashable, ...],
     result_da: xr.DataArray,
+    result_processing_da: xr.DataArray,
     progress_bar: tqdm.tqdm,
 ) -> None:
     my_dim = group_by_dimensions[0]
@@ -348,11 +404,15 @@ def iterate_next_fixed_dimension(
                 strategy_definition=strategy_definition,
                 group_by_dimensions=new_group_by_dimensions,
                 result_da=result_da.loc[{my_dim: val}],
+                result_processing_da=result_processing_da.loc[{my_dim: val}],
                 progress_bar=progress_bar,
             )
         else:
             # actually compute results
-            result_da.loc[{my_dim: val}] = compose_timeseries(
+            (
+                result_da.loc[{my_dim: val}],
+                result_processing_da.loc[{my_dim: val}],
+            ) = compose_timeseries(
                 input_data=input_da.loc[{my_dim: val}],
                 priority_definition=priority_definition,
                 strategy_definition=strategy_definition,

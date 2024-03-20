@@ -33,6 +33,25 @@ def get_single_ts(
     )
 
 
+def test_substitution_strategy():
+    ts = get_single_ts(data=1.0)
+    ts[0] = np.nan
+    fill_ts = get_single_ts(data=2.0)
+
+    result_ts, result_descriptions = primap2.csg._compose.SubstitutionStrategy().fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+    )
+    assert result_ts[0] == 2.0
+    assert (result_ts[1:] == 1.0).all()
+    assert len(result_descriptions) == 1
+    assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
+    assert (
+        result_descriptions[0].processing_description
+        == "substituted with corresponding values from B"
+    )
+    assert "source" not in result_ts.coords.keys()
+
+
 def test_timeseries_selector():
     da = get_single_ts(coords={"source": "A", "category": "1.A"})
 
