@@ -9,6 +9,8 @@ import pytest
 import xarray as xr
 
 import primap2.csg._compose
+import primap2.csg._models
+import primap2.csg._strategies.substitution
 
 
 def get_single_ts(
@@ -38,7 +40,10 @@ def test_substitution_strategy():
     ts[0] = np.nan
     fill_ts = get_single_ts(data=2.0)
 
-    result_ts, result_descriptions = primap2.csg._compose.SubstitutionStrategy().fill(
+    (
+        result_ts,
+        result_descriptions,
+    ) = primap2.csg.strategies.substitution.SubstitutionStrategy().fill(
         ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
     )
     assert result_ts[0] == 2.0
@@ -55,12 +60,12 @@ def test_substitution_strategy():
 def test_timeseries_selector():
     da = get_single_ts(coords={"source": "A", "category": "1.A"})
 
-    assert primap2.csg._compose.TimeseriesSelector({"source": "A"}).match(da)
-    assert not primap2.csg._compose.TimeseriesSelector({"source": "B"}).match(da)
-    assert primap2.csg._compose.TimeseriesSelector(
+    assert primap2.csg._models.TimeseriesSelector({"source": "A"}).match(da)
+    assert not primap2.csg._models.TimeseriesSelector({"source": "B"}).match(da)
+    assert primap2.csg._models.TimeseriesSelector(
         {"source": "A", "category": "1.A"}
     ).match(da)
-    assert not primap2.csg._compose.TimeseriesSelector(
+    assert not primap2.csg._models.TimeseriesSelector(
         {"source": "A", "category": "1"}
     ).match(da)
 
@@ -68,15 +73,15 @@ def test_timeseries_selector():
 def test_strategy_definition():
     da = get_single_ts(coords={"source": "A", "category": "1.A"})
 
-    ts = primap2.csg._compose.TimeseriesSelector
+    ts = primap2.csg._models.TimeseriesSelector
     assert (
-        primap2.csg._compose.StrategyDefinition(
+        primap2.csg._models.StrategyDefinition(
             [(ts({"source": "A", "category": "1"}), 1), (ts({"source": "A"}), 2)]
         ).find_strategy(da)
         == 2
     )
     assert (
-        primap2.csg._compose.StrategyDefinition(
+        primap2.csg._models.StrategyDefinition(
             [
                 (ts({"source": "A", "category": "1"}), 1),
                 (ts({"source": "A", "category": "1.A"}), 2),
@@ -85,7 +90,7 @@ def test_strategy_definition():
         == 2
     )
     with pytest.raises(KeyError):
-        primap2.csg._compose.StrategyDefinition(
+        primap2.csg._models.StrategyDefinition(
             [
                 (ts({"source": "A", "category": "1"}), 1),
                 (ts({"source": "A", "category": "1.B"}), 2),
@@ -109,7 +114,7 @@ def test_compose_trivial():
     # then use source RAND2021, scenario highpop.
     # however, for Columbia, use source RAND2020, scenario highpop as highest priority
     # (this combination is not used at all otherwise).
-    priority_definition = primap2.csg._compose.PriorityDefinition(
+    priority_definition = primap2.csg._models.PriorityDefinition(
         selection_dimensions=["source", "scenario (FAOSTAT)"],
         priorities=[
             {
@@ -122,11 +127,11 @@ def test_compose_trivial():
         ],
     )
     # we use straight substitution always.
-    strategy_definition = primap2.csg._compose.StrategyDefinition(
+    strategy_definition = primap2.csg._models.StrategyDefinition(
         strategies=[
             (
-                primap2.csg._compose.TimeseriesSelector({}),
-                primap2.csg._compose.SubstitutionStrategy(),
+                primap2.csg._models.TimeseriesSelector({}),
+                primap2.csg.strategies.substitution.SubstitutionStrategy(),
             )
         ]
     )
@@ -178,17 +183,17 @@ def test_compose_performance():
         for iso_code in input_data["area (ISO3)"]
     ]
     priorities += [{"source": f"source #{source_id}"} for source_id in range(10)]
-    priority_definition = primap2.csg._compose.PriorityDefinition(
+    priority_definition = primap2.csg._models.PriorityDefinition(
         selection_dimensions=["source"], priorities=priorities
     )
     # we use straight substitution always, but specify it for every source individually
-    strategy_definition = primap2.csg._compose.StrategyDefinition(
+    strategy_definition = primap2.csg._models.StrategyDefinition(
         strategies=[
             (
-                primap2.csg._compose.TimeseriesSelector(
+                primap2.csg._models.TimeseriesSelector(
                     {"source": f"source #{source_id}"}
                 ),
-                primap2.csg._compose.SubstitutionStrategy(),
+                primap2.csg.strategies.substitution.SubstitutionStrategy(),
             )
             for source_id in range(10)
         ]
@@ -207,14 +212,14 @@ def test_compose_performance():
 
 
 def test_compose_timeseries_trivial():
-    priority_definition = primap2.csg._compose.PriorityDefinition(
+    priority_definition = primap2.csg._models.PriorityDefinition(
         selection_dimensions=["source"], priorities=[{"source": "A"}, {"source": "B"}]
     )
-    strategy_definition = primap2.csg._compose.StrategyDefinition(
+    strategy_definition = primap2.csg._models.StrategyDefinition(
         strategies=[
             (
-                primap2.csg._compose.TimeseriesSelector({"source": "B"}),
-                primap2.csg._compose.SubstitutionStrategy(),
+                primap2.csg._models.TimeseriesSelector({"source": "B"}),
+                primap2.csg.strategies.substitution.SubstitutionStrategy(),
             )
         ]
     )
