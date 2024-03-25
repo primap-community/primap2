@@ -5,13 +5,12 @@ source priorities and matching algorithms.
 """
 
 from ._compose import compose
-from ._models import PriorityDefinition, StrategyDefinition, TimeseriesSelector
+from ._models import PriorityDefinition, StrategyDefinition
 from ._strategies.substitution import SubstitutionStrategy
 
 __all__ = [
     "compose",
     "PriorityDefinition",
     "StrategyDefinition",
-    "TimeseriesSelector",
     "SubstitutionStrategy",
 ]

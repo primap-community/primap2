@@ -70,28 +70,6 @@ class TimeseriesProcessingDescription:
         return "\n".join(str(step) for step in self.steps)
 
 
-@define
-class TimeseriesSelector:
-    selections: dict[Hashable, str | list[str]]
-    """
-    Examples:
-    {"source": "FAOSTAT", "scenario": "high"}
-    {"source": ["FAOSTAT", "UNFCCC"]}
-    """
-
-    def match(self, fill_ts: xr.DataArray) -> bool:
-        """Check if a selected timeseries for filling matches this selector."""
-        return all(fill_ts.coords[k] == v for (k, v) in self.selections.items())
-
-    def match_single_dim(self, dim: Hashable, value: str) -> bool:
-        """Check if a literal value in one dimension can match this selector."""
-        if dim not in self.selections.keys():
-            return True
-        if isinstance(self.selections[dim], list):
-            return value in self.selections[dim]
-        return value == self.selections[dim]
-
-
 class FillingStrategyModel(typing.Protocol):
     """
     Fill missing data in a timeseries using another timeseries.
@@ -151,12 +129,12 @@ class StrategyDefinition:
 
     """
 
-    strategies: list[tuple[TimeseriesSelector, FillingStrategyModel]]
+    strategies: list[tuple[dict[Hashable, str | list[str]], FillingStrategyModel]]
 
     def find_strategy(self, fill_ts: xr.DataArray) -> FillingStrategyModel:
         """Find the strategy to use for the given filling timeseries."""
         for selector, strategy in self.strategies:
-            if selector.match(fill_ts):
+            if self.match(selector=selector, fill_ts=fill_ts):
                 return strategy
         raise KeyError(f"No matching strategy found for {fill_ts.coords}")
 
@@ -166,6 +144,24 @@ class StrategyDefinition:
             strategies=[
                 (sel, strat)
                 for (sel, strat) in self.strategies
-                if sel.match_single_dim(dim, value)
+                if self.match_single_dim(selector=sel, dim=dim, value=value)
             ]
         )
+
+    @staticmethod
+    def match(
+        *, selector: dict[Hashable, str | list[str]], fill_ts: xr.DataArray
+    ) -> bool:
+        """Check if a selected timeseries for filling matches the selector."""
+        return all(fill_ts.coords[k] == v for (k, v) in selector.items())
+
+    @staticmethod
+    def match_single_dim(
+        *, selector: dict[Hashable, str | list[str]], dim: Hashable, value: str
+    ) -> bool:
+        """Check if a literal value in one dimension can match the selector."""
+        if dim not in selector.keys():
+            return True
+        if isinstance(selector[dim], list):
+            return value in selector[dim]
+        return value == selector[dim]
