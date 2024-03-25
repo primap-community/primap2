@@ -32,7 +32,7 @@ class PriorityDefinition:
     selection_dimensions: list[Hashable]
     priorities: list[dict[Hashable, str]]
 
-    def limit(self, dim: Hashable, value: str) -> typing.Self:
+    def limit(self, dim: Hashable, value: str) -> "PriorityDefinition":
         """Remove one additional dimension by limiting to a single value.
 
         You can't remove selection dimensions, only additional (fixed) dimensions.
@@ -138,7 +138,7 @@ class StrategyDefinition:
                 return strategy
         raise KeyError(f"No matching strategy found for {fill_ts.coords}")
 
-    def limit(self, dim: Hashable, value: str) -> typing.Self:
+    def limit(self, dim: Hashable, value: str) -> "StrategyDefinition":
         """Limit this strategy definition to strategies applicable with the limit."""
         return StrategyDefinition(
             strategies=[
