@@ -1,6 +1,5 @@
 """Tests for csg/_compose.py"""
 
-import datetime
 from collections.abc import Sequence
 
 import numpy as np
@@ -152,79 +151,64 @@ def test_compose_trivial():
         ]
     )
 
-    primap2.csg.compose(
+    result = primap2.csg.compose(
         input_data=input_data,
         priority_definition=priority_definition,
         strategy_definition=strategy_definition,
     )
-    # TODO: test return
-
-
-@pytest.mark.skip
-def test_compose_performance():
-    # a test close to full primap-hist
-    # in the input_data we have dimensions:
-    # * time: 1750-2023
-    # * area (ISO3): 215
-    # * category (IPCC2006_PRIMAP): 24
-    # * source: 10
-    primap_hist = primap2.open_dataset(
-        "../data/Guetschow_et_al_2023b-PRIMAP-hist_v2.5_final_no_rounding_15-Oct-2023.nc"
-    )
-    # no GWPs, GWP conversion and aggregation will happen in a later step
-    primap_hist = primap_hist[[x for x in primap_hist if "(" not in x]]
-    sources = []
-    for source_id in range(10):
-        source_ds = primap_hist.copy(deep=True).squeeze("source", drop=True)
-        source_ds *= 1.0 + source_id / 10.0
-        # the lower the source ID, the more areas have all-nan info.
-        source_ds["CO2"].loc[
-            {"area (ISO3)": primap_hist["area (ISO3)"][: 12 - source_id]}
-        ] = np.nan * primap2.ureg("Gg CO2 / year")
-        sources.append(source_ds)
-    input_data = xr.concat(
-        sources,
-        pd.Index([f"source #{source_id}" for source_id in range(10)], name="source"),
-    )
-
-    input_data = input_data[["CO2"]]
-
-    # we use source as priority dimension, everything else are fixed coordinates.
-    # we have one country-specific exception for each country in the prioritization
-    # that's likely a bit more than realistic, but let's aim high
-    priorities = [
-        {
-            "area (ISO3)": iso_code,
-            "category (IPCC2006_PRIMAP)": "1",
-            "source": "source #3",
-        }
-        for iso_code in input_data["area (ISO3)"]
-    ]
-    priorities += [{"source": f"source #{source_id}"} for source_id in range(10)]
-    priority_definition = primap2.csg.PriorityDefinition(
-        selection_dimensions=["source"], priorities=priorities
-    )
-    # we use straight substitution always, but specify it for every source individually
-    strategy_definition = primap2.csg.StrategyDefinition(
-        strategies=[
-            (
-                {"source": f"source #{source_id}"},
-                primap2.csg.SubstitutionStrategy(),
-            )
-            for source_id in range(10)
+    assert "CO2" in result.keys()
+    assert "Processing of CO2" in result.keys()
+    result_col = result["CO2"].loc[{"area (ISO3)": "COL"}]
+    expected_col = (
+        input_data["CO2"]
+        .loc[
+            {
+                "area (ISO3)": "COL",
+                "source": "RAND2020",
+                "scenario (FAOSTAT)": "highpop",
+            }
         ]
+        .drop("scenario (FAOSTAT)")
+        .drop("source")
+    )
+    xr.testing.assert_identical(result_col, expected_col)
+    result_col_proc = (
+        result["Processing of CO2"].loc[{"area (ISO3)": "COL"}].values.flat[0]
+    )
+    assert len(result_col_proc.steps) == 1
+    assert result_col_proc.steps[0].time == "all"
+    assert result_col_proc.steps[0].strategy == "initial"
+    assert "'source': 'RAND2020'" in result_col_proc.steps[0].processing_description
+    assert (
+        "'scenario (FAOSTAT)': 'highpop'"
+        in result_col_proc.steps[0].processing_description
     )
 
-    start = datetime.datetime.now()
-    print(f"starting at {start}")
-    primap2.csg.compose(
-        input_data=input_data,
-        priority_definition=priority_definition,
-        strategy_definition=strategy_definition,
+    result_arg = result["CO2"].loc[{"area (ISO3)": "ARG"}]
+    expected_arg = (
+        input_data["CO2"]
+        .loc[
+            {
+                "area (ISO3)": "ARG",
+                "source": "RAND2020",
+                "scenario (FAOSTAT)": "lowpop",
+            }
+        ]
+        .drop("scenario (FAOSTAT)")
+        .drop("source")
     )
-    end = datetime.datetime.now()
-    print(f"ending at {end}")
-    print(f"took {end-start}")
+    xr.testing.assert_identical(result_arg, expected_arg)
+    result_arg_proc = (
+        result["Processing of CO2"].loc[{"area (ISO3)": "ARG"}].values.flat[0]
+    )
+    assert len(result_arg_proc.steps) == 1
+    assert result_arg_proc.steps[0].time == "all"
+    assert result_arg_proc.steps[0].strategy == "initial"
+    assert "'source': 'RAND2020'" in result_arg_proc.steps[0].processing_description
+    assert (
+        "'scenario (FAOSTAT)': 'lowpop'"
+        in result_arg_proc.steps[0].processing_description
+    )
 
 
 def test_compose_timeseries_trivial():
@@ -275,7 +259,17 @@ def test_compose_timeseries_trivial():
 
     xr.testing.assert_identical(result_ts, expected_ts)
 
-    # TODO: assert description
+    assert len(result_description.steps) == 2
+    assert result_description.steps[0].time == "all"
+    assert result_description.steps[0].strategy == "initial"
+    assert result_description.steps[0].processing_description == "used values from 'A'"
+    assert len(result_description.steps[1].time) == 1
+    assert result_description.steps[1].time[0] == np.datetime64("1850-01-01")
+    assert result_description.steps[1].strategy == "substitution"
+    assert (
+        result_description.steps[1].processing_description
+        == "substituted with corresponding values from 'B'"
+    )
 
 
 def test_priority_coordinates_repr():

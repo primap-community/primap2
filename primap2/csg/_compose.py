@@ -97,7 +97,12 @@ def compose(
         result_das[entity] = xr.DataArray(
             data=np.nan,
             dims=result_dimensions,
-            coords=[input_da.coords[dim] for dim in result_dimensions],
+            coords={
+                dim: input_da.coords[dim]
+                for dim in input_da.coords
+                if dim not in priority_definition.selection_dimensions
+            },
+            attrs=input_da.attrs,
         )
         result_das[f"Processing of {entity}"] = xr.DataArray(
             data=np.empty(
@@ -162,14 +167,14 @@ def iterate_next_fixed_dimension(
     new_group_by_dimensions = group_by_dimensions[1:]
     for val_array in input_da[my_dim]:
         val = val_array.item()
-        strategy_definition = strategy_definition.limit(dim=my_dim, value=val)
-        priority_definition = priority_definition.limit(dim=my_dim, value=val)
+        limited_strategy_definition = strategy_definition.limit(dim=my_dim, value=val)
+        limited_priority_definition = priority_definition.limit(dim=my_dim, value=val)
         if new_group_by_dimensions:
             # have to iterate further until all dimensions are consumed
             iterate_next_fixed_dimension(
                 input_da=input_da.loc[{my_dim: val}],
-                priority_definition=priority_definition,
-                strategy_definition=strategy_definition,
+                priority_definition=limited_priority_definition,
+                strategy_definition=limited_strategy_definition,
                 group_by_dimensions=new_group_by_dimensions,
                 result_da=result_da.loc[{my_dim: val}],
                 result_processing_da=result_processing_da.loc[{my_dim: val}],
@@ -182,8 +187,8 @@ def iterate_next_fixed_dimension(
                 result_processing_da.loc[{my_dim: val}],
             ) = compose_timeseries(
                 input_data=input_da.loc[{my_dim: val}],
-                priority_definition=priority_definition,
-                strategy_definition=strategy_definition,
+                priority_definition=limited_priority_definition,
+                strategy_definition=limited_strategy_definition,
             )
             if progress_bar is not None:
                 progress_bar.update()
@@ -254,10 +259,21 @@ def compose_timeseries(
                 _models.ProcessingStepDescription(
                     time="all",
                     processing_description=f"used values from {fill_ts_repr}",
+                    strategy="initial",
                 )
             )
             result_ts = fill_ts_no_prio_dims
         else:
+            if fill_ts.isnull().all():
+                processing_steps_descriptions.append(
+                    _models.ProcessingStepDescription(
+                        time="all",
+                        processing_description=f"{fill_ts_repr} is fully NaN, skipped",
+                        strategy="none",
+                    )
+                )
+                continue
+
             context_logger.debug(f"Filling with {fill_ts_repr} now.")
             strategy = strategy_definition.find_strategy(fill_ts)
             result_ts, descriptions = strategy.fill(

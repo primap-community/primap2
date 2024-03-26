@@ -55,9 +55,10 @@ class ProcessingStepDescription:
 
     time: np.ndarray[np.datetime64] | typing.Literal["all"]
     processing_description: str
+    strategy: str
 
     def __str__(self) -> str:
-        return f"In time={self.time}: {self.processing_description}"
+        return f"Using strategy={self.strategy} for times={self.time}: {self.processing_description}"
 
 
 @define
@@ -122,8 +123,8 @@ class StrategyDefinition:
         List of mappings from a timeseries selector to a filling strategy. When a
         timeseries will be used to fill missing data, the list will be checked from the
         start, and the first matching TimeseriesSelector determines the FillingStrategy.
-        Example: [(("source", ["FAOSTAT", "UNFCCC]), StraightStrategy),
-                  ((, ), GlobalStrategy)]
+        Example: [({"source": ["FAOSTAT", "UNFCCC]}, StraightStrategy),
+                  ({}, GlobalStrategy)]
         Note that the strategy can depend on fixed coordinates as well as priority
         coordinates.
 

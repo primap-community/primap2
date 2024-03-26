@@ -48,5 +48,6 @@ class SubstitutionStrategy:
             time=time_filled,
             processing_description="substituted with corresponding values from"
             f" {fill_ts_repr}",
+            strategy=self.type,
         )
         return filled_ts, [description]
