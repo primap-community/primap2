@@ -211,6 +211,34 @@ def test_compose_trivial():
     )
 
 
+def test_compose_pbar():
+    input_data = primap2.tests.examples.opulent_ds()
+    input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
+    priority_definition = primap2.csg.PriorityDefinition(
+        selection_dimensions=["source", "scenario (FAOSTAT)"],
+        priorities=[
+            {"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"},
+            {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
+        ],
+    )
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            (
+                {},
+                primap2.csg.SubstitutionStrategy(),
+            )
+        ]
+    )
+
+    result = primap2.csg.compose(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+        progress_bar=False,
+    )
+    assert "CO2" in result.keys()
+
+
 def test_compose_timeseries_trivial():
     priority_definition = primap2.csg.PriorityDefinition(
         selection_dimensions=["source"], priorities=[{"source": "A"}, {"source": "B"}]
@@ -270,6 +298,102 @@ def test_compose_timeseries_trivial():
         result_description.steps[1].processing_description
         == "substituted with corresponding values from 'B'"
     )
+
+
+def test_compose_timeseries_no_match(caplog):
+    priority_definition = primap2.csg.PriorityDefinition(
+        selection_dimensions=["source"],
+        priorities=[{"source": "C"}, {"source": "A"}, {"source": "B"}],
+    )
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            (
+                {"source": "B"},
+                primap2.csg.SubstitutionStrategy(),
+            )
+        ]
+    )
+    da_a = get_single_ts(
+        coords={"source": "A", "category": "1", "area (ISO3)": "MEX"},
+    )
+    da_b = get_single_ts(
+        coords={"source": "B", "category": "1", "area (ISO3)": "MEX"},
+    )
+    input_data = xr.concat((da_a, da_b), dim="source", join="exact")
+
+    primap2.csg._compose.compose_timeseries(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+    )
+
+    assert "selector={'source': 'C'} matched no input_data, skipping." in caplog.text
+
+
+def test_compose_timeseries_all_null():
+    priority_definition = primap2.csg.PriorityDefinition(
+        selection_dimensions=["source"],
+        priorities=[{"source": "A"}, {"source": "B"}],
+    )
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            (
+                {"source": "B"},
+                primap2.csg.SubstitutionStrategy(),
+            )
+        ]
+    )
+    da_a = get_single_ts(
+        coords={"source": "A", "category": "1", "area (ISO3)": "MEX"},
+    )
+    da_a[0] = np.nan
+    da_b = get_single_ts(
+        data=np.nan,
+        coords={"source": "B", "category": "1", "area (ISO3)": "MEX"},
+    )
+    input_data = xr.concat((da_a, da_b), dim="source", join="exact")
+
+    result, result_description = primap2.csg._compose.compose_timeseries(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+    )
+
+    print(result_description)
+    assert (
+        result_description.steps[1].processing_description
+        == "'B' is fully NaN, skipped"
+    )
+
+
+def test_compose_timeseries_priorities_wrong():
+    priority_definition = primap2.csg.PriorityDefinition(
+        selection_dimensions=["source"],
+        priorities=[{"source": "C"}],
+    )
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            (
+                {"source": "C"},
+                primap2.csg.SubstitutionStrategy(),
+            )
+        ]
+    )
+    da_a = get_single_ts(
+        coords={"source": "A", "category": "1", "area (ISO3)": "MEX"},
+    )
+    da_b = get_single_ts(
+        data=np.nan,
+        coords={"source": "B", "category": "1", "area (ISO3)": "MEX"},
+    )
+    input_data = xr.concat((da_a, da_b), dim="source", join="exact")
+
+    with pytest.raises(ValueError):
+        primap2.csg._compose.compose_timeseries(
+            input_data=input_data,
+            priority_definition=priority_definition,
+            strategy_definition=strategy_definition,
+        )
 
 
 def test_priority_coordinates_repr():

@@ -289,7 +289,8 @@ def compose_timeseries(
 
     if result_ts is None:
         raise ValueError(
-            f"No selector matched for \n{input_data.coords}\n{priority_definition=}"
+            f"No priority selector matched for "
+            f"\n{input_data.coords}\n{priority_definition=}"
         )
 
     return result_ts, _models.TimeseriesProcessingDescription(
