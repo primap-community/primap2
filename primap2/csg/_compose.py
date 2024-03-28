@@ -284,6 +284,7 @@ def compose_timeseries(
             processing_steps_descriptions += descriptions
 
         if not result_ts.isnull().any():
+            # TODO add a description entry here to clarify that we've succeeded
             context_logger.debug("No NaNs remaining, skipping the rest of the sources.")
             break
 
