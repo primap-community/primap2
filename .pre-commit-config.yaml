@@ -25,6 +25,6 @@ repos:
     hooks:
       - id: doc8
   - repo: https://github.com/nbQA-dev/nbQA
-    rev: '1.8.4'
+    rev: '1.8.5'
     hooks:
       - id: nbqa-check-ast
