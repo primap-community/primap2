@@ -57,7 +57,10 @@ master_doc = "index"
 
 # General information about the project.
 project = "PRIMAP2"
-copyright = "2021, Potsdam Institute for Climate Impact Research (PIK) e. V."
+copyright = (
+    "2021-2023, Potsdam Institute for Climate Impact Research (PIK) e. V.;"
+    " 2023-2024, Climate Resource Pty Ltd"
+)
 author = "Mika Pflüger"
 
 # The version info for the project you're documenting, acts as replacement
