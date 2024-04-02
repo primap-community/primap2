@@ -123,8 +123,8 @@ class StrategyDefinition:
         List of mappings from a timeseries selector to a filling strategy. When a
         timeseries will be used to fill missing data, the list will be checked from the
         start, and the first matching TimeseriesSelector determines the FillingStrategy.
-        Example: [({"source": ["FAOSTAT", "UNFCCC]}, StraightStrategy),
-                  ({}, GlobalStrategy)]
+        Example: [({"source": ["FAOSTAT", "UNFCCC]}, StraightStrategy()),
+                  ({}, GlobalStrategy())]
         Note that the strategy can depend on fixed coordinates as well as priority
         coordinates.
 
