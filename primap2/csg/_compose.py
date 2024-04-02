@@ -16,7 +16,7 @@ def compose(
     input_data: xr.Dataset,
     priority_definition: _models.PriorityDefinition,
     strategy_definition: _models.StrategyDefinition,
-    progress_bar: bool = True,
+    progress_bar: type[tqdm.tqdm] | None = tqdm.tqdm,
 ) -> xr.Dataset:
     """
     Compose a harmonized dataset from multiple input datasets.
@@ -64,8 +64,9 @@ def compose(
         something else is configured, configure an empty selection as the last
         (rightmost) entry.
     progress_bar
-        If True (default), show progress bars using the tqdm package during the
-        operation.
+        By default, show progress bars using the tqdm package during the
+        operation. If None, don't show any progress bars. You can supply a class
+        compatible to tqdm.tqdm's protocol if you want to customize the progress bar.
 
     Returns
     -------
@@ -77,12 +78,12 @@ def compose(
     """
     result_das = {}
 
-    if progress_bar:
-        entity_iterator = tqdm.tqdm(input_data)
-    else:
+    if progress_bar is None:
         entity_iterator = input_data
+    else:
+        entity_iterator = progress_bar(input_data)
     for entity in entity_iterator:
-        if progress_bar:
+        if progress_bar is not None:
             entity_iterator.set_postfix_str(entity)
         input_da = input_data[entity].pr.dequantify()
         # all dimensions are either time, priority selection dimensions, or need to
@@ -114,10 +115,10 @@ def compose(
         number_of_timeseries = math.prod(
             len(input_da[dim]) for dim in group_by_dimensions
         )
-        if progress_bar:
-            pbar = tqdm.tqdm(total=number_of_timeseries, unit="ts", unit_scale=True)
-        else:
+        if progress_bar is None:
             pbar = None
+        else:
+            pbar = progress_bar(total=number_of_timeseries, unit="ts", unit_scale=True)
         iterate_next_fixed_dimension(
             input_da=input_da,
             priority_definition=priority_definition,
@@ -127,7 +128,7 @@ def compose(
             result_processing_da=result_das[f"Processing of {entity}"],
             progress_bar=pbar,
         )
-        if progress_bar:
+        if pbar is not None:
             pbar.close()
 
     return xr.Dataset(result_das).pr.quantify()
