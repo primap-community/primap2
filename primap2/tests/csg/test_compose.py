@@ -234,7 +234,7 @@ def test_compose_pbar():
         input_data=input_data,
         priority_definition=priority_definition,
         strategy_definition=strategy_definition,
-        progress_bar=False,
+        progress_bar=None,
     )
     assert "CO2" in result.keys()
 
