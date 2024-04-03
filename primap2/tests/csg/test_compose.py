@@ -66,6 +66,9 @@ def test_selector_match():
     assert primap2.csg.StrategyDefinition.match(
         selector={"source": "A", "category": "1.A"}, fill_ts=da
     )
+    assert primap2.csg.StrategyDefinition.match(
+        selector={"source": "A", "category": ["1.A", "1.B"]}, fill_ts=da
+    )
     assert not primap2.csg.StrategyDefinition.match(
         selector={"source": "A", "category": "1"}, fill_ts=da
     )
@@ -112,6 +115,28 @@ def test_strategy_definition():
                 ({"source": "B", "category": "1.B"}, 3),
             ]
         ).find_strategy(da)
+
+
+def test_priority_limit():
+    pd = primap2.csg.PriorityDefinition(
+        selection_dimensions=["a", "b"],
+        priorities=[
+            {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
+            {"a": "2", "b": "3"},
+        ],
+    )
+    assert pd.limit("e", "3") == pd
+    assert pd.limit("c", "3").priorities == [
+        {"a": "1", "b": "2", "d": ["4", "5"]},
+        {"a": "2", "b": "3"},
+    ]
+    assert pd.limit("c", "4").priorities == [{"a": "2", "b": "3"}]
+    assert pd.limit("d", "4").priorities == [
+        {"a": "1", "b": "2", "c": "3"},
+        {"a": "2", "b": "3"},
+    ]
+    assert pd.limit("d", "5") == pd.limit("d", "4")
+    assert pd.limit("d", "6").priorities == [{"a": "2", "b": "3"}]
 
 
 def test_compose_trivial():
