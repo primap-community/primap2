@@ -139,6 +139,34 @@ def test_priority_limit():
     assert pd.limit("d", "6").priorities == [{"a": "2", "b": "3"}]
 
 
+def test_priority_check():
+    primap2.csg.PriorityDefinition(
+        selection_dimensions=["a", "b"],
+        priorities=[
+            {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
+            {"a": "2", "b": "3"},
+        ],
+    ).check_dimensions()
+
+    with pytest.raises(ValueError):
+        primap2.csg.PriorityDefinition(
+            selection_dimensions=["a", "b"],
+            priorities=[
+                {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
+                {"a": "2"},
+            ],
+        ).check_dimensions()
+
+    with pytest.raises(ValueError):
+        primap2.csg.PriorityDefinition(
+            selection_dimensions=["a", "b"],
+            priorities=[
+                {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
+                {"a": "2", "b": ["2", "3"]},
+            ],
+        ).check_dimensions()
+
+
 def test_compose_trivial():
     input_data = primap2.tests.examples.opulent_ds()
     input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
