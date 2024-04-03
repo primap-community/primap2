@@ -72,6 +72,9 @@ def test_selector_match():
     assert not primap2.csg.StrategyDefinition.match(
         selector={"source": "A", "category": "1"}, fill_ts=da
     )
+    assert not primap2.csg.StrategyDefinition.match(
+        selector={"source": "A", "category": ["1", "2"]}, fill_ts=da
+    )
 
 
 def test_selector_match_single_dim():
