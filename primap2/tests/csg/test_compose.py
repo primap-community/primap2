@@ -225,8 +225,8 @@ def test_compose_trivial():
                 "scenario (FAOSTAT)": "highpop",
             }
         ]
-        .drop("scenario (FAOSTAT)")
-        .drop("source")
+        .drop_vars("scenario (FAOSTAT)")
+        .drop_vars("source")
     )
     xr.testing.assert_identical(result_col, expected_col)
     result_col_proc = (
@@ -251,8 +251,8 @@ def test_compose_trivial():
                 "scenario (FAOSTAT)": "lowpop",
             }
         ]
-        .drop("scenario (FAOSTAT)")
-        .drop("source")
+        .drop_vars("scenario (FAOSTAT)")
+        .drop_vars("source")
     )
     xr.testing.assert_identical(result_arg, expected_arg)
     result_arg_proc = (
@@ -277,8 +277,8 @@ def test_compose_trivial():
                 "scenario (FAOSTAT)": "lowpop",
             }
         ]
-        .drop("scenario (FAOSTAT)")
-        .drop("source")
+        .drop_vars("scenario (FAOSTAT)")
+        .drop_vars("source")
     )
     xr.testing.assert_identical(result_col_co2, expected_col_co2)
     result_col_co2_proc = (
