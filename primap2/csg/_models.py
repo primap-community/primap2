@@ -15,27 +15,28 @@ class PriorityDefinition:
 
     Attributes
     ----------
-    selection_dimensions
-        List of dimensions from which source timeseries are selected. These are the
-        priority dimensions, and each priority has to specify all selection dimensions.
+    priority_dimensions
+        List of dimensions from which source timeseries are selected. Each priority has
+        to specify all priority dimensions.
     priorities
         List of priority selections. Higher priority selections come first. Each
         selection consists of a dict which maps dimension names to values. Each
-        selection has to specify all selection_dimensions, but may specify additional
+        selection has to specify all priority_dimensions, but may specify additional
         dimensions (fixed dimensions) to limit the selection to specific cases.
         Examples:
         [{"area (ISO3)": "COL", "source": "A"}, {"source": "B"}]
-        would select source "A" for Columbia, but source "B" for all other countries.
-        In this case, selection_dimensions = ["source"].
+        would select source "A"as highest priority source and source "B" as
+        lower-priority source for Columbia, but source "B" as highest-priority (and
+        only) source for all other countries.
     """
 
-    selection_dimensions: list[Hashable]
+    priority_dimensions: list[Hashable]
     priorities: list[dict[Hashable, str]]
 
     def limit(self, dim: Hashable, value: str) -> "PriorityDefinition":
-        """Remove one additional dimension by limiting to a single value.
+        """Remove one fixed dimension by limiting to a single value.
 
-        You can't remove selection dimensions, only additional (fixed) dimensions.
+        You can't remove priority dimensions, only fixed dimensions.
         """
         new_priorities = []
         for sel in self.priorities:
@@ -45,7 +46,7 @@ class PriorityDefinition:
                 # filter out the matching value
                 new_priorities.append({k: v for k, v in sel.items() if k != dim})
         return PriorityDefinition(
-            selection_dimensions=self.selection_dimensions, priorities=new_priorities
+            priority_dimensions=self.priority_dimensions, priorities=new_priorities
         )
 
 
@@ -125,8 +126,8 @@ class StrategyDefinition:
         start, and the first matching TimeseriesSelector determines the FillingStrategy.
         Example: [({"source": ["FAOSTAT", "UNFCCC]}, StraightStrategy()),
                   ({}, GlobalStrategy())]
-        Note that the strategy can depend on fixed coordinates as well as priority
-        coordinates.
+        Note that the strategy can depend on fixed dimensions as well as priority
+        dimensions.
 
     """
 

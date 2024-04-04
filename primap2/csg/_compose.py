@@ -91,7 +91,7 @@ def compose(
         group_by_dimensions = tuple(
             dim
             for dim in input_da.dims
-            if dim != "time" and dim not in priority_definition.selection_dimensions
+            if dim != "time" and dim not in priority_definition.priority_dimensions
         )
         # pre-allocate result arrays which will be filled timeseries-by-timeseries
         result_dimensions = ["time", *group_by_dimensions]
@@ -101,7 +101,7 @@ def compose(
             coords={
                 dim: input_da.coords[dim]
                 for dim in input_da.coords
-                if dim not in priority_definition.selection_dimensions
+                if dim not in priority_definition.priority_dimensions
             },
             attrs=input_da.attrs,
         )
@@ -243,12 +243,12 @@ def compose_timeseries(
 
         fill_ts_repr = priority_coordinates_repr(
             fill_ts=fill_ts,
-            priority_dimensions=priority_definition.selection_dimensions,
+            priority_dimensions=priority_definition.priority_dimensions,
         )
         # remove priority dimension information, it messes with automatic alignment
         # in computations. The corresponding information is now in fill_ts_repr.
         fill_ts_no_prio_dims = fill_ts.drop_vars(
-            priority_definition.selection_dimensions
+            priority_definition.priority_dimensions
         )
 
         if result_ts is None:

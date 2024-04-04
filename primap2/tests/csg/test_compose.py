@@ -130,7 +130,7 @@ def test_compose_trivial():
     # however, for Columbia, use source RAND2020, scenario highpop as highest priority
     # (this combination is not used at all otherwise).
     priority_definition = primap2.csg.PriorityDefinition(
-        selection_dimensions=["source", "scenario (FAOSTAT)"],
+        priority_dimensions=["source", "scenario (FAOSTAT)"],
         priorities=[
             {
                 "area (ISO3)": "COL",
@@ -215,7 +215,7 @@ def test_compose_pbar():
     input_data = primap2.tests.examples.opulent_ds()
     input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
     priority_definition = primap2.csg.PriorityDefinition(
-        selection_dimensions=["source", "scenario (FAOSTAT)"],
+        priority_dimensions=["source", "scenario (FAOSTAT)"],
         priorities=[
             {"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"},
             {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
@@ -241,7 +241,7 @@ def test_compose_pbar():
 
 def test_compose_timeseries_trivial():
     priority_definition = primap2.csg.PriorityDefinition(
-        selection_dimensions=["source"], priorities=[{"source": "A"}, {"source": "B"}]
+        priority_dimensions=["source"], priorities=[{"source": "A"}, {"source": "B"}]
     )
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
@@ -302,7 +302,7 @@ def test_compose_timeseries_trivial():
 
 def test_compose_timeseries_no_match(caplog):
     priority_definition = primap2.csg.PriorityDefinition(
-        selection_dimensions=["source"],
+        priority_dimensions=["source"],
         priorities=[{"source": "C"}, {"source": "A"}, {"source": "B"}],
     )
     strategy_definition = primap2.csg.StrategyDefinition(
@@ -332,7 +332,7 @@ def test_compose_timeseries_no_match(caplog):
 
 def test_compose_timeseries_all_null():
     priority_definition = primap2.csg.PriorityDefinition(
-        selection_dimensions=["source"],
+        priority_dimensions=["source"],
         priorities=[{"source": "A"}, {"source": "B"}],
     )
     strategy_definition = primap2.csg.StrategyDefinition(
@@ -368,7 +368,7 @@ def test_compose_timeseries_all_null():
 
 def test_compose_timeseries_priorities_wrong():
     priority_definition = primap2.csg.PriorityDefinition(
-        selection_dimensions=["source"],
+        priority_dimensions=["source"],
         priorities=[{"source": "C"}],
     )
     strategy_definition = primap2.csg.StrategyDefinition(
