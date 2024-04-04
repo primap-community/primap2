@@ -67,7 +67,7 @@ class PriorityDefinition:
                     )
 
 
-@define
+@define(frozen=True)
 class ProcessingStepDescription:
     """Structured description of a processing step done on a timeseries."""
 
@@ -79,7 +79,7 @@ class ProcessingStepDescription:
         return f"Using strategy={self.strategy} for times={self.time}: {self.processing_description}"
 
 
-@define
+@define(frozen=True)
 class TimeseriesProcessingDescription:
     """Structured description of all processing steps done on a timeseries."""
 
