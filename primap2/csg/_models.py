@@ -53,7 +53,7 @@ class PriorityDefinition:
         )
 
     def check_dimensions(self):
-        """Raise an error if not all priorities specify all selection dimensions."""
+        """Raise an error if not all priorities specify all priority dimensions."""
         for sel in self.priorities:
             for dim in self.priority_dimensions:
                 if dim not in sel:
