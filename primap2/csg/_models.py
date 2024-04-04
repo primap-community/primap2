@@ -128,6 +128,9 @@ class StrategyDefinition:
                   ({}, GlobalStrategy())]
         Note that the strategy can depend on fixed dimensions as well as priority
         dimensions.
+        In practice, it is usually a good idea to include a default strategy using the
+        empty selector {} which matches everything. It has to be the last entry -
+        since it matches everything, all entries behind it will be ignored.
 
     """
 
