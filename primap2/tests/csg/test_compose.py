@@ -122,7 +122,7 @@ def test_strategy_definition():
 
 def test_priority_limit():
     pd = primap2.csg.PriorityDefinition(
-        selection_dimensions=["a", "b"],
+        priority_dimensions=["a", "b"],
         priorities=[
             {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
             {"a": "2", "b": "3"},
@@ -144,7 +144,7 @@ def test_priority_limit():
 
 def test_priority_check():
     primap2.csg.PriorityDefinition(
-        selection_dimensions=["a", "b"],
+        priority_dimensions=["a", "b"],
         priorities=[
             {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
             {"a": "2", "b": "3"},
@@ -153,7 +153,7 @@ def test_priority_check():
 
     with pytest.raises(ValueError):
         primap2.csg.PriorityDefinition(
-            selection_dimensions=["a", "b"],
+            priority_dimensions=["a", "b"],
             priorities=[
                 {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
                 {"a": "2"},
@@ -162,7 +162,7 @@ def test_priority_check():
 
     with pytest.raises(ValueError):
         primap2.csg.PriorityDefinition(
-            selection_dimensions=["a", "b"],
+            priority_dimensions=["a", "b"],
             priorities=[
                 {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
                 {"a": "2", "b": ["2", "3"]},
