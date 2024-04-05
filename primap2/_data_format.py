@@ -4,12 +4,13 @@ import pathlib
 from collections.abc import Hashable, Iterable, Mapping
 from typing import IO
 
+import numpy as np
 import pandas as pd
 import pint
 import xarray as xr
 from loguru import logger
 
-from . import _accessor_base, pm2io
+from . import _accessor_base, csg, pm2io
 from ._units import ureg
 
 
@@ -78,6 +79,11 @@ def open_dataset(
         ds.attrs["publication_date"] = datetime.date.fromisoformat(
             ds.attrs["publication_date"]
         )
+    for entity in ds:
+        if entity.startswith("Processing of "):
+            ds[entity].data = np.vectorize(
+                lambda x: csg.TimeseriesProcessingDescription.deserialize(x)
+            )(ds[entity].data)
     return ds
 
 
@@ -130,6 +136,8 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
 
         dfs = []
         for x in dsd:
+            if isinstance(x, str) and x.startswith("Processing of "):
+                continue
             df = (
                 dsd[x]
                 .to_dataset("time")
@@ -234,6 +242,13 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         ds = self._ds.pint.dequantify()
         if "publication_date" in ds.attrs:
             ds.attrs["publication_date"] = ds.attrs["publication_date"].isoformat()
+        for entity in ds:
+            if (
+                isinstance(entity, str)
+                and entity.startswith("Processing of ")
+                and ds[entity].data.dtype == object
+            ):
+                ds[entity].data = np.vectorize(lambda x: x.serialize())(ds[entity].data)
         return ds.to_netcdf(
             path=path,
             mode=mode,
