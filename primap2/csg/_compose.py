@@ -9,6 +9,8 @@ import tqdm
 import xarray as xr
 from loguru import logger
 
+import primap2._data_format
+
 from . import _models
 
 
@@ -228,7 +230,7 @@ def compose_timeseries(
     input_data: xr.DataArray,
     priority_definition: _models.PriorityDefinition,
     strategy_definition: _models.StrategyDefinition,
-) -> tuple[xr.DataArray, _models.TimeseriesProcessingDescription]:
+) -> tuple[xr.DataArray, primap2._data_format.TimeseriesProcessingDescription]:
     """
     Compute a single timeseries from given input data, priorities, and strategies.
 
@@ -285,20 +287,22 @@ def compose_timeseries(
                 f"basis to fill."
             )
             processing_steps_descriptions.append(
-                _models.ProcessingStepDescription(
+                primap2._data_format.ProcessingStepDescription(
                     time="all",
-                    processing_description=f"used values from {fill_ts_repr}",
-                    strategy="initial",
+                    description=f"used values from {fill_ts_repr}",
+                    function="initial",
+                    source=fill_ts_repr,
                 )
             )
             result_ts = fill_ts_no_prio_dims
         else:
             if fill_ts.isnull().all():
                 processing_steps_descriptions.append(
-                    _models.ProcessingStepDescription(
+                    primap2._data_format.ProcessingStepDescription(
                         time="all",
-                        processing_description=f"{fill_ts_repr} is fully NaN, skipped",
-                        strategy="none",
+                        description=f"{fill_ts_repr} is fully NaN, skipped",
+                        function="none",
+                        source=fill_ts_repr,
                     )
                 )
                 continue
@@ -322,6 +326,6 @@ def compose_timeseries(
             f"\n{input_data.coords}\n{priority_definition=}"
         )
 
-    return result_ts, _models.TimeseriesProcessingDescription(
+    return result_ts, primap2._data_format.TimeseriesProcessingDescription(
         steps=processing_steps_descriptions
     )

@@ -3,10 +3,10 @@
 import typing
 from collections.abc import Hashable
 
-import msgpack
-import numpy as np
 import xarray as xr
 from attr import define
+
+from primap2._data_format import ProcessingStepDescription
 
 
 @define(frozen=True)
@@ -66,59 +66,6 @@ class PriorityDefinition:
                         f"In priority={sel}: specified multiple values for priority "
                         f"dimension={dim}, values={sel[dim]}"
                     )
-
-
-@define(frozen=True)
-class ProcessingStepDescription:
-    """Structured description of a processing step done on a timeseries."""
-
-    time: np.ndarray[np.datetime64] | typing.Literal["all"]
-    processing_description: str
-    strategy: str
-
-    def __str__(self) -> str:
-        return f"Using strategy={self.strategy} for times={self.time}: {self.processing_description}"
-
-    def unstructure(self) -> dict[str, typing.Any]:
-        return {
-            "time": "all"
-            if isinstance(self.time, str) and self.time == "all"
-            else list(
-                np.datetime_as_string(
-                    self.time,
-                    unit="Y",
-                )
-            ),
-            "processing_description": self.processing_description,
-            "strategy": self.strategy,
-        }
-
-    @classmethod
-    def structure(cls, u: dict[str, typing.Any]) -> "ProcessingStepDescription":
-        time = u.pop("time")
-        return cls(
-            time="all" if time == "all" else np.array(time, dtype=np.datetime64), **u
-        )
-
-
-@define(frozen=True)
-class TimeseriesProcessingDescription:
-    """Structured description of all processing steps done on a timeseries."""
-
-    steps: list[ProcessingStepDescription]
-
-    def __str__(self) -> str:
-        return "\n".join(str(step) for step in self.steps)
-
-    def serialize(self) -> bytes:
-        return msgpack.packb(
-            {"steps": [x.unstructure() for x in self.steps]}, use_bin_type=True
-        )
-
-    @classmethod
-    def deserialize(cls, b: bytes) -> "TimeseriesProcessingDescription":
-        ust = msgpack.unpackb(b, raw=False, use_list=False)
-        return cls(steps=[ProcessingStepDescription.structure(x) for x in ust["steps"]])
 
 
 class FillingStrategyModel(typing.Protocol, Hashable):

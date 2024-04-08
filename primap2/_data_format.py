@@ -1,16 +1,19 @@
 import contextlib
 import datetime
 import pathlib
+import typing
 from collections.abc import Hashable, Iterable, Mapping
 from typing import IO
 
+import msgpack
 import numpy as np
 import pandas as pd
 import pint
 import xarray as xr
+from attr import define
 from loguru import logger
 
-from . import _accessor_base, csg, pm2io
+from . import _accessor_base, pm2io
 from ._units import ureg
 
 
@@ -82,7 +85,7 @@ def open_dataset(
     for entity in ds:
         if entity.startswith("Processing of "):
             ds[entity].data = np.vectorize(
-                lambda x: csg.TimeseriesProcessingDescription.deserialize(x)
+                lambda x: TimeseriesProcessingDescription.deserialize(x)
             )(ds[entity].data)
     return ds
 
@@ -511,3 +514,71 @@ def ensure_valid_dimensions(ds: xr.Dataset):
     for dim in required_indirect_dims.union(optional_indirect_dims):
         if dim in ds.attrs:
             split_dim_name(ds.attrs[dim])
+
+
+@define(frozen=True, kw_only=True)
+class ProcessingStepDescription:
+    """Structured description of a processing step done on a timeseries."""
+
+    time: np.ndarray[np.datetime64] | typing.Literal["all"]
+    function: str
+    description: str
+    source: str | None = None
+
+    def __str__(self) -> str:
+        if self.source is None:
+            return (
+                f"Using function={self.function} for times={self.time}:"
+                f" {self.description}"
+            )
+        else:
+            return (
+                f"Using function={self.function} with source={self.source} for "
+                f"times={self.time}: {self.description}"
+            )
+
+    def unstructure(self) -> dict[str, typing.Any]:
+        """Convert into basic python types."""
+        return {
+            "time": "all"
+            if isinstance(self.time, str) and self.time == "all"
+            else list(
+                np.datetime_as_string(
+                    self.time,
+                    unit="Y",
+                )
+            ),
+            "processing_description": self.description,
+            "function": self.function,
+            "source": self.source,
+        }
+
+    @classmethod
+    def structure(cls, u: dict[str, typing.Any]) -> "ProcessingStepDescription":
+        """Initialize from basic python types as created by "unstructure"."""
+        time = u.pop("time")
+        return cls(
+            time="all" if time == "all" else np.array(time, dtype=np.datetime64), **u
+        )
+
+
+@define(frozen=True)
+class TimeseriesProcessingDescription:
+    """Structured description of all processing steps done on a timeseries."""
+
+    steps: list[ProcessingStepDescription]
+
+    def __str__(self) -> str:
+        return "\n".join(str(step) for step in self.steps)
+
+    def serialize(self) -> bytes:
+        """Convert into binary data, e.g. for saving to disk."""
+        return msgpack.packb(
+            {"steps": [x.unstructure() for x in self.steps]}, use_bin_type=True
+        )
+
+    @classmethod
+    def deserialize(cls, b: bytes) -> "TimeseriesProcessingDescription":
+        """Parse from binary data as produced by "serilize"."""
+        ust = msgpack.unpackb(b, raw=False, use_list=False)
+        return cls(steps=[ProcessingStepDescription.structure(x) for x in ust["steps"]])

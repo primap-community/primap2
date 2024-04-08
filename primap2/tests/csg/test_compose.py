@@ -50,7 +50,7 @@ def test_substitution_strategy():
     assert len(result_descriptions) == 1
     assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
     assert (
-        result_descriptions[0].processing_description
+        result_descriptions[0].description
         == "substituted with corresponding values from B"
     )
     assert "source" not in result_ts.coords.keys()
@@ -234,12 +234,9 @@ def test_compose_trivial():
     )
     assert len(result_col_proc.steps) == 1
     assert result_col_proc.steps[0].time == "all"
-    assert result_col_proc.steps[0].strategy == "initial"
-    assert "'source': 'RAND2020'" in result_col_proc.steps[0].processing_description
-    assert (
-        "'scenario (FAOSTAT)': 'highpop'"
-        in result_col_proc.steps[0].processing_description
-    )
+    assert result_col_proc.steps[0].function == "initial"
+    assert "'source': 'RAND2020'" in result_col_proc.steps[0].description
+    assert "'scenario (FAOSTAT)': 'highpop'" in result_col_proc.steps[0].description
 
     result_arg = result["CH4"].loc[{"area (ISO3)": "ARG"}]
     expected_arg = (
@@ -260,11 +257,10 @@ def test_compose_trivial():
     )
     assert len(result_arg_proc.steps) == 1
     assert result_arg_proc.steps[0].time == "all"
-    assert result_arg_proc.steps[0].strategy == "initial"
-    assert "'source': 'RAND2020'" in result_arg_proc.steps[0].processing_description
+    assert result_arg_proc.steps[0].function == "initial"
     assert (
-        "'scenario (FAOSTAT)': 'lowpop'"
-        in result_arg_proc.steps[0].processing_description
+        result_arg_proc.steps[0].source
+        == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'}"
     )
 
     result_col_co2 = result["CO2"].loc[{"area (ISO3)": "COL"}]
@@ -286,12 +282,9 @@ def test_compose_trivial():
     )
     assert len(result_col_co2_proc.steps) == 1
     assert result_col_co2_proc.steps[0].time == "all"
-    assert result_col_co2_proc.steps[0].strategy == "initial"
-    assert "'source': 'RAND2020'" in result_col_co2_proc.steps[0].processing_description
-    assert (
-        "'scenario (FAOSTAT)': 'lowpop'"
-        in result_col_co2_proc.steps[0].processing_description
-    )
+    assert result_col_co2_proc.steps[0].function == "initial"
+    assert "'source': 'RAND2020'" in result_col_co2_proc.steps[0].description
+    assert "'scenario (FAOSTAT)': 'lowpop'" in result_col_co2_proc.steps[0].description
 
 
 def test_compose_pbar():
@@ -372,13 +365,13 @@ def test_compose_timeseries_trivial():
 
     assert len(result_description.steps) == 2
     assert result_description.steps[0].time == "all"
-    assert result_description.steps[0].strategy == "initial"
-    assert result_description.steps[0].processing_description == "used values from 'A'"
+    assert result_description.steps[0].function == "initial"
+    assert result_description.steps[0].description == "used values from 'A'"
     assert len(result_description.steps[1].time) == 1
     assert result_description.steps[1].time[0] == np.datetime64("1850-01-01")
-    assert result_description.steps[1].strategy == "substitution"
+    assert result_description.steps[1].function == "substitution"
     assert (
-        result_description.steps[1].processing_description
+        result_description.steps[1].description
         == "substituted with corresponding values from 'B'"
     )
 
@@ -443,10 +436,7 @@ def test_compose_timeseries_all_null():
     )
 
     print(result_description)
-    assert (
-        result_description.steps[1].processing_description
-        == "'B' is fully NaN, skipped"
-    )
+    assert result_description.steps[1].description == "'B' is fully NaN, skipped"
 
 
 def test_compose_timeseries_priorities_wrong():
