@@ -206,8 +206,8 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
 
         if "gwp_context" in da.attrs:
             del da.attrs["gwp_context"]
-        da.attrs["entity"] = entity
-        da.name = entity
+        da.attrs["entity"] = str(entity)
+        da.name = str(entity)
         return da
 
 

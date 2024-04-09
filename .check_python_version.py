@@ -1,14 +1,23 @@
 """Check if the used version of Python is good enough for us."""
 
-# ruff: noqa
+import itertools
 import sys
 
-MIN_VERSION = (3, 9)
+SUPPORTED_MAJOR_VERSIONS = (3,)
+SUPPORTED_MINOR_VERSIONS = (10, 11)
 
-if sys.version_info < (3, 9):
-    min_version_human_readable = ".".join(str(x) for x in MIN_VERSION)
+if (
+    sys.version_info.major not in SUPPORTED_MAJOR_VERSIONS
+    or sys.version_info.minor not in SUPPORTED_MINOR_VERSIONS
+):
+    supported_versions = itertools.product(
+        SUPPORTED_MAJOR_VERSIONS, SUPPORTED_MINOR_VERSIONS
+    )
+    supported_versions_human_readable = ", ".join(
+        ".".join(str(x) for x in version) for version in supported_versions
+    )
     print(
         f"Python version {sys.version_info} not supported, please install Python"
-        f" version {min_version_human_readable} or higher"
+        f" in one of the supported versions: {supported_versions_human_readable}."
     )
     sys.exit(1)

@@ -8,45 +8,63 @@ import xarray as xr
 from attr import define
 
 
-@define
+@define(frozen=True)
 class PriorityDefinition:
     """
     Defines source priorities for composing a full dataset or a single timeseries.
 
     Attributes
     ----------
-    selection_dimensions
-        List of dimensions from which source timeseries are selected. These are the
-        priority dimensions, and each priority has to specify all selection dimensions.
+    priority_dimensions
+        List of dimensions from which source timeseries are selected. Each priority has
+        to specify all priority dimensions.
     priorities
         List of priority selections. Higher priority selections come first. Each
         selection consists of a dict which maps dimension names to values. Each
-        selection has to specify all selection_dimensions, but may specify additional
+        selection has to specify all priority_dimensions, but may specify additional
         dimensions (fixed dimensions) to limit the selection to specific cases.
         Examples:
-        [{"area (ISO3)": "COL", "source": "A"}, {"source": "B"}]
-        would select source "A" for Columbia, but source "B" for all other countries.
-        In this case, selection_dimensions = ["source"].
+        [{"area (ISO3)": ["MEX", "COL"], "source": "A"}, {"source": "B"}]
+        would select source "A" as highest-priority source and source "B" as
+        lower-priority source for Columbia and Mexico, but source "B" as
+        highest-priority (and only) source for all other
+        countries.
     """
 
-    selection_dimensions: list[Hashable]
-    priorities: list[dict[Hashable, str]]
+    priority_dimensions: list[Hashable]
+    priorities: list[dict[Hashable, str | list[str]]]
 
     def limit(self, dim: Hashable, value: str) -> "PriorityDefinition":
-        """Remove one additional dimension by limiting to a single value.
+        """Remove one fixed dimension by limiting to a single value.
 
-        You can't remove selection dimensions, only additional (fixed) dimensions.
+        You can't remove priority dimensions, only fixed dimensions.
         """
         new_priorities = []
         for sel in self.priorities:
             if dim not in sel:
                 new_priorities.append(sel)
-            elif sel[dim] == value:
+            elif (isinstance(sel[dim], str) and sel[dim] == value) or (
+                value in sel[dim]
+            ):
                 # filter out the matching value
                 new_priorities.append({k: v for k, v in sel.items() if k != dim})
         return PriorityDefinition(
-            selection_dimensions=self.selection_dimensions, priorities=new_priorities
+            priority_dimensions=self.priority_dimensions, priorities=new_priorities
         )
+
+    def check_dimensions(self):
+        """Raise an error if not all priorities specify all priority dimensions."""
+        for sel in self.priorities:
+            for dim in self.priority_dimensions:
+                if dim not in sel:
+                    raise ValueError(
+                        f"In priority={sel}: missing priority dimension={dim}"
+                    )
+                if not isinstance(sel[dim], str):
+                    raise ValueError(
+                        f"In priority={sel}: specified multiple values for priority "
+                        f"dimension={dim}, values={sel[dim]}"
+                    )
 
 
 @define
@@ -71,7 +89,7 @@ class TimeseriesProcessingDescription:
         return "\n".join(str(step) for step in self.steps)
 
 
-class FillingStrategyModel(typing.Protocol):
+class FillingStrategyModel(typing.Protocol, Hashable):
     """
     Fill missing data in a timeseries using another timeseries.
     """
@@ -112,7 +130,7 @@ class FillingStrategyModel(typing.Protocol):
         ...
 
 
-@define
+@define(frozen=True)
 class StrategyDefinition:
     """
     Defines filling strategies for a single timeseries.
@@ -123,10 +141,13 @@ class StrategyDefinition:
         List of mappings from a timeseries selector to a filling strategy. When a
         timeseries will be used to fill missing data, the list will be checked from the
         start, and the first matching TimeseriesSelector determines the FillingStrategy.
-        Example: [({"source": ["FAOSTAT", "UNFCCC]}, StraightStrategy),
-                  ({}, GlobalStrategy)]
-        Note that the strategy can depend on fixed coordinates as well as priority
-        coordinates.
+        Example: [({"source": ["FAOSTAT", "UNFCCC]}, StraightStrategy()),
+                  ({}, GlobalStrategy())]
+        Note that the strategy can depend on fixed dimensions as well as priority
+        dimensions.
+        In practice, it is usually a good idea to include a default strategy using the
+        empty selector {} which matches everything. It has to be the last entry -
+        since it matches everything, all entries behind it will be ignored.
 
     """
 
@@ -154,7 +175,14 @@ class StrategyDefinition:
         *, selector: dict[Hashable, str | list[str]], fill_ts: xr.DataArray
     ) -> bool:
         """Check if a selected timeseries for filling matches the selector."""
-        return all(fill_ts.coords[k] == v for (k, v) in selector.items())
+        for k, v in selector.items():
+            if isinstance(v, str):
+                if not fill_ts.coords[k] == v:
+                    return False
+            else:
+                if fill_ts.coords[k] not in v:
+                    return False
+        return True
 
     @staticmethod
     def match_single_dim(
@@ -163,6 +191,6 @@ class StrategyDefinition:
         """Check if a literal value in one dimension can match the selector."""
         if dim not in selector.keys():
             return True
-        if isinstance(selector[dim], list):
-            return value in selector[dim]
-        return value == selector[dim]
+        if isinstance(selector[dim], str):
+            return value == selector[dim]
+        return value in selector[dim]
