@@ -138,9 +138,11 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             entity_col = "entity"
 
         dfs = []
+        entities = []
         for x in dsd:
             if isinstance(x, str) and x.startswith("Processing of "):
                 continue
+            entities.append(x)
             df = (
                 dsd[x]
                 .to_dataset("time")
@@ -167,7 +169,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
 
         dimensions = {}
         all_dimensions = [str(dim) for dim in dsd.dims] + [entity_col, "unit"]
-        for entity in dsd:
+        for entity in entities:
             dims = [str(dim) for dim in dsd[entity].dims] + [entity_col, "unit"]
             if set(dims) == set(all_dimensions):
                 # use default option for entities which use all the dataset's dimensions
@@ -179,7 +181,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         # all non-float dtypes are specified
         dtypes = {
             entity: str(dsd[entity].dtype)
-            for entity in dsd
+            for entity in entities
             if dsd[entity].dtype != float
         }
 
@@ -548,7 +550,7 @@ class ProcessingStepDescription:
                     unit="Y",
                 )
             ),
-            "processing_description": self.description,
+            "description": self.description,
             "function": self.function,
             "source": self.source,
         }
