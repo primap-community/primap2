@@ -120,6 +120,15 @@ def test_strategy_definition():
         ).find_strategy(da)
 
 
+def test_strategy_definition_limit():
+    assert primap2.csg.StrategyDefinition(
+        [({"entity": "A", "source": "S"}, 1), ({"source": "T"}, 2)]
+    ).limit("entity", "A").strategies == [({"source": "S"}, 1), ({"source": "T"}, 2)]
+    assert primap2.csg.StrategyDefinition(
+        [({"entity": "A", "source": "S"}, 1), ({"source": "T"}, 2)]
+    ).limit("entity", "B").strategies == [({"source": "T"}, 2)]
+
+
 def test_priority_limit():
     pd = primap2.csg.PriorityDefinition(
         priority_dimensions=["a", "b"],
