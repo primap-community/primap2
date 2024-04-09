@@ -23,7 +23,9 @@ class PriorityDefinition:
         selection consists of a dict which maps dimension names to values. Each
         selection has to specify all priority_dimensions, but may specify additional
         dimensions (fixed dimensions) to limit the selection to specific cases.
-        Examples:
+
+    Examples
+    --------
         [{"area (ISO3)": ["MEX", "COL"], "source": "A"}, {"source": "B"}]
         would select source "A" as highest-priority source and source "B" as
         lower-priority source for Columbia and Mexico, but source "B" as
@@ -164,7 +166,7 @@ class StrategyDefinition:
         """Limit this strategy definition to strategies applicable with the limit."""
         return StrategyDefinition(
             strategies=[
-                (sel, strat)
+                ({k: v for k, v in sel.items() if k != dim}, strat)
                 for (sel, strat) in self.strategies
                 if self.match_single_dim(selector=sel, dim=dim, value=value)
             ]
@@ -179,9 +181,8 @@ class StrategyDefinition:
             if isinstance(v, str):
                 if not fill_ts.coords[k] == v:
                     return False
-            else:
-                if fill_ts.coords[k] not in v:
-                    return False
+            elif fill_ts.coords[k] not in v:
+                return False
         return True
 
     @staticmethod
