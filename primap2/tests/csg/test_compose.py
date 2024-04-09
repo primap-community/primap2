@@ -179,9 +179,12 @@ def test_priority_check():
         ).check_dimensions()
 
 
-def test_compose_trivial():
+def test_compose_simple():
     input_data = primap2.tests.examples.opulent_ds()
     input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
+    input_data["CO2"].loc[{"source": "RAND2020", "time": ["2000", "2001"]}] = (
+        np.nan * primap2.ureg("Mt CO2 / year")
+    )
     # we now have dimensions time, area (ISO3), category (IPCC 2006), animal (FAOSTAT)
     # product (FAOSTAT), scenario (FAOSTAT), provenance, model, source
     # We have variables (entities): CO2, SF6, CH4
@@ -207,13 +210,14 @@ def test_compose_trivial():
             {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
         ],
     )
-    # we use straight substitution always.
+    # we use straight substitution always, but specify it somewhat fancy
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
             (
-                {},
+                {"entity": ent},
                 primap2.csg.SubstitutionStrategy(),
             )
+            for ent in input_data.keys()
         ]
     )
 
@@ -289,13 +293,21 @@ def test_compose_trivial():
         .drop("scenario (FAOSTAT)")
         .drop("source")
     )
-    xr.testing.assert_identical(result_col_co2, expected_col_co2)
+    xr.testing.assert_identical(
+        result_col_co2.loc[{"time": slice("2002", None)}],
+        expected_col_co2.loc[{"time": slice("2002", None)}],
+    )
     result_col_co2_proc = (
         result["Processing of CO2"].loc[{"area (ISO3)": "COL"}].values.flat[0]
     )
-    assert len(result_col_co2_proc.steps) == 1
+    assert len(result_col_co2_proc.steps) == 2
     assert result_col_co2_proc.steps[0].time == "all"
     assert result_col_co2_proc.steps[0].strategy == "initial"
+    np.testing.assert_array_equal(
+        result_col_co2_proc.steps[1].time,
+        np.array(["2000", "2001"], dtype=np.datetime64),
+    )
+    assert result_col_co2_proc.steps[1].strategy == "substitution"
     assert "'source': 'RAND2020'" in result_col_co2_proc.steps[0].processing_description
     assert (
         "'scenario (FAOSTAT)': 'lowpop'"
