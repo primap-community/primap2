@@ -16,20 +16,19 @@ def test_merge_disjoint_vars(opulent_ds):
 
 
 def test_merge_ds_pass_tolerance(opulent_ds):
-    ds_start = opulent_ds.pr.loc[{"area": ["ARG", "COL"]}]
-    ds_merge = opulent_ds.pr.loc[{"area": ["ARG", "MEX"]}]
+    sel = {"time": slice("2000", "2005"), "scenario": "highpop", "source": "RAND2020"}
+    ds = opulent_ds.pr.loc[sel]
+    ds_start = ds.pr.loc[{"area": ["ARG", "COL"]}]
+    ds_merge = ds.pr.loc[{"area": ["ARG", "MEX"]}]
 
-    data_to_modify = opulent_ds["CO2"].pr.loc[{"area": ["ARG"]}].pr.sum("area")
+    data_to_modify = ds["CO2"].pr.loc[{"area": ["ARG"]}].pr.sum("area")
     data_to_modify.data *= 1.009
-    da_merge = opulent_ds["CO2"].pr.set(
-        "area", "ARG", data_to_modify, existing="overwrite"
-    )
+
+    da_merge = ds["CO2"].pr.set("area", "ARG", data_to_modify, existing="overwrite")
     ds_merge["CO2"] = da_merge
     ds_result = ds_start.pr.merge(ds_merge, tolerance=0.01)
 
-    assert_ds_aligned_equal(
-        ds_result, opulent_ds.pr.loc[{"area": ["ARG", "COL", "MEX"]}]
-    )
+    assert_ds_aligned_equal(ds_result, ds.pr.loc[{"area": ["ARG", "COL", "MEX"]}])
 
 
 def test_merge_pass_tolerance(opulent_ds):
