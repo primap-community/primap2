@@ -1,6 +1,7 @@
 """Compose a harmonized dataset from multiple input datasets."""
 
 import math
+import typing
 from collections.abc import Hashable
 
 import numpy as np
@@ -55,6 +56,8 @@ def compose(
         e.g., possible to define a different priority for a specific country by listing
         it early (i.e. with high priority) before the more general rules which should
         be applied for all other countries.
+        You can also specify the "entity" in the selection, which will limit the rule
+        to a specific entity (xarray data variable).
     strategy_definition
         Defines the filling strategies to be used when filling timeseries with other
         timeseries. Again, the priority is defined by a list of selections and
@@ -63,6 +66,8 @@ def compose(
         define a default strategy which should be used for all timeseries unless
         something else is configured, configure an empty selection as the last
         (rightmost) entry.
+        You can also specify the "entity" in the selection, which will limit the rule
+        to a specific entity (xarray data variable).
     progress_bar
         By default, show progress bars using the tqdm package during the
         operation. If None, don't show any progress bars. You can supply a class
@@ -77,52 +82,52 @@ def compose(
         describe the processing steps done for each timeseries.
     """
     result_das = {}
+    input_data = input_data.pr.dequantify()
 
     if progress_bar is None:
         entity_iterator = input_data
     else:
         entity_iterator = progress_bar(input_data)
+
+    priority_dimensions = priority_definition.priority_dimensions
+    priority_definition.check_dimensions()
+
     for entity in entity_iterator:
         if progress_bar is not None:
-            entity_iterator.set_postfix_str(entity)
-        input_da = input_data[entity].pr.dequantify()
+            entity_iterator.set_postfix_str(str(entity))
+
+        input_da = input_data[entity]
+
         # all dimensions are either time, priority selection dimensions, or need to
         # be iterated over
         group_by_dimensions = tuple(
             dim
             for dim in input_da.dims
-            if dim != "time" and dim not in priority_definition.priority_dimensions
+            if dim != "time" and dim not in priority_dimensions
         )
-        # pre-allocate result arrays which will be filled timeseries-by-timeseries
-        result_dimensions = ["time", *group_by_dimensions]
-        result_das[entity] = xr.DataArray(
-            data=np.nan,
-            dims=result_dimensions,
-            coords={
-                dim: input_da.coords[dim]
-                for dim in input_da.coords
-                if dim not in priority_definition.priority_dimensions
-            },
-            attrs=input_da.attrs,
+
+        (
+            result_das[entity],
+            result_das[f"Processing of {entity}"],
+        ) = preallocate_result_arrays(
+            input_da=input_da,
+            group_by_dimensions=group_by_dimensions,
+            priority_dimensions=priority_dimensions,
         )
-        result_das[f"Processing of {entity}"] = xr.DataArray(
-            data=np.empty(
-                [len(input_da.coords[dim]) for dim in group_by_dimensions], dtype=object
-            ),
-            dims=group_by_dimensions,
-            coords=[input_da.coords[dim] for dim in group_by_dimensions],
-        )
+
         number_of_timeseries = math.prod(
             len(input_da[dim]) for dim in group_by_dimensions
         )
+
         if progress_bar is None:
             pbar = None
         else:
             pbar = progress_bar(total=number_of_timeseries, unit="ts", unit_scale=True)
+
         iterate_next_fixed_dimension(
             input_da=input_da,
-            priority_definition=priority_definition,
-            strategy_definition=strategy_definition,
+            priority_definition=priority_definition.limit("entity", entity),
+            strategy_definition=strategy_definition.limit("entity", entity),
             group_by_dimensions=group_by_dimensions,
             result_da=result_das[entity],
             result_processing_da=result_das[f"Processing of {entity}"],
@@ -134,12 +139,39 @@ def compose(
     return xr.Dataset(result_das).pr.quantify()
 
 
+def preallocate_result_arrays(
+    *,
+    group_by_dimensions: typing.Iterable[Hashable],
+    input_da: xr.DataArray,
+    priority_dimensions: typing.Iterable[Hashable],
+) -> tuple[xr.DataArray, xr.DataArray]:
+    """Create empty arrays in the right shape to hold the result."""
+    result_da = xr.DataArray(
+        data=np.nan,
+        dims=["time", *group_by_dimensions],
+        coords={
+            dim: input_da.coords[dim]
+            for dim in input_da.coords
+            if dim not in priority_dimensions
+        },
+        attrs=input_da.attrs,
+    )
+    processing_result_da = xr.DataArray(
+        data=np.empty(
+            [len(input_da.coords[dim]) for dim in group_by_dimensions], dtype=object
+        ),
+        dims=group_by_dimensions,
+        coords=[input_da.coords[dim] for dim in group_by_dimensions],
+    )
+    return result_da, processing_result_da
+
+
 def priority_coordinates_repr(
-    *, fill_ts: xr.DataArray, priority_dimensions: list[str]
+    *, fill_ts: xr.DataArray, priority_dimensions: list[Hashable]
 ) -> str:
     """Reduce the priority coordinates to a short string representation."""
     priority_coordinates: dict[str, str] = {
-        k: fill_ts[k].item() for k in priority_dimensions
+        str(k): fill_ts[k].item() for k in priority_dimensions
     }
     if len(priority_coordinates) == 1:
         # only one priority dimension, just output the value because it is clear what is

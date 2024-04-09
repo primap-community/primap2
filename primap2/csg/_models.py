@@ -8,7 +8,7 @@ import xarray as xr
 from attr import define
 
 
-@define
+@define(frozen=True)
 class PriorityDefinition:
     """
     Defines source priorities for composing a full dataset or a single timeseries.
@@ -24,14 +24,15 @@ class PriorityDefinition:
         selection has to specify all priority_dimensions, but may specify additional
         dimensions (fixed dimensions) to limit the selection to specific cases.
         Examples:
-        [{"area (ISO3)": "COL", "source": "A"}, {"source": "B"}]
-        would select source "A"as highest priority source and source "B" as
-        lower-priority source for Columbia, but source "B" as highest-priority (and
-        only) source for all other countries.
+        [{"area (ISO3)": ["MEX", "COL"], "source": "A"}, {"source": "B"}]
+        would select source "A" as highest-priority source and source "B" as
+        lower-priority source for Columbia and Mexico, but source "B" as
+        highest-priority (and only) source for all other
+        countries.
     """
 
     priority_dimensions: list[Hashable]
-    priorities: list[dict[Hashable, str]]
+    priorities: list[dict[Hashable, str | list[str]]]
 
     def limit(self, dim: Hashable, value: str) -> "PriorityDefinition":
         """Remove one fixed dimension by limiting to a single value.
@@ -42,12 +43,28 @@ class PriorityDefinition:
         for sel in self.priorities:
             if dim not in sel:
                 new_priorities.append(sel)
-            elif sel[dim] == value:
+            elif (isinstance(sel[dim], str) and sel[dim] == value) or (
+                value in sel[dim]
+            ):
                 # filter out the matching value
                 new_priorities.append({k: v for k, v in sel.items() if k != dim})
         return PriorityDefinition(
             priority_dimensions=self.priority_dimensions, priorities=new_priorities
         )
+
+    def check_dimensions(self):
+        """Raise an error if not all priorities specify all priority dimensions."""
+        for sel in self.priorities:
+            for dim in self.priority_dimensions:
+                if dim not in sel:
+                    raise ValueError(
+                        f"In priority={sel}: missing priority dimension={dim}"
+                    )
+                if not isinstance(sel[dim], str):
+                    raise ValueError(
+                        f"In priority={sel}: specified multiple values for priority "
+                        f"dimension={dim}, values={sel[dim]}"
+                    )
 
 
 @define
@@ -72,7 +89,7 @@ class TimeseriesProcessingDescription:
         return "\n".join(str(step) for step in self.steps)
 
 
-class FillingStrategyModel(typing.Protocol):
+class FillingStrategyModel(typing.Protocol, Hashable):
     """
     Fill missing data in a timeseries using another timeseries.
     """
@@ -113,7 +130,7 @@ class FillingStrategyModel(typing.Protocol):
         ...
 
 
-@define
+@define(frozen=True)
 class StrategyDefinition:
     """
     Defines filling strategies for a single timeseries.
@@ -158,7 +175,14 @@ class StrategyDefinition:
         *, selector: dict[Hashable, str | list[str]], fill_ts: xr.DataArray
     ) -> bool:
         """Check if a selected timeseries for filling matches the selector."""
-        return all(fill_ts.coords[k] == v for (k, v) in selector.items())
+        for k, v in selector.items():
+            if isinstance(v, str):
+                if not fill_ts.coords[k] == v:
+                    return False
+            else:
+                if fill_ts.coords[k] not in v:
+                    return False
+        return True
 
     @staticmethod
     def match_single_dim(
@@ -167,6 +191,6 @@ class StrategyDefinition:
         """Check if a literal value in one dimension can match the selector."""
         if dim not in selector.keys():
             return True
-        if isinstance(selector[dim], list):
-            return value in selector[dim]
-        return value == selector[dim]
+        if isinstance(selector[dim], str):
+            return value == selector[dim]
+        return value in selector[dim]

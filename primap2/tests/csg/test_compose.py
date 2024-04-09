@@ -66,8 +66,14 @@ def test_selector_match():
     assert primap2.csg.StrategyDefinition.match(
         selector={"source": "A", "category": "1.A"}, fill_ts=da
     )
+    assert primap2.csg.StrategyDefinition.match(
+        selector={"source": "A", "category": ["1.A", "1.B"]}, fill_ts=da
+    )
     assert not primap2.csg.StrategyDefinition.match(
         selector={"source": "A", "category": "1"}, fill_ts=da
+    )
+    assert not primap2.csg.StrategyDefinition.match(
+        selector={"source": "A", "category": ["1", "2"]}, fill_ts=da
     )
 
 
@@ -114,6 +120,56 @@ def test_strategy_definition():
         ).find_strategy(da)
 
 
+def test_priority_limit():
+    pd = primap2.csg.PriorityDefinition(
+        priority_dimensions=["a", "b"],
+        priorities=[
+            {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
+            {"a": "2", "b": "3"},
+        ],
+    )
+    assert pd.limit("e", "3") == pd
+    assert pd.limit("c", "3").priorities == [
+        {"a": "1", "b": "2", "d": ["4", "5"]},
+        {"a": "2", "b": "3"},
+    ]
+    assert pd.limit("c", "4").priorities == [{"a": "2", "b": "3"}]
+    assert pd.limit("d", "4").priorities == [
+        {"a": "1", "b": "2", "c": "3"},
+        {"a": "2", "b": "3"},
+    ]
+    assert pd.limit("d", "5") == pd.limit("d", "4")
+    assert pd.limit("d", "6").priorities == [{"a": "2", "b": "3"}]
+
+
+def test_priority_check():
+    primap2.csg.PriorityDefinition(
+        priority_dimensions=["a", "b"],
+        priorities=[
+            {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
+            {"a": "2", "b": "3"},
+        ],
+    ).check_dimensions()
+
+    with pytest.raises(ValueError):
+        primap2.csg.PriorityDefinition(
+            priority_dimensions=["a", "b"],
+            priorities=[
+                {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
+                {"a": "2"},
+            ],
+        ).check_dimensions()
+
+    with pytest.raises(ValueError):
+        primap2.csg.PriorityDefinition(
+            priority_dimensions=["a", "b"],
+            priorities=[
+                {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
+                {"a": "2", "b": ["2", "3"]},
+            ],
+        ).check_dimensions()
+
+
 def test_compose_trivial():
     input_data = primap2.tests.examples.opulent_ds()
     input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
@@ -127,12 +183,13 @@ def test_compose_trivial():
 
     # generally, prefer source RAND2020, scenario lowpop,
     # then use source RAND2021, scenario highpop.
-    # however, for Columbia, use source RAND2020, scenario highpop as highest priority
+    # however, for Columbia CH4, use source RAND2020, scenario highpop as highest priority
     # (this combination is not used at all otherwise).
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source", "scenario (FAOSTAT)"],
         priorities=[
             {
+                "entity": "CH4",
                 "area (ISO3)": "COL",
                 "source": "RAND2020",
                 "scenario (FAOSTAT)": "highpop",
@@ -158,9 +215,9 @@ def test_compose_trivial():
     )
     assert "CO2" in result.keys()
     assert "Processing of CO2" in result.keys()
-    result_col = result["CO2"].loc[{"area (ISO3)": "COL"}]
+    result_col = result["CH4"].loc[{"area (ISO3)": "COL"}]
     expected_col = (
-        input_data["CO2"]
+        input_data["CH4"]
         .loc[
             {
                 "area (ISO3)": "COL",
@@ -173,7 +230,7 @@ def test_compose_trivial():
     )
     xr.testing.assert_identical(result_col, expected_col)
     result_col_proc = (
-        result["Processing of CO2"].loc[{"area (ISO3)": "COL"}].values.flat[0]
+        result["Processing of CH4"].loc[{"area (ISO3)": "COL"}].values.flat[0]
     )
     assert len(result_col_proc.steps) == 1
     assert result_col_proc.steps[0].time == "all"
@@ -184,9 +241,9 @@ def test_compose_trivial():
         in result_col_proc.steps[0].processing_description
     )
 
-    result_arg = result["CO2"].loc[{"area (ISO3)": "ARG"}]
+    result_arg = result["CH4"].loc[{"area (ISO3)": "ARG"}]
     expected_arg = (
-        input_data["CO2"]
+        input_data["CH4"]
         .loc[
             {
                 "area (ISO3)": "ARG",
@@ -199,7 +256,7 @@ def test_compose_trivial():
     )
     xr.testing.assert_identical(result_arg, expected_arg)
     result_arg_proc = (
-        result["Processing of CO2"].loc[{"area (ISO3)": "ARG"}].values.flat[0]
+        result["Processing of CH4"].loc[{"area (ISO3)": "ARG"}].values.flat[0]
     )
     assert len(result_arg_proc.steps) == 1
     assert result_arg_proc.steps[0].time == "all"
@@ -208,6 +265,32 @@ def test_compose_trivial():
     assert (
         "'scenario (FAOSTAT)': 'lowpop'"
         in result_arg_proc.steps[0].processing_description
+    )
+
+    result_col_co2 = result["CO2"].loc[{"area (ISO3)": "COL"}]
+    expected_col_co2 = (
+        input_data["CO2"]
+        .loc[
+            {
+                "area (ISO3)": "COL",
+                "source": "RAND2020",
+                "scenario (FAOSTAT)": "lowpop",
+            }
+        ]
+        .drop("scenario (FAOSTAT)")
+        .drop("source")
+    )
+    xr.testing.assert_identical(result_col_co2, expected_col_co2)
+    result_col_co2_proc = (
+        result["Processing of CO2"].loc[{"area (ISO3)": "COL"}].values.flat[0]
+    )
+    assert len(result_col_co2_proc.steps) == 1
+    assert result_col_co2_proc.steps[0].time == "all"
+    assert result_col_co2_proc.steps[0].strategy == "initial"
+    assert "'source': 'RAND2020'" in result_col_co2_proc.steps[0].processing_description
+    assert (
+        "'scenario (FAOSTAT)': 'lowpop'"
+        in result_col_co2_proc.steps[0].processing_description
     )
 
 
