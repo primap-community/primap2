@@ -41,6 +41,36 @@ class TestEnsureValid:
         any_ds.pr.ensure_valid()
         assert not caplog.records
 
+    def test_time_dimension_for_metadata(self, opulent_processing_ds, caplog):
+        opulent_processing_ds["Processing of CO2"] = opulent_processing_ds[
+            "Processing of CO2"
+        ].expand_dims(dim={"time": np.array(["2020", "2021"], dtype=np.datetime64)})
+        with pytest.raises(
+            ValueError, match=r"contains metadata, but carries 'time' dimension"
+        ):
+            opulent_processing_ds.pr.ensure_valid()
+        assert "ERROR" in caplog.text
+        assert "'Processing of CO2' is a metadata variable, but 'time' is a dimension."
+
+    def test_metadata_missing_attr(self, opulent_processing_ds, caplog):
+        del opulent_processing_ds["Processing of CO2"].attrs["described_variable"]
+        with pytest.raises(
+            ValueError,
+            match=r"'described_variable' attr missing for 'Processing of CO2'",
+        ):
+            opulent_processing_ds.pr.ensure_valid()
+        assert "ERROR" in caplog.text
+
+    def test_metadata_wrong_attr(self, opulent_processing_ds, caplog):
+        opulent_processing_ds["Processing of CO2"].attrs["described_variable"] = "CH4"
+        with pytest.raises(
+            ValueError,
+            match=r"variable name 'Processing of CO2' inconsistent with "
+            r"described_variable 'CH4'",
+        ):
+            opulent_processing_ds.pr.ensure_valid()
+        assert "ERROR" in caplog.text
+
     def test_required_dimension_missing(self, caplog):
         ds = xr.Dataset(
             {

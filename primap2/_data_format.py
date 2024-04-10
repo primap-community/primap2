@@ -355,6 +355,29 @@ def ensure_valid_data_variables(ds: xr.Dataset):
         else:
             ensure_not_gwp(key, da)
 
+        if "described_variable" in da.attrs or (
+            isinstance(key, str) and key.startswith("Processing of ")
+        ):
+            ensure_processing_variable_name(str(key), da)
+
+
+def ensure_processing_variable_name(name: str, da: xr.DataArray) -> None:
+    if "described_variable" not in da.attrs:
+        logger.error(
+            f"variable name {name!r} implies metadata variable, but 'described_variable'"
+            f" is not defined in attrs."
+        )
+        raise ValueError(f"'described_variable' attr missing for {name!r}")
+    if name != f"Processing of {da.attrs['described_variable']}":
+        logger.error(
+            f"variable name {name!r} is inconsistent with described_variable "
+            f"{da.attrs['described_variable']!r}"
+        )
+        raise ValueError(
+            f"variable name {name!r} inconsistent with described_variable"
+            f" {da.attrs['described_variable']!r}"
+        )
+
 
 def ensure_entity_and_units_exist(key: Hashable, da: xr.DataArray):
     if "entity" not in da.attrs:
@@ -453,6 +476,26 @@ def ensure_valid_dimensions(ds: xr.Dataset):
         if req_dim not in ds.dims:
             logger.error(f"{req_dim!r} not found in dims, but is required.")
             raise ValueError(f"{req_dim!r} not in dims")
+
+        for var in ds:
+            if (
+                isinstance(var, str)
+                and var.startswith("Processing of ")
+                and req_dim == "time"
+            ):
+                if req_dim in ds[var].dims:
+                    logger.error(
+                        f"{var!r} is a metadata variable, but 'time' is a dimension."
+                    )
+                    raise ValueError(
+                        f"{var!r} contains metadata, but carries 'time' dimension"
+                    )
+            else:
+                if req_dim not in ds[var].dims:
+                    logger.error(
+                        f"{req_dim!r} not found in dims for variable {var!r}, but is required."
+                    )
+                    raise ValueError(f"{req_dim!r} not in dims for variable {var!r}")
 
     required_indirect_dims_long = []
     for req_dim in required_indirect_dims:
