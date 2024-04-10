@@ -244,7 +244,7 @@ def test_compose_simple():
         ]
         .drop_vars("scenario (FAOSTAT)")
         .drop_vars("source")
-    )
+    ).expand_dims(dim={"source": ["composed"]})
     xr.testing.assert_identical(result_col, expected_col)
     result_col_proc = (
         result["Processing of CH4"].loc[{"area (ISO3)": "COL"}].values.flat[0]
@@ -267,7 +267,7 @@ def test_compose_simple():
         ]
         .drop_vars("scenario (FAOSTAT)")
         .drop_vars("source")
-    )
+    ).expand_dims(dim={"source": ["composed"]})
     xr.testing.assert_identical(result_arg, expected_arg)
     result_arg_proc = (
         result["Processing of CH4"].loc[{"area (ISO3)": "ARG"}].values.flat[0]
@@ -292,7 +292,7 @@ def test_compose_simple():
         ]
         .drop_vars("scenario (FAOSTAT)")
         .drop_vars("source")
-    )
+    ).expand_dims(dim={"source": ["composed"]})
     xr.testing.assert_identical(
         result_col_co2.loc[{"time": slice("2002", None)}],
         expected_col_co2.loc[{"time": slice("2002", None)}],

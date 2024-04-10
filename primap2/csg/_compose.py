@@ -138,7 +138,25 @@ def compose(
         if pbar is not None:
             pbar.close()
 
-    return xr.Dataset(result_das).pr.quantify()
+    result_ds = xr.Dataset(result_das).pr.quantify()
+    # composing removes the priority dimensions, also remove the attrs describing
+    # the priority dimensions
+    result_ds.attrs = input_data.attrs.copy()
+    for dim_key in priority_dimensions:
+        if isinstance(dim_key, str) and "(" in dim_key:
+            dim = dim_key.split("(", 1)[0][:-1]
+        else:
+            dim = dim_key
+        if dim == "area":
+            del result_ds.attrs["area"]
+        elif dim == "category":
+            del result_ds.attrs["cat"]
+        elif dim == "scenario":
+            del result_ds.attrs["scen"]
+        elif dim not in ("provenance", "model", "source"):
+            result_ds.attrs["sec_cats"].remove(dim_key)
+
+    return result_ds
 
 
 def preallocate_result_arrays(
@@ -164,6 +182,10 @@ def preallocate_result_arrays(
         ),
         dims=group_by_dimensions,
         coords=[input_da.coords[dim] for dim in group_by_dimensions],
+        attrs={
+            "entity": f"Processing of {input_da.name}",
+            "described_variable": input_da.name,
+        },
     )
     return result_da, processing_result_da
 
