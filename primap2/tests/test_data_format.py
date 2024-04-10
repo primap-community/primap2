@@ -85,6 +85,17 @@ class TestEnsureValid:
         assert "ERROR" in caplog.text
         assert "'source' not found in dims, but is required." in caplog.text
 
+    def test_required_dimension_missing_var(self, minimal_ds, caplog):
+        minimal_ds["CO2"] = minimal_ds["CO2"].squeeze("source", drop=True)
+
+        with pytest.raises(ValueError, match=r"'source' not in dims"):
+            minimal_ds.pr.ensure_valid()
+        assert "ERROR" in caplog.text
+        assert (
+            "'source' not found in dims for variable 'CO2', but is required"
+            in caplog.text
+        )
+
     def test_required_coordinate_missing(self, minimal_ds, caplog):
         del minimal_ds["source"]
         with pytest.raises(ValueError, match=r"dim 'source' has no coord"):
