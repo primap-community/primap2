@@ -226,6 +226,10 @@ def test_compose_simple():
         priority_definition=priority_definition,
         strategy_definition=strategy_definition,
     )
+    # The caller of `compose` is responsible for re-adding priority dimensions
+    # if necessary
+    result = result.expand_dims(dim={"source": ["composed"]})
+    result.pr.ensure_valid()
     assert "CO2" in result.keys()
     assert "Processing of CO2" in result.keys()
     result_col = result["CH4"].loc[{"area (ISO3)": "COL"}]
