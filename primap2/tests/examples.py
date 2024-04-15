@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-import primap2  # noqa: F401
+import primap2
 from primap2 import ureg
 
 
@@ -162,6 +162,42 @@ def opulent_str_ds() -> xr.Dataset:
     return opulent
 
 
+def opulent_processing_ds() -> xr.Dataset:
+    """Like the opulent dataset, but additionally with processing information data
+    variables."""
+
+    opulent = opulent_ds()
+
+    new_vars = {}
+    for var in opulent.keys():
+        dims = [dim for dim in opulent.dims.keys() if dim != "time"]
+        shape = tuple(len(opulent[x]) for x in dims)
+        new_vars[f"Processing of {var}"] = xr.DataArray(
+            data=np.full(
+                shape=shape,
+                fill_value=primap2.TimeseriesProcessingDescription(
+                    steps=[
+                        primap2.ProcessingStepDescription(
+                            time="all",
+                            function="random",
+                            description="Values created randomly.",
+                        )
+                    ]
+                ),
+            ),
+            coords=opulent[dims],
+            dims=dims,
+            attrs={
+                "entity": f"Processing of {var}",
+                "described_variable": var,
+            },
+        )
+
+    opulent.update(new_vars)
+
+    return opulent
+
+
 def empty_ds() -> xr.Dataset:
     """An empty hull of a dataset with missing data."""
     time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
@@ -197,3 +233,10 @@ def empty_ds() -> xr.Dataset:
     ).pr.quantify()
 
     return empty
+
+
+_cached_minimal_ds = minimal_ds()
+_cached_opulent_ds = opulent_ds()
+_cached_opulent_str_ds = opulent_str_ds()
+_cached_opulent_processing_ds = opulent_processing_ds()
+_cached_empty_ds = empty_ds()

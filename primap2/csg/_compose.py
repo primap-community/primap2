@@ -9,6 +9,8 @@ import tqdm
 import xarray as xr
 from loguru import logger
 
+import primap2._data_format
+
 from . import _models
 
 
@@ -136,7 +138,25 @@ def compose(
         if pbar is not None:
             pbar.close()
 
-    return xr.Dataset(result_das).pr.quantify()
+    result_ds = xr.Dataset(result_das).pr.quantify()
+    # composing removes the priority dimensions, also remove the attrs describing
+    # the priority dimensions
+    result_ds.attrs = input_data.attrs.copy()
+    for dim_key in priority_dimensions:
+        if isinstance(dim_key, str) and "(" in dim_key:
+            dim = dim_key.split("(", 1)[0][:-1]
+        else:
+            dim = dim_key
+        if dim == "area":
+            del result_ds.attrs["area"]
+        elif dim == "category":
+            del result_ds.attrs["cat"]
+        elif dim == "scenario":
+            del result_ds.attrs["scen"]
+        elif dim not in ("provenance", "model", "source"):
+            result_ds.attrs["sec_cats"].remove(dim_key)
+
+    return result_ds
 
 
 def preallocate_result_arrays(
@@ -162,6 +182,10 @@ def preallocate_result_arrays(
         ),
         dims=group_by_dimensions,
         coords=[input_da.coords[dim] for dim in group_by_dimensions],
+        attrs={
+            "entity": f"Processing of {input_da.name}",
+            "described_variable": input_da.name,
+        },
     )
     return result_da, processing_result_da
 
@@ -232,7 +256,7 @@ def compose_timeseries(
     input_data: xr.DataArray,
     priority_definition: _models.PriorityDefinition,
     strategy_definition: _models.StrategyDefinition,
-) -> tuple[xr.DataArray, _models.TimeseriesProcessingDescription]:
+) -> tuple[xr.DataArray, primap2._data_format.TimeseriesProcessingDescription]:
     """
     Compute a single timeseries from given input data, priorities, and strategies.
 
@@ -289,20 +313,22 @@ def compose_timeseries(
                 f"basis to fill."
             )
             processing_steps_descriptions.append(
-                _models.ProcessingStepDescription(
+                primap2._data_format.ProcessingStepDescription(
                     time="all",
-                    processing_description=f"used values from {fill_ts_repr}",
-                    strategy="initial",
+                    description=f"used values from {fill_ts_repr}",
+                    function="initial",
+                    source=fill_ts_repr,
                 )
             )
             result_ts = fill_ts_no_prio_dims
         else:
             if fill_ts.isnull().all():
                 processing_steps_descriptions.append(
-                    _models.ProcessingStepDescription(
+                    primap2._data_format.ProcessingStepDescription(
                         time="all",
-                        processing_description=f"{fill_ts_repr} is fully NaN, skipped",
-                        strategy="none",
+                        description=f"{fill_ts_repr} is fully NaN, skipped",
+                        function="none",
+                        source=fill_ts_repr,
                     )
                 )
                 continue
@@ -327,6 +353,6 @@ def compose_timeseries(
             f"\n{input_data.coords}\n{priority_definition=}"
         )
 
-    return result_ts, _models.TimeseriesProcessingDescription(
+    return result_ts, primap2._data_format.TimeseriesProcessingDescription(
         steps=processing_steps_descriptions
     )

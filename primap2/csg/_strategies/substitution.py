@@ -1,6 +1,6 @@
 import xarray as xr
 
-from primap2.csg import _models
+import primap2
 
 
 class SubstitutionStrategy:
@@ -18,7 +18,7 @@ class SubstitutionStrategy:
         ts: xr.DataArray,
         fill_ts: xr.DataArray,
         fill_ts_repr: str,
-    ) -> tuple[xr.DataArray, list[_models.ProcessingStepDescription]]:
+    ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
         """Fill gaps in ts using data from the fill_ts.
 
         Parameters
@@ -44,10 +44,10 @@ class SubstitutionStrategy:
         filled_ts = xr.core.ops.fillna(ts, fill_ts, join="exact")
         filled_mask = ts.isnull() & ~fill_ts.isnull()
         time_filled = filled_mask["time"][filled_mask].to_numpy()
-        description = _models.ProcessingStepDescription(
+        description = primap2.ProcessingStepDescription(
             time=time_filled,
-            processing_description="substituted with corresponding values from"
-            f" {fill_ts_repr}",
-            strategy=self.type,
+            description="substituted with corresponding values from" f" {fill_ts_repr}",
+            function=self.type,
+            source=fill_ts_repr,
         )
         return filled_ts, [description]

@@ -3,9 +3,10 @@
 import typing
 from collections.abc import Hashable
 
-import numpy as np
 import xarray as xr
 from attr import define
+
+from primap2._data_format import ProcessingStepDescription
 
 
 @define(frozen=True)
@@ -67,28 +68,6 @@ class PriorityDefinition:
                         f"In priority={sel}: specified multiple values for priority "
                         f"dimension={dim}, values={sel[dim]}"
                     )
-
-
-@define
-class ProcessingStepDescription:
-    """Structured description of a processing step done on a timeseries."""
-
-    time: np.ndarray[np.datetime64] | typing.Literal["all"]
-    processing_description: str
-    strategy: str
-
-    def __str__(self) -> str:
-        return f"Using strategy={self.strategy} for times={self.time}: {self.processing_description}"
-
-
-@define
-class TimeseriesProcessingDescription:
-    """Structured description of all processing steps done on a timeseries."""
-
-    steps: list[ProcessingStepDescription]
-
-    def __str__(self) -> str:
-        return "\n".join(str(step) for step in self.steps)
 
 
 class FillingStrategyModel(typing.Protocol, Hashable):

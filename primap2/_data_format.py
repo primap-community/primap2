@@ -1,12 +1,16 @@
 import contextlib
 import datetime
 import pathlib
+import typing
 from collections.abc import Hashable, Iterable, Mapping
 from typing import IO
 
+import msgpack
+import numpy as np
 import pandas as pd
 import pint
 import xarray as xr
+from attr import define
 from loguru import logger
 
 from . import _accessor_base, pm2io
@@ -78,6 +82,11 @@ def open_dataset(
         ds.attrs["publication_date"] = datetime.date.fromisoformat(
             ds.attrs["publication_date"]
         )
+    for entity in ds:
+        if entity.startswith("Processing of "):
+            ds[entity].data = np.vectorize(
+                lambda x: TimeseriesProcessingDescription.deserialize(x)
+            )(ds[entity].data)
     return ds
 
 
@@ -129,7 +138,11 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             entity_col = "entity"
 
         dfs = []
+        entities = []
         for x in dsd:
+            if isinstance(x, str) and x.startswith("Processing of "):
+                continue
+            entities.append(x)
             df = (
                 dsd[x]
                 .to_dataset("time")
@@ -156,7 +169,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
 
         dimensions = {}
         all_dimensions = [str(dim) for dim in dsd.dims] + [entity_col, "unit"]
-        for entity in dsd:
+        for entity in entities:
             dims = [str(dim) for dim in dsd[entity].dims] + [entity_col, "unit"]
             if set(dims) == set(all_dimensions):
                 # use default option for entities which use all the dataset's dimensions
@@ -168,7 +181,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         # all non-float dtypes are specified
         dtypes = {
             entity: str(dsd[entity].dtype)
-            for entity in dsd
+            for entity in entities
             if dsd[entity].dtype != float
         }
 
@@ -234,6 +247,13 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         ds = self._ds.pint.dequantify()
         if "publication_date" in ds.attrs:
             ds.attrs["publication_date"] = ds.attrs["publication_date"].isoformat()
+        for entity in ds:
+            if (
+                isinstance(entity, str)
+                and entity.startswith("Processing of ")
+                and ds[entity].data.dtype == object
+            ):
+                ds[entity].data = np.vectorize(lambda x: x.serialize())(ds[entity].data)
         return ds.to_netcdf(
             path=path,
             mode=mode,
@@ -335,6 +355,29 @@ def ensure_valid_data_variables(ds: xr.Dataset):
         else:
             ensure_not_gwp(key, da)
 
+        if "described_variable" in da.attrs or (
+            isinstance(key, str) and key.startswith("Processing of ")
+        ):
+            ensure_processing_variable_name(str(key), da)
+
+
+def ensure_processing_variable_name(name: str, da: xr.DataArray) -> None:
+    if "described_variable" not in da.attrs:
+        logger.error(
+            f"variable name {name!r} implies metadata variable, but 'described_variable'"
+            f" is not defined in attrs."
+        )
+        raise ValueError(f"'described_variable' attr missing for {name!r}")
+    if name != f"Processing of {da.attrs['described_variable']}":
+        logger.error(
+            f"variable name {name!r} is inconsistent with described_variable "
+            f"{da.attrs['described_variable']!r}"
+        )
+        raise ValueError(
+            f"variable name {name!r} inconsistent with described_variable"
+            f" {da.attrs['described_variable']!r}"
+        )
+
 
 def ensure_entity_and_units_exist(key: Hashable, da: xr.DataArray):
     if "entity" not in da.attrs:
@@ -434,6 +477,26 @@ def ensure_valid_dimensions(ds: xr.Dataset):
             logger.error(f"{req_dim!r} not found in dims, but is required.")
             raise ValueError(f"{req_dim!r} not in dims")
 
+        for var in ds:
+            if (
+                isinstance(var, str)
+                and var.startswith("Processing of ")
+                and req_dim == "time"
+            ):
+                if req_dim in ds[var].dims:
+                    logger.error(
+                        f"{var!r} is a metadata variable, but 'time' is a dimension."
+                    )
+                    raise ValueError(
+                        f"{var!r} contains metadata, but carries 'time' dimension"
+                    )
+            else:
+                if req_dim not in ds[var].dims:
+                    logger.error(
+                        f"{req_dim!r} not found in dims for variable {var!r}, but is required."
+                    )
+                    raise ValueError(f"{req_dim!r} not in dims for variable {var!r}")
+
     required_indirect_dims_long = []
     for req_dim in required_indirect_dims:
         if req_dim not in ds.attrs:
@@ -496,3 +559,71 @@ def ensure_valid_dimensions(ds: xr.Dataset):
     for dim in required_indirect_dims.union(optional_indirect_dims):
         if dim in ds.attrs:
             split_dim_name(ds.attrs[dim])
+
+
+@define(frozen=True, kw_only=True)
+class ProcessingStepDescription:
+    """Structured description of a processing step done on a timeseries."""
+
+    time: np.ndarray[np.datetime64] | typing.Literal["all"]
+    function: str
+    description: str
+    source: str | None = None
+
+    def __str__(self) -> str:
+        if self.source is None:
+            return (
+                f"Using function={self.function} for times={self.time}:"
+                f" {self.description}"
+            )
+        else:
+            return (
+                f"Using function={self.function} with source={self.source} for "
+                f"times={self.time}: {self.description}"
+            )
+
+    def unstructure(self) -> dict[str, typing.Any]:
+        """Convert into basic python types."""
+        return {
+            "time": "all"
+            if isinstance(self.time, str) and self.time == "all"
+            else list(
+                np.datetime_as_string(
+                    self.time,
+                    unit="Y",
+                )
+            ),
+            "description": self.description,
+            "function": self.function,
+            "source": self.source,
+        }
+
+    @classmethod
+    def structure(cls, u: dict[str, typing.Any]) -> "ProcessingStepDescription":
+        """Initialize from basic python types as created by "unstructure"."""
+        time = u.pop("time")
+        return cls(
+            time="all" if time == "all" else np.array(time, dtype=np.datetime64), **u
+        )
+
+
+@define(frozen=True)
+class TimeseriesProcessingDescription:
+    """Structured description of all processing steps done on a timeseries."""
+
+    steps: list[ProcessingStepDescription]
+
+    def __str__(self) -> str:
+        return "\n".join(str(step) for step in self.steps)
+
+    def serialize(self) -> bytes:
+        """Convert into binary data, e.g. for saving to disk."""
+        return msgpack.packb(
+            {"steps": [x.unstructure() for x in self.steps]}, use_bin_type=True
+        )
+
+    @classmethod
+    def deserialize(cls, b: bytes) -> "TimeseriesProcessingDescription":
+        """Parse from binary data as produced by "serilize"."""
+        ust = msgpack.unpackb(b, raw=False, use_list=False)
+        return cls(steps=[ProcessingStepDescription.structure(x) for x in ust["steps"]])
