@@ -80,8 +80,6 @@ def opulent_ds() -> xr.Dataset:
             "title": "Completely invented GHG inventory data",
             "comment": "GHG inventory data ...",
             "institution": "PIK",
-            "history": "2021-01-14 14:50 data invented\n"
-            "2021-01-14 14:51 additional processing step",
             "publication_date": datetime.date(2099, 12, 31),
         },
     )
