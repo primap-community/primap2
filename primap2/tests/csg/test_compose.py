@@ -340,6 +340,41 @@ def test_compose_pbar():
     assert "CO2" in result.keys()
 
 
+def test_compose_sec_cats_missing():
+    input_data = primap2.tests.examples.opulent_ds()
+    input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
+    input_data.attrs["sec_cats"].remove("product (FAOSTAT)")
+    priority_definition = primap2.csg.PriorityDefinition(
+        priority_dimensions=["source", "scenario (FAOSTAT)", "product (FAOSTAT)"],
+        priorities=[
+            {
+                "source": "RAND2020",
+                "scenario (FAOSTAT)": "lowpop",
+                "product (FAOSTAT)": "milk",
+            },
+            {
+                "source": "RAND2021",
+                "scenario (FAOSTAT)": "highpop",
+                "product (FAOSTAT)": "milk",
+            },
+        ],
+    )
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            (
+                {},
+                primap2.csg.SubstitutionStrategy(),
+            )
+        ]
+    )
+    primap2.csg.compose(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+        progress_bar=None,
+    )
+
+
 def test_compose_timeseries_trivial():
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source"], priorities=[{"source": "A"}, {"source": "B"}]
