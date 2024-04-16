@@ -273,6 +273,13 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             ]
         )
 
+    def has_processing_info(self) -> bool:
+        """True if the dataset has processing information for at least one entity."""
+        return any(
+            isinstance(var, str) and var.startswith("Processing of ")
+            for var in self._ds
+        )
+
 
 def split_dim_name(dim_name: str) -> tuple[str, str]:
     """Split a dimension name composed of the dimension, and the category set in

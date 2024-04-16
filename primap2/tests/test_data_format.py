@@ -347,3 +347,11 @@ def test_remove_processing_info(opulent_processing_ds):
 def test_remove_processing_info_nothing_to_do(opulent_ds):
     result = opulent_ds.pr.remove_processing_info()
     xr.testing.assert_identical(opulent_ds, result)
+
+
+def test_has_processing_info_not(opulent_ds):
+    assert not opulent_ds.pr.has_processing_info()
+
+
+def test_has_processing_info(opulent_processing_ds):
+    assert opulent_processing_ds.pr.has_processing_info()
