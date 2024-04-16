@@ -263,6 +263,16 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             format="NETCDF4",
         )
 
+    def remove_processing_info(self) -> xr.Dataset:
+        """Return dataset with all variables with processing information removed."""
+        return self._ds.drop_vars(
+            [
+                var
+                for var in self._ds
+                if isinstance(var, str) and var.startswith("Processing of ")
+            ]
+        )
+
 
 def split_dim_name(dim_name: str) -> tuple[str, str]:
     """Split a dimension name composed of the dimension, and the category set in

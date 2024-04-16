@@ -337,3 +337,13 @@ class TestToInterchangeFormat:
             "Additional coordinate 'addl_coord_2d' has more than one dimension, which"
             " is not supported." in caplog.text
         )
+
+
+def test_remove_processing_info(opulent_processing_ds):
+    result = opulent_processing_ds.pr.remove_processing_info()
+    assert all(not x.startswith("Processing of") for x in result)
+
+
+def test_remove_processing_info_nothing_to_do(opulent_ds):
+    result = opulent_ds.pr.remove_processing_info()
+    xr.testing.assert_identical(opulent_ds, result)
