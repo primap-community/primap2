@@ -17,6 +17,18 @@ def test_round_trip(any_ds: xr.Dataset, tmp_path):
     with path.with_suffix(".yaml").open() as fd:
         print(fd.read())
     actual = pm2io.from_interchange_format(pm2io.read_interchange_format(path))
+    # we expect that Processing information is lost here
+    expected = any_ds
+    to_remove = []
+    for var in expected:
+        if (
+            isinstance(var, str)
+            and var.startswith("Processing of ")
+            and "described_variable" in expected[var].attrs
+        ):
+            to_remove.append(var)
+    for var in to_remove:
+        del expected[var]
     utils.assert_ds_aligned_equal(any_ds, actual)
 
 
