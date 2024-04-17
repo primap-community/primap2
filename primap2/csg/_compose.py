@@ -310,39 +310,42 @@ def compose_timeseries(
         )
 
         if result_ts is None:
-            context_logger.debug(
-                f"{fill_ts_repr} is the highest-priority source, using as the "
-                f"basis to fill."
-            )
+            result_ts = fill_ts_no_prio_dims
+            result_ts.loc[:] = np.nan
+        # if result_ts is None:
+        #     context_logger.debug(
+        #         f"{fill_ts_repr} is the highest-priority source, using as the "
+        #         f"basis to fill."
+        #     )
+        #     processing_steps_descriptions.append(
+        #         primap2._data_format.ProcessingStepDescription(
+        #             time="all",
+        #             description=f"used values from {fill_ts_repr}",
+        #             function="initial",
+        #             source=fill_ts_repr,
+        #         )
+        #     )
+        #     result_ts = fill_ts_no_prio_dims
+        # else:
+        if fill_ts.isnull().all():
             processing_steps_descriptions.append(
                 primap2._data_format.ProcessingStepDescription(
                     time="all",
-                    description=f"used values from {fill_ts_repr}",
-                    function="initial",
+                    description=f"{fill_ts_repr} is fully NaN, skipped",
+                    function="none",
                     source=fill_ts_repr,
                 )
             )
-            result_ts = fill_ts_no_prio_dims
-        else:
-            if fill_ts.isnull().all():
-                processing_steps_descriptions.append(
-                    primap2._data_format.ProcessingStepDescription(
-                        time="all",
-                        description=f"{fill_ts_repr} is fully NaN, skipped",
-                        function="none",
-                        source=fill_ts_repr,
-                    )
-                )
-                continue
+            continue
 
-            context_logger.debug(f"Filling with {fill_ts_repr} now.")
-            strategy = strategy_definition.find_strategy(fill_ts)
-            result_ts, descriptions = strategy.fill(
-                ts=result_ts,
-                fill_ts=fill_ts_no_prio_dims,
-                fill_ts_repr=fill_ts_repr,
-            )
-            processing_steps_descriptions += descriptions
+        context_logger.debug(f"Filling with {fill_ts_repr} now.")
+        strategy = strategy_definition.find_strategy(fill_ts)
+        result_ts, descriptions = strategy.fill(
+            ts=result_ts,
+            fill_ts=fill_ts_no_prio_dims,
+            fill_ts_repr=fill_ts_repr,
+        )
+        processing_steps_descriptions += descriptions
 
         if not result_ts.isnull().any():
             # TODO add a description entry here to clarify that we've succeeded

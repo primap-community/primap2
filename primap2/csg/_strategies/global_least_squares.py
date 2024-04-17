@@ -1,10 +1,9 @@
 import xarray as xr
 import numpy as np
+import primap2
 
 from scipy.optimize import least_squares
 from scipy.linalg import lstsq
-from primap2.csg import _models
-from primap2.csg import SubstitutionStrategy
 
 
 class GlobalLSStrategy:
@@ -30,7 +29,7 @@ class GlobalLSStrategy:
         ts: xr.DataArray,
         fill_ts: xr.DataArray,
         fill_ts_repr: str,
-    ) -> tuple[xr.DataArray, list[_models.ProcessingStepDescription]]:
+    ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
         """Fill gaps in ts using data from the fill_ts scaled by a global factor
         defined by global least squares matching. If there is no overlap for least
         squares matching use the SubstitutionStrategy as fallback
@@ -73,7 +72,7 @@ class GlobalLSStrategy:
                 fill_ts_harmo = fill_ts * res['x'][0]
                 filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
 
-                descriptions = [_models.ProcessingStepDescription(
+                descriptions = [primap2.ProcessingStepDescription(
                     time=time_filled,
                     description="filled with least squares matched data from "
                                 f" {fill_ts_repr}. Factor={res['x'][0]:0.3f}",
@@ -81,7 +80,7 @@ class GlobalLSStrategy:
                     source=fill_ts_repr,
                 )]
             else:
-                strategy = SubstitutionStrategy()
+                strategy = primap2.csg.SubstitutionStrategy()
                 filled_ts, descriptions = strategy.fill(
                     ts=ts,
                     fill_ts=fill_ts,
@@ -91,7 +90,7 @@ class GlobalLSStrategy:
         else:
             # if we don't have anything to fill we don't need to calculate anything
             filled_ts = ts
-            descriptions = [_models.ProcessingStepDescription(
+            descriptions = [primap2.ProcessingStepDescription(
                 time=time_filled,
                 description=f"no additional data in {fill_ts_repr}",
                 function=self.type,
@@ -116,7 +115,7 @@ class GlobalLSlstsqStrategy:
             ts: xr.DataArray,
             fill_ts: xr.DataArray,
             fill_ts_repr: str,
-    ) -> tuple[xr.DataArray, list[_models.ProcessingStepDescription]]:
+    ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
         """Fill gaps in ts using data from the fill_ts scaled by a global factor
         defined by global least squares matching. If there is no overlap for least
         squares matching use the SubstitutionStrategy as fallback
@@ -159,7 +158,7 @@ class GlobalLSlstsqStrategy:
 
                 filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
 
-                descriptions = [_models.ProcessingStepDescription(
+                descriptions = [primap2.ProcessingStepDescription(
                     time=time_filled,
                     description="filled with least squares matched data from "
                                 "{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
@@ -168,7 +167,7 @@ class GlobalLSlstsqStrategy:
                     source=fill_ts_repr,
                 )]
             else:
-                strategy = SubstitutionStrategy()
+                strategy = primap2.csg.SubstitutionStrategy()
                 filled_ts, descriptions = strategy.fill(
                     ts=ts,
                     fill_ts=fill_ts,
@@ -178,7 +177,7 @@ class GlobalLSlstsqStrategy:
         else:
             # if we don't have anything to fill we don't need to calculate anything
             filled_ts = ts
-            descriptions = [_models.ProcessingStepDescription(
+            descriptions = [primap2.ProcessingStepDescription(
                 time=time_filled,
                 description=f"no additional data in {fill_ts_repr}",
                 function=self.type,

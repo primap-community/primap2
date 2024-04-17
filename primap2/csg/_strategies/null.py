@@ -1,7 +1,6 @@
 import xarray as xr
 import numpy as np
-
-from primap2.csg import _models
+import primap2
 
 
 class NullStrategy:
@@ -16,7 +15,7 @@ class NullStrategy:
         ts: xr.DataArray,
         fill_ts: xr.DataArray,
         fill_ts_repr: str,
-    ) -> tuple[xr.DataArray, list[_models.ProcessingStepDescription]]:
+    ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
         """Returns a timeseries of np.nan only. Used to skip certain fixed
         coordinate combinations.
         TODO: implement special treatment such that it is only called once
@@ -42,8 +41,8 @@ class NullStrategy:
         """
 
         filled_ts = ts
-        filled_ts.data = fill_ts.data * np.nan
-        descriptions = [_models.ProcessingStepDescription(
+        filled_ts.loc[:] = np.nan
+        descriptions = [primap2.ProcessingStepDescription(
             time="all",
             description=f"fill ts with np.nan instead of data from {fill_ts_repr}",
             function=self.type,
