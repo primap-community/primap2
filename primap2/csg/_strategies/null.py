@@ -10,7 +10,6 @@ class NullStrategy:
 
     type = "null"
 
-
     def fill(
         self,
         *,
@@ -45,10 +44,10 @@ class NullStrategy:
         filled_ts = ts
         filled_ts.data = fill_ts.data * np.nan
         descriptions = [_models.ProcessingStepDescription(
-            time=[],
-            processing_description=f"fill ts with np.nan instead of data from "
-                                   f"{fill_ts_repr}",
-            strategy=self.type,
+            time="all",
+            description=f"fill ts with np.nan instead of data from {fill_ts_repr}",
+            function=self.type,
+            source=fill_ts_repr,
         )]
 
         return filled_ts, descriptions

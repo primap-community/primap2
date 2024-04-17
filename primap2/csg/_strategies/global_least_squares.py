@@ -75,9 +75,10 @@ class GlobalLSStrategy:
 
                 descriptions = [_models.ProcessingStepDescription(
                     time=time_filled,
-                    processing_description="filled with least squares matched data from "
-                                           f" {fill_ts_repr}. Factor={res['x'][0]:0.3f}",
-                    strategy=self.type,
+                    description="filled with least squares matched data from "
+                                f" {fill_ts_repr}. Factor={res['x'][0]:0.3f}",
+                    function=self.type,
+                    source=fill_ts_repr,
                 )]
             else:
                 strategy = SubstitutionStrategy()
@@ -91,9 +92,10 @@ class GlobalLSStrategy:
             # if we don't have anything to fill we don't need to calculate anything
             filled_ts = ts
             descriptions = [_models.ProcessingStepDescription(
-                time=[],
-                processing_description=f"no additional data in {fill_ts_repr}",
-                strategy=self.type,
+                time=time_filled,
+                description=f"no additional data in {fill_ts_repr}",
+                function=self.type,
+                source=fill_ts_repr,
             )]
 
         return filled_ts, descriptions
@@ -159,10 +161,11 @@ class GlobalLSlstsqStrategy:
 
                 descriptions = [_models.ProcessingStepDescription(
                     time=time_filled,
-                    processing_description="filled with least squares matched data from "
-                                           f" {fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
-                                           f"b={x[1]:0.3f}",
-                    strategy=self.type,
+                    description="filled with least squares matched data from "
+                                "{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
+                                "b={x[1]:0.3f}",
+                    function=self.type,
+                    source=fill_ts_repr,
                 )]
             else:
                 strategy = SubstitutionStrategy()
@@ -176,9 +179,10 @@ class GlobalLSlstsqStrategy:
             # if we don't have anything to fill we don't need to calculate anything
             filled_ts = ts
             descriptions = [_models.ProcessingStepDescription(
-                time=[],
-                processing_description=f"no additional data in {fill_ts_repr}",
-                strategy=self.type,
+                time=time_filled,
+                description=f"no additional data in {fill_ts_repr}",
+                function=self.type,
+                source=fill_ts_repr,
             )]
 
         return filled_ts, descriptions
