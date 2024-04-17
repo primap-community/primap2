@@ -352,8 +352,8 @@ Developing PRIMAP2 with Pycharm works best if you:
    insight including autocompletion for PRIMAP2 functions.
    For this, first run ``make stubs`` in a terminal, then right click on the stubs
    folder and select ``Mark directory as | Sources root``.
-   Pycharm will re-scan the library and afterwards you should have helpful tooltips
-   etc. for PRIMAP2 functions.
+   Now restart Pycharm and afterwards you should have helpful tooltips and code
+   completion for PRIMAP2 functions.
 3. Change the docstring format in
    ``File | Settings | Tools | Python integrated tools | Docstrings | Docstring Format``
    to ``Numpy``.
