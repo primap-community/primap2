@@ -1,40 +1,40 @@
-diff '--color=auto' -r -u xarray-orig/core/dataarray.pyi xarray/core/dataarray.pyi
---- xarray-orig/core/dataarray.pyi	2022-05-09 19:44:00.059497745 +0200
-+++ xarray/core/dataarray.pyi	2022-05-09 19:45:46.028378457 +0200
-@@ -26,6 +26,7 @@
- from dask.delayed import Delayed
- from iris.cube import Cube as iris_Cube
- from typing import Any, Callable, Hashable, Iterable, Literal, Mapping, Sequence
+diff '--color=auto' -ru xarray.orig/core/dataarray.pyi xarray/core/dataarray.pyi
+--- xarray.orig/core/dataarray.pyi	2024-04-17 16:39:22.871662707 +0200
++++ xarray/core/dataarray.pyi	2024-04-17 16:38:30.763522838 +0200
+@@ -1,6 +1,7 @@
+ import datetime
+ import numpy as np
+ import pandas as pd
 +import primap2
-
- class _LocIndexer:
-     data_array: Incomplete
-@@ -36,6 +37,8 @@
- class DataArray(AbstractArray, DataWithCoords, DataArrayArithmetic):
-     dt: Incomplete
-     def __init__(self, data: Any = ..., coords: Union[Sequence[tuple], Mapping[Any, Any], None] = ..., dims: Union[Hashable, Sequence[Hashable], None] = ..., name: Hashable = ..., attrs: Mapping = ..., indexes: dict[Hashable, pd.Index] = ..., fastpath: bool = ...) -> None: ...
+ from _typeshed import Incomplete
+ from collections.abc import Hashable, Iterable, Mapping, MutableMapping, Sequence
+ from dask.dataframe import DataFrame as DaskDataFrame
+@@ -56,6 +57,8 @@
+     @name.setter
+     def name(self, value: Hashable | None) -> None: ...
 +    @property
 +    def pr(self) -> primap2.accessors.PRIMAP2DataArrayAccessor: ...
-     def to_dataset(self, dim: Hashable = ..., *, name: Hashable = ..., promote_attrs: bool = ...) -> Dataset: ...
      @property
-     def name(self) -> Union[Hashable, None]: ...
-diff '--color=auto' -r -u xarray-orig/core/dataset.pyi xarray/core/dataset.pyi
---- xarray-orig/core/dataset.pyi	2022-05-09 19:44:00.059497745 +0200
-+++ xarray/core/dataset.pyi	2022-05-09 19:45:37.980311296 +0200
-@@ -27,6 +27,7 @@
- from numbers import Number
- from os import PathLike
- from typing import Any, Callable, Collection, Hashable, Iterable, Iterator, Literal, Mapping, MutableMapping, Sequence, overload
+     def variable(self) -> Variable: ...
+     @property
+     def dtype(self) -> np.dtype: ...
+diff '--color=auto' -ru xarray.orig/core/dataset.pyi xarray/core/dataset.pyi
+--- xarray.orig/core/dataset.pyi	2024-04-17 16:39:22.871662707 +0200
++++ xarray/core/dataset.pyi	2024-04-17 16:39:00.667603556 +0200
+@@ -1,6 +1,7 @@
+ import datetime
+ import numpy as np
+ import pandas as pd
 +import primap2
-
- def calculate_dimensions(variables: Mapping[Any, Variable]) -> dict[Hashable, int]: ...
- def merge_indexes(indexes: Mapping[Any, Union[Hashable, Sequence[Hashable]]], variables: Mapping[Any, Variable], coord_names: set[Hashable], append: bool = ...) -> tuple[dict[Hashable, Variable], set[Hashable]]: ...
-@@ -50,6 +51,8 @@
-
- class Dataset(DataWithCoords, DatasetArithmetic, Mapping):
-     def __init__(self, data_vars: Mapping[Any, Any] = ..., coords: Mapping[Any, Any] = ..., attrs: Mapping[Any, Any] = ...) -> None: ...
+ from _typeshed import Incomplete
+ from collections.abc import Collection, Hashable, Iterable, Iterator, Mapping, MutableMapping, Sequence
+ from dask.dataframe import DataFrame as DaskDataFrame
+@@ -69,6 +70,8 @@
+     @attrs.setter
+     def attrs(self, value: Mapping[Any, Any]) -> None: ...
 +    @property
 +    def pr(self) -> primap2.accessors.PRIMAP2DatasetAccessor: ...
-     @classmethod
-     def load_store(cls, store, decoder: Incomplete | None = ...) -> Dataset: ...
      @property
+     def encoding(self) -> dict[Any, Any]: ...
+     @encoding.setter
+     def encoding(self, value: Mapping[Any, Any]) -> None: ...
