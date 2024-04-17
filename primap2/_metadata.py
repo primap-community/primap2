@@ -72,19 +72,6 @@ class DatasetMetadataAccessor(_accessor_base.BaseDatasetAccessor):
         self._ds.attrs["institution"] = value
 
     @property
-    def history(self) -> str:
-        """processing steps done on the data
-
-        In this property, an audit trail of modifications can be stored.
-        Steps are separated by a newline character, and processing steps should append
-        to the field."""
-        return self._ds.attrs["history"]
-
-    @history.setter
-    def history(self, value: str):
-        self._ds.attrs["history"] = value
-
-    @property
     def publication_date(self) -> datetime.date:
         """The original date of publication of the dataset, if published."""
         return self._ds.attrs["publication_date"]

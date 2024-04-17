@@ -561,6 +561,12 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         if not isinstance(value, xr.Dataset):
             raise TypeError(f"value must be a Dataset, not {type(value)}")
 
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
+            )
+
         return self._ds.map(
             self._set_apply,
             keep_attrs=True,
