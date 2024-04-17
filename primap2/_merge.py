@@ -197,6 +197,12 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
         -------
             xr.Dataset: Dataset with data from da_merge merged into the calling object
         """
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
+            )
+
         ds_start = self._ds
 
         with contextlib.suppress(xr.MergeError, ValueError):

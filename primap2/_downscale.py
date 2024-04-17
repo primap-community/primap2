@@ -184,6 +184,12 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         -------
         downscaled: xr.Dataset
         """
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
+            )
+
         ds_sel = select_no_scalar_dimension(self._ds, sel)
 
         basket_contents_ds = ds_sel.loc[{dim: basket_contents}]
@@ -288,6 +294,12 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         -------
         downscaled: xr.Dataset
         """
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
+            )
+
         ds_sel = select_no_scalar_dimension(self._ds, sel)
 
         basket_contents_converted = xr.Dataset()

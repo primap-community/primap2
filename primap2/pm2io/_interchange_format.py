@@ -44,7 +44,6 @@ INTERCHANGE_FORMAT_STRICTYAML_SCHEMA = sy.Map(
                 sy.Optional("title"): sy.Str(),
                 sy.Optional("comment"): sy.Str(),
                 sy.Optional("institution"): sy.Str(),
-                sy.Optional("history"): sy.Str(),
                 sy.Optional("entity_terminology"): sy.Str(),
                 sy.Optional("publication_date"): sy.Datetime(),
             }
