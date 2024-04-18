@@ -9,7 +9,6 @@ import xarray as xr
 
 import primap2.csg
 import primap2.csg._compose
-import primap2.csg._models
 
 
 def get_single_ts(
@@ -96,13 +95,13 @@ def test_strategy_definition():
     da = get_single_ts(coords={"source": "A", "category": "1.A"})
 
     assert (
-        primap2.csg._models.StrategyDefinition(
+        primap2.csg.StrategyDefinition(
             [({"source": "A", "category": "1"}, 1), ({"source": "A"}, 2)]
         ).find_strategy(da)
         == 2
     )
     assert (
-        primap2.csg._models.StrategyDefinition(
+        primap2.csg.StrategyDefinition(
             [
                 ({"source": "A", "category": "1"}, 1),
                 ({"source": "A", "category": "1.A"}, 2),
@@ -111,7 +110,7 @@ def test_strategy_definition():
         == 2
     )
     with pytest.raises(KeyError):
-        primap2.csg._models.StrategyDefinition(
+        primap2.csg.StrategyDefinition(
             [
                 ({"source": "A", "category": "1"}, 1),
                 ({"source": "A", "category": "1.B"}, 2),
