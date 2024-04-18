@@ -20,5 +20,6 @@ __all__ = [
     "StrategyDefinition",
     "SubstitutionStrategy",
     "GlobalLSStrategy",
+    "GlobalLSlstsqStrategy",
     "NullStrategy",
 ]

@@ -263,6 +263,23 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             format="NETCDF4",
         )
 
+    def remove_processing_info(self) -> xr.Dataset:
+        """Return dataset with all variables with processing information removed."""
+        return self._ds.drop_vars(
+            [
+                var
+                for var in self._ds
+                if isinstance(var, str) and var.startswith("Processing of ")
+            ]
+        )
+
+    def has_processing_info(self) -> bool:
+        """True if the dataset has processing information for at least one entity."""
+        return any(
+            isinstance(var, str) and var.startswith("Processing of ")
+            for var in self._ds
+        )
+
 
 def split_dim_name(dim_name: str) -> tuple[str, str]:
     """Split a dimension name composed of the dimension, and the category set in
@@ -328,7 +345,6 @@ def ensure_valid_attributes(ds: xr.Dataset):
         "title",
         "comment",
         "institution",
-        "history",
         "area",
         "cat",
         "sec_cats",

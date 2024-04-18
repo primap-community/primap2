@@ -11,9 +11,6 @@ def test_metadata_properties(opulent_ds):
     assert ds.pr.title == "Completely invented GHG inventory data"
     assert ds.pr.comment == "GHG inventory data ..."
     assert ds.pr.institution == "PIK"
-    assert ds.pr.history == (
-        "2021-01-14 14:50 data invented\n" "2021-01-14 14:51 additional processing step"
-    )
     assert ds.pr.entity_terminology == "primap2"
     assert ds.pr.publication_date == datetime.date(2099, 12, 31)
 
@@ -29,8 +26,6 @@ def test_metadata_properties(opulent_ds):
     assert ds.pr.comment == "comment"
     ds.pr.institution = "institution"
     assert ds.pr.institution == "institution"
-    ds.pr.history = "history"
-    assert ds.pr.history == "history"
     ds.pr.entity_terminology = "entity_terminology"
     assert ds.pr.entity_terminology == "entity_terminology"
     today = datetime.date.today()

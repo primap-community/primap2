@@ -260,6 +260,12 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         filled : xr.Dataset
         """
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
+            )
+
         return self._ds.map(
             self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True
         )
@@ -417,6 +423,12 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         summed : xr.DataArray
         """
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
+            )
+
         dim = self._reduce_dim(dim, reduce_to_dim)
 
         if skipna is not None and skipna_evaluation_dims is not None:
@@ -498,6 +510,11 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         summed : xr.DataArray
         """
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
+            )
 
         basket_contents_converted = xr.Dataset()
         basket_da = self._ds[basket]
@@ -567,6 +584,12 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         filled : xr.DataArray
         """
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
+            )
+
         ds_sel = select_no_scalar_dimension(self._ds, sel)
         return self._ds[basket].fillna(
             ds_sel.pr.gas_basket_contents_sum(

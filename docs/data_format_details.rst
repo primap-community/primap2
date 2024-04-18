@@ -123,7 +123,6 @@ contact             who can answer questions about the data   free-form ``str`` 
 title               a succinct description                    free-form ``str``
 comment             longer form description                   free-form ``str``
 institution         where the data originates                 free-form ``str``
-history             processing steps done on the data         ``str`` with specific rules (see text)
 entity_terminology  terminology for data variable entities    ``str``
 publication_date    date of publication of the dataset        ``datetime.date``
 ==================  ========================================  =========================================
@@ -131,8 +130,6 @@ publication_date    date of publication of the dataset        ``datetime.date``
 All of these attributes are optional.
 If the ``references`` field starts with ``doi:``, it is a doi, otherwise it is a
 free-form literature reference.
-In the ``history`` field, an audit trail of modifications can be stored. Steps are
-separated by a newline character, and processing steps should append to the field.
 
 These attributes describing the data set contents are inspired by the
 `CF conventions <https://cfconventions.org/Data/cf-conventions/cf-conventions-1.8/cf-conventions.html#description-of-file-contents>`_
@@ -146,8 +143,7 @@ terminology is defined elsewhere.
 Timeseries-Level Processing Information
 ---------------------------------------
 
-To record processing information in greater detail than what is properly representable
-in the ``history`` dataset attribute, rich processing information can be stored in
+To record processing information, rich processing information can be stored in
 special data variables.
 These store processing information for a specific normal data variable.
 For each timeseries in the normal data variable, a list of processing steps is kept.
