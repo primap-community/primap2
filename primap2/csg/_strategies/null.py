@@ -9,6 +9,7 @@ class NullStrategy:
 
     type = "null"
 
+
     def fill(
         self,
         *,
@@ -46,7 +47,7 @@ class NullStrategy:
             time="all",
             description=f"fill ts with np.nan instead of data from {fill_ts_repr}",
             function=self.type,
-            source=fill_ts_repr,
+            source="NaN",
         )]
 
         return filled_ts, descriptions
