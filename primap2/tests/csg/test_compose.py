@@ -189,6 +189,8 @@ def test_compose_strategy_skipping(opulent_ds):
 
     # for CH4, we use a strategy which gives up for the RAND2020 source
     class SkippingStrategy:
+        type = "skipping"
+
         def fill(
             self,
             *,
@@ -196,7 +198,7 @@ def test_compose_strategy_skipping(opulent_ds):
             fill_ts: xr.DataArray,
             fill_ts_repr: str,
         ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
-            raise Exception()
+            raise primap2.csg.StrategyUnableToProcess("no processing")
 
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
@@ -244,6 +246,8 @@ def test_compose_strategy_all_skipping(opulent_ds):
     # for CH4, we use a strategy which gives up everywhere, which should trigger
     # an error.
     class SkippingStrategy:
+        type = "skipping"
+
         def fill(
             self,
             *,
@@ -251,7 +255,7 @@ def test_compose_strategy_all_skipping(opulent_ds):
             fill_ts: xr.DataArray,
             fill_ts_repr: str,
         ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
-            raise Exception()
+            raise primap2.csg.StrategyUnableToProcess("no processing")
 
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
