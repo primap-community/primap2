@@ -10,6 +10,21 @@ import primap2.csg._compose
 from primap2.tests.csg.utils import get_single_ts
 
 
+def assert_copied_from_input_data(
+    filtered_result: xr.DataArray,
+    filtered_initial: xr.DataArray,
+    common_filter: dict[str, str],
+):
+    expected = (
+        filtered_initial.pr.loc[common_filter]
+        .drop_vars("scenario (FAOSTAT)")
+        .drop_vars("source")
+        .expand_dims(dim={"source": ["composed"]})
+    )
+    result = filtered_result.pr.loc[common_filter]
+    xr.testing.assert_identical(result, expected)
+
+
 def test_compose_simple():
     input_data = primap2.tests.examples.opulent_ds()
     input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
@@ -63,20 +78,11 @@ def test_compose_simple():
     result.pr.ensure_valid()
     assert "CO2" in result.keys()
     assert "Processing of CO2" in result.keys()
-    result_col = result["CH4"].loc[{"area (ISO3)": "COL"}]
-    expected_col = (
-        input_data["CH4"]
-        .loc[
-            {
-                "area (ISO3)": "COL",
-                "source": "RAND2020",
-                "scenario (FAOSTAT)": "highpop",
-            }
-        ]
-        .drop_vars("scenario (FAOSTAT)")
-        .drop_vars("source")
-    ).expand_dims(dim={"source": ["composed"]})
-    xr.testing.assert_identical(result_col, expected_col)
+    assert_copied_from_input_data(
+        result["CH4"],
+        input_data["CH4"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "highpop"}],
+        {"area": "COL"},
+    )
     result_col_proc = (
         result["Processing of CH4"].loc[{"area (ISO3)": "COL"}].values.flat[0]
     )
@@ -86,20 +92,11 @@ def test_compose_simple():
     assert "'source': 'RAND2020'" in result_col_proc.steps[0].description
     assert "'scenario (FAOSTAT)': 'highpop'" in result_col_proc.steps[0].description
 
-    result_arg = result["CH4"].loc[{"area (ISO3)": "ARG"}]
-    expected_arg = (
-        input_data["CH4"]
-        .loc[
-            {
-                "area (ISO3)": "ARG",
-                "source": "RAND2020",
-                "scenario (FAOSTAT)": "lowpop",
-            }
-        ]
-        .drop_vars("scenario (FAOSTAT)")
-        .drop_vars("source")
-    ).expand_dims(dim={"source": ["composed"]})
-    xr.testing.assert_identical(result_arg, expected_arg)
+    assert_copied_from_input_data(
+        result["CH4"],
+        input_data["CH4"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
+        {"area": "ARG"},
+    )
     result_arg_proc = (
         result["Processing of CH4"].loc[{"area (ISO3)": "ARG"}].values.flat[0]
     )
@@ -111,22 +108,10 @@ def test_compose_simple():
         == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'}"
     )
 
-    result_col_co2 = result["CO2"].loc[{"area (ISO3)": "COL"}]
-    expected_col_co2 = (
-        input_data["CO2"]
-        .loc[
-            {
-                "area (ISO3)": "COL",
-                "source": "RAND2020",
-                "scenario (FAOSTAT)": "lowpop",
-            }
-        ]
-        .drop_vars("scenario (FAOSTAT)")
-        .drop_vars("source")
-    ).expand_dims(dim={"source": ["composed"]})
-    xr.testing.assert_identical(
-        result_col_co2.loc[{"time": slice("2002", None)}],
-        expected_col_co2.loc[{"time": slice("2002", None)}],
+    assert_copied_from_input_data(
+        result["CO2"],
+        input_data["CO2"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
+        {"area": "COL", "time": slice("2002", None)},
     )
     result_col_co2_proc = (
         result["Processing of CO2"].loc[{"area (ISO3)": "COL"}].values.flat[0]
@@ -186,33 +171,82 @@ def test_compose_null_strategy():
     assert "CO2" in result.keys()
     assert "Processing of CO2" in result.keys()
 
-    result_co2 = result["CO2"]
-    expected_co2 = (
-        input_data["CO2"]
-        .loc[
-            {
-                "source": "RAND2020",
-                "scenario (FAOSTAT)": "lowpop",
-            }
-        ]
-        .drop_vars("scenario (FAOSTAT)")
-        .drop_vars("source")
-    ).expand_dims(dim={"source": ["composed"]})
-    xr.testing.assert_identical(result_co2, expected_co2)
+    assert_copied_from_input_data(
+        result["CO2"],
+        input_data["CO2"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
+        {},
+    )
 
-    result_ch4 = result["CH4"]
-    expected_ch4 = (
-        input_data["CH4"]
-        .loc[
-            {
-                "source": "RAND2021",
-                "scenario (FAOSTAT)": "highpop",
-            }
+    assert_copied_from_input_data(
+        result["CH4"],
+        input_data["CH4"].loc[{"source": "RAND2021", "scenario (FAOSTAT)": "highpop"}],
+        {},
+    )
+
+    result_sf6: xr.DataArray = result["SF6"]
+    assert result_sf6.isnull().all().all()
+
+
+def test_compose_strategy_skipping():
+    input_data = primap2.tests.examples.opulent_ds()
+    input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
+    input_data["CO2"].loc[{"source": "RAND2020", "time": ["2000", "2001"]}] = (
+        np.nan * primap2.ureg("Mt CO2 / year")
+    )
+    # we now have dimensions time, area (ISO3), category (IPCC 2006), animal (FAOSTAT)
+    # product (FAOSTAT), scenario (FAOSTAT), provenance, model, source
+    # We have variables (entities): CO2, SF6, CH4
+    # We have sources: RAND2020, RAND2021
+    # We have scenarios: highpop, lowpop
+    # Idea: we use source, scenario as priority dimensions, everything else are fixed
+    # coordinates.
+
+    priority_definition = primap2.csg.PriorityDefinition(
+        priority_dimensions=["source", "scenario (FAOSTAT)"],
+        priorities=[
+            {"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"},
+            {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
+        ],
+    )
+
+    # for CH4, we use a strategy which gives up for the RAND2020 source
+    class SkippingStrategy:
+        def fill(
+            self,
+            *,
+            ts: xr.DataArray,
+            fill_ts: xr.DataArray,
+            fill_ts_repr: str,
+        ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
+            raise Exception()
+
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            ({"entity": "CH4", "source": "RAND2020"}, SkippingStrategy()),
+            ({}, primap2.csg.SubstitutionStrategy()),
         ]
-        .drop_vars("scenario (FAOSTAT)")
-        .drop_vars("source")
-    ).expand_dims(dim={"source": ["composed"]})
-    xr.testing.assert_identical(result_ch4, expected_ch4)
+    )
+
+    result = primap2.csg.compose(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+    )
+    # The caller of `compose` is responsible for re-adding priority dimensions
+    # if necessary
+    result = result.expand_dims(dim={"source": ["composed"]})
+    result.pr.ensure_valid()
+
+    assert_copied_from_input_data(
+        result["CO2"],
+        input_data["CO2"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
+        {},
+    )
+    assert_copied_from_input_data(
+        result["CH4"],
+        input_data["CH4"].loc[{"source": "RAND2021", "scenario (FAOSTAT)": "highpop"}],
+        {},
+    )
 
     result_sf6: xr.DataArray = result["SF6"]
     assert result_sf6.isnull().all().all()
