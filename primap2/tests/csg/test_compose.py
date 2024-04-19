@@ -143,6 +143,81 @@ def test_compose_simple():
     assert "'scenario (FAOSTAT)': 'lowpop'" in result_col_co2_proc.steps[0].description
 
 
+def test_compose_null_strategy():
+    input_data = primap2.tests.examples.opulent_ds()
+    input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
+    input_data["CO2"].loc[{"source": "RAND2020", "time": ["2000", "2001"]}] = (
+        np.nan * primap2.ureg("Mt CO2 / year")
+    )
+    # we now have dimensions time, area (ISO3), category (IPCC 2006), animal (FAOSTAT)
+    # product (FAOSTAT), scenario (FAOSTAT), provenance, model, source
+    # We have variables (entities): CO2, SF6, CH4
+    # We have sources: RAND2020, RAND2021
+    # We have scenarios: highpop, lowpop
+    # Idea: we use source, scenario as priority dimensions, everything else are fixed
+    # coordinates.
+
+    priority_definition = primap2.csg.PriorityDefinition(
+        priority_dimensions=["source", "scenario (FAOSTAT)"],
+        priorities=[
+            {"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"},
+            {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
+        ],
+    )
+    # for CH4, we want to skip the 2020 source, for SF6 we want to skip all sources
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            ({"entity": "CH4", "source": "RAND2020"}, primap2.csg.NullStrategy()),
+            ({"entity": "SF6"}, primap2.csg.NullStrategy()),
+            ({}, primap2.csg.SubstitutionStrategy()),
+        ]
+    )
+
+    result = primap2.csg.compose(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+    )
+    # The caller of `compose` is responsible for re-adding priority dimensions
+    # if necessary
+    result = result.expand_dims(dim={"source": ["composed"]})
+    result.pr.ensure_valid()
+
+    assert "CO2" in result.keys()
+    assert "Processing of CO2" in result.keys()
+
+    result_co2 = result["CO2"]
+    expected_co2 = (
+        input_data["CO2"]
+        .loc[
+            {
+                "source": "RAND2020",
+                "scenario (FAOSTAT)": "lowpop",
+            }
+        ]
+        .drop_vars("scenario (FAOSTAT)")
+        .drop_vars("source")
+    ).expand_dims(dim={"source": ["composed"]})
+    xr.testing.assert_identical(result_co2, expected_co2)
+
+    result_ch4 = result["CH4"]
+    expected_ch4 = (
+        input_data["CH4"]
+        .loc[
+            {
+                "source": "RAND2021",
+                "scenario (FAOSTAT)": "highpop",
+            }
+        ]
+        .drop_vars("scenario (FAOSTAT)")
+        .drop_vars("source")
+    ).expand_dims(dim={"source": ["composed"]})
+    xr.testing.assert_identical(result_ch4, expected_ch4)
+
+    result_sf6: xr.DataArray = result["SF6"]
+    assert result_sf6.isnull().all().all()
+
+
 def test_compose_pbar():
     input_data = primap2.tests.examples.opulent_ds()
     input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
