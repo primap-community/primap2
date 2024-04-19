@@ -90,8 +90,8 @@ class FillingStrategyModel(typing.Protocol, Hashable):
 
     To ensure that your class is hashable, you have to make sure instances are
     immutable after initialization (this helps caching). The easiest way to ensure
-    immutability is usually to use the decorator ``attrs.define`` argument from the
-    ``attrs`` package with the ``frozen=True`` attribute.
+    immutability is usually to use the decorator ``attrs.define`` from the
+    ``attrs`` package with the ``frozen=True`` argument.
 
     Attributes
     ----------
