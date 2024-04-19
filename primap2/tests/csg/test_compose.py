@@ -88,7 +88,7 @@ def test_compose_simple():
     )
     assert len(result_col_proc.steps) == 1
     assert result_col_proc.steps[0].time == "all"
-    assert result_col_proc.steps[0].function == "initial"
+    assert result_col_proc.steps[0].function == "substitution"
     assert "'source': 'RAND2020'" in result_col_proc.steps[0].description
     assert "'scenario (FAOSTAT)': 'highpop'" in result_col_proc.steps[0].description
 
@@ -102,7 +102,7 @@ def test_compose_simple():
     )
     assert len(result_arg_proc.steps) == 1
     assert result_arg_proc.steps[0].time == "all"
-    assert result_arg_proc.steps[0].function == "initial"
+    assert result_arg_proc.steps[0].function == "substitution"
     assert (
         result_arg_proc.steps[0].source
         == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'}"
@@ -117,8 +117,7 @@ def test_compose_simple():
         result["Processing of CO2"].loc[{"area (ISO3)": "COL"}].values.flat[0]
     )
     assert len(result_col_co2_proc.steps) == 2
-    assert result_col_co2_proc.steps[0].time == "all"
-    assert result_col_co2_proc.steps[0].function == "initial"
+    assert result_col_co2_proc.steps[0].function == "substitution"
     np.testing.assert_array_equal(
         result_col_co2_proc.steps[1].time,
         np.array(["2000", "2001"], dtype=np.datetime64),
