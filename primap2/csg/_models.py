@@ -185,10 +185,18 @@ class StrategyDefinition:
 
     def find_strategy(self, fill_ts: xr.DataArray) -> FillingStrategyModel:
         """Find the strategy to use for the given filling timeseries."""
+        try:
+            return next(self.find_strategies(fill_ts))
+        except StopIteration:
+            raise KeyError(f"No matching strategy found for {fill_ts.coords}") from None
+
+    def find_strategies(
+        self, fill_ts: xr.DataArray
+    ) -> typing.Generator[FillingStrategyModel, None, None]:
+        """Yields all strategies to use for the timeseries, in configured order."""
         for selector, strategy in self.strategies:
             if self.match(selector=selector, fill_ts=fill_ts):
-                return strategy
-        raise KeyError(f"No matching strategy found for {fill_ts.coords}")
+                yield strategy
 
     def limit(self, dim: Hashable, value: str) -> "StrategyDefinition":
         """Limit this strategy definition to strategies applicable with the limit."""
