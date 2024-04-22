@@ -351,7 +351,7 @@ def compose_timeseries(
             # was applicable and worked
             raise ValueError(
                 f"No configured strategy was able to process "
-                f"\n{input_data.coords}\n{strategy_definition=}"
+                f"\n{input_data.coords}\n{input_data.attrs}\n{strategy_definition=}"
             )
 
         if not result_ts.isnull().any():
@@ -361,7 +361,7 @@ def compose_timeseries(
     if result_ts is None:
         raise ValueError(
             f"No priority selector matched for "
-            f"\n{input_data.coords}\n{priority_definition=}"
+            f"\n{input_data.coords}\n{input_data.attrs}\n{priority_definition=}"
         )
 
     return result_ts, primap2._data_format.TimeseriesProcessingDescription(
