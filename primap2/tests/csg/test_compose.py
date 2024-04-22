@@ -25,8 +25,8 @@ def assert_copied_from_input_data(
     xr.testing.assert_identical(result, expected)
 
 
-def test_compose_simple():
-    input_data = primap2.tests.examples.opulent_ds()
+def test_compose_simple(opulent_ds):
+    input_data = opulent_ds
     input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
     input_data["CO2"].loc[{"source": "RAND2020", "time": ["2000", "2001"]}] = (
         np.nan * primap2.ureg("Mt CO2 / year")
@@ -199,6 +199,8 @@ def test_compose_strategy_skipping(opulent_ds):
         ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
             raise primap2.csg.StrategyUnableToProcess("no processing")
 
+    # However, we define the substitution strategy as the fallback strategy, so that
+    # the Substitution strategy is used for everything anyway.
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
             ({"entity": "CH4", "source": "RAND2020"}, SkippingStrategy()),
@@ -223,12 +225,9 @@ def test_compose_strategy_skipping(opulent_ds):
     )
     assert_copied_from_input_data(
         result["CH4"],
-        input_data["CH4"].loc[{"source": "RAND2021", "scenario (FAOSTAT)": "highpop"}],
+        input_data["CH4"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
         {},
     )
-
-    result_sf6: xr.DataArray = result["SF6"]
-    assert result_sf6.isnull().all().all()
 
 
 def test_compose_strategy_all_skipping(opulent_ds):
@@ -242,8 +241,8 @@ def test_compose_strategy_all_skipping(opulent_ds):
         ],
     )
 
-    # for CH4, we use a strategy which gives up everywhere, which should trigger
-    # an error.
+    # for CH4, we use a strategy which gives up as the only strategy, which should
+    # generate an error
     class SkippingStrategy:
         type = "skipping"
 
@@ -259,11 +258,11 @@ def test_compose_strategy_all_skipping(opulent_ds):
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
             ({"entity": "CH4"}, SkippingStrategy()),
-            ({}, primap2.csg.SubstitutionStrategy()),
+            ({"entity": ["CO2", "SF6"]}, primap2.csg.SubstitutionStrategy()),
         ]
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="No configured strategy was able to process"):
         primap2.csg.compose(
             input_data=input_data,
             priority_definition=priority_definition,
@@ -338,10 +337,8 @@ def test_compose_timeseries_trivial():
     )
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
-            (
-                {"source": "B"},
-                primap2.csg.SubstitutionStrategy(),
-            )
+            ({"source": "B"}, primap2.csg.SubstitutionStrategy()),
+            ({"source": "A"}, primap2.csg.SubstitutionStrategy()),
         ]
     )
 
@@ -381,9 +378,12 @@ def test_compose_timeseries_trivial():
     xr.testing.assert_identical(result_ts, expected_ts)
 
     assert len(result_description.steps) == 2
-    assert result_description.steps[0].time == "all"
-    assert result_description.steps[0].function == "initial"
-    assert result_description.steps[0].description == "used values from 'A'"
+    assert result_description.steps[0].time[0] == np.datetime64("1852-01-01")
+    assert result_description.steps[0].function == "substitution"
+    assert (
+        result_description.steps[0].description
+        == "substituted with corresponding values from 'A'"
+    )
     assert len(result_description.steps[1].time) == 1
     assert result_description.steps[1].time[0] == np.datetime64("1850-01-01")
     assert result_description.steps[1].function == "substitution"
@@ -400,10 +400,8 @@ def test_compose_timeseries_no_match(caplog):
     )
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
-            (
-                {"source": "B"},
-                primap2.csg.SubstitutionStrategy(),
-            )
+            ({"source": "A"}, primap2.csg.SubstitutionStrategy()),
+            ({"source": "B"}, primap2.csg.SubstitutionStrategy()),
         ]
     )
     da_a = get_single_ts(
@@ -430,10 +428,8 @@ def test_compose_timeseries_all_null():
     )
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
-            (
-                {"source": "B"},
-                primap2.csg.SubstitutionStrategy(),
-            )
+            ({"source": "A"}, primap2.csg.SubstitutionStrategy()),
+            ({"source": "B"}, primap2.csg.SubstitutionStrategy()),
         ]
     )
     da_a = get_single_ts(
@@ -462,12 +458,7 @@ def test_compose_timeseries_priorities_wrong():
         priorities=[{"source": "C"}],
     )
     strategy_definition = primap2.csg.StrategyDefinition(
-        strategies=[
-            (
-                {"source": "C"},
-                primap2.csg.SubstitutionStrategy(),
-            )
-        ]
+        strategies=[({"source": "C"}, primap2.csg.SubstitutionStrategy())]
     )
     da_a = get_single_ts(
         coords={"source": "A", "category": "1", "area (ISO3)": "MEX"},
