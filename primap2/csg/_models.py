@@ -70,9 +70,34 @@ class PriorityDefinition:
                     )
 
 
+class StrategyUnableToProcess(Exception):
+    """The filling strategy is unable to process the given timeseries, possibly due
+    to missing data."""
+
+    def __init__(self, reason: str):
+        """Specify the reason why the filling strategy is unable to process the data."""
+        self.reason = reason
+
+
 class FillingStrategyModel(typing.Protocol, Hashable):
     """
     Fill missing data in a timeseries using another timeseries.
+
+    You can implement custom filling strategies to use with ``compose`` as long as they
+    follow this protocol and are Hashable. To follow the protocol you need to implement
+    the ``fill`` method with exactly the parameters and return types as defined below
+    and define the ``type`` attribute (see below).
+
+    To ensure that your class is hashable, you have to make sure instances are
+    immutable after initialization (this helps caching). The easiest way to ensure
+    immutability is usually to use the decorator ``attrs.define`` from the
+    ``attrs`` package with the ``frozen=True`` argument.
+
+    Attributes
+    ----------
+    type
+        Short human-readable identifier for your strategy. Avoid special characters
+        and spaces.
     """
 
     type: str
@@ -86,14 +111,25 @@ class FillingStrategyModel(typing.Protocol, Hashable):
     ) -> tuple[xr.DataArray, list[ProcessingStepDescription]]:
         """Fill gaps in ts using data from the fill_ts.
 
+        Using two input timeseries, this builds a composite timeseries and a description
+        of the processing steps done. The input timeseries must not be modified.
+
+        Usually, you want to fill missing data (NaNs) in the first timeseries `ts` using
+        data from the second timeseries `fill_ts`. However, you are not limited to this,
+        you could also check data in `ts` for consistency with data in `fill_ts` and
+        discard non-conforming data points so that the resulting timeseries has more
+        missing data points.
+
         Parameters
         ----------
         ts
-            Base timeseries. Missing data (NaNs) in this timeseries will be filled.
-            This function must not modify the data in ts.
+            Base timeseries. Missing data (NaNs) in this timeseries will be filled or
+            other processing is done.
+            This function must not modify the data in ts, work on a copy instead.
         fill_ts
             Fill timeseries. Data from this timeseries will be used (possibly after
-            modification) to fill missing data in the base timeseries.
+            modification) to fill missing data in the base timeseries or alter the
+            base timeseries in a different form.
             This function must not modify the data in fill_ts.
         fill_ts_repr
             String representation of fill_ts. Human-readable short representation of
@@ -102,11 +138,24 @@ class FillingStrategyModel(typing.Protocol, Hashable):
         Returns
         -------
             filled_ts, descriptions. filled_ts contains the result, where missing
-            data in ts is (partly) filled using information from fill_ts.
+            data in ts is (partly) filled using information from fill_ts or other
+            processing is done using ts and fill_ts.
             descriptions contains human-readable, structured descriptions of how the
             data was processed, grouped by years for which the same processing steps
-            were taken. Every year for which data was changed has to be described and
-            no year for which data was not changed is allowed to be described.
+            were taken. Every year for which data in filled_ts is different from data
+            in ts has to be described and no year for which data was not changed is
+            allowed to be described.
+
+        Raises
+        ------
+        StrategyUnableToProcess
+            This exception is raised when the strategy is unable to process the given
+            timeseries, possibly due to missing data (e.g. insufficient overlap of
+            the two timeseries), bad numerical conditioning or other reasons.
+            When this exception is raised, the strategy will be skipped and processing
+            continues as if the strategy was not configured for this timeseries, i.e.
+            the next applicable filling strategy is used. If no other applicable
+            filling strategy is available, an error will be raised.
         """
         ...
 
@@ -136,10 +185,18 @@ class StrategyDefinition:
 
     def find_strategy(self, fill_ts: xr.DataArray) -> FillingStrategyModel:
         """Find the strategy to use for the given filling timeseries."""
+        try:
+            return next(self.find_strategies(fill_ts))
+        except StopIteration:
+            raise KeyError(f"No matching strategy found for {fill_ts.coords}") from None
+
+    def find_strategies(
+        self, fill_ts: xr.DataArray
+    ) -> typing.Generator[FillingStrategyModel, None, None]:
+        """Yields all strategies to use for the timeseries, in configured order."""
         for selector, strategy in self.strategies:
             if self.match(selector=selector, fill_ts=fill_ts):
-                return strategy
-        raise KeyError(f"No matching strategy found for {fill_ts.coords}")
+                yield strategy
 
     def limit(self, dim: Hashable, value: str) -> "StrategyDefinition":
         """Limit this strategy definition to strategies applicable with the limit."""
