@@ -10,6 +10,7 @@ from ._models import (
     StrategyDefinition,
     StrategyUnableToProcess,
 )
+from ._strategies.null import NullStrategy
 from ._strategies.substitution import SubstitutionStrategy
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     "StrategyDefinition",
     "SubstitutionStrategy",
     "StrategyUnableToProcess",
+    "NullStrategy",
 ]

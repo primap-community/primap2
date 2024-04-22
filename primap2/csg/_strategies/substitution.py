@@ -1,8 +1,12 @@
+"""Simple strategy which replaces NaNs by datapoints from second timeseries."""
+
+import attrs
 import xarray as xr
 
 import primap2
 
 
+@attrs.define(frozen=True)
 class SubstitutionStrategy:
     """Fill missing data in the result dataset by copying.
 
