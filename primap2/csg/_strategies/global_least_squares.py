@@ -107,6 +107,7 @@ class GlobalLSlstsqStrategy:
     dataset.
     """
 
+    allow_shift: bool = True
     type = "globalLS_lstsq"
 
     def fill(
@@ -151,21 +152,24 @@ class GlobalLSlstsqStrategy:
             overlap = ts.notnull() & fill_ts.notnull()
             if overlap.any():
                 e = fill_ts[overlap.data].data
-                A = np.vstack((e, np.ones_like(e))).transpose()
-                e_ref = ts[overlap.data].data
-                x, res, rank, s = lstsq(A, e_ref)
-                fill_ts_harmo = fill_ts * x[0] + x[1]
+                if self.allow_shift:
+                    A = np.vstack((e, np.ones_like(e))).transpose()
+                    e_ref = ts[overlap.data].data
+                    x, res, rank, s = lstsq(A, e_ref)
+                    fill_ts_harmo = fill_ts * x[0] + x[1]
 
-                filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
+                    filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
 
-                descriptions = [primap2.ProcessingStepDescription(
-                    time=time_filled,
-                    description="filled with least squares matched data from "
-                                "{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
-                                "b={x[1]:0.3f}",
-                    function=self.type,
-                    source=fill_ts_repr,
-                )]
+                    descriptions = [primap2.ProcessingStepDescription(
+                        time=time_filled,
+                        description=f"filled with least squares matched data from "
+                                    f"{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
+                                    f"b={x[1]:0.3f}",
+                        function=self.type,
+                        source=fill_ts_repr,
+                    )]
+                else:
+                    raise ValueError('Fitting without shift not implemented in this strategy')
             else:
                 strategy = primap2.csg.SubstitutionStrategy()
                 filled_ts, descriptions = strategy.fill(
