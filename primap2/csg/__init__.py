@@ -11,6 +11,9 @@ from ._models import (
     StrategyUnableToProcess,
 )
 from ._strategies.substitution import SubstitutionStrategy
+from ._strategies.global_least_squares import GlobalLSStrategy
+from ._strategies.global_least_squares import GlobalLSlstsqStrategy
+from ._strategies.null import NullStrategy
 
 __all__ = [
     "compose",
@@ -18,4 +21,7 @@ __all__ = [
     "StrategyDefinition",
     "SubstitutionStrategy",
     "StrategyUnableToProcess",
+    "GlobalLSStrategy",
+    "GlobalLSlstsqStrategy",
+    "NullStrategy",
 ]
