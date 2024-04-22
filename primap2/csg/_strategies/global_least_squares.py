@@ -157,17 +157,25 @@ class GlobalLSlstsqStrategy:
                     e_ref = ts[overlap.data].data
                     x, res, rank, s = lstsq(A, e_ref)
                     fill_ts_harmo = fill_ts * x[0] + x[1]
+                    if any(fill_ts_harmo < 0):
+                        # use filling without shift
+                        strategy = primap2.csg.GlobalLSStrategy()
+                        filled_ts, descriptions = strategy.fill(
+                            ts=ts,
+                            fill_ts=fill_ts,
+                            fill_ts_repr=fill_ts_repr,
+                        )
+                    else:
+                        filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
 
-                    filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
-
-                    descriptions = [primap2.ProcessingStepDescription(
-                        time=time_filled,
-                        description=f"filled with least squares matched data from "
-                                    f"{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
-                                    f"b={x[1]:0.3f}",
-                        function=self.type,
-                        source=fill_ts_repr,
-                    )]
+                        descriptions = [primap2.ProcessingStepDescription(
+                            time=time_filled,
+                            description=f"filled with least squares matched data from "
+                                        f"{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
+                                        f"b={x[1]:0.3f}",
+                            function=self.type,
+                            source=fill_ts_repr,
+                        )]
                 else:
                     raise ValueError('Fitting without shift not implemented in this strategy')
             else:
