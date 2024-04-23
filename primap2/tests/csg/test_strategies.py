@@ -8,7 +8,12 @@ from primap2.tests.csg.utils import get_single_ts
 
 
 @pytest.mark.parametrize(
-    "strategy", [primap2.csg.SubstitutionStrategy(), primap2.csg.NullStrategy()]
+    "strategy",
+    [
+        primap2.csg.SubstitutionStrategy(),
+        primap2.csg.NullStrategy(),
+        primap2.csg.IdentityStrategy(),
+    ],
 )
 def test_strategies_conform(strategy):
     """Test if strategies conform to the protocol for strategies."""
@@ -59,3 +64,18 @@ def test_null_strategy():
     assert len(result_desc) == 1
     assert result_desc[0].time == "all"
     assert result_desc[0].description == "filled with NaN values, not using data from R"
+
+
+def test_identity_strategy():
+    ts = get_single_ts(data=1.0)
+    ts[0] = np.nan
+    fill_ts = get_single_ts(data=2.0)
+    initial_ts = ts.copy(deep=True)
+
+    result_ts, result_desc = primap2.csg.IdentityStrategy().fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="R"
+    )
+    xr.testing.assert_identical(result_ts, initial_ts)
+    assert len(result_desc) == 1
+    assert result_desc[0].time == "all"
+    assert result_desc[0].description == "skipping R, not using data from it"
