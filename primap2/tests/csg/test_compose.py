@@ -282,6 +282,59 @@ def test_compose_strategy_all_error(opulent_ds):
         )
 
 
+def test_compose_identity_strategy(opulent_ds):
+    """Using the identity strategy, we do not use a specific source for CH4."""
+    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)", "SF6"]).pr.loc[
+        {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
+    ]
+
+    priority_definition = primap2.csg.PriorityDefinition(
+        priority_dimensions=["source", "scenario (FAOSTAT)"],
+        priorities=[
+            {"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"},
+            {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
+        ],
+    )
+
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            ({"entity": "CH4", "source": "RAND2020"}, primap2.csg.IdentityStrategy()),
+            ({}, primap2.csg.SubstitutionStrategy()),
+        ]
+    )
+
+    result = primap2.csg.compose(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+    )
+    # The caller of `compose` is responsible for re-adding priority dimensions
+    # if necessary
+    result = result.expand_dims(dim={"source": ["composed"]})
+    result.pr.ensure_valid()
+
+    assert_copied_from_input_data(
+        result["CO2"],
+        input_data["CO2"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
+        {},
+    )
+    assert_copied_from_input_data(
+        result["CH4"],
+        input_data["CH4"].loc[{"source": "RAND2021", "scenario (FAOSTAT)": "highpop"}],
+        {},
+    )
+
+    tpd: primap2.TimeseriesProcessingDescription = (
+        result["Processing of CH4"].pr.loc[{"area": "COL", "category": "0"}].item()
+    )
+    assert len(tpd.steps) == 2
+    assert tpd.steps[0].function == "identity"
+    assert (
+        tpd.steps[0].source == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'}"
+    )
+    assert tpd.steps[1].function == "substitution"
+
+
 def test_compose_pbar(opulent_ds):
     input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"])
     priority_definition = primap2.csg.PriorityDefinition(
