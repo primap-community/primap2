@@ -15,6 +15,7 @@ def assert_copied_from_input_data(
     filtered_initial: xr.DataArray,
     common_filter: dict[str, str],
 ):
+    """Assert that timeseries in the result were copied from the input data."""
     expected = (
         filtered_initial.pr.loc[common_filter]
         .drop_vars("scenario (FAOSTAT)")
@@ -26,6 +27,14 @@ def assert_copied_from_input_data(
 
 
 def test_compose_simple(opulent_ds):
+    """A test with relatively complex input data but simple rules.
+
+    The input data has many dimensions and we use two as priority dimensions. There
+    are some NaN data points in one source.
+
+    The input rules use two sources for all entities, plus one additional for CH4. For
+    every entity, we use the simple SubstitutionStrategy for all sources.
+    """
     input_data = opulent_ds
     input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
     input_data["CO2"].loc[{"source": "RAND2020", "time": ["2000", "2001"]}] = (
@@ -128,6 +137,7 @@ def test_compose_simple(opulent_ds):
 
 
 def test_compose_null_strategy(opulent_ds):
+    """In this test, we override one entity using the NullStrategy()."""
     input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"])
 
     priority_definition = primap2.csg.PriorityDefinition(
@@ -176,6 +186,8 @@ def test_compose_null_strategy(opulent_ds):
 
 
 def test_compose_strategy_skipping(opulent_ds):
+    """In this test, we use a strategy which raises an error and assert that it is
+    skipped properly."""
     input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"])
 
     priority_definition = primap2.csg.PriorityDefinition(
@@ -187,8 +199,8 @@ def test_compose_strategy_skipping(opulent_ds):
     )
 
     # for CH4, we use a strategy which gives up for the RAND2020 source
-    class SkippingStrategy:
-        type = "skipping"
+    class ErroringStrategy:
+        type = "erroring"
 
         def fill(
             self,
@@ -203,7 +215,7 @@ def test_compose_strategy_skipping(opulent_ds):
     # the Substitution strategy is used for everything anyway.
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
-            ({"entity": "CH4", "source": "RAND2020"}, SkippingStrategy()),
+            ({"entity": "CH4", "source": "RAND2020"}, ErroringStrategy()),
             ({}, primap2.csg.SubstitutionStrategy()),
         ]
     )
@@ -230,7 +242,7 @@ def test_compose_strategy_skipping(opulent_ds):
     )
 
 
-def test_compose_strategy_all_skipping(opulent_ds):
+def test_compose_strategy_all_error(opulent_ds):
     input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"])
 
     priority_definition = primap2.csg.PriorityDefinition(
@@ -243,8 +255,8 @@ def test_compose_strategy_all_skipping(opulent_ds):
 
     # for CH4, we use a strategy which gives up as the only strategy, which should
     # generate an error
-    class SkippingStrategy:
-        type = "skipping"
+    class ErroringStrategy:
+        type = "erroring"
 
         def fill(
             self,
@@ -257,7 +269,7 @@ def test_compose_strategy_all_skipping(opulent_ds):
 
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
-            ({"entity": "CH4"}, SkippingStrategy()),
+            ({"entity": "CH4"}, ErroringStrategy()),
             ({"entity": ["CO2", "SF6"]}, primap2.csg.SubstitutionStrategy()),
         ]
     )
