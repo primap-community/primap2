@@ -36,7 +36,9 @@ def test_compose_simple(opulent_ds):
     every entity, we use the simple SubstitutionStrategy for all sources.
     """
     input_data = opulent_ds
-    input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"])
+    input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
+        {"category": ["0", "1"]}
+    ]
     input_data["CO2"].loc[{"source": "RAND2020", "time": ["2000", "2001"]}] = (
         np.nan * primap2.ureg("Mt CO2 / year")
     )
@@ -138,7 +140,9 @@ def test_compose_simple(opulent_ds):
 
 def test_compose_null_strategy(opulent_ds):
     """In this test, we override one entity using the NullStrategy()."""
-    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"])
+    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
+        {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
+    ]
 
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source", "scenario (FAOSTAT)"],
@@ -188,7 +192,9 @@ def test_compose_null_strategy(opulent_ds):
 def test_compose_strategy_skipping(opulent_ds):
     """In this test, we use a strategy which raises an error and assert that it is
     skipped properly."""
-    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"])
+    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
+        {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
+    ]
 
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source", "scenario (FAOSTAT)"],
@@ -243,7 +249,9 @@ def test_compose_strategy_skipping(opulent_ds):
 
 
 def test_compose_strategy_all_error(opulent_ds):
-    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"])
+    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
+        {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
+    ]
 
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source", "scenario (FAOSTAT)"],
@@ -336,7 +344,9 @@ def test_compose_identity_strategy(opulent_ds):
 
 
 def test_compose_pbar(opulent_ds):
-    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"])
+    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
+        {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
+    ]
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source", "scenario (FAOSTAT)"],
         priorities=[
@@ -363,7 +373,10 @@ def test_compose_pbar(opulent_ds):
 
 
 def test_compose_sec_cats_missing(opulent_ds):
-    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"])
+    """Compose should also work when a dimensions is missing in `sec_cats`."""
+    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
+        {"animal": ["cow"], "category": ["0", "1"]}
+    ]
     input_data.attrs["sec_cats"].remove("product (FAOSTAT)")
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source", "scenario (FAOSTAT)", "product (FAOSTAT)"],
