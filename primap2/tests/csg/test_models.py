@@ -1,6 +1,7 @@
 import pytest
 
 import primap2.csg
+from primap2 import Not
 from primap2.csg._models import match_selector
 from primap2.tests.csg.utils import get_single_ts
 
@@ -76,23 +77,41 @@ def test_priority_limit():
     pd = primap2.csg.PriorityDefinition(
         priority_dimensions=["a", "b"],
         priorities=[
-            {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
+            {
+                "a": "1",
+                "b": "2",
+                "c": "3",
+                "d": ["4", "5"],
+                "e": Not("6"),
+                "f": Not(["7", "8"]),
+            },
             {"a": "2", "b": "3"},
         ],
         exclude=[{"c": "4"}],
     )
-    assert pd.limit("e", "3") == pd
+    assert pd.limit("g", "3") == pd
     assert pd.limit("c", "3").priorities == [
-        {"a": "1", "b": "2", "d": ["4", "5"]},
+        {"a": "1", "b": "2", "d": ["4", "5"], "e": Not("6"), "f": Not(["7", "8"])},
         {"a": "2", "b": "3"},
     ]
     assert pd.limit("c", "4").priorities == [{"a": "2", "b": "3"}]
     assert pd.limit("d", "4").priorities == [
-        {"a": "1", "b": "2", "c": "3"},
+        {"a": "1", "b": "2", "c": "3", "e": Not("6"), "f": Not(["7", "8"])},
         {"a": "2", "b": "3"},
     ]
     assert pd.limit("d", "5") == pd.limit("d", "4")
     assert pd.limit("d", "6").priorities == [{"a": "2", "b": "3"}]
+    assert pd.limit("e", "7").priorities == [
+        {"a": "1", "b": "2", "c": "3", "d": ["4", "5"], "f": Not(["7", "8"])},
+        {"a": "2", "b": "3"},
+    ]
+    assert pd.limit("e", "6").priorities == [{"a": "2", "b": "3"}]
+    assert pd.limit("f", "6").priorities == [
+        {"a": "1", "b": "2", "c": "3", "d": ["4", "5"], "e": Not("6")},
+        {"a": "2", "b": "3"},
+    ]
+    assert pd.limit("f", "7").priorities == [{"a": "2", "b": "3"}]
+    assert pd.limit("f", "7") == pd.limit("f", "8")
 
 
 def test_priority_exclude():

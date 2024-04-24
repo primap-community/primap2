@@ -7,6 +7,7 @@ import attrs
 import xarray as xr
 from attr import define
 
+import primap2
 from primap2._data_format import ProcessingStepDescription
 
 
@@ -61,7 +62,7 @@ class PriorityDefinition:
     """
 
     priority_dimensions: list[Hashable]
-    priorities: list[dict[Hashable, str | list[str]]]
+    priorities: list[dict[Hashable, str | list[str] | primap2.Not]]
     exclude: list[dict[Hashable, str | list[str]]] = attrs.field(default=[])
 
     def limit(self, dim: Hashable, value: str) -> "PriorityDefinition":
@@ -73,11 +74,25 @@ class PriorityDefinition:
         for sel in self.priorities:
             if dim not in sel:
                 new_priorities.append(sel)
-            elif (isinstance(sel[dim], str) and sel[dim] == value) or (
-                value in sel[dim]
-            ):
-                # filter out the matching value
-                new_priorities.append({k: v for k, v in sel.items() if k != dim})
+                continue
+
+            match_value = sel[dim]
+            # for each possible type of match_value, skip this if it *doesn't* match
+            if isinstance(match_value, primap2.Not):
+                not_value = match_value.value
+                if isinstance(not_value, str):
+                    if not_value == value:
+                        continue
+                elif value in not_value:
+                    continue
+            elif isinstance(match_value, str):
+                if match_value != value:
+                    continue
+            elif value not in match_value:
+                continue
+            # now we know it is matching, filter out the matching dim
+            new_priorities.append({k: v for k, v in sel.items() if k != dim})
+
         return PriorityDefinition(
             priority_dimensions=self.priority_dimensions,
             priorities=new_priorities,
