@@ -7,6 +7,7 @@ import xarray as xr
 
 import primap2.csg
 import primap2.csg._compose
+from primap2 import Not
 from primap2.tests.csg.utils import get_single_ts
 
 
@@ -298,14 +299,32 @@ def test_compose_skip_source(opulent_ds):
         {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
     ]
 
+    # we want to only exclude RAND2020, lowpop, CH4, 0
+    # without excluding       RAND2020, lowpop, CO2, 0
+    # or                      RAND2020, lowpop, CH4, 1
+    # but each dimension is evaluated individually, so we have to select three
+    # times, first everything where entity!=CH4 and category!=0, then
+    # entity=CH4 but category!=0 and entity!=CH4 but category=0.
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source", "scenario (FAOSTAT)"],
         priorities=[
             {
                 "source": "RAND2020",
                 "scenario (FAOSTAT)": "lowpop",
-                "entity": primap2.Not("CH4"),
-                "category (IPCC2006)": primap2.Not("0"),
+                "entity": Not("CH4"),
+                "category (IPCC 2006)": Not("0"),
+            },
+            {
+                "source": "RAND2020",
+                "scenario (FAOSTAT)": "lowpop",
+                "entity": "CH4",
+                "category (IPCC 2006)": Not("0"),
+            },
+            {
+                "source": "RAND2020",
+                "scenario (FAOSTAT)": "lowpop",
+                "entity": Not("CH4"),
+                "category (IPCC 2006)": "0",
             },
             {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
         ],
