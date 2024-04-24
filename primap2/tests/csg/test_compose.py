@@ -144,17 +144,17 @@ def test_compose_exclude(opulent_ds):
         {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
     ]
 
+    # for CH4, we want to exclude the 1 category
+    # we want to exclude SF6 fully.
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source", "scenario (FAOSTAT)"],
         priorities=[
             {"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"},
             {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
         ],
+        exclude=[{"entity": "CH4", "category (IPCC 2006)": "1"}, {"entity": "SF6"}],
     )
-    # for CH4, we want to exclude the 1 category
-    # we want to exclude SF6 fully.
     strategy_definition = primap2.csg.StrategyDefinition(
-        exclude={{"entity": "CH4", "category (IPCC2006)": "1"}, {"entity": "SF6"}},
         strategies=[
             ({}, primap2.csg.SubstitutionStrategy()),
         ],
@@ -182,10 +182,10 @@ def test_compose_exclude(opulent_ds):
     assert_copied_from_input_data(
         result["CH4"],
         input_data["CH4"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
-        {"category": "1"},
+        {"category": "0"},
     )
 
-    assert result["CH4"].pr.loc[{"category": "0"}].isnull().all().all()
+    assert result["CH4"].pr.loc[{"category": "1"}].isnull().all().all()
 
     result_sf6: xr.DataArray = result["SF6"]
     assert result_sf6.isnull().all().all()
@@ -292,7 +292,7 @@ def test_compose_strategy_all_error(opulent_ds):
         )
 
 
-def test_compose_identity_strategy(opulent_ds):
+def test_compose_skip_source(opulent_ds):
     """We do not use a specific source for CH4 category 0."""
     input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)", "SF6"]).pr.loc[
         {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}

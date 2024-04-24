@@ -240,15 +240,16 @@ def iterate_next_fixed_dimension(
                 progress_bar=progress_bar,
             )
         else:
-            # actually compute results
-            (
-                result_da.loc[{my_dim: val}],
-                result_processing_da.loc[{my_dim: val}],
-            ) = compose_timeseries(
-                input_data=input_da.loc[{my_dim: val}],
-                priority_definition=limited_priority_definition,
-                strategy_definition=limited_strategy_definition,
-            )
+            if not limited_priority_definition.excludes(result_da.loc[{my_dim: val}]):
+                # actually compute results
+                (
+                    result_da.loc[{my_dim: val}],
+                    result_processing_da.loc[{my_dim: val}],
+                ) = compose_timeseries(
+                    input_data=input_da.loc[{my_dim: val}],
+                    priority_definition=limited_priority_definition,
+                    strategy_definition=limited_strategy_definition,
+                )
             if progress_bar is not None:
                 progress_bar.update()
 
