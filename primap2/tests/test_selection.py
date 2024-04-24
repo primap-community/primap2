@@ -4,6 +4,8 @@ import pytest
 import xarray as xr
 import xarray.testing
 
+import primap2
+
 
 @pytest.mark.parametrize(
     ["alias", "full_name"],
@@ -106,6 +108,55 @@ def test_pr_loc_select_da(opulent_ds):
             "time": slice("2002", "2005"),
             "area (ISO3)": ["COL", "ARG"],
             "animal (FAOSTAT)": "cow",
+        }
+    ]
+    xr.testing.assert_identical(sel_pr, sel)
+
+
+def test_pr_loc_select_not(opulent_ds):
+    sel_pr = opulent_ds.pr.loc[
+        {
+            "time": slice("2002", "2005"),
+            "area": ["COL", "ARG"],
+            "animal": primap2.Not("cow"),
+            "category": primap2.Not(["0", "1"]),
+        }
+    ]
+    sel = opulent_ds.loc[
+        {
+            "time": slice("2002", "2005"),
+            "area (ISO3)": ["COL", "ARG"],
+            "animal (FAOSTAT)": [
+                x for x in opulent_ds["animal (FAOSTAT)"] if x != "cow"
+            ],
+            "category (IPCC 2006)": [
+                x for x in opulent_ds["category (IPCC 2006)"] if x not in {"0", "1"}
+            ],
+        }
+    ]
+    xr.testing.assert_identical(sel_pr, sel)
+
+
+def test_pr_loc_select_da_not(opulent_ds):
+    da = opulent_ds["CO2"]
+    sel_pr = da.pr.loc[
+        {
+            "time": slice("2002", "2005"),
+            "area": ["COL", "ARG"],
+            "animal": primap2.Not("cow"),
+            "category": primap2.Not(["0", "1"]),
+        }
+    ]
+    sel = da.loc[
+        {
+            "time": slice("2002", "2005"),
+            "area (ISO3)": ["COL", "ARG"],
+            "animal (FAOSTAT)": [
+                x for x in opulent_ds["animal (FAOSTAT)"] if x != "cow"
+            ],
+            "category (IPCC 2006)": [
+                x for x in opulent_ds["category (IPCC 2006)"] if x not in {"0", "1"}
+            ],
         }
     ]
     xr.testing.assert_identical(sel_pr, sel)
