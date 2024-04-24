@@ -138,8 +138,8 @@ def test_compose_simple(opulent_ds):
     assert "'scenario (FAOSTAT)': 'lowpop'" in result_col_co2_proc.steps[0].description
 
 
-def test_compose_null_strategy(opulent_ds):
-    """In this test, we override one entity using the NullStrategy()."""
+def test_compose_exclude(opulent_ds):
+    """In this test, we exclude parts of the input data from processing."""
     input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
         {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
     ]
@@ -151,13 +151,13 @@ def test_compose_null_strategy(opulent_ds):
             {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
         ],
     )
-    # for CH4, we want to skip the 2020 source, for SF6 we want to skip all sources
+    # for CH4, we want to exclude the 1 category
+    # we want to exclude SF6 fully.
     strategy_definition = primap2.csg.StrategyDefinition(
+        exclude={{"entity": "CH4", "category (IPCC2006)": "1"}, {"entity": "SF6"}},
         strategies=[
-            ({"entity": "CH4", "source": "RAND2020"}, primap2.csg.NullStrategy()),
-            ({"entity": "SF6"}, primap2.csg.NullStrategy()),
             ({}, primap2.csg.SubstitutionStrategy()),
-        ]
+        ],
     )
 
     result = primap2.csg.compose(
@@ -181,9 +181,11 @@ def test_compose_null_strategy(opulent_ds):
 
     assert_copied_from_input_data(
         result["CH4"],
-        input_data["CH4"].loc[{"source": "RAND2021", "scenario (FAOSTAT)": "highpop"}],
-        {},
+        input_data["CH4"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
+        {"category": "1"},
     )
+
+    assert result["CH4"].pr.loc[{"category": "0"}].isnull().all().all()
 
     result_sf6: xr.DataArray = result["SF6"]
     assert result_sf6.isnull().all().all()
@@ -291,7 +293,7 @@ def test_compose_strategy_all_error(opulent_ds):
 
 
 def test_compose_identity_strategy(opulent_ds):
-    """Using the identity strategy, we do not use a specific source for CH4."""
+    """We do not use a specific source for CH4 category 0."""
     input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)", "SF6"]).pr.loc[
         {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
     ]
@@ -299,14 +301,18 @@ def test_compose_identity_strategy(opulent_ds):
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source", "scenario (FAOSTAT)"],
         priorities=[
-            {"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"},
+            {
+                "source": "RAND2020",
+                "scenario (FAOSTAT)": "lowpop",
+                "entity": primap2.Not("CH4"),
+                "category (IPCC2006)": primap2.Not("0"),
+            },
             {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
         ],
     )
 
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
-            ({"entity": "CH4", "source": "RAND2020"}, primap2.csg.IdentityStrategy()),
             ({}, primap2.csg.SubstitutionStrategy()),
         ]
     )
@@ -329,18 +335,22 @@ def test_compose_identity_strategy(opulent_ds):
     assert_copied_from_input_data(
         result["CH4"],
         input_data["CH4"].loc[{"source": "RAND2021", "scenario (FAOSTAT)": "highpop"}],
-        {},
+        {"category": "0"},
+    )
+    assert_copied_from_input_data(
+        result["CH4"],
+        input_data["CH4"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
+        {"category": "1"},
     )
 
     tpd: primap2.TimeseriesProcessingDescription = (
         result["Processing of CH4"].pr.loc[{"area": "COL", "category": "0"}].item()
     )
-    assert len(tpd.steps) == 2
-    assert tpd.steps[0].function == "identity"
-    assert (
-        tpd.steps[0].source == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'}"
+    assert len(tpd.steps) == 1
+    assert tpd.steps[0].function == "substitution"
+    assert tpd.steps[0].source == (
+        "{'source': 'RAND2021', 'scenario (FAOSTAT)': 'highpop'}"
     )
-    assert tpd.steps[1].function == "substitution"
 
 
 def test_compose_pbar(opulent_ds):
