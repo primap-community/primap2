@@ -6,7 +6,7 @@ import typing
 import pandas as pd
 
 from . import _accessor_base
-from ._alias_selection import alias_dims
+from ._selection import alias_dims
 
 
 class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):

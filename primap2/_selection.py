@@ -1,10 +1,16 @@
-"""Simple selection and loc-style accessor which automatically translates PRIMAP2 short
-column names to the actual long names including the categorization."""
+"""Functionalities for easier selection of subsets of data.
+
+Provides a loc-style accessor with additional functionality:
+
+* automatically translates PRIMAP2 short column names to the actual long names
+  including the categorization
+* supports deselecting values using Not objects."""
 
 import functools
 import inspect
 import typing
 
+import attrs
 import xarray as xr
 
 from . import _accessor_base
@@ -12,11 +18,41 @@ from ._types import DimOrDimsT, FunctionT, KeyT
 
 
 class DimensionNotExistingError(ValueError):
+    """Dimension does not exist."""
+
     def __init__(self, dim):
         super().__init__(f"Dimension {dim!r} does not exist.")
 
 
+@attrs.define(frozen=True)
+class Not:
+    """Inverted selector value.
+
+    Use in pr.loc to select everything but the specified value or values.
+    """
+
+    value: typing.Any
+
+
+def resolve_not(
+    *,
+    input_selector: typing.Mapping[typing.Hashable, typing.Any],
+    xarray_obj: xr.DataArray | xr.Dataset,
+) -> dict[typing.Hashable, typing.Any]:
+    """Resolve Not objects in the input_selector, returns a selector for xarray."""
+    ret = {}
+    for dim, val in input_selector.items():
+        if isinstance(val, Not):
+            index = xarray_obj.get_index(dim)
+            new_index = index.drop(val.value)
+            ret[dim] = new_index
+        else:
+            ret[dim] = val
+    return ret
+
+
 def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) -> KeyT:
+    """Translate primap2 short names into xarray names."""
     if isinstance(item, str):
         if item in translations:
             return translations[item]
@@ -166,12 +202,14 @@ class DataArrayAliasLocIndexer:
     def __getitem__(
         self, item: typing.Mapping[typing.Hashable, typing.Any]
     ) -> xr.DataArray:
-        return self._da.loc[translate(item, self._da.pr.dim_alias_translations)]
+        translated = translate(item, self._da.pr.dim_alias_translations)
+        resolved = resolve_not(input_selector=translated, xarray_obj=self._da)
+        return self._da.loc[resolved]
 
     def __setitem__(self, key: typing.Mapping[typing.Hashable, typing.Any], value):
-        self._da.loc.__setitem__(
-            translate(key, self._da.pr.dim_alias_translations), value
-        )
+        translated = translate(key, self._da.pr.dim_alias_translations)
+        resolved = resolve_not(input_selector=translated, xarray_obj=self._da)
+        self._da.loc.__setitem__(resolved, value)
 
 
 class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
@@ -217,7 +255,9 @@ class DatasetAliasLocIndexer:
     def __getitem__(
         self, item: typing.Mapping[typing.Hashable, typing.Any]
     ) -> xr.Dataset:
-        return self._ds.loc[translate(item, self._ds.pr.dim_alias_translations)]
+        translated = translate(item, self._ds.pr.dim_alias_translations)
+        resolved = resolve_not(input_selector=translated, xarray_obj=self._ds)
+        return self._ds.loc[resolved]
 
 
 class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
