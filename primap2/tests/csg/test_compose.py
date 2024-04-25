@@ -138,8 +138,8 @@ def test_compose_simple(opulent_ds):
     assert "'scenario (FAOSTAT)': 'lowpop'" in result_col_co2_proc.steps[0].description
 
 
-def test_compose_exclude(opulent_ds):
-    """In this test, we exclude parts of the input data from processing."""
+def test_compose_exclude_result(opulent_ds):
+    """In this test, we exclude parts of the result from processing."""
     input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
         {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
     ]
@@ -152,7 +152,10 @@ def test_compose_exclude(opulent_ds):
             {"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"},
             {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
         ],
-        exclude=[{"entity": "CH4", "category (IPCC 2006)": "1"}, {"entity": "SF6"}],
+        exclude_result=[
+            {"entity": "CH4", "category (IPCC 2006)": "1"},
+            {"entity": "SF6"},
+        ],
     )
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
@@ -310,7 +313,7 @@ def test_compose_skip_source(opulent_ds):
             {"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"},
             {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
         ],
-        exclude=[
+        exclude_input=[
             {
                 "source": "RAND2020",
                 "scenario (FAOSTAT)": "lowpop",

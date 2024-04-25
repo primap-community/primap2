@@ -87,7 +87,8 @@ def test_priority_limit():
             },
             {"a": "2", "b": "3"},
         ],
-        exclude=[{"c": "4"}],
+        exclude_result=[{"c": "4"}],
+        exclude_input=[{"a": "1", "c": "3", "d": "4"}],
     )
     assert pd.limit("g", "3") == pd
     assert pd.limit("c", "3").priorities == [
@@ -114,22 +115,46 @@ def test_priority_limit():
     assert pd.limit("f", "7") == pd.limit("f", "8")
 
 
-def test_priority_exclude():
+def test_priority_exclude_result():
     pd = primap2.csg.PriorityDefinition(
         priority_dimensions=["a"],
         priorities=[
             {"a": "1"},
             {"a": "2"},
         ],
-        exclude=[{"b": "3", "c": ["4", "5"]}, {"c": "6"}],
+        exclude_result=[{"b": "3", "c": ["4", "5"]}, {"c": "6"}],
     )
+    pd.check_dimensions()
 
-    assert pd.excludes(get_single_ts(coords={"a": "1", "b": "3", "c": "4"}))
-    assert pd.excludes(get_single_ts(coords={"a": "1", "b": "3", "c": "5"}))
-    assert pd.excludes(get_single_ts(coords={"a": "1", "b": "3", "c": "6"}))
-    assert pd.excludes(get_single_ts(coords={"a": "1", "b": "4", "c": "6"}))
-    assert not pd.excludes(get_single_ts(coords={"a": "1", "b": "3", "c": "7"}))
-    assert not pd.excludes(get_single_ts(coords={"a": "1", "b": "4", "c": "4"}))
+    assert pd.excludes_result(get_single_ts(coords={"a": "1", "b": "3", "c": "4"}))
+    assert pd.excludes_result(get_single_ts(coords={"a": "1", "b": "3", "c": "5"}))
+    assert pd.excludes_result(get_single_ts(coords={"a": "1", "b": "3", "c": "6"}))
+    assert pd.excludes_result(get_single_ts(coords={"a": "1", "b": "4", "c": "6"}))
+    assert not pd.excludes_result(get_single_ts(coords={"a": "1", "b": "3", "c": "7"}))
+    assert not pd.excludes_result(get_single_ts(coords={"a": "1", "b": "4", "c": "4"}))
+
+
+def test_priority_exclude_input():
+    pd = primap2.csg.PriorityDefinition(
+        priority_dimensions=["a"],
+        priorities=[
+            {"a": "1"},
+            {"a": "2"},
+        ],
+        exclude_input=[
+            {"a": "1", "b": "3", "c": ["4", "5"]},
+            {"c": "6"},
+        ],
+    )
+    pd.check_dimensions()
+
+    assert pd.excludes_input(get_single_ts(coords={"a": "1", "b": "3", "c": "4"}))
+    assert pd.excludes_input(get_single_ts(coords={"a": "1", "b": "3", "c": "5"}))
+    assert pd.excludes_input(get_single_ts(coords={"a": "1", "b": "3", "c": "6"}))
+    assert pd.excludes_input(get_single_ts(coords={"a": "1", "b": "4", "c": "6"}))
+    assert not pd.excludes_input(get_single_ts(coords={"a": "2", "b": "3", "c": "4"}))
+    assert not pd.excludes_input(get_single_ts(coords={"a": "1", "b": "3", "c": "7"}))
+    assert not pd.excludes_input(get_single_ts(coords={"a": "1", "b": "4", "c": "4"}))
 
 
 def test_priority_check():
@@ -139,7 +164,7 @@ def test_priority_check():
             {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
             {"a": "2", "b": "3"},
         ],
-        exclude=[{"c": "5"}, {"d": ["6", "7"]}],
+        exclude_result=[{"c": "5"}, {"d": ["6", "7"]}],
     ).check_dimensions()
 
     with pytest.raises(ValueError):
@@ -167,5 +192,5 @@ def test_priority_check():
                 {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
                 {"a": "2", "b": "3"},
             ],
-            exclude=[{"c": "5"}, {"d": ["6", "7"], "a": "3"}],
+            exclude_result=[{"c": "5"}, {"d": ["6", "7"], "a": "3"}],
         ).check_dimensions()

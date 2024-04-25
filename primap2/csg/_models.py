@@ -43,12 +43,27 @@ class PriorityDefinition:
         selection consists of a dict which maps dimension names to values. Each
         selection has to specify all priority_dimensions, but may specify additional
         dimensions (fixed dimensions) to limit the selection to specific cases.
-    exclude
-        Set of selections to exclude from all processing. Each selection consists of a
-        dict which maps dimension names to values. Each selection can specify any
-        number of additional dimensions (fixed dimensions) to limit the selection.
-        Because it excludes timeseries from the result not from the input, it may not
-        contain priority_dimensions.
+        You can use primap2.Not as a value for fixed dimensions to easily specify
+        negative selections in the priorities. This should generally only be used if you
+        want to change the priority of a source in specific circumstances. If you want
+        to avoid using a source completely in specific cases, use exclude_input
+        instead.
+    exclude_input
+        Set of selections from the input dataset to exclude from processing. Each
+        selection consists of a dict which maps dimension names to values. Each
+        selection can specify any number of priority dimensions or additional dimensions
+        (fixed dimensions) to limit the selection.
+        All input timeseries which match any selection will be skipped in processing.
+        Note that after the exclusions, there still must be at least one applicable
+        source for each result timeseries, otherwise errors will be raised. If you want
+        to exclude timeseries from the result without raising errors, use
+        exclude_result instead.
+    exclude_result
+        Set of selections from the result to exclude from all processing. Each selection
+        consists of a dict which maps dimension names to values. Each selection can
+        specify any number of additional dimensions (fixed dimensions) to limit the
+        selection. Because it excludes timeseries from the result not from the input,
+        it may not contain priority_dimensions.
         All timeseries which match any selection will be excluded entirely from
         processing and will be all-NaN in the result.
 
@@ -63,7 +78,8 @@ class PriorityDefinition:
 
     priority_dimensions: list[Hashable]
     priorities: list[dict[Hashable, str | list[str] | primap2.Not]]
-    exclude: list[dict[Hashable, str | list[str]]] = attrs.field(default=[])
+    exclude_input: list[dict[Hashable, str | list[str]]] = attrs.field(default=[])
+    exclude_result: list[dict[Hashable, str | list[str]]] = attrs.field(default=[])
 
     def limit(self, dim: Hashable, value: str) -> "PriorityDefinition":
         """Remove one fixed dimension by limiting to a single value.
@@ -96,14 +112,22 @@ class PriorityDefinition:
         return PriorityDefinition(
             priority_dimensions=self.priority_dimensions,
             priorities=new_priorities,
-            exclude=self.exclude,
+            exclude_result=self.exclude_result,
+            exclude_input=self.exclude_input,
         )
 
-    def excludes(self, fill_ts: xr.DataArray) -> bool:
-        """Check if a selected timeseries for filling is excluded."""
+    def excludes_result(self, ts: xr.DataArray) -> bool:
+        """Check if a selected result timeseries is excluded from processing."""
         return any(
-            match_selector(selector=exclude_selector, ts=fill_ts)
-            for exclude_selector in self.exclude
+            match_selector(selector=exclude_selector, ts=ts)
+            for exclude_selector in self.exclude_result
+        )
+
+    def excludes_input(self, ts: xr.DataArray) -> bool:
+        """Check if a selected input timeseries is excluded from processing."""
+        return any(
+            match_selector(selector=exclude_selector, ts=ts)
+            for exclude_selector in self.exclude_input
         )
 
     def check_dimensions(self):
@@ -119,11 +143,11 @@ class PriorityDefinition:
                         f"In priority={sel}: specified multiple values for priority "
                         f"dimension={dim}, values={sel[dim]}"
                     )
-        for sel in self.exclude:
+        for sel in self.exclude_result:
             for dim in self.priority_dimensions:
                 if dim in sel:
                     raise ValueError(
-                        f"In exclusion={sel}: excluded priority dimension={dim}"
+                        f"In result exclusion={sel}: excluded priority dimension={dim}"
                     )
 
 

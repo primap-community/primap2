@@ -240,7 +240,9 @@ def iterate_next_fixed_dimension(
                 progress_bar=progress_bar,
             )
         else:
-            if not limited_priority_definition.excludes(result_da.loc[{my_dim: val}]):
+            if not limited_priority_definition.excludes_result(
+                result_da.loc[{my_dim: val}]
+            ):
                 # actually compute results
                 (
                     result_da.loc[{my_dim: val}],
