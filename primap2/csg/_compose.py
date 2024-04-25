@@ -240,6 +240,10 @@ def iterate_next_fixed_dimension(
                 progress_bar=progress_bar,
             )
         else:
+            # Result exclusions are handled here (per definition, we don't do any
+            # processing on result exclusions) but input data exclusions are handled
+            # in compose_timeseries (per definition, we skip to the next source when
+            # a source is skipped due to input data exclusions).
             if not limited_priority_definition.excludes_result(
                 result_da.loc[{my_dim: val}]
             ):
@@ -315,6 +319,16 @@ def compose_timeseries(
         if result_ts is None:
             result_ts = xr.full_like(fill_ts_no_prio_dims, np.nan)
 
+        if priority_definition.excludes_input(fill_ts):
+            processing_steps_descriptions.append(
+                primap2.ProcessingStepDescription(
+                    time="all",
+                    description=f"{fill_ts_repr} is excluded from processing, skipped",
+                    function="compose_timeseries",
+                    source=fill_ts_repr,
+                )
+            )
+            continue
         if fill_ts.isnull().all():
             processing_steps_descriptions.append(
                 primap2.ProcessingStepDescription(

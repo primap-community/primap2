@@ -358,9 +358,16 @@ def test_compose_skip_source(opulent_ds):
     tpd: primap2.TimeseriesProcessingDescription = (
         result["Processing of CH4"].pr.loc[{"area": "COL", "category": "0"}].item()
     )
-    assert len(tpd.steps) == 1
-    assert tpd.steps[0].function == "substitution"
-    assert tpd.steps[0].source == (
+    assert len(tpd.steps) == 2
+    assert tpd.steps[0].function == "compose_timeseries"
+    assert tpd.steps[0].time == "all"
+    assert (
+        tpd.steps[0].description
+        == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'} is excluded from "
+        "processing, skipped"
+    )
+    assert tpd.steps[1].function == "substitution"
+    assert tpd.steps[1].source == (
         "{'source': 'RAND2021', 'scenario (FAOSTAT)': 'highpop'}"
     )
 
