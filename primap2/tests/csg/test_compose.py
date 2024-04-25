@@ -7,7 +7,6 @@ import xarray as xr
 
 import primap2.csg
 import primap2.csg._compose
-from primap2 import Not
 from primap2.tests.csg.utils import get_single_ts
 
 
@@ -308,25 +307,16 @@ def test_compose_skip_source(opulent_ds):
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source", "scenario (FAOSTAT)"],
         priorities=[
-            {
-                "source": "RAND2020",
-                "scenario (FAOSTAT)": "lowpop",
-                "entity": Not("CH4"),
-                "category (IPCC 2006)": Not("0"),
-            },
+            {"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"},
+            {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
+        ],
+        exclude=[
             {
                 "source": "RAND2020",
                 "scenario (FAOSTAT)": "lowpop",
                 "entity": "CH4",
-                "category (IPCC 2006)": Not("0"),
-            },
-            {
-                "source": "RAND2020",
-                "scenario (FAOSTAT)": "lowpop",
-                "entity": Not("CH4"),
                 "category (IPCC 2006)": "0",
-            },
-            {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
+            }
         ],
     )
 
