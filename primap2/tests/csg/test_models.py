@@ -1,3 +1,4 @@
+import attrs
 import pytest
 
 import primap2.csg
@@ -194,3 +195,76 @@ def test_priority_check():
             ],
             exclude_result=[{"c": "5"}, {"d": ["6", "7"], "a": "3"}],
         ).check_dimensions()
+
+
+def test_save_roundtrip_prio(tmp_path):
+    pd = primap2.csg.PriorityDefinition(
+        priority_dimensions=["a", "b"],
+        priorities=[
+            {
+                "a": "1",
+                "b": "2",
+                "c": "3",
+                "d": ["4", "5"],
+                "e": Not("6"),
+                "f": Not(["7", "8"]),
+            },
+            {"a": "2", "b": "3"},
+        ],
+        exclude_result=[{"c": "5"}, {"d": ["6", "7"]}],
+        exclude_input=[{"e": "8", "f": ["9", "10"]}],
+    )
+    pd.save_to_file(tmp_path / "test")
+
+    rpd = primap2.csg.PriorityDefinition.load_from_file(tmp_path / "test")
+
+    assert pd == rpd
+
+
+def test_save_roundtrip_strats(tmp_path):
+    sd = primap2.csg.StrategyDefinition(
+        [
+            ({"source": "A", "category": "1"}, primap2.csg.SubstitutionStrategy()),
+            ({}, primap2.csg.SubstitutionStrategy()),
+        ]
+    )
+    sd.save_to_file(tmp_path / "test")
+
+    rsd = primap2.csg.StrategyDefinition.load_from_file(tmp_path / "test")
+
+    assert sd == rsd
+
+
+def test_save_roundtrip_strats_custom_strat(tmp_path):
+    @attrs.define(frozen=True, kw_only=True)
+    class CustomStrategy:
+        type = "custom"
+        some_int_param: int
+        some_float_param: float
+        some_str_param: str
+        some_default_param: float = 2.0
+
+    primap2.csg.register_strategy(CustomStrategy)
+
+    sd = primap2.csg.StrategyDefinition(
+        [
+            ({"source": "A", "category": "1"}, primap2.csg.SubstitutionStrategy()),
+            (
+                {},
+                CustomStrategy(
+                    some_int_param=1, some_float_param=3.0, some_str_param="asdf"
+                ),
+            ),
+        ]
+    )
+    sd.save_to_file(tmp_path / "test")
+
+    rsd = primap2.csg.StrategyDefinition.load_from_file(tmp_path / "test")
+
+    assert sd == rsd
+    rstrat = rsd.strategies[1][1]
+    assert isinstance(rstrat, CustomStrategy)
+    assert rstrat.some_default_param == 2.0
+    assert rstrat.some_int_param == 1
+    assert rstrat.some_float_param == 3.0
+    assert rstrat.some_str_param == "asdf"
