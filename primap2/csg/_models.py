@@ -1,9 +1,11 @@
 """Models for the composite source generator."""
 
+import pathlib
 import typing
 from collections.abc import Hashable
 
 import attrs
+import strictyaml as sy
 import xarray as xr
 from attr import define
 
@@ -80,6 +82,88 @@ class PriorityDefinition:
     priorities: list[dict[Hashable, str | list[str] | primap2.Not]]
     exclude_input: list[dict[Hashable, str | list[str]]] = attrs.field(default=[])
     exclude_result: list[dict[Hashable, str | list[str]]] = attrs.field(default=[])
+
+    _strictyaml_schema = sy.Map(
+        {
+            "priority_dimensions": sy.Seq(sy.Str()),
+            "priorities": sy.Seq(
+                sy.MapPattern(
+                    sy.Str(),
+                    sy.Map({"Not": sy.Seq(sy.Str()) | sy.Str()})
+                    | sy.Seq(sy.Str())
+                    | sy.Str(),
+                )
+            ),
+            sy.Optional("exclude_input"): sy.Seq(
+                sy.MapPattern(sy.Str(), sy.Seq(sy.Str()) | sy.Str())
+            ),
+            sy.Optional("exclude_result"): sy.Seq(
+                sy.MapPattern(sy.Str(), sy.Seq(sy.Str()) | sy.Str())
+            ),
+        }
+    )
+
+    def unstructure(self) -> dict[str, typing.Any]:
+        """Convert into basic python types, e.g. for easy serialization."""
+        return {
+            "priority_dimensions": list(self.priority_dimensions),
+            "priorities": [
+                {
+                    k: v.unstructure() if isinstance(v, primap2.Not) else v
+                    for k, v in prio.items()
+                }
+                for prio in self.priorities
+            ],
+            "exclude_input": list(self.exclude_input),
+            "exclude_result": list(self.exclude_result),
+        }
+
+    @classmethod
+    def structure(cls, unstructured: dict[str, typing.Any]) -> typing.Self:
+        """Initialize from basic python types."""
+        priorities = []
+        for unstructured_prio in unstructured["priorities"]:
+            structured_prio = {}
+            for key, value in unstructured_prio.items():
+                if isinstance(value, dict):
+                    if "Not" in value:
+                        structured_prio[key] = primap2.Not.structure(value)
+                    else:
+                        raise ValueError(
+                            "Expected single value, list of values, or dict with the "
+                            f"key 'Not' in priorities, but got: {value}"
+                        )
+                else:
+                    structured_prio[key] = value
+            priorities.append(structured_prio)
+        return cls(
+            priority_dimensions=unstructured["priority_dimensions"],
+            priorities=priorities,
+            exclude_input=unstructured.get("exclude_input", []),
+            exclude_result=unstructured.get("exclude_result", []),
+        )
+
+    def save_to_file(self, fpath: str | pathlib.Path) -> None:
+        """Save to a human-editable configuration file."""
+        if isinstance(fpath, str):
+            fpath = pathlib.Path(fpath)
+        unstructured = self.unstructure()
+        # remove empty lists which are default anyway
+        if not unstructured["exclude_input"]:
+            del unstructured["exclude_input"]
+        if not unstructured["exclude_result"]:
+            del unstructured["exclude_result"]
+        doc = sy.as_document(unstructured, schema=self._strictyaml_schema)
+        with fpath.open("w") as fd:
+            fd.write(doc.as_yaml())
+
+    @classmethod
+    def load_from_file(cls, fpath: str | pathlib.Path) -> typing.Self:
+        """Load from strict yaml file."""
+        if isinstance(fpath, str):
+            fpath = pathlib.Path(fpath)
+        with fpath.open("r") as fd:
+            return cls.structure(sy.load(fd.read(), schema=cls._strictyaml_schema).data)
 
     def limit(self, dim: Hashable, value: str) -> "PriorityDefinition":
         """Remove one fixed dimension by limiting to a single value.

@@ -33,6 +33,16 @@ class Not:
 
     value: typing.Any
 
+    def unstructure(self) -> dict[typing.Literal["Not"], typing.Any]:
+        """Convert into dict {"Not": value} for easy serialization."""
+        return {"Not": self.value}
+
+    @classmethod
+    def structure(
+        cls, unstructured: dict[typing.Literal["Not"], typing.Any]
+    ) -> typing.Self:
+        return cls(unstructured["Not"])
+
 
 def resolve_not(
     *,
