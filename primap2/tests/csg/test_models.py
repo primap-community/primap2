@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import attrs
 import pytest
 
@@ -5,6 +7,8 @@ import primap2.csg
 from primap2 import Not
 from primap2.csg._models import match_selector
 from primap2.tests.csg.utils import get_single_ts
+
+DATA_PATH = Path(__file__).parent.parent / "data"
 
 
 def test_match_selector():
@@ -212,13 +216,36 @@ def test_save_roundtrip_prio(tmp_path):
             {"a": "2", "b": "3"},
         ],
         exclude_result=[{"c": "5"}, {"d": ["6", "7"]}],
-        exclude_input=[{"e": "8", "f": ["9", "10"]}],
     )
     pd.save_to_file(tmp_path / "test")
 
     rpd = primap2.csg.PriorityDefinition.load_from_file(tmp_path / "test")
 
     assert pd == rpd
+
+
+def test_load_prio_from_file():
+    pd = primap2.csg.PriorityDefinition(
+        priority_dimensions=["a", "b"],
+        priorities=[
+            {
+                "a": "1.A",
+                "b": "2",
+                "c": "3",
+                "d": ["4", "5"],
+                "e": Not("6"),
+                "f": Not(["7", "8"]),
+            },
+            {"a": "2", "b": "3"},
+        ],
+        exclude_result=[{"c": "5"}, {"d": ["6", "7"]}],
+    )
+
+    lpd = primap2.csg.PriorityDefinition.load_from_file(
+        DATA_PATH / "test_priority_definition.yaml"
+    )
+
+    assert pd == lpd
 
 
 def test_save_roundtrip_strats(tmp_path):
