@@ -10,10 +10,9 @@ from ._models import (
     StrategyDefinition,
     StrategyUnableToProcess,
 )
-from ._strategies.substitution import SubstitutionStrategy
-from ._strategies.global_least_squares import GlobalLSStrategy
-from ._strategies.global_least_squares import GlobalLSlstsqStrategy
+from ._strategies.global_least_squares import GlobalLSlstsqStrategy, GlobalLSStrategy
 from ._strategies.null import NullStrategy
+from ._strategies.substitution import SubstitutionStrategy
 
 __all__ = [
     "compose",

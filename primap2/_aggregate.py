@@ -1,5 +1,5 @@
 from collections.abc import Hashable, Iterable, Mapping, Sequence
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import xarray as xr
@@ -221,9 +221,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
             return self._da.where(~np.isnan(self._da).all(dim=dim), value)
 
     def aggregate_coordinates(
-            self,
-            agg_info: dict[str, dict[str, Any]],
-            tolerance: Optional[float] = 0.01,
+        self,
+        agg_info: dict[str, dict[str, Any]],
+        tolerance: float | None = 0.01,
     ) -> xr.DataArray:
         """
         Manually aggregate data for coordinates
@@ -233,10 +233,10 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         TODO: function for automatic aggregation based on climate categories
         TODO: make skipna controllable?
 
-        
+
         filter must have lists for all dimensions to keep the dimensions in the loc process
 
-    
+
         Parameters
         ----------
         agg_info:
@@ -253,15 +253,15 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                 <coord2>: {...},
                 ...
             }
-            
+
         tolerance:
             non-default tolerance for merging (default = 0.01 (1%))
-    
+
         Returns
         -------
-            xr.DataArray with aggregated values for coordinates / dimensions as 
+            xr.DataArray with aggregated values for coordinates / dimensions as
             specified in the agg_info dict
-    
+
         """
 
         # dequantify for improved speed. unit handling is not necessary as we
@@ -287,39 +287,32 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
                 filter.update({coordinate: source_values})
                 data_agg = da_out.pr.loc[filter].pr.sum(
-                    dim=coordinate,
-                    skipna=True,
-                    min_count=1
+                    dim=coordinate, skipna=True, min_count=1
                 )
                 if not data_agg.isnull().all().data:
                     data_agg = data_agg.expand_dims([full_coord_name])
                     data_agg = data_agg.assign_coords(
                         coords={
-                            full_coord_name:
-                                (full_coord_name, [value_to_aggregate])
+                            full_coord_name: (full_coord_name, [value_to_aggregate])
                         }
                     )
                     for add_coord in rule.keys():
                         if add_coord in data_agg.coords:
                             add_coord_value = rule[add_coord]
                             data_agg = data_agg.assign_coords(
-                                coords={
-                                    add_coord:
-                                        (full_coord_name, [add_coord_value])
-                                }
+                                coords={add_coord: (full_coord_name, [add_coord_value])}
                             )
                         else:
                             raise ValueError(
                                 f"Additional coordinate {add_coord} specified but not "
-                                f"present in data")
+                                f"present in data"
+                            )
 
-                    da_out = da_out.pr.merge(
-                        data_agg,
-                        tolerance=rule_tolerance
-                    )
+                    da_out = da_out.pr.merge(data_agg, tolerance=rule_tolerance)
 
         da_out = da_out.pr.quantify()
         return da_out
+
 
 class DatasetAggregationAccessor(BaseDatasetAccessor):
     @staticmethod
@@ -702,9 +695,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         )
 
     def aggregate_coordinates(
-            self,
-            agg_info: dict[str, dict[str, Any]],
-            tolerance: Optional[float] = 0.01,
+        self,
+        agg_info: dict[str, dict[str, Any]],
+        tolerance: float | None = 0.01,
     ) -> xr.Dataset:
         """
         Manually aggregate data for coordinates
@@ -713,7 +706,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         TODO: function for automatic aggregation based on climate categories
         TODO: make skipna controllable?
-        
+
         filter must have lists for all dimensions to keep the dimensions in the loc process
 
         Parameters
@@ -732,31 +725,31 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 <coord2>: {...},
                 ...
             }
-            
+
         tolerance:
             non-default tolerance for merging (default = 0.01 (1%))
-    
+
         Returns
         -------
-            xr.DataArray with aggregated values for coordinates / dimensions as 
+            xr.DataArray with aggregated values for coordinates / dimensions as
             specified in the agg_info dict
-    
+
         """
 
         ds_out = self._ds.copy(deep=True)
         for var in ds_out.data_vars:
-            ds_out = ds_out.pr.merge(ds_out[var].pr.aggregate_coordinates(
-                agg_info=agg_info,
-                tolerance=tolerance,
-            )
+            ds_out = ds_out.pr.merge(
+                ds_out[var].pr.aggregate_coordinates(
+                    agg_info=agg_info,
+                    tolerance=tolerance,
+                )
             )
 
         return ds_out
 
-
     def aggregate_entities(
-            self,
-            gas_baskets: dict[str, list[str]],
+        self,
+        gas_baskets: dict[str, list[str]],
     ) -> xr.Dataset:
         """
         Creates or fills gas baskets
@@ -815,7 +808,5 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                         )
                         entities_present.add(basket)
                     except Exception as ex:
-                        print(
-                            f"No gas basket created for {basket}: {ex}"
-                        )
+                        print(f"No gas basket created for {basket}: {ex}")
         return ds_out

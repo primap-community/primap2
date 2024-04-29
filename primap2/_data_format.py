@@ -3,7 +3,7 @@ import datetime
 import pathlib
 import typing
 from collections.abc import Hashable, Iterable, Mapping
-from typing import IO, Optional
+from typing import IO
 
 import msgpack
 import numpy as np
@@ -14,6 +14,7 @@ from attr import define
 from loguru import logger
 
 from primap2._selection import translations_from_dims
+
 from . import _accessor_base, pm2io
 from ._units import ureg
 
@@ -282,10 +283,10 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         )
 
     def add_dim(
-            self,
-            dim: str,
-            coord_value: str,
-            terminology: Optional[str] = None,
+        self,
+        dim: str,
+        coord_value: str,
+        terminology: str | None = None,
     ) -> xr.Dataset:
         """
         Add a dimension and coordinate to dataset and if a terminology is given also to attrs.
@@ -305,7 +306,9 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             dataset with added dimension and coordinate
         """
 
-        ds_out = self._ds.copy(deep=True)  # deep=True necessary to keep attrs of original ds
+        ds_out = self._ds.copy(
+            deep=True
+        )  # deep=True necessary to keep attrs of original ds
         if terminology is not None:
             # get the translation for the attrs (use the shortest key to get the right key for the attrs)
             dim_to_add = f"{dim} ({terminology})"
@@ -317,9 +320,9 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             dim_to_add = dim
 
         ds_out = ds_out.expand_dims(dim={dim_to_add: 1})
-        ds_out = ds_out.assign_coords(
-            coords={dim_to_add: (dim_to_add, [coord_value])})
+        ds_out = ds_out.assign_coords(coords={dim_to_add: (dim_to_add, [coord_value])})
         return ds_out
+
 
 def split_dim_name(dim_name: str) -> tuple[str, str]:
     """Split a dimension name composed of the dimension, and the category set in

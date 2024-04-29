@@ -1,14 +1,13 @@
-import xarray as xr
 import numpy as np
+import xarray as xr
+
 import primap2
 
 
 class NullStrategy:
-    """return a nan time-series (used to skip certain fixed coordinate combinations)
-    """
+    """return a nan time-series (used to skip certain fixed coordinate combinations)"""
 
     type = "null"
-
 
     def fill(
         self,
@@ -43,11 +42,13 @@ class NullStrategy:
 
         filled_ts = ts
         filled_ts.loc[:] = np.nan
-        descriptions = [primap2.ProcessingStepDescription(
-            time="all",
-            description=f"fill ts with np.nan instead of data from {fill_ts_repr}",
-            function=self.type,
-            source="NaN",
-        )]
+        descriptions = [
+            primap2.ProcessingStepDescription(
+                time="all",
+                description=f"fill ts with np.nan instead of data from {fill_ts_repr}",
+                function=self.type,
+                source="NaN",
+            )
+        ]
 
         return filled_ts, descriptions

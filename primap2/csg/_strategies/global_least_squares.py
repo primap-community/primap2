@@ -1,10 +1,10 @@
-import xarray as xr
 import numpy as np
-import primap2
+import xarray as xr
 from attrs import frozen
-
-from scipy.optimize import least_squares
 from scipy.linalg import lstsq
+from scipy.optimize import least_squares
+
+import primap2
 
 
 @frozen
@@ -102,19 +102,23 @@ class GlobalLSStrategy:
                 else:
                     e = fill_ts[overlap.data].data
                     e_ref = ts[overlap.data].data
-                    a0 = [1] #  start with 1 as scaling factor
-                    res = least_squares(self.factor_mult, a0, jac=self.jac, args=(e, e_ref))
+                    a0 = [1]  #  start with 1 as scaling factor
+                    res = least_squares(
+                        self.factor_mult, a0, jac=self.jac, args=(e, e_ref)
+                    )
 
-                    fill_ts_h = fill_ts * res['x'][0]
+                    fill_ts_h = fill_ts * res["x"][0]
                     filled_ts = xr.core.ops.fillna(ts, fill_ts_h, join="exact")
 
-                    descriptions = [primap2.ProcessingStepDescription(
-                        time=time_filled,
-                        description="filled with least squares matched data from "
-                                    f" {fill_ts_repr}. Factor={res['x'][0]:0.3f}",
-                        function=self.type,
-                        source=fill_ts_repr,
-                    )]
+                    descriptions = [
+                        primap2.ProcessingStepDescription(
+                            time=time_filled,
+                            description="filled with least squares matched data from "
+                            f" {fill_ts_repr}. Factor={res['x'][0]:0.3f}",
+                            function=self.type,
+                            source=fill_ts_repr,
+                        )
+                    ]
             else:
                 strategy = primap2.csg.SubstitutionStrategy()
                 filled_ts, descriptions = strategy.fill(
@@ -126,12 +130,14 @@ class GlobalLSStrategy:
         else:
             # if we don't have anything to fill we don't need to calculate anything
             filled_ts = ts
-            descriptions = [primap2.ProcessingStepDescription(
-                time=time_filled,
-                description=f"no additional data in {fill_ts_repr}",
-                function=self.type,
-                source=fill_ts_repr,
-            )]
+            descriptions = [
+                primap2.ProcessingStepDescription(
+                    time=time_filled,
+                    description=f"no additional data in {fill_ts_repr}",
+                    function=self.type,
+                    source=fill_ts_repr,
+                )
+            ]
 
         return filled_ts, descriptions
 
@@ -159,11 +165,11 @@ class GlobalLSlstsqStrategy:
     type = "globalLS_lstsq"
 
     def fill(
-            self,
-            *,
-            ts: xr.DataArray,
-            fill_ts: xr.DataArray,
-            fill_ts_repr: str,
+        self,
+        *,
+        ts: xr.DataArray,
+        fill_ts: xr.DataArray,
+        fill_ts_repr: str,
     ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
         """
         Fill missing data by global least square matching.
@@ -228,14 +234,16 @@ class GlobalLSlstsqStrategy:
                 else:
                     filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
 
-                    descriptions = [primap2.ProcessingStepDescription(
-                        time=time_filled,
-                        description=f"filled with least squares matched data from "
-                                    f"{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
-                                    f"b={x[1]:0.3f}",
-                        function=self.type,
-                        source=fill_ts_repr,
-                    )]
+                    descriptions = [
+                        primap2.ProcessingStepDescription(
+                            time=time_filled,
+                            description=f"filled with least squares matched data from "
+                            f"{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
+                            f"b={x[1]:0.3f}",
+                            function=self.type,
+                            source=fill_ts_repr,
+                        )
+                    ]
             else:
                 strategy = primap2.csg.SubstitutionStrategy()
                 filled_ts, descriptions = strategy.fill(
@@ -247,11 +255,13 @@ class GlobalLSlstsqStrategy:
         else:
             # if we don't have anything to fill we don't need to calculate anything
             filled_ts = ts
-            descriptions = [primap2.ProcessingStepDescription(
-                time=time_filled,
-                description=f"no additional data in {fill_ts_repr}",
-                function=self.type,
-                source=fill_ts_repr,
-            )]
+            descriptions = [
+                primap2.ProcessingStepDescription(
+                    time=time_filled,
+                    description=f"no additional data in {fill_ts_repr}",
+                    function=self.type,
+                    source=fill_ts_repr,
+                )
+            ]
 
         return filled_ts, descriptions
