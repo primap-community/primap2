@@ -13,7 +13,7 @@ import xarray as xr
 from attr import define
 from loguru import logger
 
-from primap2._alias_selection import translations_from_dims
+from primap2._selection import translations_from_dims
 from . import _accessor_base, pm2io
 from ._units import ureg
 
