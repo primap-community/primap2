@@ -1,18 +1,32 @@
 import xarray as xr
 import numpy as np
 import primap2
+from attrs import frozen
 
 from scipy.optimize import least_squares
 from scipy.linalg import lstsq
 
 
+@frozen
 class GlobalLSStrategy:
-    """Fill missing data in the result dataset by copying.
+    """Fill missing data by global least square matching.
 
-    The NaNs in the result dataset are substituted with data from the filling
-    dataset.
+    The NaNs in the first timeseries `ts(t)` using harmonized data from the lower
+    priority timeseries `fill_ts(t)`. For harmonization we use
+    fill_ts(t)_h = ts(t) * a + b,
+    where fill_ts(t)_h is the harmonized dataset and a and b are determined by minimizing
+    the least squares distance between ts(t) and fill_ts(t)_h.
+
+    If the class is initialized with `allow_shift = True` the faster
+    `GlobalLSlstsqStrategy` which is based on the `scipy.linalg.lstsq` function
+    is used.
+    For the case `allow_shift = False` (b = 0) `scipi.optimize.least_squares` is used.
+
+    If there is no overlap in non-NaN data between ts(t) and fill_ts(t) the
+    `SubstitutionStrategy` is used.
     """
 
+    allow_shift: bool = True
     type = "globalLS"
 
     def factor_mult(self, a, e, e_ref):
@@ -30,9 +44,22 @@ class GlobalLSStrategy:
         fill_ts: xr.DataArray,
         fill_ts_repr: str,
     ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
-        """Fill gaps in ts using data from the fill_ts scaled by a global factor
-        defined by global least squares matching. If there is no overlap for least
-        squares matching use the SubstitutionStrategy as fallback
+        """Fill missing data by global least square matching.
+
+        The NaNs in the first timeseries `ts(t)` using harmonized data from the
+        lower priority timeseries `fill_ts(t)`. For harmonization we use
+        fill_ts(t)_h = ts(t) * a + b,
+        where fill_ts(t)_h is the harmonized dataset and a and b are determined
+        by minimizing the least squares distance between ts(t) and fill_ts(t)_h.
+
+        If the class is initialized with `allow_shift = True` the faster
+        `GlobalLSlstsqStrategy` which is based on the `scipy.linalg.lstsq`
+        function is used.
+        For the case `allow_shift = False` (b = 0) `scipi.optimize.least_squares`
+        is used.
+
+        If there is no overlap in non-NaN data between ts(t) and fill_ts(t) the
+        `SubstitutionStrategy` is used.
 
         Parameters
         ----------
@@ -64,21 +91,30 @@ class GlobalLSStrategy:
             # but better make it explicit
             overlap = ts.notnull() & fill_ts.notnull()
             if overlap.any():
-                e = fill_ts[overlap.data].data
-                e_ref = ts[overlap.data].data
-                a0 = [1] # start with 1 as scaling factor
-                res = least_squares(self.factor_mult, a0, jac=self.jac, args=(e, e_ref))
+                if self.allow_shift:
+                    #  pass on to lstsq based strategy
+                    strategy = primap2.csg.GlobalLSlstsqStrategy()
+                    filled_ts, descriptions = strategy.fill(
+                        ts=ts,
+                        fill_ts=fill_ts,
+                        fill_ts_repr=fill_ts_repr,
+                    )
+                else:
+                    e = fill_ts[overlap.data].data
+                    e_ref = ts[overlap.data].data
+                    a0 = [1] #  start with 1 as scaling factor
+                    res = least_squares(self.factor_mult, a0, jac=self.jac, args=(e, e_ref))
 
-                fill_ts_harmo = fill_ts * res['x'][0]
-                filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
+                    fill_ts_h = fill_ts * res['x'][0]
+                    filled_ts = xr.core.ops.fillna(ts, fill_ts_h, join="exact")
 
-                descriptions = [primap2.ProcessingStepDescription(
-                    time=time_filled,
-                    description="filled with least squares matched data from "
-                                f" {fill_ts_repr}. Factor={res['x'][0]:0.3f}",
-                    function=self.type,
-                    source=fill_ts_repr,
-                )]
+                    descriptions = [primap2.ProcessingStepDescription(
+                        time=time_filled,
+                        description="filled with least squares matched data from "
+                                    f" {fill_ts_repr}. Factor={res['x'][0]:0.3f}",
+                        function=self.type,
+                        source=fill_ts_repr,
+                    )]
             else:
                 strategy = primap2.csg.SubstitutionStrategy()
                 filled_ts, descriptions = strategy.fill(
@@ -101,13 +137,25 @@ class GlobalLSStrategy:
 
 
 class GlobalLSlstsqStrategy:
-    """Fill missing data in the result dataset by copying.
+    """
+    Fill missing data by global least square matching.
 
-    The NaNs in the result dataset are substituted with data from the filling
-    dataset.
+    The NaNs in the first timeseries `ts(t)` using harmonized data from the
+    lower priority timeseries `fill_ts(t)`. For harmonization we use
+    fill_ts(t)_h = ts(t) * a + b,
+    where fill_ts(t)_h is the harmonized dataset and a and b are determined
+    by minimizing the least squares distance between ts(t) and fill_ts(t)_h.
+
+    Under the hood the `scipy.linalg.lstsq` function is used.
+
+    In case the fillt_ts(t)_h contains negative data and `allow_negative = False`
+    the `GlobalLSStrategy` is used where b=0.
+
+    If there is no overlap in non-NaN data between ts(t) and fill_ts(t) the
+    `SubstitutionStrategy` is used.
     """
 
-    allow_shift: bool = True
+    allow_negative = False
     type = "globalLS_lstsq"
 
     def fill(
@@ -117,9 +165,22 @@ class GlobalLSlstsqStrategy:
             fill_ts: xr.DataArray,
             fill_ts_repr: str,
     ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
-        """Fill gaps in ts using data from the fill_ts scaled by a global factor
-        defined by global least squares matching. If there is no overlap for least
-        squares matching use the SubstitutionStrategy as fallback
+        """
+        Fill missing data by global least square matching.
+
+        The NaNs in the first timeseries `ts(t)` using harmonized data from the
+        lower priority timeseries `fill_ts(t)`. For harmonization we use
+        fill_ts(t)_h = ts(t) * a + b,
+        where fill_ts(t)_h is the harmonized dataset and a and b are determined
+        by minimizing the least squares distance between ts(t) and fill_ts(t)_h.
+
+        Under the hood the `scipy.linalg.lstsq` function is used.
+
+        In case the fillt_ts(t)_h contains negative data and
+        `allow_negative = False` the `GlobalLSStrategy` is used where b=0.
+
+        If there is no overlap in non-NaN data between ts(t) and fill_ts(t) the
+        `SubstitutionStrategy` is used.
 
         Parameters
         ----------
@@ -152,32 +213,29 @@ class GlobalLSlstsqStrategy:
             overlap = ts.notnull() & fill_ts.notnull()
             if overlap.any():
                 e = fill_ts[overlap.data].data
-                if self.allow_shift:
-                    A = np.vstack((e, np.ones_like(e))).transpose()
-                    e_ref = ts[overlap.data].data
-                    x, res, rank, s = lstsq(A, e_ref)
-                    fill_ts_harmo = fill_ts * x[0] + x[1]
-                    if any(fill_ts_harmo < 0):
-                        # use filling without shift
-                        strategy = primap2.csg.GlobalLSStrategy()
-                        filled_ts, descriptions = strategy.fill(
-                            ts=ts,
-                            fill_ts=fill_ts,
-                            fill_ts_repr=fill_ts_repr,
-                        )
-                    else:
-                        filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
-
-                        descriptions = [primap2.ProcessingStepDescription(
-                            time=time_filled,
-                            description=f"filled with least squares matched data from "
-                                        f"{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
-                                        f"b={x[1]:0.3f}",
-                            function=self.type,
-                            source=fill_ts_repr,
-                        )]
+                A = np.vstack((e, np.ones_like(e))).transpose()
+                e_ref = ts[overlap.data].data
+                x, res, rank, s = lstsq(A, e_ref)
+                fill_ts_harmo = fill_ts * x[0] + x[1]
+                if any(fill_ts_harmo < 0):
+                    # use filling without shift
+                    strategy = primap2.csg.GlobalLSStrategy(allow_shift=False)
+                    filled_ts, descriptions = strategy.fill(
+                        ts=ts,
+                        fill_ts=fill_ts,
+                        fill_ts_repr=fill_ts_repr,
+                    )
                 else:
-                    raise ValueError('Fitting without shift not implemented in this strategy')
+                    filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
+
+                    descriptions = [primap2.ProcessingStepDescription(
+                        time=time_filled,
+                        description=f"filled with least squares matched data from "
+                                    f"{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
+                                    f"b={x[1]:0.3f}",
+                        function=self.type,
+                        source=fill_ts_repr,
+                    )]
             else:
                 strategy = primap2.csg.SubstitutionStrategy()
                 filled_ts, descriptions = strategy.fill(

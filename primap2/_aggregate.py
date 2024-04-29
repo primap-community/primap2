@@ -1,5 +1,5 @@
 from collections.abc import Hashable, Iterable, Mapping, Sequence
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import xarray as xr
@@ -220,6 +220,106 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         else:
             return self._da.where(~np.isnan(self._da).all(dim=dim), value)
 
+    def aggregate_coordinates(
+            self,
+            agg_info: dict[str, dict[str, Any]],
+            tolerance: Optional[float] = 0.01,
+    ) -> xr.DataArray:
+        """
+        Manually aggregate data for coordinates
+
+        No sanity checks regarding what you aggregate.
+
+        TODO: function for automatic aggregation based on climate categories
+        TODO: make skipna controllable?
+
+        
+        filter must have lists for all dimensions to keep the dimensions in the loc process
+
+    
+        Parameters
+        ----------
+        agg_info:
+            dict of the following form
+            {
+                <coord1>: {
+                    <new_value> : {
+                        'sources': [source_values],
+                        <add_coord_name>: <value for additional coordinate> (optional),
+                        'tolerance': <non-default tolerance> (optional),
+                        'filter': <filter in pr.loc style> (optional),
+                    },
+                },
+                <coord2>: {...},
+                ...
+            }
+            
+        tolerance:
+            non-default tolerance for merging (default = 0.01 (1%))
+    
+        Returns
+        -------
+            xr.DataArray with aggregated values for coordinates / dimensions as 
+            specified in the agg_info dict
+    
+        """
+
+        # dequantify for improved speed. unit handling is not necessary as we
+        # work with one DataArray and thus the unit is the same for all
+        # timeseries that are aggregated
+        da_out = self._da.pr.dequantify()
+
+        for coordinate in agg_info.keys():
+            aggregation_rules = agg_info[coordinate]
+            full_coord_name = da_out.pr.dim_alias_translations[coordinate]
+            for value_to_aggregate in aggregation_rules.keys():
+                rule = aggregation_rules[value_to_aggregate].copy()
+                if "tolerance" in rule.keys():
+                    rule_tolerance = rule.pop("tolerance")
+                else:
+                    rule_tolerance = tolerance
+                if "filter" in rule.keys():
+                    filter = rule.pop("filter")
+                else:
+                    filter = {}
+
+                source_values = rule.pop("sources")
+
+                filter.update({coordinate: source_values})
+                data_agg = da_out.pr.loc[filter].pr.sum(
+                    dim=coordinate,
+                    skipna=True,
+                    min_count=1
+                )
+                if not data_agg.isnull().all().data:
+                    data_agg = data_agg.expand_dims([full_coord_name])
+                    data_agg = data_agg.assign_coords(
+                        coords={
+                            full_coord_name:
+                                (full_coord_name, [value_to_aggregate])
+                        }
+                    )
+                    for add_coord in rule.keys():
+                        if add_coord in data_agg.coords:
+                            add_coord_value = rule[add_coord]
+                            data_agg = data_agg.assign_coords(
+                                coords={
+                                    add_coord:
+                                        (full_coord_name, [add_coord_value])
+                                }
+                            )
+                        else:
+                            raise ValueError(
+                                f"Additional coordinate {add_coord} specified but not "
+                                f"present in data")
+
+                    da_out = da_out.pr.merge(
+                        data_agg,
+                        tolerance=rule_tolerance
+                    )
+
+        da_out = da_out.pr.quantify()
+        return da_out
 
 class DatasetAggregationAccessor(BaseDatasetAccessor):
     @staticmethod
@@ -600,3 +700,122 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 min_count=min_count,
             )
         )
+
+    def aggregate_coordinates(
+            self,
+            agg_info: dict[str, dict[str, Any]],
+            tolerance: Optional[float] = 0.01,
+    ) -> xr.Dataset:
+        """
+        Manually aggregate data for coordinates
+
+        No sanity checks regarding what you aggregate.
+
+        TODO: function for automatic aggregation based on climate categories
+        TODO: make skipna controllable?
+        
+        filter must have lists for all dimensions to keep the dimensions in the loc process
+
+        Parameters
+        ----------
+        agg_info:
+            dict of the following form
+            {
+                <coord1>: {
+                    <new_value> : {
+                        'sources': [source_values],
+                        <add_coord_name>: <value for additional coordinate> (optional),
+                        'tolerance': <non-default tolerance> (optional),
+                        'filter': <filter in pr.loc style> (optional),
+                    },
+                },
+                <coord2>: {...},
+                ...
+            }
+            
+        tolerance:
+            non-default tolerance for merging (default = 0.01 (1%))
+    
+        Returns
+        -------
+            xr.DataArray with aggregated values for coordinates / dimensions as 
+            specified in the agg_info dict
+    
+        """
+
+        ds_out = self._ds.copy(deep=True)
+        for var in ds_out.data_vars:
+            ds_out = ds_out.pr.merge(ds_out[var].pr.aggregate_coordinates(
+                agg_info=agg_info,
+                tolerance=tolerance,
+            )
+            )
+
+        return ds_out
+
+
+    def aggregate_entities(
+            self,
+            gas_baskets: dict[str, list[str]],
+    ) -> xr.Dataset:
+        """
+        Creates or fills gas baskets
+        TODO: add logging
+        TODO: add default baskets to primap2 and add a function to aggregate default baskets
+        TODO: rename to something more in line with the other gas basket functions?
+
+        No sanity check on what you aggregate
+
+        Parameters
+        ----------
+
+        gas_baskets
+            dict with the following format
+            gas_baskets = {
+                <basket_name>: <list of basket contents>,
+                ...
+            }
+            example_config = {
+                'FGASES (AR4GWP100)': ['SF6', 'NF3', 'HFCS (AR4GWP100)', 'PFCS (AR4GWP100)'],
+                'KYOTOGHG (AR4GWP100)': ['CO2', 'CH4', 'N2O', 'FGASES (AR4GWP100)'],
+            }
+
+        Returns
+        -------
+        xr.Dataset with aggregated gas baskets
+
+        """
+        ds_out = self._ds.copy(deep=True)
+        entities_present = set(ds_out.data_vars)
+        for basket in gas_baskets.keys():
+            basket_contents_present = [
+                gas for gas in gas_baskets[basket] if gas in entities_present
+            ]
+            if len(basket_contents_present) > 0:
+                if basket in list(ds_out.data_vars):
+                    ds_out[basket] = ds_out.pr.fill_na_gas_basket_from_contents(
+                        basket=basket,
+                        basket_contents=basket_contents_present,
+                        skipna=True,
+                        min_count=1,
+                    )
+                else:
+                    try:
+                        ds_out[basket] = xr.full_like(
+                            ds_out[basket_contents_present[0]], np.nan
+                        ).pr.quantify(units="Gg CO2 / year")
+                        ds_out[basket].attrs = {
+                            "entity": basket.split(" ")[0],
+                            "gwp_context": basket.split(" ")[1][1:-1],
+                        }
+                        ds_out[basket] = ds_out.pr.gas_basket_contents_sum(
+                            basket=basket,
+                            basket_contents=basket_contents_present,
+                            min_count=1,
+                        )
+                        entities_present.add(basket)
+                    except Exception as ex:
+                        print(
+                            f"No gas basket created for {basket}: {ex}"
+                        )
+        return ds_out
