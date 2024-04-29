@@ -10,6 +10,7 @@ from ._data_format import (
     TimeseriesProcessingDescription,
     open_dataset,
 )
+from ._selection import Not
 from ._units import ureg
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "pm2io",
     "ProcessingStepDescription",
     "TimeseriesProcessingDescription",
+    "Not",
 ]

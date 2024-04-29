@@ -75,7 +75,6 @@ Attributes
     Dataset.pr.title
     Dataset.pr.comment
     Dataset.pr.institution
-    Dataset.pr.history
 
 .. _dsmeth:
 

@@ -18,9 +18,9 @@ from .utils import assert_equal
 def opulent_ds_or_da(request):
     """Test with the opulent Dataset or an array taken from it."""
     if request.param == "opulent_ds":
-        return examples.opulent_ds()
+        return examples._cached_opulent_ds.copy(deep=True)
     elif request.param == "opulent_ds[CO2]":
-        return examples.opulent_ds()["CO2"]
+        return examples._cached_opulent_ds["CO2"].copy(deep=True)
 
 
 def test_fill_all_na():

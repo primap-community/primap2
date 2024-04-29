@@ -3,13 +3,32 @@
 import typing
 from collections.abc import Hashable
 
+import attrs
 import xarray as xr
 from attr import define
 
+import primap2
 from primap2._data_format import ProcessingStepDescription
 
 
-@define(frozen=True)
+def match_selector(
+    *, selector: dict[Hashable, str | list[str]], ts: xr.DataArray
+) -> bool:
+    """Check if a timeseries matches the selector."""
+    for k, v in selector.items():
+        if k == "entity":
+            if v != ts.attrs["entity"]:
+                return False
+        else:
+            if isinstance(v, str):
+                if not ts.coords[k] == v:
+                    return False
+            elif ts.coords[k] not in v:
+                return False
+    return True
+
+
+@define(frozen=True, kw_only=True)
 class PriorityDefinition:
     """
     Defines source priorities for composing a full dataset or a single timeseries.
@@ -24,6 +43,29 @@ class PriorityDefinition:
         selection consists of a dict which maps dimension names to values. Each
         selection has to specify all priority_dimensions, but may specify additional
         dimensions (fixed dimensions) to limit the selection to specific cases.
+        You can use primap2.Not as a value for fixed dimensions to easily specify
+        negative selections in the priorities. This should generally only be used if you
+        want to change the priority of a source in specific circumstances. If you want
+        to avoid using a source completely in specific cases, use exclude_input
+        instead.
+    exclude_input
+        Set of selections from the input dataset to exclude from processing. Each
+        selection consists of a dict which maps dimension names to values. Each
+        selection can specify any number of priority dimensions or additional dimensions
+        (fixed dimensions) to limit the selection.
+        All input timeseries which match any selection will be skipped in processing.
+        Note that after the exclusions, there still must be at least one applicable
+        source for each result timeseries, otherwise errors will be raised. If you want
+        to exclude timeseries from the result without raising errors, use
+        exclude_result instead.
+    exclude_result
+        Set of selections from the result to exclude from all processing. Each selection
+        consists of a dict which maps dimension names to values. Each selection can
+        specify any number of additional dimensions (fixed dimensions) to limit the
+        selection. Because it excludes timeseries from the result not from the input,
+        it may not contain priority_dimensions.
+        All timeseries which match any selection will be excluded entirely from
+        processing and will be all-NaN in the result.
 
     Examples
     --------
@@ -35,7 +77,9 @@ class PriorityDefinition:
     """
 
     priority_dimensions: list[Hashable]
-    priorities: list[dict[Hashable, str | list[str]]]
+    priorities: list[dict[Hashable, str | list[str] | primap2.Not]]
+    exclude_input: list[dict[Hashable, str | list[str]]] = attrs.field(default=[])
+    exclude_result: list[dict[Hashable, str | list[str]]] = attrs.field(default=[])
 
     def limit(self, dim: Hashable, value: str) -> "PriorityDefinition":
         """Remove one fixed dimension by limiting to a single value.
@@ -46,17 +90,48 @@ class PriorityDefinition:
         for sel in self.priorities:
             if dim not in sel:
                 new_priorities.append(sel)
-            elif (isinstance(sel[dim], str) and sel[dim] == value) or (
-                value in sel[dim]
-            ):
-                # filter out the matching value
-                new_priorities.append({k: v for k, v in sel.items() if k != dim})
+                continue
+
+            match_value = sel[dim]
+            # for each possible type of match_value, skip this if it *doesn't* match
+            if isinstance(match_value, primap2.Not):
+                not_value = match_value.value
+                if isinstance(not_value, str):
+                    if not_value == value:
+                        continue
+                elif value in not_value:
+                    continue
+            elif isinstance(match_value, str):
+                if match_value != value:
+                    continue
+            elif value not in match_value:
+                continue
+            # now we know it is matching, filter out the matching dim
+            new_priorities.append({k: v for k, v in sel.items() if k != dim})
+
         return PriorityDefinition(
-            priority_dimensions=self.priority_dimensions, priorities=new_priorities
+            priority_dimensions=self.priority_dimensions,
+            priorities=new_priorities,
+            exclude_result=self.exclude_result,
+            exclude_input=self.exclude_input,
+        )
+
+    def excludes_result(self, ts: xr.DataArray) -> bool:
+        """Check if a selected result timeseries is excluded from processing."""
+        return any(
+            match_selector(selector=exclude_selector, ts=ts)
+            for exclude_selector in self.exclude_result
+        )
+
+    def excludes_input(self, ts: xr.DataArray) -> bool:
+        """Check if a selected input timeseries is excluded from processing."""
+        return any(
+            match_selector(selector=exclude_selector, ts=ts)
+            for exclude_selector in self.exclude_input
         )
 
     def check_dimensions(self):
-        """Raise an error if not all priorities specify all priority dimensions."""
+        """Raise an error if priorities or exclusions use wrong dimensions."""
         for sel in self.priorities:
             for dim in self.priority_dimensions:
                 if dim not in sel:
@@ -67,6 +142,12 @@ class PriorityDefinition:
                     raise ValueError(
                         f"In priority={sel}: specified multiple values for priority "
                         f"dimension={dim}, values={sel[dim]}"
+                    )
+        for sel in self.exclude_result:
+            for dim in self.priority_dimensions:
+                if dim in sel:
+                    raise ValueError(
+                        f"In result exclusion={sel}: excluded priority dimension={dim}"
                     )
 
 
@@ -195,7 +276,7 @@ class StrategyDefinition:
     ) -> typing.Generator[FillingStrategyModel, None, None]:
         """Yields all strategies to use for the timeseries, in configured order."""
         for selector, strategy in self.strategies:
-            if self.match(selector=selector, fill_ts=fill_ts):
+            if match_selector(selector=selector, ts=fill_ts):
                 yield strategy
 
     def limit(self, dim: Hashable, value: str) -> "StrategyDefinition":
@@ -207,19 +288,6 @@ class StrategyDefinition:
                 if self.match_single_dim(selector=sel, dim=dim, value=value)
             ]
         )
-
-    @staticmethod
-    def match(
-        *, selector: dict[Hashable, str | list[str]], fill_ts: xr.DataArray
-    ) -> bool:
-        """Check if a selected timeseries for filling matches the selector."""
-        for k, v in selector.items():
-            if isinstance(v, str):
-                if not fill_ts.coords[k] == v:
-                    return False
-            elif fill_ts.coords[k] not in v:
-                return False
-        return True
 
     @staticmethod
     def match_single_dim(

@@ -240,15 +240,22 @@ def iterate_next_fixed_dimension(
                 progress_bar=progress_bar,
             )
         else:
-            # actually compute results
-            (
-                result_da.loc[{my_dim: val}],
-                result_processing_da.loc[{my_dim: val}],
-            ) = compose_timeseries(
-                input_data=input_da.loc[{my_dim: val}],
-                priority_definition=limited_priority_definition,
-                strategy_definition=limited_strategy_definition,
-            )
+            # Result exclusions are handled here (per definition, we don't do any
+            # processing on result exclusions) but input data exclusions are handled
+            # in compose_timeseries (per definition, we skip to the next source when
+            # a source is skipped due to input data exclusions).
+            if not limited_priority_definition.excludes_result(
+                result_da.loc[{my_dim: val}]
+            ):
+                # actually compute results
+                (
+                    result_da.loc[{my_dim: val}],
+                    result_processing_da.loc[{my_dim: val}],
+                ) = compose_timeseries(
+                    input_data=input_da.loc[{my_dim: val}],
+                    priority_definition=limited_priority_definition,
+                    strategy_definition=limited_strategy_definition,
+                )
             if progress_bar is not None:
                 progress_bar.update()
 
@@ -312,6 +319,16 @@ def compose_timeseries(
         if result_ts is None:
             result_ts = xr.full_like(fill_ts_no_prio_dims, np.nan)
 
+        if priority_definition.excludes_input(fill_ts):
+            processing_steps_descriptions.append(
+                primap2.ProcessingStepDescription(
+                    time="all",
+                    description=f"{fill_ts_repr} is excluded from processing, skipped",
+                    function="compose_timeseries",
+                    source=fill_ts_repr,
+                )
+            )
+            continue
         if fill_ts.isnull().all():
             processing_steps_descriptions.append(
                 primap2.ProcessingStepDescription(
@@ -351,7 +368,7 @@ def compose_timeseries(
             # was applicable and worked
             raise ValueError(
                 f"No configured strategy was able to process "
-                f"\n{input_data.coords}\n{strategy_definition=}"
+                f"\n{input_data.coords}\n{input_data.attrs}\n{strategy_definition=}"
             )
 
         if not result_ts.isnull().any():
@@ -361,7 +378,7 @@ def compose_timeseries(
     if result_ts is None:
         raise ValueError(
             f"No priority selector matched for "
-            f"\n{input_data.coords}\n{priority_definition=}"
+            f"\n{input_data.coords}\n{input_data.attrs}\n{priority_definition=}"
         )
 
     return result_ts, primap2._data_format.TimeseriesProcessingDescription(

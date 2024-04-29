@@ -3,15 +3,15 @@
 import xarray as xr
 
 from ._aggregate import DataArrayAggregationAccessor, DatasetAggregationAccessor
-from ._alias_selection import (
-    DataArrayAliasSelectionAccessor,
-    DatasetAliasSelectionAccessor,
-)
 from ._data_format import DatasetDataFormatAccessor
 from ._downscale import DataArrayDownscalingAccessor, DatasetDownscalingAccessor
 from ._merge import DataArrayMergeAccessor, DatasetMergeAccessor
 from ._metadata import DatasetMetadataAccessor
 from ._overview import DataArrayOverviewAccessor, DatasetOverviewAccessor
+from ._selection import (
+    DataArrayAliasSelectionAccessor,
+    DatasetAliasSelectionAccessor,
+)
 from ._setters import DataArraySettersAccessor, DatasetSettersAccessor
 from ._units import DataArrayUnitAccessor, DatasetUnitAccessor
 

@@ -1,28 +1,24 @@
 import pytest
 
 import primap2.csg
+from primap2 import Not
+from primap2.csg._models import match_selector
 from primap2.tests.csg.utils import get_single_ts
 
 
-def test_selector_match():
+def test_match_selector():
     da = get_single_ts(coords={"source": "A", "category": "1.A"})
 
-    assert primap2.csg.StrategyDefinition.match(selector={"source": "A"}, fill_ts=da)
-    assert not primap2.csg.StrategyDefinition.match(
-        selector={"source": "B"}, fill_ts=da
-    )
-    assert primap2.csg.StrategyDefinition.match(
-        selector={"source": "A", "category": "1.A"}, fill_ts=da
-    )
-    assert primap2.csg.StrategyDefinition.match(
-        selector={"source": "A", "category": ["1.A", "1.B"]}, fill_ts=da
-    )
-    assert not primap2.csg.StrategyDefinition.match(
-        selector={"source": "A", "category": "1"}, fill_ts=da
-    )
-    assert not primap2.csg.StrategyDefinition.match(
-        selector={"source": "A", "category": ["1", "2"]}, fill_ts=da
-    )
+    assert match_selector(selector={"source": "A"}, ts=da)
+    assert not match_selector(selector={"source": "B"}, ts=da)
+    assert match_selector(selector={"source": "A", "category": "1.A"}, ts=da)
+    assert match_selector(selector={"source": "A", "category": ["1.A", "1.B"]}, ts=da)
+    assert not match_selector(selector={"source": "A", "category": "1"}, ts=da)
+    assert not match_selector(selector={"source": "A", "category": ["1", "2"]}, ts=da)
+
+    da.attrs["entity"] = "SF6"
+    assert match_selector(selector={"source": "A", "entity": "SF6"}, ts=da)
+    assert not match_selector(selector={"source": "A", "entity": "CO2"}, ts=da)
 
 
 def test_selector_match_single_dim():
@@ -81,22 +77,84 @@ def test_priority_limit():
     pd = primap2.csg.PriorityDefinition(
         priority_dimensions=["a", "b"],
         priorities=[
-            {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
+            {
+                "a": "1",
+                "b": "2",
+                "c": "3",
+                "d": ["4", "5"],
+                "e": Not("6"),
+                "f": Not(["7", "8"]),
+            },
             {"a": "2", "b": "3"},
         ],
+        exclude_result=[{"c": "4"}],
+        exclude_input=[{"a": "1", "c": "3", "d": "4"}],
     )
-    assert pd.limit("e", "3") == pd
+    assert pd.limit("g", "3") == pd
     assert pd.limit("c", "3").priorities == [
-        {"a": "1", "b": "2", "d": ["4", "5"]},
+        {"a": "1", "b": "2", "d": ["4", "5"], "e": Not("6"), "f": Not(["7", "8"])},
         {"a": "2", "b": "3"},
     ]
     assert pd.limit("c", "4").priorities == [{"a": "2", "b": "3"}]
     assert pd.limit("d", "4").priorities == [
-        {"a": "1", "b": "2", "c": "3"},
+        {"a": "1", "b": "2", "c": "3", "e": Not("6"), "f": Not(["7", "8"])},
         {"a": "2", "b": "3"},
     ]
     assert pd.limit("d", "5") == pd.limit("d", "4")
     assert pd.limit("d", "6").priorities == [{"a": "2", "b": "3"}]
+    assert pd.limit("e", "7").priorities == [
+        {"a": "1", "b": "2", "c": "3", "d": ["4", "5"], "f": Not(["7", "8"])},
+        {"a": "2", "b": "3"},
+    ]
+    assert pd.limit("e", "6").priorities == [{"a": "2", "b": "3"}]
+    assert pd.limit("f", "6").priorities == [
+        {"a": "1", "b": "2", "c": "3", "d": ["4", "5"], "e": Not("6")},
+        {"a": "2", "b": "3"},
+    ]
+    assert pd.limit("f", "7").priorities == [{"a": "2", "b": "3"}]
+    assert pd.limit("f", "7") == pd.limit("f", "8")
+
+
+def test_priority_exclude_result():
+    pd = primap2.csg.PriorityDefinition(
+        priority_dimensions=["a"],
+        priorities=[
+            {"a": "1"},
+            {"a": "2"},
+        ],
+        exclude_result=[{"b": "3", "c": ["4", "5"]}, {"c": "6"}],
+    )
+    pd.check_dimensions()
+
+    assert pd.excludes_result(get_single_ts(coords={"a": "1", "b": "3", "c": "4"}))
+    assert pd.excludes_result(get_single_ts(coords={"a": "1", "b": "3", "c": "5"}))
+    assert pd.excludes_result(get_single_ts(coords={"a": "1", "b": "3", "c": "6"}))
+    assert pd.excludes_result(get_single_ts(coords={"a": "1", "b": "4", "c": "6"}))
+    assert not pd.excludes_result(get_single_ts(coords={"a": "1", "b": "3", "c": "7"}))
+    assert not pd.excludes_result(get_single_ts(coords={"a": "1", "b": "4", "c": "4"}))
+
+
+def test_priority_exclude_input():
+    pd = primap2.csg.PriorityDefinition(
+        priority_dimensions=["a"],
+        priorities=[
+            {"a": "1"},
+            {"a": "2"},
+        ],
+        exclude_input=[
+            {"a": "1", "b": "3", "c": ["4", "5"]},
+            {"c": "6"},
+        ],
+    )
+    pd.check_dimensions()
+
+    assert pd.excludes_input(get_single_ts(coords={"a": "1", "b": "3", "c": "4"}))
+    assert pd.excludes_input(get_single_ts(coords={"a": "1", "b": "3", "c": "5"}))
+    assert pd.excludes_input(get_single_ts(coords={"a": "1", "b": "3", "c": "6"}))
+    assert pd.excludes_input(get_single_ts(coords={"a": "1", "b": "4", "c": "6"}))
+    assert not pd.excludes_input(get_single_ts(coords={"a": "2", "b": "3", "c": "4"}))
+    assert not pd.excludes_input(get_single_ts(coords={"a": "1", "b": "3", "c": "7"}))
+    assert not pd.excludes_input(get_single_ts(coords={"a": "1", "b": "4", "c": "4"}))
 
 
 def test_priority_check():
@@ -106,6 +164,7 @@ def test_priority_check():
             {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
             {"a": "2", "b": "3"},
         ],
+        exclude_result=[{"c": "5"}, {"d": ["6", "7"]}],
     ).check_dimensions()
 
     with pytest.raises(ValueError):
@@ -124,4 +183,14 @@ def test_priority_check():
                 {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
                 {"a": "2", "b": ["2", "3"]},
             ],
+        ).check_dimensions()
+
+    with pytest.raises(ValueError):
+        primap2.csg.PriorityDefinition(
+            priority_dimensions=["a", "b"],
+            priorities=[
+                {"a": "1", "b": "2", "c": "3", "d": ["4", "5"]},
+                {"a": "2", "b": "3"},
+            ],
+            exclude_result=[{"c": "5"}, {"d": ["6", "7"], "a": "3"}],
         ).check_dimensions()
