@@ -47,27 +47,27 @@ class GlobalLSStrategy:
         """Fill missing data by global least square matching.
 
 
-    For a description of the algorithm, see the documentation of this class.
+        For a description of the algorithm, see the documentation of this class.
 
-        Parameters
-        ----------
-        ts
-            Base timeseries. Missing data (NaNs) in this timeseries will be filled.
-            This function does not modify the data in ts.
-        fill_ts
-            Fill timeseries. Data from this timeseries will be used (possibly after
-            modification) to fill missing data in the base timeseries.
-            This function does not modify the data in fill_ts.
-        fill_ts_repr
-            String representation of fill_ts. Human-readable short representation of
-            the fill_ts (e.g. the source).
+            Parameters
+            ----------
+            ts
+                Base timeseries. Missing data (NaNs) in this timeseries will be filled.
+                This function does not modify the data in ts.
+            fill_ts
+                Fill timeseries. Data from this timeseries will be used (possibly after
+                modification) to fill missing data in the base timeseries.
+                This function does not modify the data in fill_ts.
+            fill_ts_repr
+                String representation of fill_ts. Human-readable short representation of
+                the fill_ts (e.g. the source).
 
-        Returns
-        -------
-            filled_ts, descriptions. filled_ts contains the result, where missing
-            data in ts is (partly) filled using scaled data from fill_ts.
-            descriptions contains information about which years were affected and
-            filled how.
+            Returns
+            -------
+                filled_ts, descriptions. filled_ts contains the result, where missing
+                data in ts is (partly) filled using scaled data from fill_ts.
+                descriptions contains information about which years were affected and
+                filled how.
         """
 
         filled_mask = ts.isnull() & ~fill_ts.isnull()
