@@ -11,7 +11,11 @@ from primap2.tests.csg.utils import get_single_ts
     "strategy",
     [
         primap2.csg.SubstitutionStrategy(),
+        primap2.csg.GlobalLSlstsqStrategy(),
+        primap2.csg.GlobalLSStrategy(),
+        primap2.csg.NullStrategy(),
     ],
+    ids=lambda x: x.type,
 )
 def test_strategies_conform(strategy):
     """Test if strategies conform to the protocol for strategies."""
