@@ -318,6 +318,8 @@ class TestGasBasket:
         expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6_ar6) * ureg(
             "Gg CO2 / year"
         )
+        expected.name = "KYOTOGHG (AR6GWP100)"
+        expected.attrs = {"gwp_context": "AR6GWP100", "entity": "KYOTOGHG"}
         assert_equal(summed, expected)
 
     @pytest.fixture

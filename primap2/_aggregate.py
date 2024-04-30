@@ -2,11 +2,14 @@ from collections.abc import Hashable, Iterable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
+import pint
 import xarray as xr
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+from ._data_format import split_var_name
 from ._selection import alias_dims
 from ._types import DatasetOrDataArray, DimOrDimsT
+from ._units import ureg
 
 
 def dim_names(obj: DatasetOrDataArray):
@@ -564,6 +567,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         *,
         basket: str,
         basket_contents: Sequence[str],
+        basket_units: str | pint.Unit | None = None,
         skipna: bool | None = None,
         skipna_evaluation_dims: DimOrDimsT | None = None,
         min_count: int | None = None,
@@ -574,10 +578,15 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         Parameters
         ----------
         basket: str
-          The name of the gas basket. A value from `ds.keys()`.
+          The name of the gas basket. Either an existing variable, i.e. a value from
+          `ds.keys()`, or a new variable name, in the usual format
+          `entity (gwp_context)`.
         basket_contents: list of str
           The name of the gases in the gas basket. The sum of all basket_contents
           equals the basket. Values from `ds.keys()`.
+        basket_unit: str or pint.Unit, optional
+          The unit to use for the result. If not given, we use the unit of the existing
+          basket, or if the basket does not exist `Gg CO2 / year`.
         skipna: bool, optional
           If True (default), skip missing values (as marked by NaN). By default, only
           skips missing values for float dtypes; other dtypes either do not
@@ -610,10 +619,24 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             )
 
         basket_contents_converted = xr.Dataset()
-        basket_da = self._ds[basket]
+
+        units = basket_units
+        if basket in self._ds:
+            basket_da = self._ds[basket]
+            gwp_context = basket_da.attrs["gwp_context"]
+            entity = basket_da.attrs["entity"]
+            if units is None:
+                units = basket_da.pint.units
+        else:
+            entity, gwp_context = split_var_name(basket)
+            if units is None:
+                units = ureg.Unit("Gg CO2 / year")
+
         for var in basket_contents:
             da: xr.DataArray = self._ds[var]
-            basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=basket_da)
+            basket_contents_converted[var] = da.pr.convert_to_gwp(
+                gwp_context=gwp_context, units=units
+            )
 
         da = basket_contents_converted.pr.sum(
             dim="entity",
@@ -621,9 +644,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             skipna=skipna,
             min_count=min_count,
         )
-        da.attrs["gwp_context"] = basket_da.attrs["gwp_context"]
-        da.attrs["entity"] = basket_da.attrs["entity"]
-        da.name = basket_da.name
+        da.attrs["gwp_context"] = gwp_context
+        da.attrs["entity"] = entity
+        da.name = basket
         return da
 
     def fill_na_gas_basket_from_contents(
