@@ -803,12 +803,12 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         """
         ds_out = self._ds.copy(deep=True)
         entities_present = set(ds_out.data_vars)
-        for basket in gas_baskets.keys():
+        for basket in gas_baskets:
             basket_contents_present = [
                 gas for gas in gas_baskets[basket] if gas in entities_present
             ]
-            if len(basket_contents_present) > 0:
-                if basket in list(ds_out.data_vars):
+            if basket_contents_present:
+                if basket in entities_present:
                     ds_out[basket] = ds_out.pr.fill_na_gas_basket_from_contents(
                         basket=basket,
                         basket_contents=basket_contents_present,
@@ -817,13 +817,6 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                     )
                 else:
                     try:
-                        ds_out[basket] = xr.full_like(
-                            ds_out[basket_contents_present[0]], np.nan
-                        ).pr.quantify(units="Gg CO2 / year")
-                        ds_out[basket].attrs = {
-                            "entity": basket.split(" ")[0],
-                            "gwp_context": basket.split(" ")[1][1:-1],
-                        }
                         ds_out[basket] = ds_out.pr.gas_basket_contents_sum(
                             basket=basket,
                             basket_contents=basket_contents_present,
