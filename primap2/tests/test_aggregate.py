@@ -254,6 +254,10 @@ class TestGasBasket:
     sf6 = 22_800
     ch4 = 25
 
+    # AR6GWP100 values
+    sf6_ar6 = 25_200
+    ch4_ar6 = 27.9
+
     @pytest.fixture
     def partly_nan_ds(self, empty_ds):
         empty_ds["CO2"][:] = 1 * ureg("Gg CO2 / year")
@@ -302,6 +306,19 @@ class TestGasBasket:
         # NaNs not skipped
         expected.loc[{"area (ISO3)": "COL"}] = np.nan * ureg("Gg CO2 / year")
         assert_equal(summed, expected, equal_nan=True)
+
+    def test_contents_sum_new_entity(self, partly_nan_ds):
+        summed = partly_nan_ds.pr.gas_basket_contents_sum(
+            basket="KYOTOGHG (AR6GWP100)",
+            basket_contents=["CO2", "SF6", "CH4"],
+        )
+        expected = partly_nan_ds["KYOTOGHG (AR4GWP100)"].copy()
+        expected[:] = (1 + self.sf6_ar6 + self.ch4_ar6) * ureg("Gg CO2 / year")
+        # NaN counted as 0
+        expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6_ar6) * ureg(
+            "Gg CO2 / year"
+        )
+        assert_equal(summed, expected)
 
     @pytest.fixture
     def partly_filled_ds(self, partly_nan_ds):
