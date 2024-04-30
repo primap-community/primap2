@@ -9,7 +9,8 @@ build-backend = "setuptools.build_meta"
 [tool.ruff]
 extend-exclude = [
   "climate_categories/data/*.py",
-  "climate_categories/tests/data/*.py"
+  "climate_categories/tests/data/*.py",
+  "docs-old/"
 ]
 lint.extend-select = [ "W", "I", "UP", "B", "NPY", "RUF" ]
 target-version = "py310"
