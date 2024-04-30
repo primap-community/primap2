@@ -13,7 +13,7 @@ class GlobalLSStrategy:
 
     The NaNs in the first timeseries `ts(t)` using harmonized data from the lower
     priority timeseries `fill_ts(t)`. For harmonization we use
-    fill_ts(t)_h = ts(t) * a + b,
+    fill_ts(t)_h = fill_ts(t) * a + b,
     where fill_ts(t)_h is the harmonized dataset and a and b are determined by minimizing
     the least squares distance between ts(t) and fill_ts(t)_h.
 
@@ -29,7 +29,7 @@ class GlobalLSStrategy:
     allow_shift: bool = True
     type = "globalLS"
 
-    def factor_mult(self, a, e, e_ref):
+    def _factor_mult(self, a, e, e_ref):
         return a * e - e_ref
 
     def jac(self, a, e, e_ref):
@@ -46,20 +46,8 @@ class GlobalLSStrategy:
     ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
         """Fill missing data by global least square matching.
 
-        The NaNs in the first timeseries `ts(t)` using harmonized data from the
-        lower priority timeseries `fill_ts(t)`. For harmonization we use
-        fill_ts(t)_h = ts(t) * a + b,
-        where fill_ts(t)_h is the harmonized dataset and a and b are determined
-        by minimizing the least squares distance between ts(t) and fill_ts(t)_h.
 
-        If the class is initialized with `allow_shift = True` the faster
-        `GlobalLSlstsqStrategy` which is based on the `scipy.linalg.lstsq`
-        function is used.
-        For the case `allow_shift = False` (b = 0) `scipi.optimize.least_squares`
-        is used.
-
-        If there is no overlap in non-NaN data between ts(t) and fill_ts(t) the
-        `SubstitutionStrategy` is used.
+    For a description of the algorithm, see the documentation of this class.
 
         Parameters
         ----------
@@ -86,7 +74,7 @@ class GlobalLSStrategy:
         time_filled = filled_mask["time"][filled_mask].to_numpy()
 
         if time_filled.any():
-            # check of we have overlap. if not use substitution strategy
+            # check if we have overlap. if not use substitution strategy
             # this might not be necessary because we initialize the LS algorithm with 1,
             # but better make it explicit
             overlap = ts.notnull() & fill_ts.notnull()
