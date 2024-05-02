@@ -32,7 +32,7 @@ class GlobalLSStrategy:
     def _factor_mult(self, a, e, e_ref):
         return a * e - e_ref
 
-    def jac(self, a, e, e_ref):
+    def _jac(self, a, e, e_ref):
         J = np.empty((e.size, 1))
         J[:, 0] = e
         return J
@@ -92,7 +92,7 @@ class GlobalLSStrategy:
                     e_ref = ts[overlap.data].data
                     a0 = [1]  #  start with 1 as scaling factor
                     res = least_squares(
-                        self.factor_mult, a0, jac=self.jac, args=(e, e_ref)
+                        self._factor_mult, a0, jac=self._jac, args=(e, e_ref)
                     )
 
                     fill_ts_h = fill_ts * res["x"][0]
