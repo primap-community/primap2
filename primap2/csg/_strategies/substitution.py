@@ -1,8 +1,12 @@
+"""Simple strategy which replaces NaNs by datapoints from second timeseries."""
+
+import attrs
 import xarray as xr
 
 import primap2
 
 
+@attrs.define(frozen=True)
 class SubstitutionStrategy:
     """Fill missing data in the result dataset by copying.
 
@@ -43,7 +47,9 @@ class SubstitutionStrategy:
         """
         filled_ts = xr.core.ops.fillna(ts, fill_ts, join="exact")
         filled_mask = ts.isnull() & ~fill_ts.isnull()
-        time_filled = filled_mask["time"][filled_mask].to_numpy()
+        time_filled = (
+            "all" if filled_mask.all() else filled_mask["time"][filled_mask].to_numpy()
+        )
         description = primap2.ProcessingStepDescription(
             time=time_filled,
             description="substituted with corresponding values from" f" {fill_ts_repr}",

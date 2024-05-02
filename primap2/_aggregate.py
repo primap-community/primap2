@@ -5,7 +5,7 @@ import numpy as np
 import xarray as xr
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
-from ._alias_selection import alias_dims
+from ._selection import alias_dims
 from ._types import DatasetOrDataArray, DimOrDimsT
 
 

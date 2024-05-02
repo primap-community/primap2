@@ -240,15 +240,22 @@ def iterate_next_fixed_dimension(
                 progress_bar=progress_bar,
             )
         else:
-            # actually compute results
-            (
-                result_da.loc[{my_dim: val}],
-                result_processing_da.loc[{my_dim: val}],
-            ) = compose_timeseries(
-                input_data=input_da.loc[{my_dim: val}],
-                priority_definition=limited_priority_definition,
-                strategy_definition=limited_strategy_definition,
-            )
+            # Result exclusions are handled here (per definition, we don't do any
+            # processing on result exclusions) but input data exclusions are handled
+            # in compose_timeseries (per definition, we skip to the next source when
+            # a source is skipped due to input data exclusions).
+            if not limited_priority_definition.excludes_result(
+                result_da.loc[{my_dim: val}]
+            ):
+                # actually compute results
+                (
+                    result_da.loc[{my_dim: val}],
+                    result_processing_da.loc[{my_dim: val}],
+                ) = compose_timeseries(
+                    input_data=input_da.loc[{my_dim: val}],
+                    priority_definition=limited_priority_definition,
+                    strategy_definition=limited_strategy_definition,
+                )
             if progress_bar is not None:
                 progress_bar.update()
 
@@ -310,39 +317,59 @@ def compose_timeseries(
         )
 
         if result_ts is None:
-            context_logger.debug(
-                f"{fill_ts_repr} is the highest-priority source, using as the "
-                f"basis to fill."
-            )
+            result_ts = xr.full_like(fill_ts_no_prio_dims, np.nan)
+
+        if priority_definition.excludes_input(fill_ts):
             processing_steps_descriptions.append(
-                primap2._data_format.ProcessingStepDescription(
+                primap2.ProcessingStepDescription(
                     time="all",
-                    description=f"used values from {fill_ts_repr}",
-                    function="initial",
+                    description=f"{fill_ts_repr} is excluded from processing, skipped",
+                    function="compose_timeseries",
                     source=fill_ts_repr,
                 )
             )
-            result_ts = fill_ts_no_prio_dims
-        else:
-            if fill_ts.isnull().all():
+            continue
+        if fill_ts.isnull().all():
+            processing_steps_descriptions.append(
+                primap2.ProcessingStepDescription(
+                    time="all",
+                    description=f"{fill_ts_repr} is fully NaN, skipped",
+                    function="compose_timeseries",
+                    source=fill_ts_repr,
+                )
+            )
+            continue
+
+        context_logger.debug(f"Filling with {fill_ts_repr} now.")
+
+        for strategy in strategy_definition.find_strategies(fill_ts):
+            try:
+                result_ts, descriptions = strategy.fill(
+                    ts=result_ts,
+                    fill_ts=fill_ts_no_prio_dims,
+                    fill_ts_repr=fill_ts_repr,
+                )
+                processing_steps_descriptions += descriptions
+                break
+            except primap2.csg.StrategyUnableToProcess:
                 processing_steps_descriptions.append(
-                    primap2._data_format.ProcessingStepDescription(
+                    primap2.ProcessingStepDescription(
                         time="all",
-                        description=f"{fill_ts_repr} is fully NaN, skipped",
-                        function="none",
+                        description=f"strategy {strategy.type} unable to process "
+                        f"{fill_ts_repr}, skipping to next strategy",
+                        function="compose_timeseries",
                         source=fill_ts_repr,
                     )
                 )
+                # next strategy
                 continue
-
-            context_logger.debug(f"Filling with {fill_ts_repr} now.")
-            strategy = strategy_definition.find_strategy(fill_ts)
-            result_ts, descriptions = strategy.fill(
-                ts=result_ts,
-                fill_ts=fill_ts_no_prio_dims,
-                fill_ts_repr=fill_ts_repr,
+        else:
+            # only executed if there was no `break` in the for loop, i.e. if no strategy
+            # was applicable and worked
+            raise ValueError(
+                f"No configured strategy was able to process "
+                f"\n{input_data.coords}\n{input_data.attrs}\n{strategy_definition=}"
             )
-            processing_steps_descriptions += descriptions
 
         if not result_ts.isnull().any():
             context_logger.debug("No NaNs remaining, skipping the rest of the sources.")
@@ -351,7 +378,7 @@ def compose_timeseries(
     if result_ts is None:
         raise ValueError(
             f"No priority selector matched for "
-            f"\n{input_data.coords}\n{priority_definition=}"
+            f"\n{input_data.coords}\n{input_data.attrs}\n{priority_definition=}"
         )
 
     return result_ts, primap2._data_format.TimeseriesProcessingDescription(

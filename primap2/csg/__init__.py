@@ -8,6 +8,7 @@ from ._compose import compose
 from ._models import (
     PriorityDefinition,
     StrategyDefinition,
+    StrategyUnableToProcess,
 )
 from ._strategies.substitution import SubstitutionStrategy
 
@@ -16,4 +17,5 @@ __all__ = [
     "PriorityDefinition",
     "StrategyDefinition",
     "SubstitutionStrategy",
+    "StrategyUnableToProcess",
 ]

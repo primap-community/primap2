@@ -10,7 +10,7 @@ import pandas as pd
 import pint
 from loguru import logger
 
-from .. import _alias_selection
+from .. import _selection
 from .._units import ureg
 from . import _conversion
 from ._interchange_format import (
@@ -1135,7 +1135,7 @@ def fill_from_other_col(
     -------
     pd.DataFrame
     """
-    dim_aliases = _alias_selection.translations_from_attrs(attrs, include_entity=True)
+    dim_aliases = _selection.translations_from_attrs(attrs, include_entity=True)
 
     # loop over target columns in value mapping
     for target_col in coords_value_filling:
@@ -1198,7 +1198,7 @@ def map_metadata_unordered(
     attrs: dict[str, Any],
 ):
     """Map the metadata according to specifications given in meta_mapping."""
-    dim_aliases = _alias_selection.translations_from_attrs(attrs, include_entity=True)
+    dim_aliases = _selection.translations_from_attrs(attrs, include_entity=True)
 
     # TODO: add additional mapping functions here
     # values: (function, additional arguments)
@@ -1523,9 +1523,7 @@ def harmonize_units(
     data_cols = list(set(data.columns.values) - set(dimensions))
 
     if attrs is not None:
-        dim_aliases = _alias_selection.translations_from_attrs(
-            attrs, include_entity=True
-        )
+        dim_aliases = _selection.translations_from_attrs(attrs, include_entity=True)
         entity_col = dim_aliases.get("entity", "entity")
     else:
         entity_col = "entity"
