@@ -85,7 +85,7 @@ def compose(
         result. Dataset with the same entities and dimensions as input_data, but with
         following changes: the data is composed and filled according to the rules,
         the priority dimensions are reduced and not included in the result, and
-        additional variables of the form "Processing of $entity" are added which
+        additional variables of the form "Processing of variable" are added which
         describe the processing steps done for each timeseries.
     """
     result_das = {}
