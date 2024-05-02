@@ -334,7 +334,20 @@ def split_dim_name(dim_name: str) -> tuple[str, str]:
         raise ValueError(
             f"{dim_name!r} not in the format 'dim (category_set)'"
         ) from None
-    return dim, category_set[:-1]
+    return dim[:-1], category_set[:-1]
+
+
+def split_var_name(var_name: str) -> tuple[str, str]:
+    """Split a variable name composed of the entity and the gwp_context in parentheses
+    into its parts."""
+    try:
+        entity, gwp_context = var_name.split("(", maxsplit=1)
+    except ValueError:
+        raise ValueError(
+            f"Tried to split variable name {var_name!r}, but it does not specify a "
+            f"gwp_context in parentheses."
+        ) from None
+    return entity[:-1], gwp_context[:-1]
 
 
 def ensure_no_dimension_without_coordinates(ds: xr.Dataset):
