@@ -485,6 +485,40 @@ def test_compose_skip_entity(opulent_ds):
     assert result["SF6"].isnull().all()
 
 
+def test_compose_variable_entity(opulent_ds):
+    """Test that no strategy is found when specifying variable names for entity"""
+    input_data = opulent_ds[["SF6 (SARGWP100)"]].pr.loc[
+        {
+            "animal": ["cow"],
+            "product": ["milk"],
+            "category": ["0", "1"],
+            "area": ["COL"],
+        }
+    ]
+
+    priority_definition = primap2.csg.PriorityDefinition(
+        priority_dimensions=["source"],
+        priorities=[
+            {"source": "RAND2020"},
+        ],
+    )
+
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            ({'entity': ['SF6 (SARGWP100)']}, primap2.csg.SubstitutionStrategy()),
+        ]
+    )
+
+    with pytest.raises(ValueError, match="No configured strategy was able to process"):
+        primap2.csg.compose(
+            input_data=input_data,
+            priority_definition=priority_definition,
+            strategy_definition=strategy_definition,
+        )
+
+
+
+
 def test_compose_pbar(opulent_ds):
     input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
         {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
