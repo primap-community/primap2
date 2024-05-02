@@ -13,7 +13,6 @@ from primap2.tests.csg.utils import get_single_ts
         primap2.csg.SubstitutionStrategy(),
         primap2.csg.GlobalLSlstsqStrategy(),
         primap2.csg.GlobalLSStrategy(),
-        primap2.csg.NullStrategy(),
     ],
     ids=lambda x: x.type,
 )
