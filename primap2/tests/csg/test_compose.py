@@ -154,12 +154,12 @@ def test_compose_exclude_result(opulent_ds):
         ],
         exclude_result=[
             {"entity": "CH4", "category (IPCC 2006)": "1"},
-            {"entity": "SF6"},
+            {"entity": ["SF6", "SF6 (SARGWP100)"]},
         ],
     )
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
-            ({}, primap2.csg.SubstitutionStrategy()),
+            ({"entity": ["CO2", "CH4"]}, primap2.csg.SubstitutionStrategy()),
         ],
     )
 
