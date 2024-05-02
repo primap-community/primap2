@@ -10,6 +10,8 @@ from functools import wraps
 from sphinxcontrib_autodocgen import AutoDocGen
 
 import primap2
+import primap2.csg
+import primap2.pm2io
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -17,7 +19,7 @@ import primap2
 project = "primap2"
 # put the authors in their own variable, so they can be reused later
 authors = ", ".join(["Mika Pflüger", "Johannes Gütschow", "Annika Günther"])
-copyright = "2021-2023: PIK; 2023-2024: CR"
+copyright = "2021-2023: Potsdam Institute for Climate Impact Research; 2023-2024: Climate Resource"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -74,9 +76,6 @@ autodoc_default_options = {
 # make sure autosummary doesn't interfere
 autosummary_generate = True
 autosummary_generate_overwrite = False
-
-import primap2.csg
-import primap2.pm2io
 
 autodocgen_config = [
     {

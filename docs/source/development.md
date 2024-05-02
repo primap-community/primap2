@@ -159,7 +159,6 @@ If you find additional pre-commit hooks that might be worth to include, simply a
 to `.pre-commit-config.yaml` and submit a pull request.
 
 ## Repo structure
---------------
 
 In the repository, all code is inside the `primap2/` directory, with the unit tests
 all in the `primap2/tests/` directory.

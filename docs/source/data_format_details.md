@@ -1,5 +1,4 @@
-(data-format-details)=
-
+(data_format_details)=
 # Data format details
 
 Data is stored in xarray `dataset` objects with specified dimensions, coordinates,
