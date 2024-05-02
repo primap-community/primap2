@@ -505,7 +505,7 @@ def test_compose_variable_entity(opulent_ds):
 
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[
-            ({'entity': ['SF6 (SARGWP100)']}, primap2.csg.SubstitutionStrategy()),
+            ({"entity": ["SF6 (SARGWP100)"]}, primap2.csg.SubstitutionStrategy()),
         ]
     )
 
@@ -515,8 +515,6 @@ def test_compose_variable_entity(opulent_ds):
             priority_definition=priority_definition,
             strategy_definition=strategy_definition,
         )
-
-
 
 
 def test_compose_pbar(opulent_ds):
