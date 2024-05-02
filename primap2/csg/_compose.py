@@ -39,8 +39,8 @@ def compose(
 
     In addition to the harmonized data, also a description of the processing steps
     done for each timeseries is returned in the result dataset, where for each
-    entity, a variable of the form "Processing of $entity" is returned, with the same
-    dimensions as the entity, apart from the time dimension.
+    variable, a variable of the form "Processing of $variable" is returned, with the
+    same dimensions as the variable, apart from the time dimension.
 
     Parameters
     ----------
@@ -59,8 +59,10 @@ def compose(
         e.g., possible to define a different priority for a specific country by listing
         it early (i.e. with high priority) before the more general rules which should
         be applied for all other countries.
-        You can also specify the "entity" in the selection, which will limit the rule
-        to a specific entity (xarray data variable).
+        You can also specify the "entity" or "variable" in the selection, which will
+        limit the rule to a specific entity or variable, respectively. For each
+        DataArray in the input_data Dataset, the variable is its name, the entity is
+        the value of the key `entity` in its attrs.
     strategy_definition
         Defines the filling strategies to be used when filling timeseries with other
         timeseries. Again, the priority is defined by a list of selections and
@@ -69,8 +71,10 @@ def compose(
         define a default strategy which should be used for all timeseries unless
         something else is configured, configure an empty selection as the last
         (rightmost) entry.
-        You can also specify the "entity" in the selection, which will limit the rule
-        to a specific entity (xarray data variable).
+        You can also specify the "entity" or "variable" in the selection, which will
+        limit the rule to a specific entity or variable, respectively. For each
+        DataArray in the input_data Dataset, the variable is its name, the entity is
+        the value of the key `entity` in its attrs.
     progress_bar
         By default, show progress bars using the tqdm package during the
         operation. If None, don't show any progress bars. You can supply a class
