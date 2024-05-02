@@ -11,23 +11,27 @@ import primap2
 from primap2._data_format import ProcessingStepDescription
 
 
+def equal_or_in(a, b):
+    """Check if a == b (b str) or a in b (otherwise)."""
+    if isinstance(b, str):
+        return a == b
+    else:
+        return a in b
+
+
 def match_selector(
     *, selector: dict[Hashable, str | list[str]], ts: xr.DataArray
 ) -> bool:
     """Check if a timeseries matches the selector."""
     for k, v in selector.items():
         if k == "entity":
-            if isinstance(v, str):
-                if v != ts.attrs["entity"]:
-                    return False
-            elif ts.attrs["entity"] not in v:
+            if not equal_or_in(ts.attrs["entity"], v):
                 return False
-        else:
-            if isinstance(v, str):
-                if not ts.coords[k] == v:
-                    return False
-            elif ts.coords[k] not in v:
+        elif k == "variable":
+            if not equal_or_in(ts.name, v):
                 return False
+        elif not equal_or_in(ts.coords[k], v):
+            return False
     return True
 
 
