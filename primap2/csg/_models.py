@@ -17,7 +17,10 @@ def match_selector(
     """Check if a timeseries matches the selector."""
     for k, v in selector.items():
         if k == "entity":
-            if v != ts.attrs["entity"]:
+            if isinstance(v, str):
+                if v != ts.attrs["entity"]:
+                    return False
+            elif ts.attrs["entity"] not in v:
                 return False
         else:
             if isinstance(v, str):

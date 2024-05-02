@@ -18,6 +18,7 @@ def test_match_selector():
 
     da.attrs["entity"] = "SF6"
     assert match_selector(selector={"source": "A", "entity": "SF6"}, ts=da)
+    assert match_selector(selector={"source": "A", "entity": ["SF6", "CO2"]}, ts=da)
     assert not match_selector(selector={"source": "A", "entity": "CO2"}, ts=da)
 
 
