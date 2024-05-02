@@ -88,18 +88,21 @@ def compose(
     input_data = input_data.pr.dequantify()
 
     if progress_bar is None:
-        entity_iterator = input_data
+        variable_iterator = input_data
     else:
-        entity_iterator = progress_bar(input_data)
+        variable_iterator = progress_bar(input_data)
 
     priority_dimensions = priority_definition.priority_dimensions
     priority_definition.check_dimensions()
 
-    for entity in entity_iterator:
-        if progress_bar is not None:
-            entity_iterator.set_postfix_str(str(entity))
+    strategy_definition.check_dimensions(input_data)
 
-        input_da = input_data[entity]
+    for variable in variable_iterator:
+        if progress_bar is not None:
+            variable_iterator.set_postfix_str(str(variable))
+
+        input_da = input_data[variable]
+        entity = input_da.attrs["entity"]
 
         # all dimensions are either time, priority selection dimensions, or need to
         # be iterated over
@@ -110,8 +113,8 @@ def compose(
         )
 
         (
-            result_das[entity],
-            result_das[f"Processing of {entity}"],
+            result_das[variable],
+            result_das[f"Processing of {variable}"],
         ) = preallocate_result_arrays(
             input_da=input_da,
             group_by_dimensions=group_by_dimensions,
@@ -129,11 +132,15 @@ def compose(
 
         iterate_next_fixed_dimension(
             input_da=input_da,
-            priority_definition=priority_definition.limit("entity", entity),
-            strategy_definition=strategy_definition.limit("entity", entity),
+            priority_definition=priority_definition.limit("entity", entity).limit(
+                "variable", variable
+            ),
+            strategy_definition=strategy_definition.limit("entity", entity).limit(
+                "variable", variable
+            ),
             group_by_dimensions=group_by_dimensions,
-            result_da=result_das[entity],
-            result_processing_da=result_das[f"Processing of {entity}"],
+            result_da=result_das[variable],
+            result_processing_da=result_das[f"Processing of {variable}"],
             progress_bar=pbar,
         )
         if pbar is not None:
@@ -177,6 +184,7 @@ def preallocate_result_arrays(
             if dim not in priority_dimensions
         },
         attrs=input_da.attrs,
+        name=input_da.name,
     )
     processing_result_da = xr.DataArray(
         data=np.empty(

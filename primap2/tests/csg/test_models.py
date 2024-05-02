@@ -7,7 +7,7 @@ from primap2.tests.csg.utils import get_single_ts
 
 
 def test_match_selector():
-    da = get_single_ts(coords={"source": "A", "category": "1.A"})
+    da = get_single_ts(coords={"source": "A", "category": "1.A"}, entity="SF6")
 
     assert match_selector(selector={"source": "A"}, ts=da)
     assert not match_selector(selector={"source": "B"}, ts=da)
@@ -16,10 +16,21 @@ def test_match_selector():
     assert not match_selector(selector={"source": "A", "category": "1"}, ts=da)
     assert not match_selector(selector={"source": "A", "category": ["1", "2"]}, ts=da)
 
-    da.attrs["entity"] = "SF6"
     assert match_selector(selector={"source": "A", "entity": "SF6"}, ts=da)
     assert match_selector(selector={"source": "A", "entity": ["SF6", "CO2"]}, ts=da)
     assert not match_selector(selector={"source": "A", "entity": "CO2"}, ts=da)
+    assert match_selector(selector={"source": "A", "variable": "SF6"}, ts=da)
+
+    da = get_single_ts(
+        coords={"source": "A", "category": "1.A"}, entity="SF6", gwp_context="AR6GWP100"
+    )
+    assert match_selector(selector={"source": "A", "entity": "SF6"}, ts=da)
+    assert match_selector(selector={"source": "A", "entity": ["SF6", "CO2"]}, ts=da)
+    assert not match_selector(selector={"source": "A", "entity": "CO2"}, ts=da)
+    assert match_selector(
+        selector={"source": "A", "variable": "SF6 (AR6GWP100)"}, ts=da
+    )
+    assert not match_selector(selector={"source": "A", "variable": "SF6"}, ts=da)
 
 
 def test_selector_match_single_dim():
@@ -38,11 +49,63 @@ def test_selector_match_single_dim():
 
 
 def test_strategy_definition():
-    da = get_single_ts(coords={"source": "A", "category": "1.A"})
+    da = get_single_ts(
+        coords={"source": "A", "category": "1.A"}, entity="SF6", gwp_context="AR6GWP100"
+    )
 
     assert (
         primap2.csg.StrategyDefinition(
             [({"source": "A", "category": "1"}, 1), ({"source": "A"}, 2)]
+        ).find_strategy(da)
+        == 2
+    )
+    assert (
+        primap2.csg.StrategyDefinition(
+            [
+                ({"source": "A", "category": "1.A", "entity": ["SF6", "CO2"]}, 1),
+                ({"source": "A"}, 2),
+            ]
+        ).find_strategy(da)
+        == 1
+    )
+    assert (
+        primap2.csg.StrategyDefinition(
+            [
+                ({"source": "A", "category": "1.A", "entity": ["CH4", "CO2"]}, 1),
+                ({"source": "A"}, 2),
+            ]
+        ).find_strategy(da)
+        == 2
+    )
+    assert (
+        primap2.csg.StrategyDefinition(
+            [
+                (
+                    {
+                        "source": "A",
+                        "category": "1.A",
+                        "variable": ["SF6 (AR6GWP100)", "CO2"],
+                    },
+                    1,
+                ),
+                ({"source": "A"}, 2),
+            ]
+        ).find_strategy(da)
+        == 1
+    )
+    assert (
+        primap2.csg.StrategyDefinition(
+            [
+                (
+                    {
+                        "source": "A",
+                        "category": "1.A",
+                        "variable": ["SF6 (AR4GWP100)", "CO2"],
+                    },
+                    1,
+                ),
+                ({"source": "A"}, 2),
+            ]
         ).find_strategy(da)
         == 2
     )
@@ -72,6 +135,19 @@ def test_strategy_definition_limit():
     assert primap2.csg.StrategyDefinition(
         [({"entity": "A", "source": "S"}, 1), ({"source": "T"}, 2)]
     ).limit("entity", "B").strategies == [({"source": "T"}, 2)]
+
+
+def test_strategy_definition_check_dimensions(minimal_ds):
+    primap2.csg.StrategyDefinition(
+        [({"entity": "CO2", "source": "RAND2020"}, 1)]
+    ).check_dimensions(minimal_ds)
+    primap2.csg.StrategyDefinition(
+        [({"variable": "CO2", "source": "RAND2020"}, 1)]
+    ).check_dimensions(minimal_ds)
+    with pytest.raises(ValueError):
+        primap2.csg.StrategyDefinition(
+            [({"entity": "CO2", "scenario": "highpop"})]
+        ).check_dimensions(minimal_ds)
 
 
 def test_priority_limit():

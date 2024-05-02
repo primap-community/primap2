@@ -296,13 +296,23 @@ class StrategyDefinition:
             ]
         )
 
+    def check_dimensions(self, ds: xr.Dataset):
+        """Raise an error if the strategy definition uses the wrong dimensions."""
+        applicable_dimensions = set(ds.dims.keys()).union({"entity", "variable"})
+        for sel, _ in self.strategies:
+            for dim in sel:
+                if dim not in applicable_dimensions:
+                    raise ValueError(
+                        f"In selector={sel!r}: {dim=} is not a valid dimension. Valid "
+                        f"dimensions: {applicable_dimensions}."
+                    )
+
     @staticmethod
     def match_single_dim(
         *, selector: dict[Hashable, str | list[str]], dim: Hashable, value: str
     ) -> bool:
         """Check if a literal value in one dimension can match the selector."""
-        if dim not in selector.keys():
+        if dim in selector:
+            return equal_or_in(value, selector[dim])
+        else:
             return True
-        if isinstance(selector[dim], str):
-            return value == selector[dim]
-        return value in selector[dim]
