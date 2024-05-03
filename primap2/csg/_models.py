@@ -103,10 +103,7 @@ class PriorityDefinition:
             # for each possible type of match_value, skip this if it *doesn't* match
             if isinstance(match_value, primap2.Not):
                 not_value = match_value.value
-                if isinstance(not_value, str):
-                    if not_value == value:
-                        continue
-                elif value in not_value:
+                if equal_or_in(value, not_value):
                     continue
             elif isinstance(match_value, str):
                 if match_value != value:
