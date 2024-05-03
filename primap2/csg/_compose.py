@@ -39,8 +39,8 @@ def compose(
 
     In addition to the harmonized data, also a description of the processing steps
     done for each timeseries is returned in the result dataset, where for each
-    entity, a variable of the form "Processing of $entity" is returned, with the same
-    dimensions as the entity, apart from the time dimension.
+    variable, a variable of the form "Processing of $variable" is returned, with the
+    same dimensions as the variable, apart from the time dimension.
 
     Parameters
     ----------
@@ -59,8 +59,10 @@ def compose(
         e.g., possible to define a different priority for a specific country by listing
         it early (i.e. with high priority) before the more general rules which should
         be applied for all other countries.
-        You can also specify the "entity" in the selection, which will limit the rule
-        to a specific entity (xarray data variable).
+        You can also specify the "entity" or "variable" in the selection, which will
+        limit the rule to a specific entity or variable, respectively. For each
+        DataArray in the input_data Dataset, the variable is its name, the entity is
+        the value of the key `entity` in its attrs.
     strategy_definition
         Defines the filling strategies to be used when filling timeseries with other
         timeseries. Again, the priority is defined by a list of selections and
@@ -69,8 +71,10 @@ def compose(
         define a default strategy which should be used for all timeseries unless
         something else is configured, configure an empty selection as the last
         (rightmost) entry.
-        You can also specify the "entity" in the selection, which will limit the rule
-        to a specific entity (xarray data variable).
+        You can also specify the "entity" or "variable" in the selection, which will
+        limit the rule to a specific entity or variable, respectively. For each
+        DataArray in the input_data Dataset, the variable is its name, the entity is
+        the value of the key `entity` in its attrs.
     progress_bar
         By default, show progress bars using the tqdm package during the
         operation. If None, don't show any progress bars. You can supply a class
@@ -81,25 +85,28 @@ def compose(
         result. Dataset with the same entities and dimensions as input_data, but with
         following changes: the data is composed and filled according to the rules,
         the priority dimensions are reduced and not included in the result, and
-        additional variables of the form "Processing of $entity" are added which
+        additional variables of the form "Processing of $variable" are added which
         describe the processing steps done for each timeseries.
     """
     result_das = {}
     input_data = input_data.pr.dequantify()
 
     if progress_bar is None:
-        entity_iterator = input_data
+        variable_iterator = input_data
     else:
-        entity_iterator = progress_bar(input_data)
+        variable_iterator = progress_bar(input_data)
 
     priority_dimensions = priority_definition.priority_dimensions
     priority_definition.check_dimensions()
 
-    for entity in entity_iterator:
-        if progress_bar is not None:
-            entity_iterator.set_postfix_str(str(entity))
+    strategy_definition.check_dimensions(input_data)
 
-        input_da = input_data[entity]
+    for variable in variable_iterator:
+        if progress_bar is not None:
+            variable_iterator.set_postfix_str(str(variable))
+
+        input_da = input_data[variable]
+        entity = input_da.attrs["entity"]
 
         # all dimensions are either time, priority selection dimensions, or need to
         # be iterated over
@@ -110,8 +117,8 @@ def compose(
         )
 
         (
-            result_das[entity],
-            result_das[f"Processing of {entity}"],
+            result_das[variable],
+            result_das[f"Processing of {variable}"],
         ) = preallocate_result_arrays(
             input_da=input_da,
             group_by_dimensions=group_by_dimensions,
@@ -129,11 +136,15 @@ def compose(
 
         iterate_next_fixed_dimension(
             input_da=input_da,
-            priority_definition=priority_definition.limit("entity", entity),
-            strategy_definition=strategy_definition.limit("entity", entity),
+            priority_definition=priority_definition.limit("entity", entity).limit(
+                "variable", variable
+            ),
+            strategy_definition=strategy_definition.limit("entity", entity).limit(
+                "variable", variable
+            ),
             group_by_dimensions=group_by_dimensions,
-            result_da=result_das[entity],
-            result_processing_da=result_das[f"Processing of {entity}"],
+            result_da=result_das[variable],
+            result_processing_da=result_das[f"Processing of {variable}"],
             progress_bar=pbar,
         )
         if pbar is not None:
@@ -177,6 +188,7 @@ def preallocate_result_arrays(
             if dim not in priority_dimensions
         },
         attrs=input_da.attrs,
+        name=input_da.name,
     )
     processing_result_da = xr.DataArray(
         data=np.empty(
