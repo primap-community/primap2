@@ -289,9 +289,15 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         terminology: str | None = None,
     ) -> xr.Dataset:
         """
+        TODO: should we rename this to expand_dims to indicate that it does the
+         same as the xarray function, just for primap2 format?
+
         Add a dimension and coordinate to dataset and if a terminology is given also to attrs.
         Dimension has length 1.
-        TODO: add equivalent function for dataarray?
+
+        To add a dimension to a PRIMAP2 DataArray use the native xarray method
+        `expand_dims`. As PRIMAP2 DataArrays don't have the coordinate information
+        in the attributes, no additional code is needed.
 
         Parameters
         ----------

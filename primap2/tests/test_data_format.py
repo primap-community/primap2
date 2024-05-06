@@ -9,6 +9,7 @@ import pytest
 import xarray as xr
 
 import primap2
+from primap2._selection import translations_from_dims
 
 from .utils import assert_ds_aligned_equal
 
@@ -355,3 +356,32 @@ def test_has_processing_info_not(opulent_ds):
 
 def test_has_processing_info(opulent_processing_ds):
     assert opulent_processing_ds.pr.has_processing_info()
+
+
+def test_add_dim(minimal_ds):
+    result_ds = minimal_ds.pr.add_dim(
+        dim="new_dim",
+        coord_value="new_value",
+        terminology="new_terminology",
+    )
+
+    new_dim = "new_dim (new_terminology)"
+
+    assert new_dim in result_ds.coords
+    assert "new_value" in result_ds.coords[new_dim].values
+
+    translations = translations_from_dims([new_dim])
+    shortest_key = min(list(translations.keys()), key=len)
+
+    assert result_ds.attrs[shortest_key] == translations[shortest_key]
+
+    # without terminology
+    result_ds = minimal_ds.pr.add_dim(
+        dim="new_dim",
+        coord_value="new_value",
+    )
+
+    new_dim = "new_dim"
+
+    assert new_dim in result_ds.coords
+    assert "new_value" in result_ds.coords[new_dim].values
