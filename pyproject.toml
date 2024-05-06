@@ -7,6 +7,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.ruff]
+extend-include = ["*.ipynb"]
 extend-exclude = [
   "climate_categories/data/*.py",
   "climate_categories/tests/data/*.py",

@@ -88,9 +88,7 @@ mathjax3_config = {"chtml": {"displayAlign": "center"}}
 
 # myst configuration
 myst_enable_extensions = ["amsmath", "dollarmath"]
-# cache because we save our notebooks as `.py` files i.e. without output
-# stored so auto doesn't work (it just ends up being run every time)
-nb_execution_mode = "cache"
+nb_execution_mode = "auto"
 nb_execution_raise_on_error = True
 nb_execution_show_tb = True
 nb_execution_timeout = 120
