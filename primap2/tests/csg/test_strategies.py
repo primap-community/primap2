@@ -12,7 +12,6 @@ from primap2.tests.csg.utils import get_single_ts
     "strategy",
     [
         primap2.csg.SubstitutionStrategy(),
-        primap2.csg.GlobalLSlstsqStrategy(),
         primap2.csg.GlobalLSStrategy(),
     ],
     ids=lambda x: x.type,
@@ -57,10 +56,19 @@ def test_substitution_strategy():
 
 def test_globalLS_strategy():
     ts = get_single_ts(data=1.0)
-    ts[0] = np.nan
     fill_ts = get_single_ts(data=2.0)
 
+    # nothing to fill
+    result_ts, result_descriptions = primap2.csg.GlobalLSStrategy(
+        allow_shift=False
+    ).fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")
+    xr.testing.assert_allclose(ts, result_ts)
+    assert len(result_descriptions) == 1
+    assert len(result_descriptions[0].time) == 0  # comparison of results fails
+    assert result_descriptions[0].description == "no additional data in B"
+
     # allow_shift = False
+    ts[0] = np.nan
     result_ts, result_descriptions = primap2.csg.GlobalLSStrategy(
         allow_shift=False
     ).fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")

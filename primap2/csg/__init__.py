@@ -10,7 +10,7 @@ from ._models import (
     StrategyDefinition,
     StrategyUnableToProcess,
 )
-from ._strategies.global_least_squares import GlobalLSlstsqStrategy, GlobalLSStrategy
+from ._strategies.global_least_squares import GlobalLSStrategy
 from ._strategies.substitution import SubstitutionStrategy
 
 __all__ = [
@@ -20,5 +20,4 @@ __all__ = [
     "SubstitutionStrategy",
     "StrategyUnableToProcess",
     "GlobalLSStrategy",
-    "GlobalLSlstsqStrategy",
 ]
