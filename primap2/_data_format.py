@@ -319,8 +319,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         else:
             dim_to_add = dim
 
-        ds_out = ds_out.expand_dims(dim={dim_to_add: 1})
-        ds_out = ds_out.assign_coords(coords={dim_to_add: (dim_to_add, [coord_value])})
+        ds_out = ds_out.expand_dims(dim={dim_to_add: [coord_value]})
         return ds_out
 
 
