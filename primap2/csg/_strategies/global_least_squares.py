@@ -5,6 +5,7 @@ from scipy.linalg import lstsq
 from scipy.optimize import least_squares
 
 import primap2
+from primap2.csg import StrategyUnableToProcess
 
 
 @frozen
@@ -18,8 +19,7 @@ class GlobalLSStrategy:
     the least squares distance between ts(t) and fill_ts(t)_h.
 
     If the class is initialized with `allow_shift = True` the faster
-    `GlobalLSlstsqStrategy` which is based on the `scipy.linalg.lstsq` function
-    is used.
+    `scipy.linalg.lstsq` function is used.
     For the case `allow_shift = False` (b = 0) `scipi.optimize.least_squares` is used.
 
     If there is no overlap in non-NaN data between ts(t) and fill_ts(t) the
@@ -27,6 +27,7 @@ class GlobalLSStrategy:
     """
 
     allow_shift: bool = True
+    allow_negative: bool = False
     type = "globalLS"
 
     def _factor_mult(self, a, e, e_ref):
@@ -45,7 +46,6 @@ class GlobalLSStrategy:
         fill_ts_repr: str,
     ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
         """Fill missing data by global least square matching.
-
 
         For a description of the algorithm, see the documentation of this class.
 
@@ -80,13 +80,29 @@ class GlobalLSStrategy:
             overlap = ts.notnull() & fill_ts.notnull()
             if overlap.any():
                 if self.allow_shift:
-                    #  pass on to lstsq based strategy
-                    strategy = primap2.csg.GlobalLSlstsqStrategy()
-                    filled_ts, descriptions = strategy.fill(
-                        ts=ts,
-                        fill_ts=fill_ts,
-                        fill_ts_repr=fill_ts_repr,
-                    )
+                    e = fill_ts[overlap.data].data
+                    A = np.vstack((e, np.ones_like(e))).transpose()
+                    e_ref = ts[overlap.data].data
+                    x, res, rank, s = lstsq(A, e_ref)
+                    fill_ts_harmo = fill_ts * x[0] + x[1]
+                    if any(fill_ts_harmo < 0):
+                        # use filling without shift
+                        raise StrategyUnableToProcess(
+                            reason="Negative data after harmonization excluded "
+                            "by configuration"
+                        )
+                    else:
+                        filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
+                        descriptions = [
+                            primap2.ProcessingStepDescription(
+                                time=time_filled,
+                                description=f"filled with least squares matched data from "
+                                f"{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
+                                f"b={x[1]:0.3f}",
+                                function=self.type,
+                                source=fill_ts_repr,
+                            )
+                        ]
                 else:
                     e = fill_ts[overlap.data].data
                     e_ref = ts[overlap.data].data
@@ -102,17 +118,14 @@ class GlobalLSStrategy:
                         primap2.ProcessingStepDescription(
                             time=time_filled,
                             description="filled with least squares matched data from "
-                            f" {fill_ts_repr}. Factor={res['x'][0]:0.3f}",
+                            f"{fill_ts_repr}. Factor={res['x'][0]:0.3f}",
                             function=self.type,
                             source=fill_ts_repr,
                         )
                     ]
             else:
-                strategy = primap2.csg.SubstitutionStrategy()
-                filled_ts, descriptions = strategy.fill(
-                    ts=ts,
-                    fill_ts=fill_ts,
-                    fill_ts_repr=fill_ts_repr,
+                raise StrategyUnableToProcess(
+                    reason="No overlap between timeseries, can't match"
                 )
 
         else:

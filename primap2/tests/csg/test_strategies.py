@@ -4,6 +4,7 @@ import xarray as xr
 import xarray.testing
 
 import primap2.csg
+from primap2.csg import StrategyUnableToProcess
 from primap2.tests.csg.utils import get_single_ts
 
 
@@ -51,4 +52,60 @@ def test_substitution_strategy():
         result_descriptions[0].description
         == "substituted with corresponding values from B"
     )
+    assert "source" not in result_ts.coords.keys()
+
+
+def test_globalLS_strategy():
+    ts = get_single_ts(data=1.0)
+    ts[0] = np.nan
+    fill_ts = get_single_ts(data=2.0)
+
+    # allow_shift = False
+    result_ts, result_descriptions = primap2.csg.GlobalLSStrategy(
+        allow_shift=False
+    ).fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")
+    xr.testing.assert_allclose(get_single_ts(data=1.0), result_ts)
+    assert len(result_descriptions) == 1
+    assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
+    assert (
+        result_descriptions[0].description
+        == "filled with least squares matched data from B. Factor=0.500"
+    )
+
+    # allow_shift = True
+    ts[1:5] = 0.5
+    fill_ts[0:5] = 1.5
+    result_ts, result_descriptions = primap2.csg.GlobalLSStrategy(
+        allow_shift=True
+    ).fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")
+
+    expected_ts = ts.copy(deep=True)
+    expected_ts[0] = 0.5
+    xr.testing.assert_allclose(expected_ts, result_ts)
+    assert len(result_descriptions) == 1
+    assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
+    assert (
+        result_descriptions[0].description
+        == "filled with least squares matched data from B. "
+        "a*x+b with a=1.000, b=-1.000"
+    )
+
+    # error for negative emissions
+    ts[1:5] = 0.5
+    fill_ts[1:5] = 1.5
+    fill_ts[0] = 0.1
+    with pytest.raises(StrategyUnableToProcess):
+        result_ts, result_descriptions = primap2.csg.GlobalLSStrategy(
+            allow_shift=True, allow_negative=False
+        ).fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")
+
+    # error for no overlap
+    ts[1:5] = np.nan
+    fill_ts[5:] = np.nan
+    with pytest.raises(StrategyUnableToProcess):
+        result_ts, result_descriptions = primap2.csg.GlobalLSStrategy(
+            allow_shift=True, allow_negative=False
+        ).fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")
+
+    # general
     assert "source" not in result_ts.coords.keys()
