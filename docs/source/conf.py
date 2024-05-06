@@ -5,13 +5,6 @@ For the full list of built-in configuration values, see the documentation:
 https://www.sphinx-doc.org/en/master/usage/configuration.html
 """
 
-from functools import wraps
-
-from sphinxcontrib_autodocgen import AutoDocGen
-
-import primap2
-import primap2.csg
-import primap2.pm2io
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -25,13 +18,6 @@ copyright = "2021-2023: Potsdam Institute for Climate Impact Research; 2023-2024
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    # create documentation automatically from source code
-    # https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html
-    "sphinx.ext.autodoc",
-    # automatic summary
-    "sphinx.ext.autosummary",
-    # automatic summary with better control
-    "sphinxcontrib_autodocgen",
     # tell sphinx that we're using numpy style docstrings
     # https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
     "sphinx.ext.napoleon",
@@ -42,6 +28,8 @@ extensions = [
     # in the list for things to work properly
     # https://github.com/tox-dev/sphinx-autodoc-typehints#compatibility-with-sphinxextnapoleon
     "sphinx_autodoc_typehints",
+    # Generate an API documentation automatically from docstrings
+    "autoapi.extension",
     # jupytext rendered notebook support (also loads myst_parser)
     "myst_nb",
     # links to other docs
@@ -65,45 +53,6 @@ exclude_patterns = ["conf.py"]
 # Stop sphinx doing funny things with byte order markers
 source_encoding = "utf-8"
 
-# configure default settings for autodoc directives
-# https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html#directives
-autodoc_default_options = {
-    # Show the inheritance of classes
-    "show-inheritance": True,
-}
-
-# autosummary with autodocgen
-# make sure autosummary doesn't interfere
-autosummary_generate = True
-autosummary_generate_overwrite = False
-
-autodocgen_config = [
-    {
-        "modules": [primap2, primap2.csg, primap2.pm2io],
-        "generated_source_dir": "docs/source/api",
-        # choose a different title for specific modules, e.g. the toplevel one
-        "module_title_decider": lambda modulename: "API Reference"
-        if modulename == "primap2"
-        else modulename,
-    }
-]
-
-# monkey patch to remove leading newlines
-generate_module_rst_orig = AutoDocGen.generate_module_rst
-
-
-@wraps(generate_module_rst_orig)
-def _generate_module_rst_new(*args, **kwargs):
-    default = generate_module_rst_orig(*args, **kwargs)
-    out = default.lstrip("\n")
-    if not out.endswith("\n"):
-        out = f"{out}\n"
-
-    return out
-
-
-AutoDocGen.generate_module_rst = _generate_module_rst_new
-
 # napoleon extension settings
 # https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
 # We use numpy style docstrings
@@ -121,6 +70,18 @@ typehints_fully_qualified = True
 typehints_document_rtype = True
 # Put the return type as part of the return documentation
 typehints_use_rtype = False
+
+# AutoAPI generates the API documentation
+autoapi_dirs = ["../../primap2"]
+autoapi_ignore = ["*tests/*"]
+autoapi_options = [
+    "members",
+    "undoc-members",
+    "show-inheritance",
+    "show-module-summary",
+    "special-members",
+    "imported-members",
+]
 
 # Left-align maths equations
 mathjax3_config = {"chtml": {"displayAlign": "center"}}

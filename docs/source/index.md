@@ -27,7 +27,6 @@ data_format_details
 interchange_format_details
 development
 credits
-api/primap2
 changelog
 ```
 
