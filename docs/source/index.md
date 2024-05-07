@@ -1,22 +1,17 @@
-# primap2
-
 ```{include} ../../README.md
-:start-after: <!--- sec-begin-description -->
-:end-before: <!--- sec-end-description -->
 ```
+## Documentation
 
-## Installation
-
-```{include} ../../README.md
-:start-after: <!--- sec-begin-installation -->
-:end-before: <!--- sec-end-installation -->
-```
+We have divided the documentation into documentation for users of the primap2 library
+and technical documentation  for developers working on the library itself.
 
 ```{toctree}
 :caption: Contents
 :maxdepth: 2
-readme
+
 installation
+usage/index
+
 data_format_examples
 usage
 special_usage
@@ -29,10 +24,3 @@ development
 credits
 changelog
 ```
-
-Index
------
-
-- :ref:`genindex`
-- :ref:`modindex`
-- :ref:`search`

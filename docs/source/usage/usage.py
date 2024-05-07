@@ -49,8 +49,8 @@ logger.add(sys.stderr, level="INFO")
 # We will load the "minimal" and "opulent" Datasets from the data format section:
 
 # %%
-ds_min = primap2.open_dataset("minimal_ds.nc")
-ds = primap2.open_dataset("opulent_ds.nc")
+ds_min = primap2.open_dataset("../minimal_ds.nc")
+ds = primap2.open_dataset("../opulent_ds.nc")
 
 ds
 

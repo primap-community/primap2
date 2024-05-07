@@ -2,7 +2,7 @@
 #
 
 # You can set these variables from the command line.
-SPHINXOPTS    =
+SPHINXOPTS    = -j 4
 SPHINXBUILD   = ../venv/bin/python -msphinx
 SPHINXPROJ    = primap2
 SOURCEDIR     = .
