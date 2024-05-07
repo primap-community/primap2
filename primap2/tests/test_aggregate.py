@@ -413,16 +413,8 @@ class TestGasBasket:
         filled.pr.ensure_valid()
 
     def test_add_aggregates_variables_tolerance(self, partly_filled_ds, caplog):
-        # fill with correct sum
-        # filled = partly_filled_ds.pr.add_aggregates_variables(
-        #     gas_baskets={
-        #         "KYOTOGHG (AR4GWP100)": ["CO2", "SF6", "CH4"],
-        #     },
-        # )
-        #
-        # # now change the sum to test the tolerance parameter
-        # filled["KYOTOGHG (AR4GWP100)"].data = filled["KYOTOGHG (AR4GWP100)"].data * 1.011
-
+        # test if the tolerance setting works (the data in partly_filled_ds is
+        # already inconsistent, so we can use it for the test directly)
         with pytest.raises(
             xr.MergeError,
             match="pr.merge error: found discrepancies " "larger than tolerance",
@@ -443,9 +435,164 @@ class TestGasBasket:
         filled.pr.ensure_valid()
 
 
-# class TestAggregatesCategories:
-# to test
+class TestAddAggregatesCategories:
+    # No tests for skipna etc as that is just passed on to sum
+    def test_add_aggregates_categories_tolerance(self, minimal_ds):
+        # test if the tolerance setting works
 
-# merge tolerance
-# aggregate category and data correct
-#
+        test_ds = minimal_ds.pr.add_aggregates_coordinates(
+            agg_info={
+                "area (ISO3)": {
+                    "all": {
+                        "sources": ["COL", "ARG", "MEX", "BOL"],
+                    }
+                }
+            }
+        )
+
+        with pytest.raises(
+            xr.MergeError,
+            match="pr.merge error: found discrepancies " "larger than tolerance",
+        ):
+            test_ds.pr.add_aggregates_coordinates(
+                agg_info={
+                    "area (ISO3)": {
+                        "all": {
+                            "sources": ["COL", "ARG"],
+                        }
+                    }
+                }
+            )
+
+        test_ds.pr.add_aggregates_coordinates(
+            agg_info={
+                "area (ISO3)": {
+                    "all": {"sources": ["COL", "ARG", "MEX", "BOL"], "tolerance": 5}
+                }
+            }
+        )
+
+    def test_add_aggregates_categories_result(self, minimal_ds):
+        # test if aggregated value timeseries are present and correct
+        test_ds = minimal_ds.pr.add_aggregates_coordinates(
+            agg_info={
+                "area (ISO3)": {
+                    "all": {
+                        "sources": ["COL", "ARG", "MEX", "BOL"],
+                    }
+                }
+            }
+        )
+
+        expected_result = minimal_ds["CO2"].pr.sum(dim="area (ISO3)")
+        actual_result = (
+            test_ds["CO2"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
+        )
+        xr.testing.assert_allclose(expected_result, actual_result)
+
+    def test_add_aggregates_categories_result_filter(self, minimal_ds):
+        # test if aggregated value timeseries are present and correct
+        test_ds = minimal_ds.pr.add_aggregates_coordinates(
+            agg_info={
+                "area (ISO3)": {
+                    "all": {"sources": ["COL", "ARG", "MEX", "BOL"], "filter": {}}
+                }
+            }
+        )
+
+        expected_result = minimal_ds["CO2"].pr.sum(dim="area (ISO3)")
+        actual_result = (
+            test_ds["CO2"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
+        )
+        xr.testing.assert_allclose(expected_result, actual_result)
+
+    def test_add_aggregates_categories_warning(self, minimal_ds, caplog):
+        # test warning for missing input
+        minimal_ds.pr.add_aggregates_coordinates(
+            agg_info={
+                "area (ISO3)": {
+                    "all": {
+                        "sources": ["COL", "ARG", "MEX", "BOL", "DEU"],
+                    }
+                }
+            }
+        )
+        assert (
+            "Not all source values present for 'all'"
+            " in coordinate 'area (ISO3)'. "
+            "Missing: ['DEU']"
+        ) in caplog.text
+
+        # test warning for fully missing input
+        minimal_ds.pr.add_aggregates_coordinates(
+            agg_info={
+                "area (ISO3)": {
+                    "all": {
+                        "sources": ["DEU"],
+                    }
+                }
+            }
+        )
+        assert (
+            "No source value present for 'all' in "
+            "coordinate 'area (ISO3)'. Missing: ['DEU']."
+        ) in caplog.text
+
+        # test all nan warning
+        test_ds = minimal_ds.copy(deep=True)
+        test_ds["CO2"] = xr.full_like(test_ds["CO2"], np.nan).pr.quantify(
+            units="Gg CO2 / year"
+        )
+        test_ds.pr.add_aggregates_coordinates(
+            agg_info={
+                "area (ISO3)": {
+                    "all": {
+                        "sources": ["COL", "ARG", "MEX", "BOL"],
+                    }
+                }
+            }
+        )
+        assert (
+            "All input data nan for 'all' in " "coordinate 'area (ISO3)'."
+        ) in caplog.text
+
+    def test_add_aggregates_categories_error_add_coord(self, minimal_ds):
+        # test error on additional coordinate
+        with pytest.raises(
+            ValueError,
+            match="Additional coordinate 'area_name' specified but not "
+            "present in data",
+        ):
+            minimal_ds.pr.add_aggregates_coordinates(
+                agg_info={
+                    "area (ISO3)": {
+                        "all": {
+                            "sources": ["COL", "ARG", "MEX", "BOL"],
+                            "area_name": "All Countries",
+                        }
+                    }
+                }
+            )
+
+    def test_add_aggregates_categories_add_coord(self, minimal_ds):
+        # test error on additional coordinate
+        test_ds = minimal_ds.copy(deep=True)
+        area_name = ["COL", "ARG", "MEX", "BOL"]
+        test_ds = test_ds.assign_coords(area_name=("area (ISO3)", area_name))
+
+        test_ds = test_ds.pr.add_aggregates_coordinates(
+            agg_info={
+                "area (ISO3)": {
+                    "all": {
+                        "sources": ["COL", "ARG", "MEX", "BOL"],
+                        "area_name": "All Countries",
+                    }
+                }
+            }
+        )
+
+        assert "All Countries" in test_ds.coords["area_name"]
+
+
+# filter, also for individual items in the list and check if results fine
+# filter for entity, variable and a coordinate
