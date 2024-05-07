@@ -192,3 +192,64 @@ da_nounits.attrs
 
 Note that the units are then stored in the DataArray's `attrs`, and can be
 restored using the {ref}`da.pr.quantify` function.
+
+## Descriptive statistics
+
+To get an overview about the missing information in a Dataset or DataArray, you
+can use the `pr.coverage` function. It gives you a summary
+of the number of non-NaN data points.
+
+To illustrate this, we use an array with missing information:
+
+```{code-cell} ipython3
+:tags: [hide-input]
+
+import numpy as np
+import pandas as pd
+import xarray as xr
+
+time = pd.date_range("2000-01-01", "2003-01-01", freq="YS")
+area_iso3 = np.array(["COL", "ARG", "MEX"])
+category_ipcc = np.array(["1", "2"])
+coords = [
+    ("category (IPCC2006)", category_ipcc),
+    ("area (ISO3)", area_iso3),
+    ("time", time),
+]
+da = xr.DataArray(
+    data=[
+        [
+            [1, 2, 3, 4],
+            [np.nan, np.nan, np.nan, np.nan],
+            [1, 2, 3, np.nan],
+        ],
+        [
+            [np.nan, 2, np.nan, 4],
+            [1, np.nan, 3, np.nan],
+            [1, np.nan, 3, np.nan],
+        ],
+    ],
+    coords=coords,
+)
+
+da
+```
+
+With this array, we can now obtain coverage statistics along given dimensions:
+
+```{code-cell} ipython3
+da.pr.coverage("area")
+```
+
+```{code-cell} ipython3
+da.pr.coverage("time", "area")
+```
+
+For Datasets, you can also specify the "entity" as a coordinate:
+
+```{code-cell} ipython3
+ds = primap2.tests.examples._cached_opulent_ds.copy(deep=True)
+ds["CO2"].pr.loc[{"product": "milk", "area": ["COL", "MEX"]}].pint.magnitude[:] = np.nan
+
+ds.pr.coverage("product", "entity", "area")
+```
