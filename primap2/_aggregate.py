@@ -4,6 +4,7 @@ from typing import Any
 import numpy as np
 import pint
 import xarray as xr
+from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._data_format import split_var_name
@@ -776,7 +777,6 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
     ) -> xr.Dataset:
         """
         Creates or fills gas baskets
-        TODO: add logging
         TODO: add default baskets to primap2 and add a function to aggregate default baskets
         TODO: rename to something more in line with the other gas basket functions?
 
@@ -824,5 +824,5 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                         )
                         entities_present.add(basket)
                     except Exception as ex:
-                        print(f"No gas basket created for {basket}: {ex}")
+                        logger.warning(f"No gas basket created for {basket}: {ex}")
         return ds_out
