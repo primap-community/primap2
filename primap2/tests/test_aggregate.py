@@ -441,3 +441,11 @@ class TestGasBasket:
         )
         assert "KYOTOGHG (AR4GWP100)" in filled.data_vars
         filled.pr.ensure_valid()
+
+
+# class TestAggregatesCategories:
+# to test
+
+# merge tolerance
+# aggregate category and data correct
+#

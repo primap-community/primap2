@@ -302,31 +302,58 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                     filter = {}
 
                 source_values = rule.pop("sources")
-
-                filter.update({coordinate: source_values})
-                data_agg = da_out.pr.loc[filter].pr.sum(
-                    dim=coordinate, skipna=skipna, min_count=min_count
-                )
-                if not data_agg.isnull().all().data:
-                    data_agg = data_agg.expand_dims([full_coord_name])
-                    data_agg = data_agg.assign_coords(
-                        coords={
-                            full_coord_name: (full_coord_name, [value_to_aggregate])
-                        }
+                # check if all source values present
+                values_present = list(da_out[full_coord_name].values)
+                source_values_present = [
+                    val for val in source_values if val in values_present
+                ]
+                missing_values = list(set(source_values) - set(source_values_present))
+                if len(missing_values) > 0:
+                    logger.info(
+                        f"Not all source values present for "
+                        f"{value_to_aggregate} in coordinate {full_coord_name}. "
+                        f"Missing: {missing_values}"
                     )
-                    for add_coord in rule.keys():
-                        if add_coord in data_agg.coords:
-                            add_coord_value = rule[add_coord]
-                            data_agg = data_agg.assign_coords(
-                                coords={add_coord: (full_coord_name, [add_coord_value])}
-                            )
-                        else:
-                            raise ValueError(
-                                f"Additional coordinate {add_coord} specified but not "
-                                f"present in data"
-                            )
-
-                    da_out = da_out.pr.merge(data_agg, tolerance=rule_tolerance)
+                if source_values_present:
+                    filter.update({coordinate: source_values})
+                    data_agg = da_out.pr.loc[filter].pr.sum(
+                        dim=coordinate, skipna=skipna, min_count=min_count
+                    )
+                    if not data_agg.isnull().all().data:
+                        data_agg = data_agg.expand_dims([full_coord_name])
+                        data_agg = data_agg.assign_coords(
+                            coords={
+                                full_coord_name: (full_coord_name, [value_to_aggregate])
+                            }
+                        )
+                        for add_coord in rule.keys():
+                            if add_coord in data_agg.coords:
+                                add_coord_value = rule[add_coord]
+                                data_agg = data_agg.assign_coords(
+                                    coords={
+                                        add_coord: (full_coord_name, [add_coord_value])
+                                    }
+                                )
+                            else:
+                                logger.error(
+                                    f"Additional coordinate {add_coord} specified "
+                                    "but not present in data"
+                                )
+                                raise ValueError(
+                                    f"Additional coordinate {add_coord} specified but not "
+                                    f"present in data"
+                                )
+                        da_out = da_out.pr.merge(data_agg, tolerance=rule_tolerance)
+                    else:
+                        logger.info(
+                            f"All input data nan for {value_to_aggregate} in "
+                            f"coordinate {full_coord_name}."
+                        )
+                else:
+                    logger.info(
+                        f"No source value present for {value_to_aggregate} in "
+                        f"coordinate {full_coord_name}. Missing: {missing_values}."
+                    )
 
         da_out = da_out.pr.quantify()
         return da_out
