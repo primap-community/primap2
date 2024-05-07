@@ -224,22 +224,21 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         else:
             return self._da.where(~np.isnan(self._da).all(dim=dim), value)
 
-    def aggregate_coordinates(
+    def add_aggregates_coordinates(
         self,
         agg_info: dict[str, dict[str, Any]],
         tolerance: float | None = 0.01,
+        skipna: bool | None = True,
+        min_count: int | None = 1,
     ) -> xr.DataArray:
         """
         Manually aggregate data for coordinates
 
-        No sanity checks regarding what you aggregate.
+        There are no sanity checks regarding what you aggregate, so you could
+        combine IPCC2006 categories 2 and 3 to 1.
 
-        TODO: function for automatic aggregation based on climate categories
-        TODO: make skipna controllable?
-
-
-        filter must have lists for all dimensions to keep the dimensions in the loc process
-
+        If an aggregated time-series is present the aggregate data are merged to
+        check if aggregated and existing data agree within the given tolerance.
 
         Parameters
         ----------
@@ -257,9 +256,24 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                 <coord2>: {...},
                 ...
             }
-
+            All values in `filter` must be lists to keep the dimensions in the data
+            returned by `da.pr.loc`
         tolerance:
             non-default tolerance for merging (default = 0.01 (1%))
+        skipna: bool, optional
+            If True (default), skip missing values (as marked by NaN). By default, only
+            skips missing values for float dtypes; other dtypes either do not
+            have a sentinel missing value (int) or skipna=True has not been
+            implemented (object, datetime64 or timedelta64).
+        min_count: int (default None, but set to 1 if skipna=True)
+            The minimal number of non-NA values in a sum that is necessary for a non-NA
+            result. This only has an effect if ``skipna=True``. As an example: you sum data
+            for a region for a certain sector, gas and year. If ``skipna=False``,
+            all countries in the region need to have non-NA data for that sector, gas,
+            year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+            non-NA data is enough for a non-NA result. All NA values will be treated as
+            zero. If ``min_count=0`` all NA values will be treated as zero
+            also if there is no single non-NA value in the data that is to be summed.
 
         Returns
         -------
@@ -268,7 +282,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
         """
 
-        # dequantify for improved speed. unit handling is not necessary as we
+        # dequantify for improved speed. Unit handling is not necessary as we
         # work with one DataArray and thus the unit is the same for all
         # timeseries that are aggregated
         da_out = self._da.pr.dequantify()
@@ -291,7 +305,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
                 filter.update({coordinate: source_values})
                 data_agg = da_out.pr.loc[filter].pr.sum(
-                    dim=coordinate, skipna=True, min_count=1
+                    dim=coordinate, skipna=skipna, min_count=min_count
                 )
                 if not data_agg.isnull().all().data:
                     data_agg = data_agg.expand_dims([full_coord_name])
@@ -718,20 +732,21 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             )
         )
 
-    def aggregate_coordinates(
+    def add_aggregates_coordinates(
         self,
         agg_info: dict[str, dict[str, Any]],
         tolerance: float | None = 0.01,
+        skipna: bool | None = True,
+        min_count: int | None = 1,
     ) -> xr.Dataset:
         """
         Manually aggregate data for coordinates
 
-        No sanity checks regarding what you aggregate.
+        There are no sanity checks regarding what you aggregate, so you could
+        combine IPCC2006 categories 2 and 3 to 1.
 
-        TODO: function for automatic aggregation based on climate categories
-        TODO: make skipna controllable?
-
-        filter must have lists for all dimensions to keep the dimensions in the loc process
+        If an aggregated time-series is present the aggregate data are merged to
+        check if aggregated and existing data agree within the given tolerance.
 
         Parameters
         ----------
@@ -749,13 +764,28 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 <coord2>: {...},
                 ...
             }
-
+            All values in `filter` must be lists to keep the dimensions in the data
+            returned by `da.pr.loc`
         tolerance:
             non-default tolerance for merging (default = 0.01 (1%))
+        skipna: bool, optional
+            If True (default), skip missing values (as marked by NaN). By default, only
+            skips missing values for float dtypes; other dtypes either do not
+            have a sentinel missing value (int) or skipna=True has not been
+            implemented (object, datetime64 or timedelta64).
+        min_count: int (default None, but set to 1 if skipna=True)
+            The minimal number of non-NA values in a sum that is necessary for a non-NA
+            result. This only has an effect if ``skipna=True``. As an example: you sum data
+            for a region for a certain sector, gas and year. If ``skipna=False``,
+            all countries in the region need to have non-NA data for that sector, gas,
+            year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+            non-NA data is enough for a non-NA result. All NA values will be treated as
+            zero. If ``min_count=0`` all NA values will be treated as zero
+            also if there is no single non-NA value in the data that is to be summed.
 
         Returns
         -------
-            xr.DataArray with aggregated values for coordinates / dimensions as
+            xr.Dataset with aggregated values for coordinates / dimensions as
             specified in the agg_info dict
 
         """
@@ -763,24 +793,30 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         ds_out = self._ds.copy(deep=True)
         for var in ds_out.data_vars:
             ds_out = ds_out.pr.merge(
-                ds_out[var].pr.aggregate_coordinates(
+                ds_out[var].pr.add_aggregates_coordinates(
                     agg_info=agg_info,
                     tolerance=tolerance,
+                    skipna=skipna,
+                    min_count=min_count,
                 )
             )
 
         return ds_out
 
-    def aggregate_entities(
+    def add_aggregates_variables(
         self,
         gas_baskets: dict[str, list[str]],
+        tolerance: float | None = 0.01,
+        skipna: bool | None = True,
+        min_count: int | None = 1,
     ) -> xr.Dataset:
         """
         Creates or fills gas baskets
-        TODO: add default baskets to primap2 and add a function to aggregate default baskets
-        TODO: rename to something more in line with the other gas basket functions?
 
-        No sanity check on what you aggregate
+        No sanity check on what you aggregate, so you could aggregate CH4 and CO2 to N2O
+
+        If a gas basket is present the aggregate data are merged to check if aggregated
+        and existing data agree within the given tolerance.
 
         Parameters
         ----------
@@ -795,6 +831,22 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 'FGASES (AR4GWP100)': ['SF6', 'NF3', 'HFCS (AR4GWP100)', 'PFCS (AR4GWP100)'],
                 'KYOTOGHG (AR4GWP100)': ['CO2', 'CH4', 'N2O', 'FGASES (AR4GWP100)'],
             }
+        tolerance:
+            non-default tolerance for merging (default = 0.01 (1%))
+        skipna: bool, optional
+            If True (default), skip missing values (as marked by NaN). By default, only
+            skips missing values for float dtypes; other dtypes either do not
+            have a sentinel missing value (int) or skipna=True has not been
+            implemented (object, datetime64 or timedelta64).
+        min_count: int (default None, but set to 1 if skipna=True)
+            The minimal number of non-NA values in a sum that is necessary for a non-NA
+            result. This only has an effect if ``skipna=True``. As an example: you sum data
+            for a region for a certain sector, gas and year. If ``skipna=False``,
+            all countries in the region need to have non-NA data for that sector, gas,
+            year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+            non-NA data is enough for a non-NA result. All NA values will be treated as
+            zero. If ``min_count=0`` all NA values will be treated as zero
+            also if there is no single non-NA value in the data that is to be summed.
 
         Returns
         -------
@@ -802,27 +854,36 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         """
         ds_out = self._ds.copy(deep=True)
-        entities_present = set(ds_out.data_vars)
+        variables_present = set(ds_out.data_vars)
         for basket in gas_baskets:
             basket_contents_present = [
-                gas for gas in gas_baskets[basket] if gas in entities_present
+                gas for gas in gas_baskets[basket] if gas in variables_present
             ]
+            missing_variables = list(
+                set(gas_baskets[basket]) - set(basket_contents_present)
+            )
+            if len(missing_variables) > 0:
+                logger.info(
+                    f"Not all variables present for {basket}. "
+                    f"Missing: {missing_variables}"
+                )
             if basket_contents_present:
-                if basket in entities_present:
-                    ds_out[basket] = ds_out.pr.fill_na_gas_basket_from_contents(
-                        basket=basket,
-                        basket_contents=basket_contents_present,
-                        skipna=True,
-                        min_count=1,
+                basket_da = ds_out.pr.gas_basket_contents_sum(
+                    basket=basket,
+                    basket_contents=basket_contents_present,
+                    skipna=skipna,
+                    min_count=min_count,
+                )
+
+                if basket in ds_out.data_vars:
+                    ds_out[basket] = ds_out[basket].pr.merge(
+                        basket_da,
+                        tolerance=tolerance,
                     )
                 else:
-                    try:
-                        ds_out[basket] = ds_out.pr.gas_basket_contents_sum(
-                            basket=basket,
-                            basket_contents=basket_contents_present,
-                            min_count=1,
-                        )
-                        entities_present.add(basket)
-                    except Exception as ex:
-                        logger.warning(f"No gas basket created for {basket}: {ex}")
+                    ds_out[basket] = basket_da
+                variables_present.add(basket)
+            else:
+                logger.info(f"{basket} not created. No input data present.")
+
         return ds_out

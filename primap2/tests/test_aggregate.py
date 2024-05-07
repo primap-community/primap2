@@ -382,3 +382,62 @@ class TestGasBasket:
             1 + self.sf6 + self.ch4
         ) * ureg("Gg CO2 / year")
         assert_equal(filled, expected, equal_nan=True)
+
+    def test_add_aggregates_variables_no_input(self, partly_filled_ds, caplog):
+        # test if no input data handled correctly
+        filled = partly_filled_ds.pr.add_aggregates_variables(
+            gas_baskets={
+                "FGASES (SARGWP100)": ["SF6 (SARGWP100)"],
+            },
+        )
+
+        assert "FGASES (SARGWP100) not created. No input data present." in caplog.text
+        assert "FGASES (SARGWP100)" not in filled.data_vars
+
+    def test_add_aggregates_variables_partial_input(self, partly_filled_ds, caplog):
+        # test if partial input data handled correctly
+        filled = partly_filled_ds.pr.add_aggregates_variables(
+            gas_baskets={
+                "FGASES (SARGWP100)": ["SF6", "HFC32"],
+            },
+        )
+
+        assert (
+            "Not all variables present for FGASES (SARGWP100). Missing: " "['HFC32']"
+        ) in caplog.text
+        assert "FGASES (SARGWP100)" in filled.data_vars
+        xr.testing.assert_allclose(
+            filled["FGASES (SARGWP100)"],
+            filled["SF6"].pr.convert_to_gwp("SARGWP100", "Gg CO2 / a"),
+        )
+        filled.pr.ensure_valid()
+
+    def test_add_aggregates_variables_tolerance(self, partly_filled_ds, caplog):
+        # fill with correct sum
+        # filled = partly_filled_ds.pr.add_aggregates_variables(
+        #     gas_baskets={
+        #         "KYOTOGHG (AR4GWP100)": ["CO2", "SF6", "CH4"],
+        #     },
+        # )
+        #
+        # # now change the sum to test the tolerance parameter
+        # filled["KYOTOGHG (AR4GWP100)"].data = filled["KYOTOGHG (AR4GWP100)"].data * 1.011
+
+        with pytest.raises(
+            xr.MergeError,
+            match="pr.merge error: found discrepancies " "larger than tolerance",
+        ):
+            partly_filled_ds.pr.add_aggregates_variables(
+                gas_baskets={
+                    "KYOTOGHG (AR4GWP100)": ["CO2", "SF6", "CH4"],
+                },
+            )
+
+        filled = partly_filled_ds.pr.add_aggregates_variables(
+            gas_baskets={
+                "KYOTOGHG (AR4GWP100)": ["CO2", "SF6", "CH4"],
+            },
+            tolerance=30000,
+        )
+        assert "KYOTOGHG (AR4GWP100)" in filled.data_vars
+        filled.pr.ensure_valid()
