@@ -2,6 +2,7 @@
 """Tests for _aggregate.py"""
 
 import pathlib
+import re
 
 import numpy as np
 import pytest
@@ -440,6 +441,60 @@ class TestGasBasket:
         assert "KYOTOGHG (AR4GWP100)" in filled.data_vars
         filled.pr.ensure_valid()
 
+        filled = partly_filled_ds.pr.add_aggregates_variables(
+            gas_baskets={
+                "KYOTOGHG (AR4GWP100)": {
+                    "sources": ["CO2", "SF6", "CH4"],
+                    "tolerance": 30000,
+                },
+            }
+        )
+        assert "KYOTOGHG (AR4GWP100)" in filled.data_vars
+
+    def test_add_aggregates_variables_filter(self, partly_filled_ds, caplog):
+        """
+        test if the filter setting works
+        """
+        reference_ds = partly_filled_ds.pr.add_aggregates_variables(
+            gas_baskets={
+                "test (SARGWP100)": ["CO2", "SF6", "CH4"],
+            },
+        )
+
+        filtered_ds = partly_filled_ds.pr.add_aggregates_variables(
+            gas_baskets={
+                "test (SARGWP100)": {
+                    "sources": ["CO2", "SF6", "CH4"],
+                    "filter": {"area (ISO3)": ["COL"]},
+                },
+            },
+        )
+
+        assert (
+            reference_ds["test (SARGWP100)"].pr.loc[{"area (ISO3)": ["COL"]}]
+            == filtered_ds["test (SARGWP100)"].pr.loc[{"area (ISO3)": ["COL"]}]
+        ).all()
+        assert (
+            filtered_ds["test (SARGWP100)"]
+            .pr.loc[{"area (ISO3)": ["BOL"]}]
+            .isnull()
+            .all()
+        )
+
+    def test_add_aggregates_variables_error_basket_type(self, partly_filled_ds, caplog):
+        """
+        test error on unrecognized aggregation definition
+        """
+        with pytest.raises(
+            ValueError,
+            match=re.escape("Unrecognized basket type for 'test (SARGWP100)'"),
+        ):
+            partly_filled_ds.pr.add_aggregates_variables(
+                gas_baskets={
+                    "test (SARGWP100)": "CO2",
+                },
+            )
+
 
 class TestAddAggregatesCategories:
     """
@@ -489,6 +544,7 @@ class TestAddAggregatesCategories:
         """
         test if aggregated value timeseries are present and correct
         """
+        # with the complex configuration
         test_ds = minimal_ds.pr.add_aggregates_coordinates(
             agg_info={
                 "area (ISO3)": {
@@ -505,23 +561,102 @@ class TestAddAggregatesCategories:
         )
         xr.testing.assert_allclose(expected_result, actual_result)
 
-    def test_add_aggregates_categories_result_filter(self, minimal_ds):
-        """
-        test if aggregated value timeseries are present and correct
-        """
+        # with the simplified configuration
         test_ds = minimal_ds.pr.add_aggregates_coordinates(
             agg_info={
                 "area (ISO3)": {
-                    "all": {"sources": ["COL", "ARG", "MEX", "BOL"], "filter": {}}
+                    "all": ["COL", "ARG", "MEX", "BOL"],
                 }
             }
         )
 
-        expected_result = minimal_ds["CO2"].pr.sum(dim="area (ISO3)")
         actual_result = (
             test_ds["CO2"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
         )
         xr.testing.assert_allclose(expected_result, actual_result)
+
+    def test_add_aggregates_categories_result_filter(self, minimal_ds):
+        """
+        test if filtering works and only the selected time series are actually
+        computed and correct
+        """
+        # filter entity
+        test_ds = minimal_ds.pr.add_aggregates_coordinates(
+            agg_info={
+                "area (ISO3)": {
+                    "all": {
+                        "sources": ["COL", "ARG", "MEX", "BOL"],
+                        "filter": {"entity": ["SF6"]},
+                    }
+                }
+            }
+        )
+
+        # as we filter for entity we expect the variables SF6 and SF6 (SARGWP100)
+        # to be aggregated but for CO2 we expect np.nan
+        expected_result_SF6 = minimal_ds["SF6"].pr.sum(dim="area (ISO3)")
+        actual_result_SF6 = (
+            test_ds["SF6"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
+        )
+        xr.testing.assert_allclose(expected_result_SF6, actual_result_SF6)
+        expected_result_SF6GWP = minimal_ds["SF6 (SARGWP100)"].pr.sum(dim="area (ISO3)")
+        actual_result_SF6GWP = (
+            test_ds["SF6 (SARGWP100)"]
+            .pr.loc[{"area (ISO3)": ["all"]}]
+            .pr.sum(dim="area (ISO3)")
+        )
+        xr.testing.assert_allclose(expected_result_SF6GWP, actual_result_SF6GWP)
+
+        expected_result_CO2 = xr.full_like(expected_result_SF6, np.nan).pr.quantify(
+            units="Gg CO2 / year"
+        )
+        actual_result_CO2 = (
+            test_ds["CO2"]
+            .pr.loc[{"area (ISO3)": ["all"]}]
+            .pr.sum(dim="area (ISO3)", skipna=True, min_count=1)
+        )
+        xr.testing.assert_allclose(expected_result_CO2, actual_result_CO2)
+
+        # filter variable
+        test_ds = minimal_ds.pr.add_aggregates_coordinates(
+            agg_info={
+                "area (ISO3)": {
+                    "all": {
+                        "sources": ["COL", "ARG", "MEX", "BOL"],
+                        "filter": {"variable": ["SF6"]},
+                    }
+                }
+            }
+        )
+
+        # as we filter for entity we expect the variables SF6 and SF6 (SARGWP100)
+        # to be aggregated but for CO2 we expect np.nan
+        expected_result_SF6 = minimal_ds["SF6"].pr.sum(dim="area (ISO3)")
+        actual_result_SF6 = (
+            test_ds["SF6"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
+        )
+        xr.testing.assert_allclose(expected_result_SF6, actual_result_SF6)
+
+        expected_result_SF6GWP = xr.full_like(expected_result_SF6, np.nan).pr.quantify(
+            units="Gg CO2 / year"
+        )
+        # expected_result_SF6GWP = expected_result_SF6GWP.pr.convert_to_gwp
+        actual_result_SF6GWP = (
+            test_ds["SF6 (SARGWP100)"]
+            .pr.loc[{"area (ISO3)": ["all"]}]
+            .pr.sum(dim="area (ISO3)", skipna=True, min_count=1)
+        )
+        xr.testing.assert_allclose(expected_result_SF6GWP, actual_result_SF6GWP)
+
+        expected_result_CO2 = xr.full_like(expected_result_SF6, np.nan).pr.quantify(
+            units="Gg CO2 / year"
+        )
+        actual_result_CO2 = (
+            test_ds["CO2"]
+            .pr.loc[{"area (ISO3)": ["all"]}]
+            .pr.sum(dim="area (ISO3)", skipna=True, min_count=1)
+        )
+        xr.testing.assert_allclose(expected_result_CO2, actual_result_CO2)
 
     def test_add_aggregates_categories_warning(self, minimal_ds, caplog):
         """
@@ -530,7 +665,7 @@ class TestAddAggregatesCategories:
         # test warning for missing input
         minimal_ds.pr.add_aggregates_coordinates(
             agg_info={
-                "area (ISO3)": {
+                "area": {
                     "all": {
                         "sources": ["COL", "ARG", "MEX", "BOL", "DEU"],
                     }
@@ -576,10 +711,11 @@ class TestAddAggregatesCategories:
             "All input data nan for 'all' in " "coordinate 'area (ISO3)'."
         ) in caplog.text
 
-    def test_add_aggregates_categories_error_add_coord(self, minimal_ds):
+    def test_add_aggregates_categories_errors(self, minimal_ds):
         """
-        test error on additional coordinate
+        test errors
         """
+        # additional coordinate not present
         with pytest.raises(
             ValueError,
             match="Additional coordinate 'area_name' specified but not "
@@ -594,6 +730,14 @@ class TestAddAggregatesCategories:
                         }
                     }
                 }
+            )
+
+        # unrecognized aggregation definition
+        with pytest.raises(
+            ValueError, match="Unrecognized aggregation definition for 'all'"
+        ):
+            minimal_ds.pr.add_aggregates_coordinates(
+                agg_info={"area (ISO3)": {"all": "COL"}}
             )
 
     def test_add_aggregates_categories_add_coord(self, minimal_ds):

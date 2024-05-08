@@ -1,4 +1,5 @@
 from collections.abc import Hashable, Iterable, Mapping, Sequence
+from copy import deepcopy
 from typing import Any
 
 import numpy as np
@@ -226,7 +227,14 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
     def add_aggregates_coordinates(
         self,
-        agg_info: dict[str, dict[str, Any]],
+        agg_info: dict[
+            str,
+            dict[
+                str,
+                list[str]
+                | dict[str, float | str | list[str] | dict[str, str | list[str]]],
+            ],
+        ],
         tolerance: float | None = 0.01,
         skipna: bool | None = True,
         min_count: int | None = 1,
@@ -244,20 +252,24 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         ----------
         agg_info:
             dict of the following form
-            {
+            agg_info = {
                 <coord1>: {
-                    <new_value> : {
+                    <new_value>: {
                         'sources': [source_values],
                         <add_coord_name>: <value for additional coordinate> (optional),
                         'tolerance': <non-default tolerance> (optional),
                         'filter': <filter in pr.loc style> (optional),
                     },
                 },
-                <coord2>: {...},
+                <coord2>: { # simplified format for coord2
+                    <new_value>: [source_values]
+                ...},
                 ...
             }
             All values in `filter` must be lists to keep the dimensions in the data
             returned by `da.pr.loc`
+            The normal format and the simplified list format can be mixed also
+            within a coordinate
         tolerance:
             non-default tolerance for merging (default = 0.01 (1%))
         skipna: bool, optional
@@ -294,29 +306,41 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
             else:
                 full_coord_name = coordinate
             for value_to_aggregate in aggregation_rules.keys():
-                rule = aggregation_rules[value_to_aggregate].copy()
-                if "tolerance" in rule.keys():
-                    rule_tolerance = rule.pop("tolerance")
-                else:
-                    rule_tolerance = tolerance
-                if "filter" in rule.keys():
-                    filter = rule.pop("filter")
-                else:
+                rule = deepcopy(aggregation_rules[value_to_aggregate])
+                if isinstance(rule, dict):
+                    source_values = rule.pop("sources")
+                    if "tolerance" in rule.keys():
+                        rule_tolerance = rule.pop("tolerance")
+                    else:
+                        rule_tolerance = tolerance
+                    if "filter" in rule.keys():
+                        filter = rule.pop("filter")
+                        if "variable" in filter.keys():
+                            if da_out.name in filter["variable"]:
+                                filter.pop("variable")
+                            else:
+                                continue
+                        if "entity" in filter.keys():
+                            if da_out.attrs["entity"] in filter["entity"]:
+                                filter.pop("entity")
+                            else:
+                                continue
+                    else:
+                        filter = {}
+                elif isinstance(rule, list):
+                    source_values = rule
                     filter = {}
+                    rule_tolerance = tolerance
+                else:
+                    logger.error(
+                        "Unrecognized aggregation definition for "
+                        f"{value_to_aggregate!r}"
+                    )
+                    raise ValueError(
+                        "Unrecognized aggregation definition for "
+                        f"{value_to_aggregate!r}"
+                    )
 
-                if "variable" in filter.keys():
-                    if da_out.name in filter["variable"]:
-                        filter.pop("variable")
-                    else:
-                        continue
-
-                if "entity" in filter.keys():
-                    if da_out.attrs["entity"] in filter["entity"]:
-                        filter.pop("entity")
-                    else:
-                        continue
-
-                source_values = rule.pop("sources")
                 # check if all source values present
                 values_present = list(da_out[full_coord_name].values)
                 source_values_present = [
@@ -326,7 +350,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                 if len(missing_values) > 0:
                     logger.info(
                         f"Not all source values present for "
-                        f"'{value_to_aggregate}' in coordinate '{full_coord_name}'. "
+                        f"{value_to_aggregate!r} in coordinate {full_coord_name!r}. "
                         f"Missing: {missing_values}"
                     )
                 if source_values_present:
@@ -341,33 +365,37 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                                 full_coord_name: (full_coord_name, [value_to_aggregate])
                             }
                         )
-                        for add_coord in rule.keys():
-                            if add_coord in da_out.coords:
-                                add_coord_value = rule[add_coord]
-                                data_agg = data_agg.assign_coords(
-                                    coords={
-                                        add_coord: (full_coord_name, [add_coord_value])
-                                    }
-                                )
-                            else:
-                                logger.error(
-                                    f"Additional coordinate '{add_coord}' specified "
-                                    "but not present in data"
-                                )
-                                raise ValueError(
-                                    f"Additional coordinate '{add_coord}' specified but not "
-                                    f"present in data"
-                                )
+                        if isinstance(rule, dict):
+                            for add_coord in rule.keys():
+                                if add_coord in da_out.coords:
+                                    add_coord_value = rule[add_coord]
+                                    data_agg = data_agg.assign_coords(
+                                        coords={
+                                            add_coord: (
+                                                full_coord_name,
+                                                [add_coord_value],
+                                            )
+                                        }
+                                    )
+                                else:
+                                    logger.error(
+                                        f"Additional coordinate {add_coord!r} specified "
+                                        "but not present in data"
+                                    )
+                                    raise ValueError(
+                                        f"Additional coordinate {add_coord!r} specified but not "
+                                        f"present in data"
+                                    )
                         da_out = da_out.pr.merge(data_agg, tolerance=rule_tolerance)
                     else:
                         logger.info(
                             f"All input data nan for '{value_to_aggregate}' in "
-                            f"coordinate '{full_coord_name}'."
+                            f"coordinate {full_coord_name!r}."
                         )
                 else:
                     logger.info(
-                        f"No source value present for '{value_to_aggregate}' in "
-                        f"coordinate '{full_coord_name}'. Missing: {missing_values}."
+                        f"No source value present for {value_to_aggregate!r} in "
+                        f"coordinate {full_coord_name!r}. Missing: {missing_values}."
                     )
 
         da_out = da_out.pr.quantify()
@@ -776,7 +804,14 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
     def add_aggregates_coordinates(
         self,
-        agg_info: dict[str, dict[str, Any]],
+        agg_info: dict[
+            str,
+            dict[
+                str,
+                list[str]
+                | dict[str, float | str | list[str] | dict[str, str | list[str]]],
+            ],
+        ],
         tolerance: float | None = 0.01,
         skipna: bool | None = True,
         min_count: int | None = 1,
@@ -794,20 +829,24 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         ----------
         agg_info:
             dict of the following form
-            {
+            agg_info = {
                 <coord1>: {
-                    <new_value> : {
+                    <new_value>: {
                         'sources': [source_values],
                         <add_coord_name>: <value for additional coordinate> (optional),
                         'tolerance': <non-default tolerance> (optional),
                         'filter': <filter in pr.loc style> (optional),
                     },
                 },
-                <coord2>: {...},
+                <coord2>: { # simplified format for coord2
+                    <new_value>: [source_values]
+                ...},
                 ...
             }
             All values in `filter` must be lists to keep the dimensions in the data
             returned by `da.pr.loc`
+            The normal format and the simplified list format can be mixed also
+            within a coordinate
         tolerance:
             non-default tolerance for merging (default = 0.01 (1%))
         skipna: bool, optional
@@ -847,7 +886,10 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
     def add_aggregates_variables(
         self,
-        gas_baskets: dict[str, list[str]],
+        gas_baskets: dict[
+            str,
+            list[str] | dict[str, float | str | list[str] | dict[str, str | list[str]]],
+        ],
         tolerance: float | None = 0.01,
         skipna: bool | None = True,
         min_count: int | None = 1,
@@ -866,12 +908,21 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         gas_baskets
             dict with the following format
             gas_baskets = {
-                <basket_name>: <list of basket contents>,
+                <new_variable1>: {
+                    'sources': [source_values],
+                    'tolerance': <non-default tolerance> (optional),
+                    'filter': <filter in pr.loc style> (optional),
+                },
+                <new_value>: [source_values] # simplified format for coord2
                 ...
             }
             example_config = {
                 'FGASES (AR4GWP100)': ['SF6', 'NF3', 'HFCS (AR4GWP100)', 'PFCS (AR4GWP100)'],
-                'KYOTOGHG (AR4GWP100)': ['CO2', 'CH4', 'N2O', 'FGASES (AR4GWP100)'],
+                'KYOTOGHG (AR4GWP100)': {
+                    'sources': ['CO2', 'CH4', 'N2O', 'FGASES (AR4GWP100)'],
+                    'filter': {'area (ISO3)': ['COL']},
+                    'tolerance': 0.015,
+                },
             }
         tolerance:
             non-default tolerance for merging (default = 0.01 (1%))
@@ -895,15 +946,34 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         xr.Dataset with aggregated gas baskets
 
         """
-        # TODO: add filtering on coordinates?
         ds_out = self._ds.copy(deep=True)
         variables_present = set(ds_out.data_vars)
         for basket in gas_baskets:
+            current_basket_config = gas_baskets[basket]
+            if isinstance(current_basket_config, dict):
+                # new format, which allows filtering
+                basket_contents = current_basket_config["sources"]
+                if "filter" in current_basket_config.keys():
+                    filter = current_basket_config["filter"]
+                else:
+                    filter = None
+                if "tolerance" in current_basket_config.keys():
+                    tolerance_basket = current_basket_config["tolerance"]
+                else:
+                    tolerance_basket = tolerance
+            elif isinstance(current_basket_config, list):
+                # legacy format
+                basket_contents = current_basket_config
+                filter = None
+                tolerance_basket = tolerance
+            else:
+                logger.error(f"Unrecognized basket type for {basket!r}")
+                raise ValueError(f"Unrecognized basket type for {basket!r}")
             basket_contents_present = [
-                gas for gas in gas_baskets[basket] if gas in variables_present
+                gas for gas in basket_contents if gas in variables_present
             ]
             missing_variables = list(
-                set(gas_baskets[basket]) - set(basket_contents_present)
+                set(basket_contents) - set(basket_contents_present)
             )
             if len(missing_variables) > 0:
                 logger.info(
@@ -911,17 +981,25 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                     f"Missing: {missing_variables}"
                 )
             if basket_contents_present:
-                basket_da = ds_out.pr.gas_basket_contents_sum(
-                    basket=basket,
-                    basket_contents=basket_contents_present,
-                    skipna=skipna,
-                    min_count=min_count,
-                )
+                if filter is not None:
+                    basket_da = ds_out.pr.loc[filter].pr.gas_basket_contents_sum(
+                        basket=basket,
+                        basket_contents=basket_contents_present,
+                        skipna=skipna,
+                        min_count=min_count,
+                    )
+                else:
+                    basket_da = ds_out.pr.gas_basket_contents_sum(
+                        basket=basket,
+                        basket_contents=basket_contents_present,
+                        skipna=skipna,
+                        min_count=min_count,
+                    )
 
                 if basket in ds_out.data_vars:
                     ds_out[basket] = ds_out[basket].pr.merge(
                         basket_da,
-                        tolerance=tolerance,
+                        tolerance=tolerance_basket,
                     )
                 else:
                     ds_out[basket] = basket_da
