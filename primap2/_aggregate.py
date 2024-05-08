@@ -895,6 +895,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         xr.Dataset with aggregated gas baskets
 
         """
+        # TODO: add filtering on coordinates?
         ds_out = self._ds.copy(deep=True)
         variables_present = set(ds_out.data_vars)
         for basket in gas_baskets:

@@ -384,7 +384,9 @@ class TestGasBasket:
         assert_equal(filled, expected, equal_nan=True)
 
     def test_add_aggregates_variables_no_input(self, partly_filled_ds, caplog):
-        # test if no input data handled correctly
+        """
+        test if no input data handled correctly by add_aggregates_variables
+        """
         filled = partly_filled_ds.pr.add_aggregates_variables(
             gas_baskets={
                 "FGASES (SARGWP100)": ["SF6 (SARGWP100)"],
@@ -395,7 +397,9 @@ class TestGasBasket:
         assert "FGASES (SARGWP100)" not in filled.data_vars
 
     def test_add_aggregates_variables_partial_input(self, partly_filled_ds, caplog):
-        # test if partial input data handled correctly
+        """
+        test if partial input data handled correctly by add_aggregates_variables
+        """
         filled = partly_filled_ds.pr.add_aggregates_variables(
             gas_baskets={
                 "FGASES (SARGWP100)": ["SF6", "HFC32"],
@@ -413,8 +417,10 @@ class TestGasBasket:
         filled.pr.ensure_valid()
 
     def test_add_aggregates_variables_tolerance(self, partly_filled_ds, caplog):
-        # test if the tolerance setting works (the data in partly_filled_ds is
-        # already inconsistent, so we can use it for the test directly)
+        """
+        test if the tolerance setting works (the data in partly_filled_ds is
+        already inconsistent, so we can use it for the test directly)
+        """
         with pytest.raises(
             xr.MergeError,
             match="pr.merge error: found discrepancies " "larger than tolerance",
@@ -436,9 +442,16 @@ class TestGasBasket:
 
 
 class TestAddAggregatesCategories:
-    # No tests for skipna etc as that is just passed on to sum
+    """
+    Tests for the add_aggregates_categories method.
+
+    No tests for skipna etc as that is just passed on to sum
+    """
+
     def test_add_aggregates_categories_tolerance(self, minimal_ds):
-        # test if the tolerance setting works
+        """
+        test if the tolerance setting works
+        """
 
         test_ds = minimal_ds.pr.add_aggregates_coordinates(
             agg_info={
@@ -473,7 +486,9 @@ class TestAddAggregatesCategories:
         )
 
     def test_add_aggregates_categories_result(self, minimal_ds):
-        # test if aggregated value timeseries are present and correct
+        """
+        test if aggregated value timeseries are present and correct
+        """
         test_ds = minimal_ds.pr.add_aggregates_coordinates(
             agg_info={
                 "area (ISO3)": {
@@ -491,7 +506,9 @@ class TestAddAggregatesCategories:
         xr.testing.assert_allclose(expected_result, actual_result)
 
     def test_add_aggregates_categories_result_filter(self, minimal_ds):
-        # test if aggregated value timeseries are present and correct
+        """
+        test if aggregated value timeseries are present and correct
+        """
         test_ds = minimal_ds.pr.add_aggregates_coordinates(
             agg_info={
                 "area (ISO3)": {
@@ -507,6 +524,9 @@ class TestAddAggregatesCategories:
         xr.testing.assert_allclose(expected_result, actual_result)
 
     def test_add_aggregates_categories_warning(self, minimal_ds, caplog):
+        """
+        Test warnings
+        """
         # test warning for missing input
         minimal_ds.pr.add_aggregates_coordinates(
             agg_info={
@@ -557,7 +577,9 @@ class TestAddAggregatesCategories:
         ) in caplog.text
 
     def test_add_aggregates_categories_error_add_coord(self, minimal_ds):
-        # test error on additional coordinate
+        """
+        test error on additional coordinate
+        """
         with pytest.raises(
             ValueError,
             match="Additional coordinate 'area_name' specified but not "
@@ -575,7 +597,7 @@ class TestAddAggregatesCategories:
             )
 
     def test_add_aggregates_categories_add_coord(self, minimal_ds):
-        # test error on additional coordinate
+        """test error on additional coordinate"""
         test_ds = minimal_ds.copy(deep=True)
         area_name = ["COL", "ARG", "MEX", "BOL"]
         test_ds = test_ds.assign_coords(area_name=("area (ISO3)", area_name))
