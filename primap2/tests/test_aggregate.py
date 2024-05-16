@@ -496,14 +496,14 @@ class TestGasBasket:
             )
 
 
-class TestAddAggregatesCategories:
+class TestAddAggregatesCoordinates:
     """
     Tests for the add_aggregates_categories method.
 
     No tests for skipna etc as that is just passed on to sum
     """
 
-    def test_add_aggregates_categories_tolerance(self, minimal_ds):
+    def test_add_aggregates_coordinates_tolerance(self, minimal_ds):
         """
         test if the tolerance setting works
         """
@@ -540,7 +540,7 @@ class TestAddAggregatesCategories:
             }
         )
 
-    def test_add_aggregates_categories_result(self, minimal_ds):
+    def test_add_aggregates_coordinates_result(self, minimal_ds):
         """
         test if aggregated value timeseries are present and correct
         """
@@ -575,7 +575,7 @@ class TestAddAggregatesCategories:
         )
         xr.testing.assert_allclose(expected_result, actual_result)
 
-    def test_add_aggregates_categories_result_filter(self, minimal_ds):
+    def test_add_aggregates_coordinates_result_filter(self, minimal_ds):
         """
         test if filtering works and only the selected time series are actually
         computed and correct
@@ -658,7 +658,7 @@ class TestAddAggregatesCategories:
         )
         xr.testing.assert_allclose(expected_result_CO2, actual_result_CO2)
 
-    def test_add_aggregates_categories_warning(self, minimal_ds, caplog):
+    def test_add_aggregates_coordinates_warning(self, minimal_ds, caplog):
         """
         Test warnings
         """
@@ -675,7 +675,7 @@ class TestAddAggregatesCategories:
         assert (
             "Not all source values present for 'all'"
             " in coordinate 'area (ISO3)'. "
-            "Missing: ['DEU']"
+            "Missing: {'DEU'}"
         ) in caplog.text
 
         # test warning for fully missing input
@@ -690,7 +690,7 @@ class TestAddAggregatesCategories:
         )
         assert (
             "No source value present for 'all' in "
-            "coordinate 'area (ISO3)'. Missing: ['DEU']."
+            "coordinate 'area (ISO3)'. Missing: {'DEU'}."
         ) in caplog.text
 
         # test all nan warning
@@ -711,7 +711,7 @@ class TestAddAggregatesCategories:
             "All input data nan for 'all' in " "coordinate 'area (ISO3)'."
         ) in caplog.text
 
-    def test_add_aggregates_categories_errors(self, minimal_ds):
+    def test_add_aggregates_coordinates_errors(self, minimal_ds):
         """
         test errors
         """
@@ -740,7 +740,7 @@ class TestAddAggregatesCategories:
                 agg_info={"area (ISO3)": {"all": "COL"}}
             )
 
-    def test_add_aggregates_categories_add_coord(self, minimal_ds):
+    def test_add_aggregates_coordinates_add_coord(self, minimal_ds):
         """test error on additional coordinate"""
         test_ds = minimal_ds.copy(deep=True)
         area_name = ["COL", "ARG", "MEX", "BOL"]
