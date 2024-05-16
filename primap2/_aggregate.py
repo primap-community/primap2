@@ -301,10 +301,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
         for coordinate in agg_info.keys():
             aggregation_rules = agg_info[coordinate]
-            if coordinate in da_out.pr.dim_alias_translations.keys():
-                full_coord_name = da_out.pr.dim_alias_translations[coordinate]
-            else:
-                full_coord_name = coordinate
+            full_coord_name = da_out.pr.dim_alias_translations.get(
+                coordinate, coordinate
+            )
             for value_to_aggregate in aggregation_rules.keys():
                 rule = deepcopy(aggregation_rules[value_to_aggregate])
                 if isinstance(rule, dict):
@@ -346,8 +345,8 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                 source_values_present = [
                     val for val in source_values if val in values_present
                 ]
-                missing_values = list(set(source_values) - set(source_values_present))
-                if len(missing_values) > 0:
+                missing_values = set(source_values) - set(source_values_present)
+                if missing_values:
                     logger.info(
                         f"Not all source values present for "
                         f"{value_to_aggregate!r} in coordinate {full_coord_name!r}. "
