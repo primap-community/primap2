@@ -13,6 +13,8 @@ import xarray as xr
 from attr import define
 from loguru import logger
 
+from primap2._selection import translations_from_dims
+
 from . import _accessor_base, pm2io
 from ._units import ureg
 
@@ -280,6 +282,49 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             for var in self._ds
         )
 
+    def expand_dims(
+        self,
+        dim: str,
+        coord_value: str,
+        terminology: str | None = None,
+    ) -> xr.Dataset:
+        """
+        Add a dimension and coordinate to dataset and if a terminology is given also to attrs.
+        Dimension has length 1. primap2 equivalent of xarray's `expand_dims`
+
+        To add a dimension to a PRIMAP2 DataArray use the native xarray method
+        `expand_dims`. As PRIMAP2 DataArrays don't have the coordinate information
+        in the attributes, no additional code is needed.
+
+        Parameters
+        ----------
+        dim
+            dimension to add. A coordinate with the same name will be added as well
+        coord_value
+            value for the
+        terminology
+
+        Returns
+        -------
+            dataset with added dimension and coordinate
+        """
+
+        ds_out = self._ds.copy(
+            deep=True
+        )  # deep=True necessary to keep attrs of original ds
+        if terminology is not None:
+            # get the translation for the attrs (use the shortest key to get the right key for the attrs)
+            dim_to_add = f"{dim} ({terminology})"
+            translations = translations_from_dims([dim_to_add])
+            shortest_key = min(list(translations.keys()), key=len)
+            # store in attributes
+            ds_out.attrs[shortest_key] = translations[shortest_key]
+        else:
+            dim_to_add = dim
+
+        ds_out = ds_out.expand_dims(dim={dim_to_add: [coord_value]})
+        return ds_out
+
 
 def split_dim_name(dim_name: str) -> tuple[str, str]:
     """Split a dimension name composed of the dimension, and the category set in
@@ -291,7 +336,20 @@ def split_dim_name(dim_name: str) -> tuple[str, str]:
         raise ValueError(
             f"{dim_name!r} not in the format 'dim (category_set)'"
         ) from None
-    return dim, category_set[:-1]
+    return dim[:-1], category_set[:-1]
+
+
+def split_var_name(var_name: str) -> tuple[str, str]:
+    """Split a variable name composed of the entity and the gwp_context in parentheses
+    into its parts."""
+    try:
+        entity, gwp_context = var_name.split("(", maxsplit=1)
+    except ValueError:
+        raise ValueError(
+            f"Tried to split variable name {var_name!r}, but it does not specify a "
+            f"gwp_context in parentheses."
+        ) from None
+    return entity[:-1], gwp_context[:-1]
 
 
 def ensure_no_dimension_without_coordinates(ds: xr.Dataset):
