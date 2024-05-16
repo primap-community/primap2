@@ -282,18 +282,15 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             for var in self._ds
         )
 
-    def add_dim(
+    def expand_dims(
         self,
         dim: str,
         coord_value: str,
         terminology: str | None = None,
     ) -> xr.Dataset:
         """
-        TODO: should we rename this to expand_dims to indicate that it does the
-         same as the xarray function, just for primap2 format?
-
         Add a dimension and coordinate to dataset and if a terminology is given also to attrs.
-        Dimension has length 1.
+        Dimension has length 1. primap2 equivalent of xarray's `expand_dims`
 
         To add a dimension to a PRIMAP2 DataArray use the native xarray method
         `expand_dims`. As PRIMAP2 DataArrays don't have the coordinate information

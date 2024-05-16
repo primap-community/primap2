@@ -358,8 +358,8 @@ def test_has_processing_info(opulent_processing_ds):
     assert opulent_processing_ds.pr.has_processing_info()
 
 
-def test_add_dim(minimal_ds):
-    result_ds = minimal_ds.pr.add_dim(
+def test_expand_dims(minimal_ds):
+    result_ds = minimal_ds.pr.expand_dims(
         dim="new_dim",
         coord_value="new_value",
         terminology="new_terminology",
@@ -376,7 +376,7 @@ def test_add_dim(minimal_ds):
     assert result_ds.attrs[shortest_key] == translations[shortest_key]
 
     # without terminology
-    result_ds = minimal_ds.pr.add_dim(
+    result_ds = minimal_ds.pr.expand_dims(
         dim="new_dim",
         coord_value="new_value",
     )
