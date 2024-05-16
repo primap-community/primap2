@@ -358,7 +358,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                     data_agg = da_out.pr.loc[filter].pr.sum(
                         dim=coordinate, skipna=skipna, min_count=min_count
                     )
-                    if not data_agg.isnull().all().data:
+                    if not data_agg.isnull().all():
                         data_agg = data_agg.expand_dims([full_coord_name])
                         data_agg = data_agg.assign_coords(
                             coords={
