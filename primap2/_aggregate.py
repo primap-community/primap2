@@ -301,7 +301,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
         for coordinate in agg_info.keys():
             aggregation_rules = agg_info[coordinate]
-            full_coord_name = da_out.pr.dim_alias_translations.get(coordinate, coordinate)
+            full_coord_name = da_out.pr.dim_alias_translations.get(
+                coordinate, coordinate
+            )
             for value_to_aggregate in aggregation_rules.keys():
                 rule = deepcopy(aggregation_rules[value_to_aggregate])
                 if isinstance(rule, dict):
