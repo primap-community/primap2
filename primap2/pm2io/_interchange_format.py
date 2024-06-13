@@ -108,6 +108,10 @@ def metadata_for_variable(unit: str, variable: str) -> dict[str, str]:
 
     """
     attrs = {}
+
+    if not isinstance(unit, str):
+        unit = ""
+
     if unit != "no unit":
         attrs["units"] = unit
 
@@ -372,8 +376,8 @@ def from_interchange_format(
 
     # fill the entity/variable attributes
     for variable in data_xr:
-        csv_units = np.unique(units.loc[{entity_col: variable}])
-        if len(csv_units) > 1:
+        csv_units = np.unique(units.loc[{entity_col: variable}], equal_nan=True)
+        if len(csv_units) > 1 and any(isinstance(x, str) for x in csv_units):
             logger.error(
                 f"More than one unit for entity {variable!r}: {csv_units!r}. "
                 + "There is an error in the unit harmonization."
