@@ -101,7 +101,6 @@ class DataArrayFillAccessor(BaseDataArrayAccessor):
 
 
 class DatasetFillAccessor(BaseDatasetAccessor):
-    # fillna, combine_first
     def fillna(
         self: xr.Dataset,
         ds_fill: xr.Dataset | xr.DataArray,
