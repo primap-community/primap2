@@ -97,7 +97,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
                 raise ValueError(
                     f"Sum of the basket_contents {basket_contents!r} deviates"
                     f" {devmax * 100} % from the basket"
-                    f" {basket!r}, which is more than the allowed 1 %. "
+                    f" {basket!r}, which is more than the allowed {tolerance*100}%. "
                     "To continue regardless, set check_consistency=False."
                 )
 
@@ -331,7 +331,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                 raise ValueError(
                     f"Sum of the basket_contents {basket_contents!r} deviates"
                     f" {devmax * 100} % from the basket"
-                    f" {basket!r}, which is more than the allowed 1 %. "
+                    f" {basket!r}, which is more than the allowed "
+                    f"{tolerance * 100}%. "
                     f" {deviation}"
                     "To continue regardless, set check_consistency=False."
                 )
@@ -356,4 +357,4 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                     downscaled[var].pint.to(ds_sel[var].pint.units)
                 )
 
-        return self._ds.fillna(downscaled_converted)
+        return self._ds.pr.fillna(downscaled_converted)

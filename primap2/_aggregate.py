@@ -346,13 +346,13 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                     val for val in source_values if val in values_present
                 ]
                 missing_values = set(source_values) - set(source_values_present)
-                if missing_values:
-                    logger.info(
-                        f"Not all source values present for "
-                        f"{value_to_aggregate!r} in coordinate {full_coord_name!r}. "
-                        f"Missing: {missing_values}"
-                    )
                 if source_values_present:
+                    if missing_values:
+                        logger.info(
+                            f"Not all source values present for "
+                            f"{value_to_aggregate!r} in coordinate {full_coord_name!r}. "
+                            f"Missing: {missing_values}. (variable: {da_out.name})"
+                        )
                     filter.update({coordinate: source_values_present})
                     data_agg = da_out.pr.loc[filter].pr.sum(
                         dim=coordinate, skipna=skipna, min_count=min_count
@@ -389,12 +389,13 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                     else:
                         logger.info(
                             f"All input data nan for '{value_to_aggregate}' in "
-                            f"coordinate {full_coord_name!r}."
+                            f"coordinate {full_coord_name!r}. (variable: {da_out.name})"
                         )
                 else:
                     logger.info(
                         f"No source value present for {value_to_aggregate!r} in "
                         f"coordinate {full_coord_name!r}. Missing: {missing_values}."
+                        f" (variable: {da_out.name})"
                     )
 
         da_out = da_out.pr.quantify()
