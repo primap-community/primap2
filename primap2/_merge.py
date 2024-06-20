@@ -1,6 +1,7 @@
 """Merge arrays and datasets with optional tolerances."""
 
 import contextlib
+from datetime import date
 
 import numpy as np
 import xarray as xr
@@ -77,7 +78,7 @@ def merge_with_tolerance_core(
 
     # all differences are within the tolerance or ignored, take the first
     # value everywhere
-    return da_start.combine_first(da_merge)
+    return da_start.pr.combine_first(da_merge)
 
 
 def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
@@ -88,6 +89,13 @@ def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
     * convert the rest into a pandas dataframe for nice printing
     """
     scalar_dims = [dim for dim in da_error.dims if len(da_error[dim]) == 1]
+    scalar_dims_format = []
+    for dim in scalar_dims:
+        if dim == "time":
+            single_date = date.fromtimestamp(da_error[dim].item() / 1000000000)
+            scalar_dims_format.append(f"{dim}={single_date.strftime('%Y')}")
+        else:
+            scalar_dims_format.append(f"{dim}={da_error[dim].item()}")
     scalar_dims_str = ", ".join(f"{dim}={da_error[dim].item()}" for dim in scalar_dims)
     da_error_dequ = da_error.squeeze(drop=True).pint.dequantify()
     if np.ndim(da_error_dequ.data) == 0:
@@ -98,7 +106,7 @@ def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
     return (
         f"pr.merge error: found discrepancies larger than tolerance "
         f"({tolerance * 100:.2f}%) for {scalar_dims_str}:\n"
-        f"shown are relative discrepancies.\n" + errors_str
+        f"shown are relative discrepancies. ({da_error.name})\n" + errors_str
     )
 
 
