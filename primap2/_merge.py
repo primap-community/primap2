@@ -96,7 +96,7 @@ def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
             scalar_dims_format.append(f"{dim}={single_date.strftime('%Y')}")
         else:
             scalar_dims_format.append(f"{dim}={da_error[dim].item()}")
-    scalar_dims_str = ", ".join(f"{dim}={da_error[dim].item()}" for dim in scalar_dims)
+    scalar_dims_str = ", ".join(scalar_dims_format)
     da_error_dequ = da_error.squeeze(drop=True).pint.dequantify()
     if np.ndim(da_error_dequ.data) == 0:
         errors_str = str(da_error_dequ.data)
