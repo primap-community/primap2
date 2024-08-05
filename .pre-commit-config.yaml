@@ -15,7 +15,7 @@ repos:
       - id: detect-private-key
       - id: mixed-line-ending
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: 'v0.5.5'
+    rev: 'v0.5.6'
     hooks:
       - id: ruff
         args: [ --fix, --exit-non-zero-on-fix ]
@@ -25,6 +25,6 @@ repos:
     hooks:
       - id: doc8
   - repo: https://github.com/nbQA-dev/nbQA
-    rev: '1.8.5'
+    rev: '1.8.7'
     hooks:
       - id: nbqa-check-ast
