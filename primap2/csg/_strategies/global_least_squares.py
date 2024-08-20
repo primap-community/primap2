@@ -52,8 +52,8 @@ class GlobalLSStrategy:
 
         For a description of the algorithm, see the documentation of this class.
 
-            Parameters
-            ----------
+        Parameters
+        ----------
             ts
                 Base timeseries. Missing data (NaNs) in this timeseries will be filled.
                 This function does not modify the data in ts.
@@ -65,14 +65,13 @@ class GlobalLSStrategy:
                 String representation of fill_ts. Human-readable short representation of
                 the fill_ts (e.g. the source).
 
-            Returns
-            -------
+        Returns
+        -------
                 filled_ts, descriptions. filled_ts contains the result, where missing
                 data in ts is (partly) filled using scaled data from fill_ts.
                 descriptions contains information about which years were affected and
                 filled how.
         """
-
         filled_mask = ts.isnull() & ~fill_ts.isnull()
         time_filled = filled_mask["time"][filled_mask].to_numpy()
 
@@ -91,8 +90,7 @@ class GlobalLSStrategy:
                     if any(fill_ts_harmo < 0):
                         # use filling without shift
                         raise StrategyUnableToProcess(
-                            reason="Negative data after harmonization excluded "
-                            "by configuration"
+                            reason="Negative data after harmonization excluded " "by configuration"
                         )
                     else:
                         filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
@@ -110,9 +108,7 @@ class GlobalLSStrategy:
                     e = fill_ts[overlap.data].data
                     e_ref = ts[overlap.data].data
                     a0 = [1]  #  start with 1 as scaling factor
-                    res = least_squares(
-                        self._factor_mult, a0, jac=self._jac, args=(e, e_ref)
-                    )
+                    res = least_squares(self._factor_mult, a0, jac=self._jac, args=(e, e_ref))
 
                     fill_ts_h = fill_ts * res["x"][0]
                     filled_ts = xr.core.ops.fillna(ts, fill_ts_h, join="exact")
@@ -127,9 +123,7 @@ class GlobalLSStrategy:
                         )
                     ]
             else:
-                raise StrategyUnableToProcess(
-                    reason="No overlap between timeseries, can't match"
-                )
+                raise StrategyUnableToProcess(reason="No overlap between timeseries, can't match")
 
         else:
             # if we don't have anything to fill we don't need to calculate anything

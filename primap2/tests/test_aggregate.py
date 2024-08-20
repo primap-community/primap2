@@ -80,9 +80,7 @@ class TestSum:
         )
 
         b = da.pr.sum(dim="b", skipna_evaluation_dims="a")
-        b_expected = xr.DataArray(
-            data=[[0, 1, 2], [0, 1, 2]], coords=[coords[0], coords[2]]
-        )
+        b_expected = xr.DataArray(data=[[0, 1, 2], [0, 1, 2]], coords=[coords[0], coords[2]])
         assert np.allclose(b, b_expected, equal_nan=True)
 
         c = da.pr.sum(dim="b", skipna_evaluation_dims="c")
@@ -112,9 +110,7 @@ class TestSum:
         )
 
         b0 = da.pr.sum(dim="b", skipna=True, min_count=0)
-        b0_expected = xr.DataArray(
-            data=[[0, 1, 2], [0, 1, 2]], coords=[coords[0], coords[2]]
-        )
+        b0_expected = xr.DataArray(data=[[0, 1, 2], [0, 1, 2]], coords=[coords[0], coords[2]])
         assert np.allclose(b0, b0_expected, equal_nan=True)
 
         b1 = da.pr.sum(dim="b", skipna=True, min_count=1)
@@ -167,9 +163,7 @@ class TestSum:
 
         actual = dss
         expected = primap2.open_dataset(
-            pathlib.Path(__file__).parent
-            / "data"
-            / "test_sum_skip_allna_inhomogeneous_result.nc"
+            pathlib.Path(__file__).parent / "data" / "test_sum_skip_allna_inhomogeneous_result.nc"
         )
         xr.testing.assert_identical(actual, expected)
 
@@ -184,9 +178,7 @@ class TestSum:
             ValueError,
             match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied",
         ):
-            opulent_ds_or_da.pr.sum(
-                "area", skipna=True, skipna_evaluation_dims="category"
-            )
+            opulent_ds_or_da.pr.sum("area", skipna=True, skipna_evaluation_dims="category")
 
     def test_error_entity(self, opulent_ds):
         with pytest.raises(
@@ -279,8 +271,8 @@ class TestGasBasket:
         assert_equal(summed, expected)
 
     def test_contents_sum_skipna_evaluation_dims(self, partly_nan_ds):
-        partly_nan_ds["CH4"].loc[{"area (ISO3)": "ARG", "time": "2012"}] = (
-            np.nan * ureg("Gg CH4 / year")
+        partly_nan_ds["CH4"].loc[{"area (ISO3)": "ARG", "time": "2012"}] = np.nan * ureg(
+            "Gg CH4 / year"
         )
         summed = partly_nan_ds.pr.gas_basket_contents_sum(
             basket="KYOTOGHG (AR4GWP100)",
@@ -291,9 +283,7 @@ class TestGasBasket:
         expected[:] = (1 + self.sf6 + self.ch4) * ureg("Gg CO2 / year")
         # NaN only skipped where all time points NaN
         expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6) * ureg("Gg CO2 / year")
-        expected.loc[{"area (ISO3)": "ARG", "time": "2012"}] = np.nan * ureg(
-            "Gg CO2 / year"
-        )
+        expected.loc[{"area (ISO3)": "ARG", "time": "2012"}] = np.nan * ureg("Gg CO2 / year")
         assert_equal(summed, expected, equal_nan=True)
 
     def test_contents_sum_skipna(self, partly_nan_ds):
@@ -316,9 +306,7 @@ class TestGasBasket:
         expected = partly_nan_ds["KYOTOGHG (AR4GWP100)"].copy()
         expected[:] = (1 + self.sf6_ar6 + self.ch4_ar6) * ureg("Gg CO2 / year")
         # NaN counted as 0
-        expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6_ar6) * ureg(
-            "Gg CO2 / year"
-        )
+        expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6_ar6) * ureg("Gg CO2 / year")
         expected.name = "KYOTOGHG (AR6GWP100)"
         expected.attrs = {"gwp_context": "AR6GWP100", "entity": "KYOTOGHG"}
         assert_equal(summed, expected)
@@ -326,12 +314,12 @@ class TestGasBasket:
     @pytest.fixture
     def partly_filled_ds(self, partly_nan_ds):
         partly_nan_ds["KYOTOGHG (AR4GWP100)"][:] = 1 * ureg("Gg CO2 / year")
-        partly_nan_ds["KYOTOGHG (AR4GWP100)"].loc[{"area (ISO3)": "COL"}] = (
+        partly_nan_ds["KYOTOGHG (AR4GWP100)"].loc[{"area (ISO3)": "COL"}] = np.nan * ureg(
+            "Gg CO2 / year"
+        )
+        partly_nan_ds["KYOTOGHG (AR4GWP100)"].loc[{"area (ISO3)": "BOL", "time": "2020"}] = (
             np.nan * ureg("Gg CO2 / year")
         )
-        partly_nan_ds["KYOTOGHG (AR4GWP100)"].loc[
-            {"area (ISO3)": "BOL", "time": "2020"}
-        ] = np.nan * ureg("Gg CO2 / year")
         return partly_nan_ds
 
     def test_fill_na_from_contents_skipna_evaluation_dims(self, partly_filled_ds):
@@ -342,9 +330,9 @@ class TestGasBasket:
         )
         expected = partly_filled_ds["KYOTOGHG (AR4GWP100)"].copy()
         expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6) * ureg("Gg CO2 / year")
-        expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (
-            1 + self.sf6 + self.ch4
-        ) * ureg("Gg CO2 / year")
+        expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (1 + self.sf6 + self.ch4) * ureg(
+            "Gg CO2 / year"
+        )
         assert_equal(filled, expected)
 
     def test_fill_na_from_contents_sel(self, partly_filled_ds):
@@ -355,9 +343,9 @@ class TestGasBasket:
             skipna_evaluation_dims=("time",),
         )
         expected = partly_filled_ds["KYOTOGHG (AR4GWP100)"].copy()
-        expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (
-            1 + self.sf6 + self.ch4
-        ) * ureg("Gg CO2 / year")
+        expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (1 + self.sf6 + self.ch4) * ureg(
+            "Gg CO2 / year"
+        )
         assert_equal(filled, expected, equal_nan=True)
 
         with pytest.raises(
@@ -379,9 +367,9 @@ class TestGasBasket:
         )
         expected = partly_filled_ds["KYOTOGHG (AR4GWP100)"].copy()
         expected.loc[{"area (ISO3)": "COL"}] = np.nan * ureg("Gg CO2 / year")
-        expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (
-            1 + self.sf6 + self.ch4
-        ) * ureg("Gg CO2 / year")
+        expected.loc[{"area (ISO3)": "BOL", "time": "2020"}] = (1 + self.sf6 + self.ch4) * ureg(
+            "Gg CO2 / year"
+        )
         assert_equal(filled, expected, equal_nan=True)
 
     def test_add_aggregates_variables_no_input(self, partly_filled_ds, caplog):
@@ -474,12 +462,7 @@ class TestGasBasket:
             reference_ds["test (SARGWP100)"].pr.loc[{"area (ISO3)": ["COL"]}]
             == filtered_ds["test (SARGWP100)"].pr.loc[{"area (ISO3)": ["COL"]}]
         ).all()
-        assert (
-            filtered_ds["test (SARGWP100)"]
-            .pr.loc[{"area (ISO3)": ["BOL"]}]
-            .isnull()
-            .all()
-        )
+        assert filtered_ds["test (SARGWP100)"].pr.loc[{"area (ISO3)": ["BOL"]}].isnull().all()
 
     def test_add_aggregates_variables_error_basket_type(self, partly_filled_ds, caplog):
         """
@@ -507,7 +490,6 @@ class TestAddAggregatesCoordinates:
         """
         test if the tolerance setting works
         """
-
         test_ds = minimal_ds.pr.add_aggregates_coordinates(
             agg_info={
                 "area (ISO3)": {
@@ -534,9 +516,7 @@ class TestAddAggregatesCoordinates:
 
         test_ds.pr.add_aggregates_coordinates(
             agg_info={
-                "area (ISO3)": {
-                    "all": {"sources": ["COL", "ARG", "MEX", "BOL"], "tolerance": 5}
-                }
+                "area (ISO3)": {"all": {"sources": ["COL", "ARG", "MEX", "BOL"], "tolerance": 5}}
             }
         )
 
@@ -556,9 +536,7 @@ class TestAddAggregatesCoordinates:
         )
 
         expected_result = minimal_ds["CO2"].pr.sum(dim="area (ISO3)")
-        actual_result = (
-            test_ds["CO2"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
-        )
+        actual_result = test_ds["CO2"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
         xr.testing.assert_allclose(expected_result, actual_result)
 
         # with the simplified configuration
@@ -570,9 +548,7 @@ class TestAddAggregatesCoordinates:
             }
         )
 
-        actual_result = (
-            test_ds["CO2"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
-        )
+        actual_result = test_ds["CO2"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
         xr.testing.assert_allclose(expected_result, actual_result)
 
     def test_add_aggregates_coordinates_result_filter(self, minimal_ds):
@@ -601,9 +577,7 @@ class TestAddAggregatesCoordinates:
         xr.testing.assert_allclose(expected_result_SF6, actual_result_SF6)
         expected_result_SF6GWP = minimal_ds["SF6 (SARGWP100)"].pr.sum(dim="area (ISO3)")
         actual_result_SF6GWP = (
-            test_ds["SF6 (SARGWP100)"]
-            .pr.loc[{"area (ISO3)": ["all"]}]
-            .pr.sum(dim="area (ISO3)")
+            test_ds["SF6 (SARGWP100)"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
         )
         xr.testing.assert_allclose(expected_result_SF6GWP, actual_result_SF6GWP)
 
@@ -689,15 +663,12 @@ class TestAddAggregatesCoordinates:
             }
         )
         assert (
-            "No source value present for 'all' in "
-            "coordinate 'area (ISO3)'. Missing: {'DEU'}."
+            "No source value present for 'all' in " "coordinate 'area (ISO3)'. Missing: {'DEU'}."
         ) in caplog.text
 
         # test all nan warning
         test_ds = minimal_ds.copy(deep=True)
-        test_ds["CO2"] = xr.full_like(test_ds["CO2"], np.nan).pr.quantify(
-            units="Gg CO2 / year"
-        )
+        test_ds["CO2"] = xr.full_like(test_ds["CO2"], np.nan).pr.quantify(units="Gg CO2 / year")
         test_ds.pr.add_aggregates_coordinates(
             agg_info={
                 "area (ISO3)": {
@@ -707,9 +678,7 @@ class TestAddAggregatesCoordinates:
                 }
             }
         )
-        assert (
-            "All input data nan for 'all' in " "coordinate 'area (ISO3)'."
-        ) in caplog.text
+        assert ("All input data nan for 'all' in " "coordinate 'area (ISO3)'.") in caplog.text
 
     def test_add_aggregates_coordinates_errors(self, minimal_ds):
         """
@@ -718,8 +687,7 @@ class TestAddAggregatesCoordinates:
         # additional coordinate not present
         with pytest.raises(
             ValueError,
-            match="Additional coordinate 'area_name' specified but not "
-            "present in data",
+            match="Additional coordinate 'area_name' specified but not " "present in data",
         ):
             minimal_ds.pr.add_aggregates_coordinates(
                 agg_info={
@@ -733,15 +701,11 @@ class TestAddAggregatesCoordinates:
             )
 
         # unrecognized aggregation definition
-        with pytest.raises(
-            ValueError, match="Unrecognized aggregation definition for 'all'"
-        ):
-            minimal_ds.pr.add_aggregates_coordinates(
-                agg_info={"area (ISO3)": {"all": "COL"}}
-            )
+        with pytest.raises(ValueError, match="Unrecognized aggregation definition for 'all'"):
+            minimal_ds.pr.add_aggregates_coordinates(agg_info={"area (ISO3)": {"all": "COL"}})
 
     def test_add_aggregates_coordinates_add_coord(self, minimal_ds):
-        """test error on additional coordinate"""
+        """Test error on additional coordinate"""
         test_ds = minimal_ds.copy(deep=True)
         area_name = ["COL", "ARG", "MEX", "BOL"]
         test_ds = test_ds.assign_coords(area_name=("area (ISO3)", area_name))

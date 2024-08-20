@@ -81,9 +81,7 @@ def open_dataset(
     if "sec_cats" in ds.attrs:
         ds.attrs["sec_cats"] = list(ds.attrs["sec_cats"])
     if "publication_date" in ds.attrs:
-        ds.attrs["publication_date"] = datetime.date.fromisoformat(
-            ds.attrs["publication_date"]
-        )
+        ds.attrs["publication_date"] = datetime.date.fromisoformat(ds.attrs["publication_date"])
     for entity in ds:
         if entity.startswith("Processing of "):
             ds[entity].data = np.vectorize(
@@ -94,7 +92,8 @@ def open_dataset(
 
 class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
     """MixIn class which provides functions for checking the data format and saving
-    of Datasets."""
+    of Datasets.
+    """
 
     def ensure_valid(self) -> None:
         """Ensure this is a valid primap2 data set.
@@ -182,9 +181,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
 
         # all non-float dtypes are specified
         dtypes = {
-            entity: str(dsd[entity].dtype)
-            for entity in entities
-            if dsd[entity].dtype != float
+            entity: str(dsd[entity].dtype) for entity in entities if dsd[entity].dtype != float
         }
 
         # add attrs for additional coords
@@ -196,9 +193,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
                     f"Additional coordinate {coord!r} has more than one dimension, "
                     f"which is not supported."
                 )
-                raise ValueError(
-                    f"Additional coordinate {coord!r} has more than one dimension"
-                )
+                raise ValueError(f"Additional coordinate {coord!r} has more than one dimension")
 
             additional_coordinates[coord] = next(iter(coords_current))
 
@@ -268,19 +263,12 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
     def remove_processing_info(self) -> xr.Dataset:
         """Return dataset with all variables with processing information removed."""
         return self._ds.drop_vars(
-            [
-                var
-                for var in self._ds
-                if isinstance(var, str) and var.startswith("Processing of ")
-            ]
+            [var for var in self._ds if isinstance(var, str) and var.startswith("Processing of ")]
         )
 
     def has_processing_info(self) -> bool:
         """True if the dataset has processing information for at least one entity."""
-        return any(
-            isinstance(var, str) and var.startswith("Processing of ")
-            for var in self._ds
-        )
+        return any(isinstance(var, str) and var.startswith("Processing of ") for var in self._ds)
 
     def expand_dims(
         self,
@@ -308,12 +296,10 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         -------
             dataset with added dimension and coordinate
         """
-
-        ds_out = self._ds.copy(
-            deep=True
-        )  # deep=True necessary to keep attrs of original ds
+        ds_out = self._ds.copy(deep=True)  # deep=True necessary to keep attrs of original ds
         if terminology is not None:
-            # get the translation for the attrs (use the shortest key to get the right key for the attrs)
+            # get the translation for the attrs (use the shortest key to get the right key for the
+            # attrs)
             dim_to_add = f"{dim} ({terminology})"
             translations = translations_from_dims([dim_to_add])
             shortest_key = min(list(translations.keys()), key=len)
@@ -328,20 +314,20 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
 
 def split_dim_name(dim_name: str) -> tuple[str, str]:
     """Split a dimension name composed of the dimension, and the category set in
-    parentheses into its parts."""
+    parentheses into its parts.
+    """
     try:
         dim, category_set = dim_name.split("(", 1)
     except ValueError:
         logger.error(f"{dim_name!r} not in the format 'dim (category_set)'.")
-        raise ValueError(
-            f"{dim_name!r} not in the format 'dim (category_set)'"
-        ) from None
+        raise ValueError(f"{dim_name!r} not in the format 'dim (category_set)'") from None
     return dim[:-1], category_set[:-1]
 
 
 def split_var_name(var_name: str) -> tuple[str, str]:
     """Split a variable name composed of the entity and the gwp_context in parentheses
-    into its parts."""
+    into its parts.
+    """
     try:
         entity, gwp_context = var_name.split("(", maxsplit=1)
     except ValueError:
@@ -367,8 +353,7 @@ def ensure_valid_coordinates(ds: xr.Dataset):
             # coordinate names which are not sortable with strings so the test never
             # gets here anyway
             logger.error(
-                f"Coordinate {coord!r} is of type {type(coord)}, but "
-                f"only strings are allowed."
+                f"Coordinate {coord!r} is of type {type(coord)}, but " f"only strings are allowed."
             )
             raise ValueError(f"Coord key {coord!r} is not a string")
         elif coord in additional_coords:
@@ -392,9 +377,7 @@ def ensure_valid_attributes(ds: xr.Dataset):
     with contextlib.suppress(KeyError):
         publication_date = ds.attrs["publication_date"]
         if not isinstance(publication_date, datetime.date):
-            logger.error(
-                f"Publication date is not a datetime.date object: {publication_date!r}."
-            )
+            logger.error(f"Publication date is not a datetime.date object: {publication_date!r}.")
             raise ValueError("Publication date is not a date object.")
     valid_attr_keys = {
         "references",
@@ -483,8 +466,7 @@ def ensure_entity_and_units_valid(key: Hashable, da: xr.DataArray):
             unit_entity * ureg.Gg / ureg.year
         ):
             logger.warning(
-                f"{key!r} has a unit of {units}, which is not "
-                f"compatible with an emission rate."
+                f"{key!r} has a unit of {units}, which is not " f"compatible with an emission rate."
             )
 
 
@@ -552,18 +534,10 @@ def ensure_valid_dimensions(ds: xr.Dataset):
             raise ValueError(f"{req_dim!r} not in dims")
 
         for var in ds:
-            if (
-                isinstance(var, str)
-                and var.startswith("Processing of ")
-                and req_dim == "time"
-            ):
+            if isinstance(var, str) and var.startswith("Processing of ") and req_dim == "time":
                 if req_dim in ds[var].dims:
-                    logger.error(
-                        f"{var!r} is a metadata variable, but 'time' is a dimension."
-                    )
-                    raise ValueError(
-                        f"{var!r} contains metadata, but carries 'time' dimension"
-                    )
+                    logger.error(f"{var!r} is a metadata variable, but 'time' is a dimension.")
+                    raise ValueError(f"{var!r} contains metadata, but carries 'time' dimension")
             else:
                 if req_dim not in ds[var].dims:
                     logger.error(
@@ -575,8 +549,7 @@ def ensure_valid_dimensions(ds: xr.Dataset):
     for req_dim in required_indirect_dims:
         if req_dim not in ds.attrs:
             logger.error(
-                f"{req_dim!r} not found in attrs, required dimension is therefore"
-                f" undefined."
+                f"{req_dim!r} not found in attrs, required dimension is therefore" f" undefined."
             )
             raise ValueError(f"{req_dim!r} not in attrs")
 
@@ -595,9 +568,7 @@ def ensure_valid_dimensions(ds: xr.Dataset):
             long_name = ds.attrs[opt_dim]
             included_optional_dims.append(long_name)
             if long_name not in ds.dims:
-                logger.error(
-                    f"{long_name!r} defined as {opt_dim}, but not found in dims."
-                )
+                logger.error(f"{long_name!r} defined as {opt_dim}, but not found in dims.")
                 raise ValueError(f"{opt_dim!r} not in dims")
 
     if "sec_cats" in ds.attrs:
@@ -605,15 +576,12 @@ def ensure_valid_dimensions(ds: xr.Dataset):
             included_optional_dims.append(sec_cat)
             if sec_cat not in ds.dims:
                 logger.error(
-                    f"Secondary category {sec_cat!r} defined, but not found in dims: "
-                    f"{ds.dims}."
+                    f"Secondary category {sec_cat!r} defined, but not found in dims: " f"{ds.dims}."
                 )
                 raise ValueError(f"Secondary category {sec_cat!r} not in dims")
 
     if "sec_cats" in ds.attrs and "cat" not in ds.attrs:
-        logger.warning(
-            "Secondary category defined, but no primary category defined, weird."
-        )
+        logger.warning("Secondary category defined, but no primary category defined, weird.")
 
     all_dims = set(ds.dims.keys())
     unknown_dims = (
@@ -626,8 +594,7 @@ def ensure_valid_dimensions(ds: xr.Dataset):
 
     if unknown_dims:
         logger.warning(
-            f"Dimension(s) {unknown_dims} unknown, likely a typo or missing in"
-            f" sec_cats."
+            f"Dimension(s) {unknown_dims} unknown, likely a typo or missing in" f" sec_cats."
         )
 
     for dim in required_indirect_dims.union(optional_indirect_dims):
@@ -646,10 +613,7 @@ class ProcessingStepDescription:
 
     def __str__(self) -> str:
         if self.source is None:
-            return (
-                f"Using function={self.function} for times={self.time}:"
-                f" {self.description}"
-            )
+            return f"Using function={self.function} for times={self.time}:" f" {self.description}"
         else:
             return (
                 f"Using function={self.function} with source={self.source} for "
@@ -676,9 +640,7 @@ class ProcessingStepDescription:
     def structure(cls, u: dict[str, typing.Any]) -> "ProcessingStepDescription":
         """Initialize from basic python types as created by "unstructure"."""
         time = u.pop("time")
-        return cls(
-            time="all" if time == "all" else np.array(time, dtype=np.datetime64), **u
-        )
+        return cls(time="all" if time == "all" else np.array(time, dtype=np.datetime64), **u)
 
 
 @define(frozen=True)
@@ -692,9 +654,7 @@ class TimeseriesProcessingDescription:
 
     def serialize(self) -> bytes:
         """Convert into binary data, e.g. for saving to disk."""
-        return msgpack.packb(
-            {"steps": [x.unstructure() for x in self.steps]}, use_bin_type=True
-        )
+        return msgpack.packb({"steps": [x.unstructure() for x in self.steps]}, use_bin_type=True)
 
     @classmethod
     def deserialize(cls, b: bytes) -> "TimeseriesProcessingDescription":

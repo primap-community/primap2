@@ -47,10 +47,7 @@ def test_substitution_strategy():
     assert (result_ts[1:] == 1.0).all()
     assert len(result_descriptions) == 1
     assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
-    assert (
-        result_descriptions[0].description
-        == "substituted with corresponding values from B"
-    )
+    assert result_descriptions[0].description == "substituted with corresponding values from B"
     assert "source" not in result_ts.coords.keys()
 
 
@@ -59,9 +56,9 @@ def test_globalLS_strategy():
     fill_ts = get_single_ts(data=2.0)
 
     # nothing to fill
-    result_ts, result_descriptions = primap2.csg.GlobalLSStrategy(
-        allow_shift=False
-    ).fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")
+    result_ts, result_descriptions = primap2.csg.GlobalLSStrategy(allow_shift=False).fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+    )
     xr.testing.assert_allclose(ts, result_ts)
     assert len(result_descriptions) == 1
     assert len(result_descriptions[0].time) == 0  # comparison of results fails
@@ -69,9 +66,9 @@ def test_globalLS_strategy():
 
     # allow_shift = False
     ts[0] = np.nan
-    result_ts, result_descriptions = primap2.csg.GlobalLSStrategy(
-        allow_shift=False
-    ).fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")
+    result_ts, result_descriptions = primap2.csg.GlobalLSStrategy(allow_shift=False).fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+    )
     xr.testing.assert_allclose(get_single_ts(data=1.0), result_ts)
     assert len(result_descriptions) == 1
     assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
@@ -83,9 +80,9 @@ def test_globalLS_strategy():
     # allow_shift = True
     ts[1:5] = 0.5
     fill_ts[0:5] = 1.5
-    result_ts, result_descriptions = primap2.csg.GlobalLSStrategy(
-        allow_shift=True
-    ).fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")
+    result_ts, result_descriptions = primap2.csg.GlobalLSStrategy(allow_shift=True).fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+    )
 
     expected_ts = ts.copy(deep=True)
     expected_ts[0] = 0.5
@@ -93,8 +90,7 @@ def test_globalLS_strategy():
     assert len(result_descriptions) == 1
     assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
     assert (
-        result_descriptions[0].description
-        == "filled with least squares matched data from B. "
+        result_descriptions[0].description == "filled with least squares matched data from B. "
         "a*x+b with a=1.000, b=-1.000"
     )
 
