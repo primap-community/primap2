@@ -299,7 +299,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         # timeseries that are aggregated
         da_out = self._da.pr.dequantify()
 
-        for coordinate in agg_info.keys():
+        for coordinate in agg_info:
             aggregation_rules = agg_info[coordinate]
             full_coord_name = da_out.pr.dim_alias_translations.get(
                 coordinate, coordinate

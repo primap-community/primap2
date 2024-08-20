@@ -203,7 +203,7 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
 
     if pure_code[0] == "M":
         code_remaining = pure_code
-        if pure_code in code_mapping.keys():
+        if pure_code in code_mapping:
             new_code = code_mapping[pure_code]
             return new_code
         else:
@@ -295,7 +295,7 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
                         if match is not None:
                             new_code = new_code + "." + match.group(0)
                             # check if anything left
-                            if not code_remaining == match.group(0):
+                            if code_remaining != match.group(0):
                                 return code_invalid_warn(
                                     code, "Chars left after sixth level."
                                 )
@@ -354,7 +354,7 @@ def convert_entity_gwp_primap_to_primap2(entity_pm1: str) -> str:
 
     # build regexp to match the GWPs
     regexp_str_gwps = "("
-    for mapping in gwp_mapping.keys():
+    for mapping in gwp_mapping:
         regexp_str_gwps = regexp_str_gwps + mapping + "|"
     regexp_str_gwps = regexp_str_gwps[0:-1] + ")$"
 

@@ -1031,7 +1031,7 @@ def read_long_csv(
     coords_cols: dict[str, str],
     add_coords_cols: None | dict[str, list[str]] = None,
 ) -> pd.DataFrame:
-    if "data" not in coords_cols.keys():
+    if "data" not in coords_cols:
         raise ValueError(
             "No data column in the CSV specified in coords_cols, so nothing to read."
         )
@@ -1163,7 +1163,7 @@ def add_dimensions_from_defaults(
         + INTERCHANGE_FORMAT_MANDATORY_COLUMNS
         + list(additional_allowed_coords)
     )
-    for coord in coords_defaults.keys():
+    for coord in coords_defaults:
         if coord in if_columns or coord.startswith(SEC_CATS_PREFIX):
             # add column to dataframe with default value
             data[coord] = coords_defaults[coord]
@@ -1183,7 +1183,7 @@ def map_metadata(
     """Map the metadata according to specifications given in meta_mapping.
     First map entity, then the rest."""
     meta_mapping_copy = meta_mapping.copy()
-    if "entity" in meta_mapping.keys():
+    if "entity" in meta_mapping:
         meta_mapping_entity = dict(entity=meta_mapping_copy["entity"])
         meta_mapping_copy.pop("entity")
         map_metadata_unordered(data, meta_mapping=meta_mapping_entity, attrs=attrs)
@@ -1435,7 +1435,7 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
     native_conv = []
     fb_conv = []
     native_unit = "Gg " + entity + " / yr"
-    for unit in units.keys():
+    for unit in units:
         conversion_contexts = []
         if units[unit] is not None:
             conversion_contexts.append(units[unit])
@@ -1549,7 +1549,7 @@ def harmonize_units(
             basic_entity = entity
         # print(f"gwp: {gwp_to_use}")
         # print(f"basic_entity: {basic_entity}")
-        if basic_entity in basic_entities.keys():
+        if basic_entity in basic_entities:
             basic_entities[basic_entity][entity] = gwp_to_use
         else:
             basic_entities[basic_entity] = {entity: gwp_to_use}
