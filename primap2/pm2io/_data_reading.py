@@ -47,7 +47,7 @@ def convert_long_dataframe_if(
     convert_str: bool | dict[str, float] = True,
     copy_df: bool = True,
 ) -> pd.DataFrame:
-    """convert a DataFrame in long (tidy) format into the PRIMAP2 interchange format.
+    """Convert a DataFrame in long (tidy) format into the PRIMAP2 interchange format.
 
     Columns can be renamed or filled with default values to match the PRIMAP2
     structure. Where we refer to "dimensions" in the parameter description below we
@@ -204,9 +204,7 @@ data_format_details.html#dataset-attributes>`_.
 
     filter_data(data_copy, filter_keep, filter_remove)
 
-    add_dimensions_from_defaults(
-        data_copy, coords_defaults, additional_allowed_coords=["time"]
-    )
+    add_dimensions_from_defaults(data_copy, coords_defaults, additional_allowed_coords=["time"])
 
     naming_attrs = rename_columns(
         data_copy, coords_cols, add_coords_cols, coords_defaults, coords_terminologies
@@ -425,9 +423,7 @@ data_format_details.html#dataset-attributes>`_.
     )
 
 
-def long_to_wide(
-    data_long: pd.DataFrame, *, time_format: str
-) -> tuple[pd.DataFrame, list[str]]:
+def long_to_wide(data_long: pd.DataFrame, *, time_format: str) -> tuple[pd.DataFrame, list[str]]:
     data_long["time"] = data_long["time"].dt.strftime(time_format)
 
     coords = list(set(data_long.columns.values) - {"data", "time"})
@@ -629,9 +625,7 @@ data_format_details.html#dataset-attributes>`_.
     # get all the columns that are actual data not metadata (usually the years)
     if time_cols is None:
         time_columns = [
-            col
-            for col in data_wide.columns.values
-            if matches_time_format(col, time_format)
+            col for col in data_wide.columns.values if matches_time_format(col, time_format)
         ]
     else:
         time_columns = time_cols
@@ -899,7 +893,6 @@ def additional_coordinate_metadata(
     coords_terminologies: dict[str, str],
 ) -> dict:
     """Create the `additional_coordinates` dict and do a few consistency checks"""
-
     additional_coordinates = {}
     for coord in add_coords_cols:
         if coord in coords_terminologies:
@@ -993,9 +986,7 @@ def read_wide_csv(
     )
 
     # get all the columns that are actual data not metadata (usually the years)
-    time_cols = [
-        col for col in data.columns.values if matches_time_format(col, time_format)
-    ]
+    time_cols = [col for col in data.columns.values if matches_time_format(col, time_format)]
 
     # remove all cols not in the specification
     columns = data.columns.values
@@ -1006,10 +997,7 @@ def read_wide_csv(
 
     data.drop(
         columns=list(
-            set(columns)
-            - set(coords_cols.values())
-            - add_coords_col_names
-            - set(time_cols)
+            set(columns) - set(coords_cols.values()) - add_coords_col_names - set(time_cols)
         ),
         inplace=True,
     )
@@ -1032,9 +1020,7 @@ def read_long_csv(
     add_coords_cols: None | dict[str, list[str]] = None,
 ) -> pd.DataFrame:
     if "data" not in coords_cols:
-        raise ValueError(
-            "No data column in the CSV specified in coords_cols, so nothing to read."
-        )
+        raise ValueError("No data column in the CSV specified in coords_cols, so nothing to read.")
 
     if "time" in coords_cols:
         parse_dates = [coords_cols["time"]]
@@ -1060,7 +1046,8 @@ def read_long_csv(
 def spec_to_query_string(filter_spec: dict[str, Any]) -> str:
     """Convert filter specification to query string.
 
-    All column conditions in the filter are combined with &."""
+    All column conditions in the filter are combined with &.
+    """
     queries = []
     for col in filter_spec:
         if isinstance(filter_spec[col], list):
@@ -1181,7 +1168,8 @@ def map_metadata(
     attrs: dict[str, Any],
 ):
     """Map the metadata according to specifications given in meta_mapping.
-    First map entity, then the rest."""
+    First map entity, then the rest.
+    """
     meta_mapping_copy = meta_mapping.copy()
     if "entity" in meta_mapping:
         meta_mapping_entity = dict(entity=meta_mapping_copy["entity"])
@@ -1236,9 +1224,7 @@ def map_metadata_unordered(
             if not args:  # simple case: no additional args needed
                 values_to_map = data[column_name].unique()
                 values_mapped = map(func, values_to_map)
-                meta_mapping_df[column_name] = dict(
-                    zip(values_to_map, values_mapped, strict=False)
-                )
+                meta_mapping_df[column_name] = dict(zip(values_to_map, values_mapped, strict=False))
 
             else:  # need to supply additional arguments
                 # this can't be handled using the replace()-call later since the
@@ -1269,8 +1255,8 @@ def rename_columns(
     coords_terminologies: dict[str, str],
 ) -> dict:
     """Rename columns to match PRIMAP2 specifications and generate the corresponding
-    dataset-wide attrs for PRIMAP2."""
-
+    dataset-wide attrs for PRIMAP2.
+    """
     attr_names = {"category": "cat", "scenario": "scen", "area": "area"}
 
     attrs = {}
@@ -1329,9 +1315,7 @@ def find_str_values_in_data(
     """Find all string values occurring in given columns of a DataFrame"""
     # limit our analysis to columns that contain strings
     # (or other object types)
-    cols_with_strs = (
-        data[columns].select_dtypes(include=[object]).columns.values.tolist()
-    )
+    cols_with_strs = data[columns].select_dtypes(include=[object]).columns.values.tolist()
     temp = []
     for col in cols_with_strs:
         temp += list(data[col].unique())
@@ -1342,7 +1326,8 @@ def find_str_values_in_data(
 
 def parse_code(code: str) -> float:
     """Parse a string code and return 0 or np.nan based on rules to interpret
-    the codes."""
+    the codes.
+    """
     code = code.strip()
     if code in _special_codes:
         return _special_codes[code]
@@ -1361,8 +1346,8 @@ def create_str_replacement_dict(
     user_str_conv: bool | dict[str, float],
 ) -> dict[str, str]:
     """Create a dict for replacement of strings by NaN and 0 based on
-    general rules and user defined rules"""
-
+    general rules and user defined rules
+    """
     if isinstance(user_str_conv, bool):
         if user_str_conv:
             user_str_conv = {}
@@ -1424,9 +1409,7 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
     None
     >>> preferred_unit("CH4", {"kt CO2 / yr": "AR4GWP100", "Gg CO2 / yr": "SARGWP100"})
     'Gg CH4 / yr'
-    >>> preferred_unit(
-    ...     "KYOTOGHG", {"kt CO2 / yr": "AR4GWP100", "Gg CO2 / yr": "SARGWP100"}
-    ... )
+    >>> preferred_unit("KYOTOGHG", {"kt CO2 / yr": "AR4GWP100", "Gg CO2 / yr": "SARGWP100"})
 
     """
     unit_fallback = next(iter(units.keys()))
@@ -1462,9 +1445,7 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
             try:
                 # print(f"Testing conversion from {ureg[unit_fallback].units} to "
                 #       f"{ureg[native_unit].units} for {entity}.")
-                if ureg(unit).is_compatible_with(
-                    ureg[unit_fallback], *conversion_contexts
-                ):
+                if ureg(unit).is_compatible_with(ureg[unit_fallback], *conversion_contexts):
                     fb_conv.append(True)
                 else:
                     fb_conv.append(False)
@@ -1558,9 +1539,7 @@ def harmonize_units(
         # print(f"basic_entity: {basic_entity}")
         # print(f"entities: {basic_entities[basic_entity]}")
         # get all units for this entity
-        data_this_basic_entity = data.loc[
-            data[entity_col].isin(basic_entities[basic_entity])
-        ]
+        data_this_basic_entity = data.loc[data[entity_col].isin(basic_entities[basic_entity])]
         units_this_basic_entity = data_this_basic_entity[unit_col].unique()
         unit_gwp_this_basic_entity = {}
         gwp_conversion_this_basic_entity = False
@@ -1601,9 +1580,7 @@ def harmonize_units(
                                 factor = unit_pint.magnitude
                                 # print(f"Converting with factor {factor} to unit
                                 # {unit_to}")
-                                mask = (data[entity_col] == entity) & (
-                                    data[unit_col] == unit
-                                )
+                                mask = (data[entity_col] == entity) & (data[unit_col] == unit)
                                 # print(data.loc[mask, data_cols])
                                 try:
                                     data.loc[mask, data_cols] *= factor
@@ -1623,9 +1600,9 @@ def harmonize_units(
 
                         # if entity differs from basic entity and the units are not
                         # compatible we had GWP conversion and have to adapt the entity
-                        if (entity != basic_entity) and not ureg(
-                            unit
-                        ).is_compatible_with(ureg[unit_to]):
+                        if (entity != basic_entity) and not ureg(unit).is_compatible_with(
+                            ureg[unit_to]
+                        ):
                             # entity was converted
                             entity_mask = data[entity_col] == entity
                             # print(f"Changing entity from {entity} to {basic_entity}")

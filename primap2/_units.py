@@ -1,7 +1,8 @@
 """Unit handling based on pint, pint_xarray and openscm_units.
 
 Portions of this file are copied from pint_xarray and are
-Copyright 2020, pint-xarray developers."""
+Copyright 2020, pint-xarray developers.
+"""
 
 import pint
 import pint_xarray
@@ -124,10 +125,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         -------
         converted : xr.DataArray
         """
-        if (
-            "gwp_context" in self._da.attrs
-            and self._da.attrs["gwp_context"] != gwp_context
-        ):
+        if "gwp_context" in self._da.attrs and self._da.attrs["gwp_context"] != gwp_context:
             raise ValueError(
                 f"Incompatible gwp conversions: {self._da.attrs['gwp_context']!r}"
                 f" != {gwp_context!r}."
@@ -156,9 +154,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
             raise ValueError("reference array has no gwp_context.")
         if like.pint.units is None:
             raise ValueError("reference array has no units attached.")
-        return self.convert_to_gwp(
-            gwp_context=like.attrs["gwp_context"], units=like.pint.units
-        )
+        return self.convert_to_gwp(gwp_context=like.attrs["gwp_context"], units=like.pint.units)
 
     @property
     def gwp_context(self) -> pint.Context:
@@ -212,17 +208,13 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
             try:
                 entity = self._da.attrs["entity"]
             except KeyError:
-                raise ValueError(
-                    "No entity given and no entity available in the attrs."
-                ) from None
+                raise ValueError("No entity given and no entity available in the attrs.") from None
 
         if isinstance(entity, str):
             entity = ureg.parse_units(entity)
 
         with ureg.context(gwp_context):
-            da = self._da.pint.to(
-                self._da.pint.units / ureg.parse_units("CO2") * entity
-            )
+            da = self._da.pint.to(self._da.pint.units / ureg.parse_units("CO2") * entity)
 
         if "gwp_context" in da.attrs:
             del da.attrs["gwp_context"]

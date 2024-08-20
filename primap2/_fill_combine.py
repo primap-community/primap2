@@ -122,7 +122,6 @@ class DatasetFillAccessor(BaseDatasetAccessor):
             calling Dataset where nan values are filled from ds_fill where possible
 
         """
-
         if self._ds.pr.has_processing_info():
             raise NotImplementedError(
                 "Dataset contains processing information, this is not supported yet. "
@@ -174,7 +173,6 @@ class DatasetFillAccessor(BaseDatasetAccessor):
             calling Dataset calling DataArray combined with da_combine
 
         """
-
         if self._ds.pr.has_processing_info():
             raise NotImplementedError(
                 "Dataset contains processing information, this is not supported yet. "

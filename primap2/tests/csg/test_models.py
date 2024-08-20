@@ -27,9 +27,7 @@ def test_match_selector():
     assert match_selector(selector={"source": "A", "entity": "SF6"}, ts=da)
     assert match_selector(selector={"source": "A", "entity": ["SF6", "CO2"]}, ts=da)
     assert not match_selector(selector={"source": "A", "entity": "CO2"}, ts=da)
-    assert match_selector(
-        selector={"source": "A", "variable": "SF6 (AR6GWP100)"}, ts=da
-    )
+    assert match_selector(selector={"source": "A", "variable": "SF6 (AR6GWP100)"}, ts=da)
     assert not match_selector(selector={"source": "A", "variable": "SF6"}, ts=da)
 
 
@@ -138,9 +136,9 @@ def test_strategy_definition_limit():
 
 
 def test_strategy_definition_check_dimensions(minimal_ds):
-    primap2.csg.StrategyDefinition(
-        [({"entity": "CO2", "source": "RAND2020"}, 1)]
-    ).check_dimensions(minimal_ds)
+    primap2.csg.StrategyDefinition([({"entity": "CO2", "source": "RAND2020"}, 1)]).check_dimensions(
+        minimal_ds
+    )
     primap2.csg.StrategyDefinition(
         [({"variable": "CO2", "source": "RAND2020"}, 1)]
     ).check_dimensions(minimal_ds)

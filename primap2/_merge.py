@@ -110,11 +110,10 @@ def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
     )
 
 
-def ensure_compatible_coords_dims(
-    a: xr.Dataset | xr.DataArray, b: xr.Dataset | xr.DataArray
-):
+def ensure_compatible_coords_dims(a: xr.Dataset | xr.DataArray, b: xr.Dataset | xr.DataArray):
     """Check if coordinates and dimensions of both Datasets or DataArrays agree,
-    raise exception otherwise."""
+    raise exception otherwise.
+    """
     if set(a.coords) != set(b.coords):
         logger.error("pr.merge error: coords of objects to merge must agree")
         raise ValueError("pr.merge error: coords of objects to merge must agree")
@@ -158,7 +157,6 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
             xr.DataArray: DataArray with data from da_merge merged into the calling
             object
         """
-
         # check if coordinates and dimensions agree
         da_start = self._da
         ensure_compatible_coords_dims(da_start, da_merge)
