@@ -11,20 +11,25 @@ import primap2
 from primap2._data_format import ProcessingStepDescription
 
 
-def match_selector(
-    *, selector: dict[Hashable, str | list[str]], ts: xr.DataArray
-) -> bool:
+def equal_or_in(a, b):
+    """Check if a == b (b str) or a in b (otherwise)."""
+    if isinstance(b, str):
+        return a == b
+    else:
+        return a in b
+
+
+def match_selector(*, selector: dict[Hashable, str | list[str]], ts: xr.DataArray) -> bool:
     """Check if a timeseries matches the selector."""
     for k, v in selector.items():
         if k == "entity":
-            if v != ts.attrs["entity"]:
+            if not equal_or_in(ts.attrs["entity"], v):
                 return False
-        else:
-            if isinstance(v, str):
-                if not ts.coords[k] == v:
-                    return False
-            elif ts.coords[k] not in v:
+        elif k == "variable":
+            if not equal_or_in(ts.name, v):
                 return False
+        elif not equal_or_in(ts.coords[k], v):
+            return False
     return True
 
 
@@ -96,10 +101,7 @@ class PriorityDefinition:
             # for each possible type of match_value, skip this if it *doesn't* match
             if isinstance(match_value, primap2.Not):
                 not_value = match_value.value
-                if isinstance(not_value, str):
-                    if not_value == value:
-                        continue
-                elif value in not_value:
+                if equal_or_in(value, not_value):
                     continue
             elif isinstance(match_value, str):
                 if match_value != value:
@@ -135,9 +137,7 @@ class PriorityDefinition:
         for sel in self.priorities:
             for dim in self.priority_dimensions:
                 if dim not in sel:
-                    raise ValueError(
-                        f"In priority={sel}: missing priority dimension={dim}"
-                    )
+                    raise ValueError(f"In priority={sel}: missing priority dimension={dim}")
                 if not isinstance(sel[dim], str):
                     raise ValueError(
                         f"In priority={sel}: specified multiple values for priority "
@@ -153,7 +153,8 @@ class PriorityDefinition:
 
 class StrategyUnableToProcess(Exception):
     """The filling strategy is unable to process the given timeseries, possibly due
-    to missing data."""
+    to missing data.
+    """
 
     def __init__(self, reason: str):
         """Specify the reason why the filling strategy is unable to process the data."""
@@ -289,13 +290,23 @@ class StrategyDefinition:
             ]
         )
 
+    def check_dimensions(self, ds: xr.Dataset):
+        """Raise an error if the strategy definition uses the wrong dimensions."""
+        applicable_dimensions = set(ds.dims.keys()).union({"entity", "variable"})
+        for sel, _ in self.strategies:
+            for dim in sel:
+                if dim not in applicable_dimensions:
+                    raise ValueError(
+                        f"In selector={sel!r}: {dim=} is not a valid dimension. Valid "
+                        f"dimensions: {applicable_dimensions}."
+                    )
+
     @staticmethod
     def match_single_dim(
         *, selector: dict[Hashable, str | list[str]], dim: Hashable, value: str
     ) -> bool:
         """Check if a literal value in one dimension can match the selector."""
-        if dim not in selector.keys():
+        if dim in selector:
+            return equal_or_in(value, selector[dim])
+        else:
             return True
-        if isinstance(selector[dim], str):
-            return value == selector[dim]
-        return value in selector[dim]

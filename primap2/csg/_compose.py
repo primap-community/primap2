@@ -39,8 +39,8 @@ def compose(
 
     In addition to the harmonized data, also a description of the processing steps
     done for each timeseries is returned in the result dataset, where for each
-    entity, a variable of the form "Processing of $entity" is returned, with the same
-    dimensions as the entity, apart from the time dimension.
+    variable, a variable of the form "Processing of $variable" is returned, with the
+    same dimensions as the variable, apart from the time dimension.
 
     Parameters
     ----------
@@ -59,8 +59,10 @@ def compose(
         e.g., possible to define a different priority for a specific country by listing
         it early (i.e. with high priority) before the more general rules which should
         be applied for all other countries.
-        You can also specify the "entity" in the selection, which will limit the rule
-        to a specific entity (xarray data variable).
+        You can also specify the "entity" or "variable" in the selection, which will
+        limit the rule to a specific entity or variable, respectively. For each
+        DataArray in the input_data Dataset, the variable is its name, the entity is
+        the value of the key `entity` in its attrs.
     strategy_definition
         Defines the filling strategies to be used when filling timeseries with other
         timeseries. Again, the priority is defined by a list of selections and
@@ -69,8 +71,10 @@ def compose(
         define a default strategy which should be used for all timeseries unless
         something else is configured, configure an empty selection as the last
         (rightmost) entry.
-        You can also specify the "entity" in the selection, which will limit the rule
-        to a specific entity (xarray data variable).
+        You can also specify the "entity" or "variable" in the selection, which will
+        limit the rule to a specific entity or variable, respectively. For each
+        DataArray in the input_data Dataset, the variable is its name, the entity is
+        the value of the key `entity` in its attrs.
     progress_bar
         By default, show progress bars using the tqdm package during the
         operation. If None, don't show any progress bars. You can supply a class
@@ -81,46 +85,45 @@ def compose(
         result. Dataset with the same entities and dimensions as input_data, but with
         following changes: the data is composed and filled according to the rules,
         the priority dimensions are reduced and not included in the result, and
-        additional variables of the form "Processing of $entity" are added which
+        additional variables of the form "Processing of $variable" are added which
         describe the processing steps done for each timeseries.
     """
     result_das = {}
     input_data = input_data.pr.dequantify()
 
     if progress_bar is None:
-        entity_iterator = input_data
+        variable_iterator = input_data
     else:
-        entity_iterator = progress_bar(input_data)
+        variable_iterator = progress_bar(input_data)
 
     priority_dimensions = priority_definition.priority_dimensions
     priority_definition.check_dimensions()
 
-    for entity in entity_iterator:
-        if progress_bar is not None:
-            entity_iterator.set_postfix_str(str(entity))
+    strategy_definition.check_dimensions(input_data)
 
-        input_da = input_data[entity]
+    for variable in variable_iterator:
+        if progress_bar is not None:
+            variable_iterator.set_postfix_str(str(variable))
+
+        input_da = input_data[variable]
+        entity = input_da.attrs["entity"]
 
         # all dimensions are either time, priority selection dimensions, or need to
         # be iterated over
         group_by_dimensions = tuple(
-            dim
-            for dim in input_da.dims
-            if dim != "time" and dim not in priority_dimensions
+            dim for dim in input_da.dims if dim != "time" and dim not in priority_dimensions
         )
 
         (
-            result_das[entity],
-            result_das[f"Processing of {entity}"],
+            result_das[variable],
+            result_das[f"Processing of {variable}"],
         ) = preallocate_result_arrays(
             input_da=input_da,
             group_by_dimensions=group_by_dimensions,
             priority_dimensions=priority_dimensions,
         )
 
-        number_of_timeseries = math.prod(
-            len(input_da[dim]) for dim in group_by_dimensions
-        )
+        number_of_timeseries = math.prod(len(input_da[dim]) for dim in group_by_dimensions)
 
         if progress_bar is None:
             pbar = None
@@ -129,11 +132,15 @@ def compose(
 
         iterate_next_fixed_dimension(
             input_da=input_da,
-            priority_definition=priority_definition.limit("entity", entity),
-            strategy_definition=strategy_definition.limit("entity", entity),
+            priority_definition=priority_definition.limit("entity", entity).limit(
+                "variable", variable
+            ),
+            strategy_definition=strategy_definition.limit("entity", entity).limit(
+                "variable", variable
+            ),
             group_by_dimensions=group_by_dimensions,
-            result_da=result_das[entity],
-            result_processing_da=result_das[f"Processing of {entity}"],
+            result_da=result_das[variable],
+            result_processing_da=result_das[f"Processing of {variable}"],
             progress_bar=pbar,
         )
         if pbar is not None:
@@ -172,16 +179,13 @@ def preallocate_result_arrays(
         data=np.nan,
         dims=["time", *group_by_dimensions],
         coords={
-            dim: input_da.coords[dim]
-            for dim in input_da.coords
-            if dim not in priority_dimensions
+            dim: input_da.coords[dim] for dim in input_da.coords if dim not in priority_dimensions
         },
         attrs=input_da.attrs,
+        name=input_da.name,
     )
     processing_result_da = xr.DataArray(
-        data=np.empty(
-            [len(input_da.coords[dim]) for dim in group_by_dimensions], dtype=object
-        ),
+        data=np.empty([len(input_da.coords[dim]) for dim in group_by_dimensions], dtype=object),
         dims=group_by_dimensions,
         coords=[input_da.coords[dim] for dim in group_by_dimensions],
         attrs={
@@ -192,13 +196,9 @@ def preallocate_result_arrays(
     return result_da, processing_result_da
 
 
-def priority_coordinates_repr(
-    *, fill_ts: xr.DataArray, priority_dimensions: list[Hashable]
-) -> str:
+def priority_coordinates_repr(*, fill_ts: xr.DataArray, priority_dimensions: list[Hashable]) -> str:
     """Reduce the priority coordinates to a short string representation."""
-    priority_coordinates: dict[str, str] = {
-        str(k): fill_ts[k].item() for k in priority_dimensions
-    }
+    priority_coordinates: dict[str, str] = {str(k): fill_ts[k].item() for k in priority_dimensions}
     if len(priority_coordinates) == 1:
         # only one priority dimension, just output the value because it is clear what is
         # meant
@@ -244,9 +244,7 @@ def iterate_next_fixed_dimension(
             # processing on result exclusions) but input data exclusions are handled
             # in compose_timeseries (per definition, we skip to the next source when
             # a source is skipped due to input data exclusions).
-            if not limited_priority_definition.excludes_result(
-                result_da.loc[{my_dim: val}]
-            ):
+            if not limited_priority_definition.excludes_result(result_da.loc[{my_dim: val}]):
                 # actually compute results
                 (
                     result_da.loc[{my_dim: val}],
@@ -312,9 +310,7 @@ def compose_timeseries(
         )
         # remove priority dimension information, it messes with automatic alignment
         # in computations. The corresponding information is now in fill_ts_repr.
-        fill_ts_no_prio_dims = fill_ts.drop_vars(
-            priority_definition.priority_dimensions
-        )
+        fill_ts_no_prio_dims = fill_ts.drop_vars(priority_definition.priority_dimensions)
 
         if result_ts is None:
             result_ts = xr.full_like(fill_ts_no_prio_dims, np.nan)

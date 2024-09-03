@@ -10,9 +10,7 @@ if (
     sys.version_info.major not in SUPPORTED_MAJOR_VERSIONS
     or sys.version_info.minor not in SUPPORTED_MINOR_VERSIONS
 ):
-    supported_versions = itertools.product(
-        SUPPORTED_MAJOR_VERSIONS, SUPPORTED_MINOR_VERSIONS
-    )
+    supported_versions = itertools.product(SUPPORTED_MAJOR_VERSIONS, SUPPORTED_MINOR_VERSIONS)
     supported_versions_human_readable = ", ".join(
         ".".join(str(x) for x in version) for version in supported_versions
     )

@@ -1,12 +1,17 @@
 from collections.abc import Hashable, Iterable, Mapping, Sequence
+from copy import deepcopy
 from typing import Any
 
 import numpy as np
+import pint
 import xarray as xr
+from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+from ._data_format import split_var_name
 from ._selection import alias_dims
 from ._types import DatasetOrDataArray, DimOrDimsT
+from ._units import ureg
 
 
 def dim_names(obj: DatasetOrDataArray):
@@ -51,9 +56,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         self, dim: DimOrDimsT | None, reduce_to_dim: DimOrDimsT | None
     ) -> DimOrDimsT | None:
         if dim is not None and reduce_to_dim is not None:
-            raise ValueError(
-                "Only one of 'dim' and 'reduce_to_dim' may be supplied, not both."
-            )
+            raise ValueError("Only one of 'dim' and 'reduce_to_dim' may be supplied, not both.")
 
         if dim is None:
             if reduce_to_dim is not None:
@@ -177,8 +180,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
         if skipna is not None and skipna_evaluation_dims is not None:
             raise ValueError(
-                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
-                " both."
+                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not" " both."
             )
 
         if skipna_evaluation_dims is not None:
@@ -190,9 +192,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                 if min_count is None:
                     min_count = 1
 
-        return da.sum(
-            dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
-        )
+        return da.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count)
 
     @alias_dims(["dim"])
     def fill_all_na(self, dim: Iterable[Hashable] | str, value=0) -> xr.DataArray:
@@ -220,12 +220,176 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         else:
             return self._da.where(~np.isnan(self._da).all(dim=dim), value)
 
+    def add_aggregates_coordinates(
+        self,
+        agg_info: dict[
+            str,
+            dict[
+                str,
+                list[str] | dict[str, float | str | list[str] | dict[str, str | list[str]]],
+            ],
+        ],
+        tolerance: float | None = 0.01,
+        skipna: bool | None = True,
+        min_count: int | None = 1,
+    ) -> xr.DataArray:
+        """
+        Manually aggregate data for coordinates
+
+        There are no sanity checks regarding what you aggregate, so you could
+        combine IPCC2006 categories 2 and 3 to 1.
+
+        If an aggregated time-series is present the aggregate data are merged to
+        check if aggregated and existing data agree within the given tolerance.
+
+        Parameters
+        ----------
+        agg_info:
+            dict of the following form
+            agg_info = {
+                <coord1>: {
+                    <new_value>: {
+                        'sources': [source_values],
+                        <add_coord_name>: <value for additional coordinate> (optional),
+                        'tolerance': <non-default tolerance> (optional),
+                        'filter': <filter in pr.loc style> (optional),
+                    },
+                },
+                <coord2>: { # simplified format for coord2
+                    <new_value>: [source_values]
+                ...},
+                ...
+            }
+            All values in `filter` must be lists to keep the dimensions in the data
+            returned by `da.pr.loc`
+            The normal format and the simplified list format can be mixed also
+            within a coordinate
+        tolerance:
+            non-default tolerance for merging (default = 0.01 (1%))
+        skipna: bool, optional
+            If True (default), skip missing values (as marked by NaN). By default, only
+            skips missing values for float dtypes; other dtypes either do not
+            have a sentinel missing value (int) or skipna=True has not been
+            implemented (object, datetime64 or timedelta64).
+        min_count: int (default None, but set to 1 if skipna=True)
+            The minimal number of non-NA values in a sum that is necessary for a non-NA
+            result. This only has an effect if ``skipna=True``. As an example: you sum data
+            for a region for a certain sector, gas and year. If ``skipna=False``,
+            all countries in the region need to have non-NA data for that sector, gas,
+            year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+            non-NA data is enough for a non-NA result. All NA values will be treated as
+            zero. If ``min_count=0`` all NA values will be treated as zero
+            also if there is no single non-NA value in the data that is to be summed.
+
+        Returns
+        -------
+            xr.DataArray with aggregated values for coordinates / dimensions as
+            specified in the agg_info dict
+
+        """
+        # dequantify for improved speed. Unit handling is not necessary as we
+        # work with one DataArray and thus the unit is the same for all
+        # timeseries that are aggregated
+        da_out = self._da.pr.dequantify()
+
+        for coordinate in agg_info:
+            aggregation_rules = agg_info[coordinate]
+            full_coord_name = da_out.pr.dim_alias_translations.get(coordinate, coordinate)
+            for value_to_aggregate in aggregation_rules.keys():
+                rule = deepcopy(aggregation_rules[value_to_aggregate])
+                if isinstance(rule, dict):
+                    source_values = rule.pop("sources")
+                    if "tolerance" in rule.keys():
+                        rule_tolerance = rule.pop("tolerance")
+                    else:
+                        rule_tolerance = tolerance
+                    if "filter" in rule.keys():
+                        filter_ = rule.pop("filter")
+                        if "variable" in filter_.keys():
+                            if da_out.name in filter_["variable"]:
+                                filter_.pop("variable")
+                            else:
+                                continue
+                        if "entity" in filter_.keys():
+                            if da_out.attrs["entity"] in filter_["entity"]:
+                                filter_.pop("entity")
+                            else:
+                                continue
+                    else:
+                        filter_ = {}
+                elif isinstance(rule, list):
+                    source_values = rule
+                    filter_ = {}
+                    rule_tolerance = tolerance
+                else:
+                    logger.error(
+                        "Unrecognized aggregation definition for " f"{value_to_aggregate!r}"
+                    )
+                    raise ValueError(
+                        "Unrecognized aggregation definition for " f"{value_to_aggregate!r}"
+                    )
+
+                # check if all source values present
+                values_present = list(da_out[full_coord_name].values)
+                source_values_present = [val for val in source_values if val in values_present]
+                missing_values = set(source_values) - set(source_values_present)
+                if source_values_present:
+                    if missing_values:
+                        logger.info(
+                            f"Not all source values present for "
+                            f"{value_to_aggregate!r} in coordinate {full_coord_name!r}. "
+                            f"Missing: {missing_values}. (variable: {da_out.name})"
+                        )
+                    filter_.update({coordinate: source_values_present})
+                    data_agg = da_out.pr.loc[filter_].pr.sum(
+                        dim=coordinate, skipna=skipna, min_count=min_count
+                    )
+                    if not data_agg.isnull().all():
+                        data_agg = data_agg.expand_dims([full_coord_name])
+                        data_agg = data_agg.assign_coords(
+                            coords={full_coord_name: (full_coord_name, [value_to_aggregate])}
+                        )
+                        if isinstance(rule, dict):
+                            for add_coord in rule.keys():
+                                if add_coord in da_out.coords:
+                                    add_coord_value = rule[add_coord]
+                                    data_agg = data_agg.assign_coords(
+                                        coords={
+                                            add_coord: (
+                                                full_coord_name,
+                                                [add_coord_value],
+                                            )
+                                        }
+                                    )
+                                else:
+                                    logger.error(
+                                        f"Additional coordinate {add_coord!r} specified "
+                                        "but not present in data"
+                                    )
+                                    raise ValueError(
+                                        f"Additional coordinate {add_coord!r} specified but not "
+                                        f"present in data"
+                                    )
+                        da_out = da_out.pr.merge(data_agg, tolerance=rule_tolerance)
+                    else:
+                        logger.info(
+                            f"All input data nan for '{value_to_aggregate}' in "
+                            f"coordinate {full_coord_name!r}. (variable: {da_out.name})"
+                        )
+                else:
+                    logger.info(
+                        f"No source value present for {value_to_aggregate!r} in "
+                        f"coordinate {full_coord_name!r}. Missing: {missing_values}."
+                        f" (variable: {da_out.name})"
+                    )
+
+        da_out = da_out.pr.quantify()
+        return da_out
+
 
 class DatasetAggregationAccessor(BaseDatasetAccessor):
     @staticmethod
-    def _apply_fill_all_na(
-        da: xr.DataArray, dim: Iterable[Hashable] | str, value
-    ) -> xr.DataArray:
+    def _apply_fill_all_na(da: xr.DataArray, dim: Iterable[Hashable] | str, value) -> xr.DataArray:
         if isinstance(dim, str):
             dim = [dim]
         # dims which don't exist for a particular data variable can be excluded for that
@@ -236,8 +400,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
     def _all_vars_all_dimensions(self):
         return (
-            np.array([len(var.dims) for var in self._ds.values()])
-            == [len(self._ds.dims)]
+            np.array([len(var.dims) for var in self._ds.values()]) == [len(self._ds.dims)]
         ).all()
 
     @alias_dims(["dim"])
@@ -266,17 +429,13 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 "Use ds.pr.remove_processing_info()."
             )
 
-        return self._ds.map(
-            self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True
-        )
+        return self._ds.map(self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True)
 
     def _reduce_dim(
         self, dim: DimOrDimsT | None, reduce_to_dim: DimOrDimsT | None
     ) -> Iterable[Hashable] | None:
         if dim is not None and reduce_to_dim is not None:
-            raise ValueError(
-                "Only one of 'dim' and 'reduce_to_dim' may be supplied, not both."
-            )
+            raise ValueError("Only one of 'dim' and 'reduce_to_dim' may be supplied, not both.")
 
         if dim is None:
             if reduce_to_dim is not None:
@@ -433,8 +592,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         if skipna is not None and skipna_evaluation_dims is not None:
             raise ValueError(
-                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
-                " both."
+                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not" " both."
             )
 
         if skipna_evaluation_dims is not None:
@@ -449,9 +607,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         if dim is not None and "entity" in dim:
             ndim = set(dim) - {"entity"}
 
-            ds = ds.sum(
-                dim=ndim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
-            )
+            ds = ds.sum(dim=ndim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count)
 
             if not ds.pr._all_vars_all_dimensions():
                 raise NotImplementedError(
@@ -462,15 +618,14 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 dim="entity", skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
             )
         else:
-            return ds.sum(
-                dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
-            )
+            return ds.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count)
 
     def gas_basket_contents_sum(
         self,
         *,
         basket: str,
         basket_contents: Sequence[str],
+        basket_units: str | pint.Unit | None = None,
         skipna: bool | None = None,
         skipna_evaluation_dims: DimOrDimsT | None = None,
         min_count: int | None = None,
@@ -481,10 +636,15 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         Parameters
         ----------
         basket: str
-          The name of the gas basket. A value from `ds.keys()`.
+          The name of the gas basket. Either an existing variable, i.e. a value from
+          `ds.keys()`, or a new variable name, in the usual format
+          `entity (gwp_context)`.
         basket_contents: list of str
           The name of the gases in the gas basket. The sum of all basket_contents
           equals the basket. Values from `ds.keys()`.
+        basket_unit: str or pint.Unit, optional
+          The unit to use for the result. If not given, we use the unit of the existing
+          basket, or if the basket does not exist `Gg CO2 / year`.
         skipna: bool, optional
           If True (default), skip missing values (as marked by NaN). By default, only
           skips missing values for float dtypes; other dtypes either do not
@@ -517,10 +677,24 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             )
 
         basket_contents_converted = xr.Dataset()
-        basket_da = self._ds[basket]
+
+        units = basket_units
+        if basket in self._ds:
+            basket_da = self._ds[basket]
+            gwp_context = basket_da.attrs["gwp_context"]
+            entity = basket_da.attrs["entity"]
+            if units is None:
+                units = basket_da.pint.units
+        else:
+            entity, gwp_context = split_var_name(basket)
+            if units is None:
+                units = ureg.Unit("Gg CO2 / year")
+
         for var in basket_contents:
             da: xr.DataArray = self._ds[var]
-            basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=basket_da)
+            basket_contents_converted[var] = da.pr.convert_to_gwp(
+                gwp_context=gwp_context, units=units
+            )
 
         da = basket_contents_converted.pr.sum(
             dim="entity",
@@ -528,9 +702,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             skipna=skipna,
             min_count=min_count,
         )
-        da.attrs["gwp_context"] = basket_da.attrs["gwp_context"]
-        da.attrs["entity"] = basket_da.attrs["entity"]
-        da.name = basket_da.name
+        da.attrs["gwp_context"] = gwp_context
+        da.attrs["entity"] = entity
+        da.name = basket
         return da
 
     def fill_na_gas_basket_from_contents(
@@ -600,3 +774,202 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 min_count=min_count,
             )
         )
+
+    def add_aggregates_coordinates(
+        self,
+        agg_info: dict[
+            str,
+            dict[
+                str,
+                list[str] | dict[str, float | str | list[str] | dict[str, str | list[str]]],
+            ],
+        ],
+        tolerance: float | None = 0.01,
+        skipna: bool | None = True,
+        min_count: int | None = 1,
+    ) -> xr.Dataset:
+        """
+        Manually aggregate data for coordinates
+
+        There are no sanity checks regarding what you aggregate, so you could
+        combine IPCC2006 categories 2 and 3 to 1.
+
+        If an aggregated time-series is present the aggregate data are merged to
+        check if aggregated and existing data agree within the given tolerance.
+
+        Parameters
+        ----------
+        agg_info:
+            dict of the following form
+            agg_info = {
+                <coord1>: {
+                    <new_value>: {
+                        'sources': [source_values],
+                        <add_coord_name>: <value for additional coordinate> (optional),
+                        'tolerance': <non-default tolerance> (optional),
+                        'filter': <filter in pr.loc style> (optional),
+                    },
+                },
+                <coord2>: { # simplified format for coord2
+                    <new_value>: [source_values]
+                ...},
+                ...
+            }
+            All values in `filter` must be lists to keep the dimensions in the data
+            returned by `da.pr.loc`
+            The normal format and the simplified list format can be mixed also
+            within a coordinate
+        tolerance:
+            non-default tolerance for merging (default = 0.01 (1%))
+        skipna: bool, optional
+            If True (default), skip missing values (as marked by NaN). By default, only
+            skips missing values for float dtypes; other dtypes either do not
+            have a sentinel missing value (int) or skipna=True has not been
+            implemented (object, datetime64 or timedelta64).
+        min_count: int (default None, but set to 1 if skipna=True)
+            The minimal number of non-NA values in a sum that is necessary for a non-NA
+            result. This only has an effect if ``skipna=True``. As an example: you sum data
+            for a region for a certain sector, gas and year. If ``skipna=False``,
+            all countries in the region need to have non-NA data for that sector, gas,
+            year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+            non-NA data is enough for a non-NA result. All NA values will be treated as
+            zero. If ``min_count=0`` all NA values will be treated as zero
+            also if there is no single non-NA value in the data that is to be summed.
+
+        Returns
+        -------
+            xr.Dataset with aggregated values for coordinates / dimensions as
+            specified in the agg_info dict
+
+        """
+        ds_out = self._ds.copy(deep=True)
+        for var in ds_out.data_vars:
+            ds_out = ds_out.pr.merge(
+                ds_out[var].pr.add_aggregates_coordinates(
+                    agg_info=agg_info,
+                    tolerance=tolerance,
+                    skipna=skipna,
+                    min_count=min_count,
+                )
+            )
+
+        return ds_out
+
+    def add_aggregates_variables(
+        self,
+        gas_baskets: dict[
+            str,
+            list[str] | dict[str, float | str | list[str] | dict[str, str | list[str]]],
+        ],
+        tolerance: float | None = 0.01,
+        skipna: bool | None = True,
+        min_count: int | None = 1,
+    ) -> xr.Dataset:
+        """
+        Creates or fills gas baskets
+
+        No sanity check on what you aggregate, so you could aggregate CH4 and CO2 to N2O
+
+        If a gas basket is present the aggregate data are merged to check if aggregated
+        and existing data agree within the given tolerance.
+
+        Parameters
+        ----------
+        gas_baskets
+            dict with the following format
+            gas_baskets = {
+                <new_variable1>: {
+                    'sources': [source_values],
+                    'tolerance': <non-default tolerance> (optional),
+                    'filter': <filter in pr.loc style> (optional),
+                },
+                <new_value>: [source_values] # simplified format for coord2
+                ...
+            }
+            example_config = {
+                'FGASES (AR4GWP100)': ['SF6', 'NF3', 'HFCS (AR4GWP100)', 'PFCS (AR4GWP100)'],
+                'KYOTOGHG (AR4GWP100)': {
+                    'sources': ['CO2', 'CH4', 'N2O', 'FGASES (AR4GWP100)'],
+                    'filter': {'area (ISO3)': ['COL']},
+                    'tolerance': 0.015,
+                },
+            }
+        tolerance:
+            non-default tolerance for merging (default = 0.01 (1%))
+        skipna: bool, optional
+            If True (default), skip missing values (as marked by NaN). By default, only
+            skips missing values for float dtypes; other dtypes either do not
+            have a sentinel missing value (int) or skipna=True has not been
+            implemented (object, datetime64 or timedelta64).
+        min_count: int (default None, but set to 1 if skipna=True)
+            The minimal number of non-NA values in a sum that is necessary for a non-NA
+            result. This only has an effect if ``skipna=True``. As an example: you sum data
+            for a region for a certain sector, gas and year. If ``skipna=False``,
+            all countries in the region need to have non-NA data for that sector, gas,
+            year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+            non-NA data is enough for a non-NA result. All NA values will be treated as
+            zero. If ``min_count=0`` all NA values will be treated as zero
+            also if there is no single non-NA value in the data that is to be summed.
+
+        Returns
+        -------
+        xr.Dataset with aggregated gas baskets
+
+        """
+        ds_out = self._ds.copy(deep=True)
+        variables_present = set(ds_out.data_vars)
+        for basket in gas_baskets:
+            current_basket_config = gas_baskets[basket]
+            if isinstance(current_basket_config, dict):
+                # new format, which allows filtering
+                basket_contents = current_basket_config["sources"]
+                if "filter" in current_basket_config.keys():
+                    filter_ = current_basket_config["filter"]
+                else:
+                    filter_ = None
+                if "tolerance" in current_basket_config.keys():
+                    tolerance_basket = current_basket_config["tolerance"]
+                else:
+                    tolerance_basket = tolerance
+            elif isinstance(current_basket_config, list):
+                # legacy format
+                basket_contents = current_basket_config
+                filter_ = None
+                tolerance_basket = tolerance
+            else:
+                logger.error(f"Unrecognized basket type for {basket!r}")
+                raise ValueError(f"Unrecognized basket type for {basket!r}")
+            basket_contents_present = [gas for gas in basket_contents if gas in variables_present]
+            missing_variables = list(set(basket_contents) - set(basket_contents_present))
+            if len(missing_variables) > 0:
+                logger.info(
+                    f"Not all variables present for {basket}. " f"Missing: {missing_variables}"
+                )
+            if basket_contents_present:
+                if filter_ is not None:
+                    basket_da = ds_out.pr.loc[filter_].pr.gas_basket_contents_sum(
+                        basket=basket,
+                        basket_contents=basket_contents_present,
+                        skipna=skipna,
+                        min_count=min_count,
+                    )
+                else:
+                    basket_da = ds_out.pr.gas_basket_contents_sum(
+                        basket=basket,
+                        basket_contents=basket_contents_present,
+                        skipna=skipna,
+                        min_count=min_count,
+                    )
+
+                if basket in ds_out.data_vars:
+                    ds_out[basket] = ds_out[basket].pr.merge(
+                        basket_da,
+                        tolerance=tolerance_basket,
+                    )
+                else:
+                    ds_out[basket] = basket_da
+                variables_present.add(basket)
+            else:
+                logger.info(f"{basket} not created. No input data present.")
+
+        return ds_out

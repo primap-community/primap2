@@ -13,7 +13,8 @@ extend-exclude = [
   "climate_categories/tests/data/*.py",
   "docs-old/"
 ]
-lint.extend-select = [ "W", "I", "UP", "B", "NPY", "RUF" ]
+line-length = 100
+lint.extend-select = [ "E", "W", "I", "UP", "B", "YTT", "A", "NPY", "RUF", "FURB", "FLY", "PYI" ]
 target-version = "py310"
 
 [tool.ruff.format]

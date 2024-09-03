@@ -24,7 +24,8 @@ def assert_equal(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
 
 def assert_align(a: xr.DataArray, b: xr.DataArray) -> tuple[xr.DataArray, xr.DataArray]:
     """Asserts that a and b have the same shape and returns a and b with axes and
-    dimensions aligned and sorted equally so that naive comparisons can be done."""
+    dimensions aligned and sorted equally so that naive comparisons can be done.
+    """
     assert set(a.dims) == set(b.dims), (a.dims, b.dims)
     aa, ba = xr.align(a, b, join="outer")
     aa = aa.transpose(*ba.dims)
