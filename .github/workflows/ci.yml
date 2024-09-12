@@ -43,7 +43,7 @@ jobs:
     - name: Test with pytest (windows)
       if: startsWith(matrix.os, 'windows')
       run: |
-        .venv\bin\activate
+        .venv\Scripts\activate
         pytest --xdoc --cov=primap2 --cov-report=xml
 
     - name: Upload coverage to Codecov
