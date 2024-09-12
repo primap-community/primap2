@@ -28,7 +28,7 @@ jobs:
 
     - name: Install ${{ matrix.resolution }} dependencies
       run: |
-        uv pip install --system --resolution ${{ matrix.resolution }} .[test]
+        uv pip install --resolution ${{ matrix.resolution }} .[test]
 
     - name: Test with pytest
       run: |
