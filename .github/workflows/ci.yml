@@ -35,7 +35,7 @@ jobs:
         uv pip install --resolution ${{ matrix.resolution }} .[test]
 
     - name: Test with pytest (linux)
-      if: startsWith(matrix.os, 'linux')
+      if: startsWith(matrix.os, 'ubuntu')
       run: |
         source .venv/bin/activate
         pytest --xdoc --cov=primap2 --cov-report=xml
