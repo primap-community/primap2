@@ -26,12 +26,17 @@ jobs:
       run: |
         uv python install ${{ matrix.python-version }}
 
+    - name: Create venv
+      run: |
+        uv venv --seed --python ${{ matrix.python-version }}
+
     - name: Install ${{ matrix.resolution }} dependencies
       run: |
-        uv pip install --system --resolution ${{ matrix.resolution }} .[test]
+        uv pip install --resolution ${{ matrix.resolution }} .[test]
 
     - name: Test with pytest
       run: |
+        source .venv/bin/activate
         pytest --xdoc --cov=primap2 --cov-report=xml
 
     - name: Upload coverage to Codecov
