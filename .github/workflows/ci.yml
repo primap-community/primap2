@@ -28,7 +28,7 @@ jobs:
 
     - name: Create venv
       run: |
-        uv venv --seed wheel --python ${{ matrix.python-version }}
+        uv venv --seed --python ${{ matrix.python-version }}
 
     - name: Install ${{ matrix.resolution }} dependencies
       run: |
