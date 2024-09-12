@@ -16,6 +16,7 @@ from loguru import logger
 from primap2._selection import translations_from_dims
 
 from . import _accessor_base, pm2io
+from ._dim_names import dim_names
 from ._units import ureg
 
 
@@ -583,7 +584,7 @@ def ensure_valid_dimensions(ds: xr.Dataset):
     if "sec_cats" in ds.attrs and "cat" not in ds.attrs:
         logger.warning("Secondary category defined, but no primary category defined, weird.")
 
-    all_dims = set(ds.dims.keys())
+    all_dims = set(dim_names(ds))
     unknown_dims = (
         all_dims
         - required_direct_dims

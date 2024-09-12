@@ -6,6 +6,7 @@ import xarray as xr
 
 import primap2
 from primap2 import ureg
+from primap2._dim_names import dim_names
 
 
 def minimal_ds() -> xr.Dataset:
@@ -166,7 +167,7 @@ def opulent_processing_ds() -> xr.Dataset:
 
     new_vars = {}
     for var in opulent.keys():
-        dims = [dim for dim in opulent.dims.keys() if dim != "time"]
+        dims = [dim for dim in dim_names(opulent) if dim != "time"]
         shape = tuple(len(opulent[x]) for x in dims)
         new_vars[f"Processing of {var}"] = xr.DataArray(
             data=np.full(
