@@ -21,10 +21,10 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - uses: actions/cache@v2
+    - uses: actions/cache@v4
       with:
-        path: ${{ env.pythonLocation }}
-        key: 1-${{ env.pythonLocation }}-${{ hashFiles('setup.cfg') }}
+        path: ~/.cache/uv
+        key: 2-${{ runner.os }}-python-${{ matrix.python-version }}
 
     - name: Install ${{ matrix.resolution }} dependencies
       run: |
