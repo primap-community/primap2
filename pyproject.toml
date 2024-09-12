@@ -23,3 +23,5 @@ known-first-party = ["primap2"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
+
+[tool.setuptools_scm]
