@@ -519,8 +519,9 @@ def ensure_valid_coordinate_values(ds: xr.Dataset):
     if "provenance" in ds.dims:
         wrong_values = set(ds["provenance"].data) - {"projected", "measured", "derived"}
         if wrong_values:
-            logger.error(f"provenance contains invalid values: {wrong_values!r}")
-            raise ValueError(f"Invalid provenance: {wrong_values!r}")
+            wrong_values_str = {str(x) for x in wrong_values}
+            logger.error(f"provenance contains invalid values: {wrong_values_str!r}")
+            raise ValueError(f"Invalid provenance: {wrong_values_str!r}")
 
 
 def ensure_valid_dimensions(ds: xr.Dataset):
