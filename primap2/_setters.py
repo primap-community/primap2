@@ -1,6 +1,7 @@
 import typing
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from . import _accessor_base
@@ -240,6 +241,9 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             key = [key]
         else:
             key = key
+
+        if pd.api.types.is_datetime64_any_dtype(self._da[dim]):
+            key = pd.to_datetime(key)
 
         if existing == "error":
             already_existing = set(self._da[dim].values).intersection(set(key))

@@ -109,6 +109,13 @@ class TestDASetter:
         expected.loc[{"area (ISO3)": "COL"}] = ts[..., np.newaxis] * co2
         assert_aligned_equal(actual, expected)
 
+    def test_exists_overwrite_time(self, da: xr.DataArray, co2: pint.Unit, new):
+        ts = np.linspace(0, 1, 4)
+        actual = da.pr.set("time", "2000", ts * co2, existing="overwrite", **new)
+        expected = da.copy()
+        expected.loc[{"time": "2000"}] = ts[np.newaxis, ..., np.newaxis] * co2
+        assert_aligned_equal(actual, expected)
+
     def test_exists_fillna(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit, new):
         expected = da.copy()
         expected.loc[{"area (ISO3)": "COL", "time": "2009"}] = np.nan * co2
