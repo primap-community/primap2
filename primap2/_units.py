@@ -14,26 +14,6 @@ from . import _accessor_base
 pint_xarray.setup_registry(ureg)
 
 
-# HACK to fix https://github.com/hgrecco/pint/issues/1957
-def _fix_super_slow_pint_ndim():
-    import numbers
-
-    import pint.facets
-
-    def faster_ndim(self) -> int:
-        if isinstance(self.magnitude, numbers.Number):
-            return 0
-        if str(type(self.magnitude)) == "NAType":
-            return 0
-        return self.magnitude.ndim
-
-    setattr(pint.facets.plain.quantity.PlainQuantity, "ndim", property(faster_ndim))  # noqa
-
-
-if pint.__version__ == "0.23":
-    _fix_super_slow_pint_ndim()
-
-
 class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
     """Provide functions for unit handling"""
 
