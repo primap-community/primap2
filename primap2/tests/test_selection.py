@@ -194,3 +194,9 @@ def test_resolve_not_da(opulent_ds):
     assert len(result["area (ISO3)"]) == 2
     assert "ARG" in result["area (ISO3)"]
     assert "BOL" in result["area (ISO3)"]
+
+
+def test_alias_special_cases():
+    assert primap2._selection.alias(1, {"a": "b"}, [1, 2, 3]) == 1
+    with pytest.raises(primap2._selection.DimensionNotExistingError):
+        primap2._selection.alias(1, {"a": "b"}, ["b", "c"])
