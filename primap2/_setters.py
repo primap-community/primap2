@@ -9,7 +9,7 @@ from ._selection import alias_dims
 
 class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
     @staticmethod
-    def _sel_error(da: xr.DataArray, dim: typing.Hashable, key: typing.Iterable) -> xr.DataArray:
+    def _sel_error(da: xr.DataArray, dim: typing.Hashable, key: np.ndarray) -> xr.DataArray:
         try:
             return da.loc[{dim: key}]
         except KeyError:
@@ -94,8 +94,8 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         array([[0.5, 0.6, 0.7, 0.8],
                [2. , 3. , 4. , 5. ]])
         Coordinates:
-          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
           * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
 
         By default, existing values are only overwritten if all existing values are
         NaN
@@ -190,8 +190,8 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
                [0.5, 0.6, 0.7, 0.8],
                [2. , 3. , 4. , 5. ]])
         Coordinates:
-          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
           * area (ISO3)  (area (ISO3)) <U3 36B 'ARG' 'COL' 'MEX'
+          * time         (time) datetime64[ns] 32B 2000-01-01 2001-01-01 ... 2003-01-01
 
         Instead of overwriting existing values, you can also choose to only fill missing
         values.
@@ -240,6 +240,8 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             key = [key]
         else:
             key = key
+        # convert to dtype of dim
+        key = np.array(key, dtype=self._da[dim].dtype)
 
         if existing == "error":
             already_existing = set(self._da[dim].values).intersection(set(key))
@@ -283,32 +285,37 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
 
             if new == "extend":
                 new_index = list(self._da[dim].values)
+                changed = False
                 for item in key:
                     if item not in new_index:
                         new_index.append(item)
-                new_index = np.array(new_index, dtype=self._da[dim].dtype)
-                expanded = self._da.reindex({dim: new_index}, copy=False)
+                        changed = True
+                if changed:
+                    new_index = np.array(new_index, dtype=self._da[dim].dtype)
+                    expanded = self._da.reindex({dim: new_index}, copy=False)
+                else:
+                    expanded = self._da
             else:
                 expanded = self._da
 
             sel = self._sel_error(expanded, dim, key)
 
             if value_dims is None:
-                value_dims = []
-                for i, idim in enumerate(sel.dims):
-                    if sel.shape[i] > 1:
-                        value_dims.append(idim)
+                value_dims = [idim for i, idim in enumerate(sel.dims) if sel.shape[i] > 1]
                 if len(value_dims) != len(value.shape):
                     raise ValueError(
                         "Could not automatically determine value dimensions, please"
                         " use the value_dims parameter."
                     )
+            if dim not in value_dims:
+                value_dims.append(dim)
+                value = np.broadcast_to(
+                    np.expand_dims(value, value.ndim), [len(sel[idim]) for idim in value_dims]
+                )
             value = xr.DataArray(
                 value,
-                coords=[(idim, sel[idim].data) for idim in value_dims],
+                coords=[sel[idim] for idim in value_dims],
             )
-            if dim not in value_dims:
-                value = value.expand_dims({dim: key})
 
         if existing == "fillna_empty":
             if sel.count().item() > 0:
@@ -319,15 +326,15 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
                 )
             existing = "fillna"
 
-        if existing == "overwrite":
+        if existing == "fillna":
+            result = expanded.combine_first(value)
+        elif existing == "overwrite":
             cond = xr.zeros_like(value).combine_first(xr.ones_like(expanded))
             expanded, value, cond = xr.align(expanded, value, cond, join="outer")
             result = expanded.where(
                 cond=cond,
                 other=value.broadcast_like(expanded),
             )
-        elif existing == "fillna":
-            result = expanded.combine_first(value)
         else:
             raise ValueError(
                 "If given, 'existing' must specify one of 'error', 'overwrite', "

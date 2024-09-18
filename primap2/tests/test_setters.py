@@ -3,6 +3,7 @@
 import re
 
 import numpy as np
+import pandas as pd
 import pint
 import pytest
 import xarray as xr
@@ -108,6 +109,18 @@ class TestDASetter:
         expected = da.copy()
         expected.loc[{"area (ISO3)": "COL"}] = ts[..., np.newaxis] * co2
         assert_aligned_equal(actual, expected)
+        assert actual["area (ISO3)"].dtype == da["area (ISO3)"].dtype
+
+    def test_regression_dtype(self):
+        da = xr.DataArray(
+            [[0.0, 1.0, 2.0, 3.0], [2.0, 3.0, 4.0, 5.0]],
+            coords=[
+                ("area (ISO3)", ["COL", "MEX"]),
+                ("time", pd.date_range("2000", "2003", freq="YS")),
+            ],
+        )
+        result = da.pr.set("area", "COL", np.array([0.5, 0.6, 0.7, 0.8]), existing="overwrite")
+        assert result["area (ISO3)"].dtype == da["area (ISO3)"].dtype
 
     def test_exists_fillna(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit, new):
         expected = da.copy()
@@ -163,6 +176,19 @@ class TestDASetter:
             value_dims=["area (ISO3)", "time"],
             existing="overwrite",
         )
+        assert_aligned_equal(actual, expected)
+
+    def test_mixed_overwrite_broadcast(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
+        actual = da.pr.set(
+            "area",
+            ["COL", "CUB"],
+            ts * co2,
+            value_dims=["time"],
+            existing="overwrite",
+        )
+        expected = da.reindex({"area (ISO3)": [*da["area (ISO3)"].values, "CUB"]})
+        expected.loc[{"area (ISO3)": "COL"}] = ts[..., np.newaxis] * co2
+        expected.loc[{"area (ISO3)": "CUB"}] = ts[..., np.newaxis] * co2
         assert_aligned_equal(actual, expected)
 
     def test_mixed_fillna(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
