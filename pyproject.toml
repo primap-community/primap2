@@ -25,3 +25,7 @@ known-first-party = ["primap2"]
 convention = "numpy"
 
 [tool.setuptools_scm]
+
+[tool.pytest.ini_options]
+# actually, importlib.resources.open_text will be undeprecated again in python 3.13
+filterwarnings = "ignore:.*open_text is deprecated.*:DeprecationWarning"

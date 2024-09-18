@@ -9,16 +9,10 @@ from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._data_format import split_var_name
+from ._dim_names import dim_names
 from ._selection import alias_dims
 from ._types import DatasetOrDataArray, DimOrDimsT
 from ._units import ureg
-
-
-def dim_names(obj: DatasetOrDataArray):
-    if isinstance(obj.dims, tuple):
-        return obj.dims
-    else:
-        return obj.dims.keys()  # type: ignore
 
 
 def select_no_scalar_dimension(
