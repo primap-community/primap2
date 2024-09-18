@@ -4,7 +4,7 @@ import itertools
 import sys
 
 SUPPORTED_MAJOR_VERSIONS = (3,)
-SUPPORTED_MINOR_VERSIONS = (10, 11)
+SUPPORTED_MINOR_VERSIONS = (10, 11, 12)
 
 if (
     sys.version_info.major not in SUPPORTED_MAJOR_VERSIONS

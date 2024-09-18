@@ -1,8 +1,8 @@
 [build-system]
 requires = [
-    "setuptools>=42",
-    "wheel",
-    "setuptools_scm[toml]>=3.4"
+    "setuptools>=66",
+    "wheel>=0.42",
+    "setuptools_scm[toml]==8.1"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -23,3 +23,5 @@ known-first-party = ["primap2"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
+
+[tool.setuptools_scm]
