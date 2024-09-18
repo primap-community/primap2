@@ -37,7 +37,8 @@ def opulent_ds() -> xr.Dataset:
 @pytest.fixture
 def opulent_str_ds() -> xr.Dataset:
     """Like the opulent dataset, but additionally with a stringly typed data variable
-    "method"."""
+    "method".
+    """
     return examples._cached_opulent_str_ds.copy(deep=True)
 
 
@@ -53,9 +54,7 @@ def opulent_processing_ds() -> xr.Dataset:
     return examples._cached_opulent_processing_ds.copy(deep=True)
 
 
-@pytest.fixture(
-    params=["opulent", "opulent_str", "opulent_processing", "minimal", "empty"]
-)
+@pytest.fixture(params=["opulent", "opulent_str", "opulent_processing", "minimal", "empty"])
 def any_ds(request) -> xr.Dataset:
     """Test with all available valid example Datasets."""
     if request.param == "opulent":

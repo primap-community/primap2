@@ -9,9 +9,7 @@ from ._selection import alias_dims
 
 class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
     @staticmethod
-    def _sel_error(
-        da: xr.DataArray, dim: typing.Hashable, key: typing.Iterable
-    ) -> xr.DataArray:
+    def _sel_error(da: xr.DataArray, dim: typing.Hashable, key: typing.Iterable) -> xr.DataArray:
         try:
             return da.loc[{dim: key}]
         except KeyError:
@@ -91,9 +89,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         Traceback (most recent call last):
         ...
         ValueError: Values {'COL'} for 'area (ISO3)' already exist and contain data. ...
-        >>> da.pr.set(
-        ...     "area", "COL", np.array([0.5, 0.6, 0.7, 0.8]), existing="overwrite"
-        ... )
+        >>> da.pr.set("area", "COL", np.array([0.5, 0.6, 0.7, 0.8]), existing="overwrite")
         <xarray.DataArray (area (ISO3): 2, time: 4)> Size: 64B
         array([[0.5, 0.6, 0.7, 0.8],
                [2. , 3. , 4. , 5. ]])
@@ -354,9 +350,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
     ) -> xr.DataArray:
         if dim not in da.dims:
             return da
-        return da.pr.set(
-            dim=dim, key=key, value=value[da.name], existing=existing, new=new
-        )
+        return da.pr.set(dim=dim, key=key, value=value[da.name], existing=existing, new=new)
 
     @alias_dims(["dim"])
     def set(
@@ -438,9 +432,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         Traceback (most recent call last):
         ...
         ValueError: Values {'MEX'} for 'area (ISO3)' already exist and contain data. ...
-        >>> ds.pr.set(
-        ...     "area", "MEX", ds.pr.loc[{"area": "COL"}] * 20, existing="overwrite"
-        ... )
+        >>> ds.pr.set("area", "MEX", ds.pr.loc[{"area": "COL"}] * 20, existing="overwrite")
         <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
@@ -484,9 +476,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
             SF4          (area (ISO3), time) float64 64B nan nan nan nan 2.5 3.5 nan 5.5
         Attributes:
             area:     area (ISO3)
-        >>> ds_partly_empty.pr.set(
-        ...     "area", "COL", ds_partly_empty.pr.loc[{"area": "MEX"}] * 10
-        ... )
+        >>> ds_partly_empty.pr.set("area", "COL", ds_partly_empty.pr.loc[{"area": "MEX"}] * 10)
         <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
         Coordinates:
@@ -499,9 +489,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
             area:     area (ISO3)
         >>> # if even one value is non-nan, this fails by default
         >>> ds_partly_empty["SF4"].pr.loc[{"area": "COL", "time": "2001"}] = 2
-        >>> ds_partly_empty.pr.set(
-        ...     "area", "COL", ds_partly_empty.pr.loc[{"area": "MEX"}] * 10
-        ... )
+        >>> ds_partly_empty.pr.set("area", "COL", ds_partly_empty.pr.loc[{"area": "MEX"}] * 10)
         Traceback (most recent call last):
         ...
         ValueError: Values {'COL'} for 'area (ISO3)' already exist and contain data. ...

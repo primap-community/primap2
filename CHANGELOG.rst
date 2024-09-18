@@ -2,6 +2,14 @@
 Changelog
 =========
 
+0.11.1
+------
+* Workaround for xarray's additional coordinate bug
+* Improved a few error messages
+* Disable xdoc as it throws errors
+* Fixed reading the interchange format with dimensionless data (where the unit is
+  an empty string).
+
 0.11.0
 ------
 * Removed Python 3.9 support.

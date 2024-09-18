@@ -4,7 +4,8 @@ and other official country emissions inventories
 Most of the functions in this file are exposed to the outside yet they
 currently do not undergo the strict testing applied to the rest of PRIMAP2 as
 they are added during the process of reading an preparing data for the PRIMAP-hist
-update. Testing will be added in the future."""
+update. Testing will be added in the future.
+"""
 
 import re
 
@@ -64,7 +65,6 @@ def nir_add_unit_information(
     pd.DataFrame
         DataFrame with explicit unit information (as column header)
     """
-
     if manual_repl_unit is None:
         manual_repl_unit = {}
 

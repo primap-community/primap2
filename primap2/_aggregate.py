@@ -9,16 +9,10 @@ from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._data_format import split_var_name
+from ._dim_names import dim_names
 from ._selection import alias_dims
 from ._types import DatasetOrDataArray, DimOrDimsT
 from ._units import ureg
-
-
-def dim_names(obj: DatasetOrDataArray):
-    if isinstance(obj.dims, tuple):
-        return obj.dims
-    else:
-        return obj.dims.keys()  # type: ignore
 
 
 def select_no_scalar_dimension(
@@ -56,9 +50,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         self, dim: DimOrDimsT | None, reduce_to_dim: DimOrDimsT | None
     ) -> DimOrDimsT | None:
         if dim is not None and reduce_to_dim is not None:
-            raise ValueError(
-                "Only one of 'dim' and 'reduce_to_dim' may be supplied, not both."
-            )
+            raise ValueError("Only one of 'dim' and 'reduce_to_dim' may be supplied, not both.")
 
         if dim is None:
             if reduce_to_dim is not None:
@@ -182,8 +174,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
         if skipna is not None and skipna_evaluation_dims is not None:
             raise ValueError(
-                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
-                " both."
+                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not" " both."
             )
 
         if skipna_evaluation_dims is not None:
@@ -195,9 +186,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                 if min_count is None:
                     min_count = 1
 
-        return da.sum(
-            dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
-        )
+        return da.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count)
 
     @alias_dims(["dim"])
     def fill_all_na(self, dim: Iterable[Hashable] | str, value=0) -> xr.DataArray:
@@ -231,8 +220,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
             str,
             dict[
                 str,
-                list[str]
-                | dict[str, float | str | list[str] | dict[str, str | list[str]]],
+                list[str] | dict[str, float | str | list[str] | dict[str, str | list[str]]],
             ],
         ],
         tolerance: float | None = 0.01,
@@ -293,17 +281,14 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
             specified in the agg_info dict
 
         """
-
         # dequantify for improved speed. Unit handling is not necessary as we
         # work with one DataArray and thus the unit is the same for all
         # timeseries that are aggregated
         da_out = self._da.pr.dequantify()
 
-        for coordinate in agg_info.keys():
+        for coordinate in agg_info:
             aggregation_rules = agg_info[coordinate]
-            full_coord_name = da_out.pr.dim_alias_translations.get(
-                coordinate, coordinate
-            )
+            full_coord_name = da_out.pr.dim_alias_translations.get(coordinate, coordinate)
             for value_to_aggregate in aggregation_rules.keys():
                 rule = deepcopy(aggregation_rules[value_to_aggregate])
                 if isinstance(rule, dict):
@@ -313,56 +298,50 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                     else:
                         rule_tolerance = tolerance
                     if "filter" in rule.keys():
-                        filter = rule.pop("filter")
-                        if "variable" in filter.keys():
-                            if da_out.name in filter["variable"]:
-                                filter.pop("variable")
+                        filter_ = rule.pop("filter")
+                        if "variable" in filter_.keys():
+                            if da_out.name in filter_["variable"]:
+                                filter_.pop("variable")
                             else:
                                 continue
-                        if "entity" in filter.keys():
-                            if da_out.attrs["entity"] in filter["entity"]:
-                                filter.pop("entity")
+                        if "entity" in filter_.keys():
+                            if da_out.attrs["entity"] in filter_["entity"]:
+                                filter_.pop("entity")
                             else:
                                 continue
                     else:
-                        filter = {}
+                        filter_ = {}
                 elif isinstance(rule, list):
                     source_values = rule
-                    filter = {}
+                    filter_ = {}
                     rule_tolerance = tolerance
                 else:
                     logger.error(
-                        "Unrecognized aggregation definition for "
-                        f"{value_to_aggregate!r}"
+                        "Unrecognized aggregation definition for " f"{value_to_aggregate!r}"
                     )
                     raise ValueError(
-                        "Unrecognized aggregation definition for "
-                        f"{value_to_aggregate!r}"
+                        "Unrecognized aggregation definition for " f"{value_to_aggregate!r}"
                     )
 
                 # check if all source values present
                 values_present = list(da_out[full_coord_name].values)
-                source_values_present = [
-                    val for val in source_values if val in values_present
-                ]
+                source_values_present = [val for val in source_values if val in values_present]
                 missing_values = set(source_values) - set(source_values_present)
-                if missing_values:
-                    logger.info(
-                        f"Not all source values present for "
-                        f"{value_to_aggregate!r} in coordinate {full_coord_name!r}. "
-                        f"Missing: {missing_values}"
-                    )
                 if source_values_present:
-                    filter.update({coordinate: source_values_present})
-                    data_agg = da_out.pr.loc[filter].pr.sum(
+                    if missing_values:
+                        logger.info(
+                            f"Not all source values present for "
+                            f"{value_to_aggregate!r} in coordinate {full_coord_name!r}. "
+                            f"Missing: {missing_values}. (variable: {da_out.name})"
+                        )
+                    filter_.update({coordinate: source_values_present})
+                    data_agg = da_out.pr.loc[filter_].pr.sum(
                         dim=coordinate, skipna=skipna, min_count=min_count
                     )
                     if not data_agg.isnull().all():
                         data_agg = data_agg.expand_dims([full_coord_name])
                         data_agg = data_agg.assign_coords(
-                            coords={
-                                full_coord_name: (full_coord_name, [value_to_aggregate])
-                            }
+                            coords={full_coord_name: (full_coord_name, [value_to_aggregate])}
                         )
                         if isinstance(rule, dict):
                             for add_coord in rule.keys():
@@ -389,12 +368,13 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                     else:
                         logger.info(
                             f"All input data nan for '{value_to_aggregate}' in "
-                            f"coordinate {full_coord_name!r}."
+                            f"coordinate {full_coord_name!r}. (variable: {da_out.name})"
                         )
                 else:
                     logger.info(
                         f"No source value present for {value_to_aggregate!r} in "
                         f"coordinate {full_coord_name!r}. Missing: {missing_values}."
+                        f" (variable: {da_out.name})"
                     )
 
         da_out = da_out.pr.quantify()
@@ -403,9 +383,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
 class DatasetAggregationAccessor(BaseDatasetAccessor):
     @staticmethod
-    def _apply_fill_all_na(
-        da: xr.DataArray, dim: Iterable[Hashable] | str, value
-    ) -> xr.DataArray:
+    def _apply_fill_all_na(da: xr.DataArray, dim: Iterable[Hashable] | str, value) -> xr.DataArray:
         if isinstance(dim, str):
             dim = [dim]
         # dims which don't exist for a particular data variable can be excluded for that
@@ -416,8 +394,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
     def _all_vars_all_dimensions(self):
         return (
-            np.array([len(var.dims) for var in self._ds.values()])
-            == [len(self._ds.dims)]
+            np.array([len(var.dims) for var in self._ds.values()]) == [len(self._ds.dims)]
         ).all()
 
     @alias_dims(["dim"])
@@ -446,17 +423,13 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 "Use ds.pr.remove_processing_info()."
             )
 
-        return self._ds.map(
-            self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True
-        )
+        return self._ds.map(self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True)
 
     def _reduce_dim(
         self, dim: DimOrDimsT | None, reduce_to_dim: DimOrDimsT | None
     ) -> Iterable[Hashable] | None:
         if dim is not None and reduce_to_dim is not None:
-            raise ValueError(
-                "Only one of 'dim' and 'reduce_to_dim' may be supplied, not both."
-            )
+            raise ValueError("Only one of 'dim' and 'reduce_to_dim' may be supplied, not both.")
 
         if dim is None:
             if reduce_to_dim is not None:
@@ -613,8 +586,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         if skipna is not None and skipna_evaluation_dims is not None:
             raise ValueError(
-                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
-                " both."
+                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not" " both."
             )
 
         if skipna_evaluation_dims is not None:
@@ -629,9 +601,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         if dim is not None and "entity" in dim:
             ndim = set(dim) - {"entity"}
 
-            ds = ds.sum(
-                dim=ndim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
-            )
+            ds = ds.sum(dim=ndim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count)
 
             if not ds.pr._all_vars_all_dimensions():
                 raise NotImplementedError(
@@ -642,9 +612,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 dim="entity", skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
             )
         else:
-            return ds.sum(
-                dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
-            )
+            return ds.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count)
 
     def gas_basket_contents_sum(
         self,
@@ -807,8 +775,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             str,
             dict[
                 str,
-                list[str]
-                | dict[str, float | str | list[str] | dict[str, str | list[str]]],
+                list[str] | dict[str, float | str | list[str] | dict[str, str | list[str]]],
             ],
         ],
         tolerance: float | None = 0.01,
@@ -869,7 +836,6 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             specified in the agg_info dict
 
         """
-
         ds_out = self._ds.copy(deep=True)
         for var in ds_out.data_vars:
             ds_out = ds_out.pr.merge(
@@ -903,7 +869,6 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         Parameters
         ----------
-
         gas_baskets
             dict with the following format
             gas_baskets = {
@@ -953,9 +918,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 # new format, which allows filtering
                 basket_contents = current_basket_config["sources"]
                 if "filter" in current_basket_config.keys():
-                    filter = current_basket_config["filter"]
+                    filter_ = current_basket_config["filter"]
                 else:
-                    filter = None
+                    filter_ = None
                 if "tolerance" in current_basket_config.keys():
                     tolerance_basket = current_basket_config["tolerance"]
                 else:
@@ -963,25 +928,20 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             elif isinstance(current_basket_config, list):
                 # legacy format
                 basket_contents = current_basket_config
-                filter = None
+                filter_ = None
                 tolerance_basket = tolerance
             else:
                 logger.error(f"Unrecognized basket type for {basket!r}")
                 raise ValueError(f"Unrecognized basket type for {basket!r}")
-            basket_contents_present = [
-                gas for gas in basket_contents if gas in variables_present
-            ]
-            missing_variables = list(
-                set(basket_contents) - set(basket_contents_present)
-            )
+            basket_contents_present = [gas for gas in basket_contents if gas in variables_present]
+            missing_variables = list(set(basket_contents) - set(basket_contents_present))
             if len(missing_variables) > 0:
                 logger.info(
-                    f"Not all variables present for {basket}. "
-                    f"Missing: {missing_variables}"
+                    f"Not all variables present for {basket}. " f"Missing: {missing_variables}"
                 )
             if basket_contents_present:
-                if filter is not None:
-                    basket_da = ds_out.pr.loc[filter].pr.gas_basket_contents_sum(
+                if filter_ is not None:
+                    basket_da = ds_out.pr.loc[filter_].pr.gas_basket_contents_sum(
                         basket=basket,
                         basket_contents=basket_contents_present,
                         skipna=skipna,

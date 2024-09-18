@@ -1,8 +1,8 @@
 [build-system]
 requires = [
-    "setuptools>=42",
-    "wheel",
-    "setuptools_scm[toml]>=3.4"
+    "setuptools>=66",
+    "wheel>=0.42",
+    "setuptools_scm[toml]==8.1"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -11,7 +11,8 @@ extend-exclude = [
   "climate_categories/data/*.py",
   "climate_categories/tests/data/*.py"
 ]
-lint.extend-select = [ "W", "I", "UP", "B", "NPY", "RUF" ]
+line-length = 100
+lint.extend-select = [ "E", "W", "I", "UP", "B", "YTT", "A", "NPY", "RUF", "FURB", "FLY", "PYI" ]
 target-version = "py310"
 
 [tool.ruff.format]
@@ -22,3 +23,9 @@ known-first-party = ["primap2"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
+
+[tool.setuptools_scm]
+
+[tool.pytest.ini_options]
+# actually, importlib.resources.open_text will be undeprecated again in python 3.13
+filterwarnings = "ignore:.*open_text is deprecated.*:DeprecationWarning"

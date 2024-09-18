@@ -9,6 +9,7 @@ from attr import define
 
 import primap2
 from primap2._data_format import ProcessingStepDescription
+from primap2._dim_names import dim_names
 
 
 def equal_or_in(a, b):
@@ -19,9 +20,7 @@ def equal_or_in(a, b):
         return a in b
 
 
-def match_selector(
-    *, selector: dict[Hashable, str | list[str]], ts: xr.DataArray
-) -> bool:
+def match_selector(*, selector: dict[Hashable, str | list[str]], ts: xr.DataArray) -> bool:
     """Check if a timeseries matches the selector."""
     for k, v in selector.items():
         if k == "entity":
@@ -139,9 +138,7 @@ class PriorityDefinition:
         for sel in self.priorities:
             for dim in self.priority_dimensions:
                 if dim not in sel:
-                    raise ValueError(
-                        f"In priority={sel}: missing priority dimension={dim}"
-                    )
+                    raise ValueError(f"In priority={sel}: missing priority dimension={dim}")
                 if not isinstance(sel[dim], str):
                     raise ValueError(
                         f"In priority={sel}: specified multiple values for priority "
@@ -157,7 +154,8 @@ class PriorityDefinition:
 
 class StrategyUnableToProcess(Exception):
     """The filling strategy is unable to process the given timeseries, possibly due
-    to missing data."""
+    to missing data.
+    """
 
     def __init__(self, reason: str):
         """Specify the reason why the filling strategy is unable to process the data."""
@@ -295,7 +293,7 @@ class StrategyDefinition:
 
     def check_dimensions(self, ds: xr.Dataset):
         """Raise an error if the strategy definition uses the wrong dimensions."""
-        applicable_dimensions = set(ds.dims.keys()).union({"entity", "variable"})
+        applicable_dimensions = set(dim_names(ds)).union({"entity", "variable"})
         for sel, _ in self.strategies:
             for dim in sel:
                 if dim not in applicable_dimensions:

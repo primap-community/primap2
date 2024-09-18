@@ -111,9 +111,7 @@ def compose(
         # all dimensions are either time, priority selection dimensions, or need to
         # be iterated over
         group_by_dimensions = tuple(
-            dim
-            for dim in input_da.dims
-            if dim != "time" and dim not in priority_dimensions
+            dim for dim in input_da.dims if dim != "time" and dim not in priority_dimensions
         )
 
         (
@@ -125,9 +123,7 @@ def compose(
             priority_dimensions=priority_dimensions,
         )
 
-        number_of_timeseries = math.prod(
-            len(input_da[dim]) for dim in group_by_dimensions
-        )
+        number_of_timeseries = math.prod(len(input_da[dim]) for dim in group_by_dimensions)
 
         if progress_bar is None:
             pbar = None
@@ -183,17 +179,13 @@ def preallocate_result_arrays(
         data=np.nan,
         dims=["time", *group_by_dimensions],
         coords={
-            dim: input_da.coords[dim]
-            for dim in input_da.coords
-            if dim not in priority_dimensions
+            dim: input_da.coords[dim] for dim in input_da.coords if dim not in priority_dimensions
         },
         attrs=input_da.attrs,
         name=input_da.name,
     )
     processing_result_da = xr.DataArray(
-        data=np.empty(
-            [len(input_da.coords[dim]) for dim in group_by_dimensions], dtype=object
-        ),
+        data=np.empty([len(input_da.coords[dim]) for dim in group_by_dimensions], dtype=object),
         dims=group_by_dimensions,
         coords=[input_da.coords[dim] for dim in group_by_dimensions],
         attrs={
@@ -204,13 +196,9 @@ def preallocate_result_arrays(
     return result_da, processing_result_da
 
 
-def priority_coordinates_repr(
-    *, fill_ts: xr.DataArray, priority_dimensions: list[Hashable]
-) -> str:
+def priority_coordinates_repr(*, fill_ts: xr.DataArray, priority_dimensions: list[Hashable]) -> str:
     """Reduce the priority coordinates to a short string representation."""
-    priority_coordinates: dict[str, str] = {
-        str(k): fill_ts[k].item() for k in priority_dimensions
-    }
+    priority_coordinates: dict[str, str] = {str(k): fill_ts[k].item() for k in priority_dimensions}
     if len(priority_coordinates) == 1:
         # only one priority dimension, just output the value because it is clear what is
         # meant
@@ -256,9 +244,7 @@ def iterate_next_fixed_dimension(
             # processing on result exclusions) but input data exclusions are handled
             # in compose_timeseries (per definition, we skip to the next source when
             # a source is skipped due to input data exclusions).
-            if not limited_priority_definition.excludes_result(
-                result_da.loc[{my_dim: val}]
-            ):
+            if not limited_priority_definition.excludes_result(result_da.loc[{my_dim: val}]):
                 # actually compute results
                 (
                     result_da.loc[{my_dim: val}],
@@ -324,9 +310,7 @@ def compose_timeseries(
         )
         # remove priority dimension information, it messes with automatic alignment
         # in computations. The corresponding information is now in fill_ts_repr.
-        fill_ts_no_prio_dims = fill_ts.drop_vars(
-            priority_definition.priority_dimensions
-        )
+        fill_ts_no_prio_dims = fill_ts.drop_vars(priority_definition.priority_dimensions)
 
         if result_ts is None:
             result_ts = xr.full_like(fill_ts_no_prio_dims, np.nan)

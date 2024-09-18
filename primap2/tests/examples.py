@@ -6,6 +6,7 @@ import xarray as xr
 
 import primap2
 from primap2 import ureg
+from primap2._dim_names import dim_names
 
 
 def minimal_ds() -> xr.Dataset:
@@ -54,7 +55,6 @@ COORDS = {
 
 def opulent_ds() -> xr.Dataset:
     """A valid dataset using lots of features."""
-
     # seed the rng with a constant to achieve predictable "randomness"
     rng = np.random.default_rng(1)
 
@@ -134,7 +134,8 @@ def opulent_ds() -> xr.Dataset:
 
 def opulent_str_ds() -> xr.Dataset:
     """Like the opulent dataset, but additionally with a stringly typed data variable
-    "method"."""
+    "method".
+    """
     opulent = opulent_ds()
 
     method_coords = {
@@ -153,22 +154,20 @@ def opulent_str_ds() -> xr.Dataset:
         dims=list(method_coords.keys()),
         attrs={"entity": "method"},
     )
-    opulent["method"].pr.loc[{"time": "2000", "area": "COL", "source": "RAND2020"}] = (
-        "text"
-    )
+    opulent["method"].pr.loc[{"time": "2000", "area": "COL", "source": "RAND2020"}] = "text"
 
     return opulent
 
 
 def opulent_processing_ds() -> xr.Dataset:
     """Like the opulent dataset, but additionally with processing information data
-    variables."""
-
+    variables.
+    """
     opulent = opulent_ds()
 
     new_vars = {}
     for var in opulent.keys():
-        dims = [dim for dim in opulent.dims.keys() if dim != "time"]
+        dims = [dim for dim in dim_names(opulent) if dim != "time"]
         shape = tuple(len(opulent[x]) for x in dims)
         new_vars[f"Processing of {var}"] = xr.DataArray(
             data=np.full(
