@@ -38,7 +38,6 @@ def convert_unit_to_primap2(unit: str, entity: str) -> str:
     unit : str
         converted unit
     """
-
     # check inputs
     if entity == "":
         logger.warning("Input entity is empty. Nothing converted.")
@@ -79,9 +78,7 @@ def convert_unit_to_primap2(unit: str, entity: str) -> str:
 
     # check if exception unit
     is_ex_unit = [
-        re.match(
-            _units_prefixes_regexp + ex_unit.replace("<entity>", entity) + "$", unit
-        )
+        re.match(_units_prefixes_regexp + ex_unit.replace("<entity>", entity) + "$", unit)
         is not None
         for ex_unit in exception_units
     ]
@@ -92,9 +89,7 @@ def convert_unit_to_primap2(unit: str, entity: str) -> str:
         # first get the prefix and basic unit (e.g. Gt)
         pref_basic = match_pref.group(0)
         # now build the replacement
-        converted_unit = (
-            pref_basic + " " + exception_units[exception_unit] + time_frame_str
-        )
+        converted_unit = pref_basic + " " + exception_units[exception_unit] + time_frame_str
     else:
         # standard unit
         converted_unit = unit_entity
@@ -104,9 +99,7 @@ def convert_unit_to_primap2(unit: str, entity: str) -> str:
 
 def code_invalid_warn(code: str, message: str) -> str:
     """Log a warning and return an error code."""
-    logger.warning(
-        f"Category code {code!r} does not conform to specifications: {message}"
-    )
+    logger.warning(f"Category code {code!r} does not conform to specifications: {message}")
     return "error_" + code
 
 
@@ -137,7 +130,6 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
     >>> convert_ipcc_code_primap_to_primap2("IPC1A3B34")
     '1.A.3.b.iii.4'
     """
-
     arabic_to_roman = {
         "1": "i",
         "2": "ii",
@@ -195,24 +187,20 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
 
     # check if a separator between prefix and code is used
     if len(pure_code) == 0:
-        return code_invalid_warn(
-            code, "Pure code has length 0. This should not be possible."
-        )
+        return code_invalid_warn(code, "Pure code has length 0. This should not be possible.")
     if pure_code[0] in [".", " ", "_", "-"]:
         pure_code = pure_code[1:]
 
     if pure_code[0] == "M":
         code_remaining = pure_code
-        if pure_code in code_mapping.keys():
+        if pure_code in code_mapping:
             new_code = code_mapping[pure_code]
             return new_code
         else:
             new_code = "M."
             code_remaining = code_remaining[1:]
             if len(code_remaining) == 0:
-                return code_invalid_warn(
-                    code, "Nothing follows the 'M' for an 'M'-code."
-                )
+                return code_invalid_warn(code, "Nothing follows the 'M' for an 'M'-code.")
     else:
         new_code = ""
         # only work with the part without 'IPC' or 'CAT'
@@ -295,14 +283,10 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
                         if match is not None:
                             new_code = new_code + "." + match.group(0)
                             # check if anything left
-                            if not code_remaining == match.group(0):
-                                return code_invalid_warn(
-                                    code, "Chars left after sixth level."
-                                )
+                            if code_remaining != match.group(0):
+                                return code_invalid_warn(code, "Chars left after sixth level.")
                         else:
-                            return code_invalid_warn(
-                                code, "No number found on sixth level."
-                            )
+                            return code_invalid_warn(code, "No number found on sixth level.")
 
     return new_code
 
@@ -317,6 +301,7 @@ def convert_entity_gwp_primap_to_primap2(entity_pm1: str) -> str:
     works on a limited set of variables (defined in entities_gwp).
 
     Parameters
+    ----------
     entity: str
         entity to process
 
@@ -325,7 +310,6 @@ def convert_entity_gwp_primap_to_primap2(entity_pm1: str) -> str:
     entity: str
         entity in PRIMAP2 format
     """
-
     entities_gwp = [
         "KYOTOGHG",
         "HFCS",
@@ -354,7 +338,7 @@ def convert_entity_gwp_primap_to_primap2(entity_pm1: str) -> str:
 
     # build regexp to match the GWPs
     regexp_str_gwps = "("
-    for mapping in gwp_mapping.keys():
+    for mapping in gwp_mapping:
         regexp_str_gwps = regexp_str_gwps + mapping + "|"
     regexp_str_gwps = regexp_str_gwps[0:-1] + ")$"
 
