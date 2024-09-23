@@ -13,6 +13,7 @@ from loguru import logger
 import primap2._data_format
 
 from . import _models
+from ._strategies.exceptions import StrategyUnableToProcess
 
 
 def compose(
@@ -347,7 +348,7 @@ def compose_timeseries(
                 )
                 processing_steps_descriptions += descriptions
                 break
-            except primap2.csg.StrategyUnableToProcess:
+            except StrategyUnableToProcess:
                 processing_steps_descriptions.append(
                     primap2.ProcessingStepDescription(
                         time="all",

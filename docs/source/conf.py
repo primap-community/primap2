@@ -88,11 +88,10 @@ mathjax3_config = {"chtml": {"displayAlign": "center"}}
 
 # myst configuration
 myst_enable_extensions = ["amsmath", "dollarmath"]
-nb_execution_mode = "auto"
+nb_execution_mode = "cache"
 nb_execution_raise_on_error = True
 nb_execution_show_tb = True
 nb_execution_timeout = 120
-nb_custom_formats = {".py": ["jupytext.reads", {"fmt": "py:percent"}]}
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

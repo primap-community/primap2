@@ -152,16 +152,6 @@ class PriorityDefinition:
                     )
 
 
-class StrategyUnableToProcess(Exception):
-    """The filling strategy is unable to process the given timeseries, possibly due
-    to missing data.
-    """
-
-    def __init__(self, reason: str):
-        """Specify the reason why the filling strategy is unable to process the data."""
-        self.reason = reason
-
-
 class FillingStrategyModel(typing.Protocol, Hashable):
     """
     Fill missing data in a timeseries using another timeseries.
@@ -254,8 +244,7 @@ class StrategyDefinition:
         List of mappings from a timeseries selector to a filling strategy. When a
         timeseries will be used to fill missing data, the list will be checked from the
         start, and the first matching TimeseriesSelector determines the FillingStrategy.
-        Example: [({"source": ["FAOSTAT", "UNFCCC]}, StraightStrategy()),
-                  ({}, GlobalStrategy())]
+        Example: [({"source": ["FAOSTAT", "UNFCCC]}, StraightStrategy()), ({}, GlobalStrategy())]
         Note that the strategy can depend on fixed dimensions as well as priority
         dimensions.
         In practice, it is usually a good idea to include a default strategy using the

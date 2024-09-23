@@ -44,7 +44,7 @@ v2.2 dataset into PRIMAP2.
 :maxdepth: 2
 
 data_reading_writing_examples/test_data_wide
-data_reading_writing_examples/PRIMAP-hist
+data_reading_writing_examples/old-PRIMAP-hist
 ```
 
 ## Long (tidy) csv file
@@ -57,15 +57,13 @@ The input for the function is very similar to the input for
 mainly that you have to specify the column where to find the data and time information.
 
 To illustrate the use of the function, we have again two examples.
-The first example just reads in some example data to understand how the function works.
-The second example shows how to read in FAOstat data into PRIMAP2.
+The example just reads in some example data to understand how the function works.
 
 ```{toctree}
 :caption: 'Examples long CSV:'
 :maxdepth: 2
 
 data_reading_writing_examples/test_data_long
-data_reading_writing_examples/FAOstat
 ```
 
 ## Treatment of string codes

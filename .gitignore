@@ -12,6 +12,7 @@ __pycache__/
 .Python
 env/
 docs-old/generated/
+docs/generated/
 build/
 develop-eggs/
 dist/

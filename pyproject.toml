@@ -11,7 +11,8 @@ extend-include = ["*.ipynb"]
 extend-exclude = [
   "climate_categories/data/*.py",
   "climate_categories/tests/data/*.py",
-  "docs-old/"
+  "docs-old/",
+  "docs/*"
 ]
 line-length = 100
 lint.extend-select = [ "E", "W", "I", "UP", "B", "YTT", "A", "NPY", "RUF", "FURB", "FLY", "PYI" ]

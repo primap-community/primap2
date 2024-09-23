@@ -7,6 +7,7 @@ import xarray as xr
 
 import primap2.csg
 import primap2.csg._compose
+import primap2.csg._strategies._exceptions
 from primap2.tests.csg.utils import get_single_ts
 
 
@@ -249,7 +250,7 @@ def test_compose_strategy_skipping(opulent_ds):
             fill_ts: xr.DataArray,
             fill_ts_repr: str,
         ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
-            raise primap2.csg.StrategyUnableToProcess("no processing")
+            raise primap2.csg._strategies._exceptions.StrategyUnableToProcess("no processing")
 
     # However, we define the substitution strategy as the fallback strategy, so that
     # the Substitution strategy is used for everything anyway.
@@ -307,7 +308,7 @@ def test_compose_strategy_all_error(opulent_ds):
             fill_ts: xr.DataArray,
             fill_ts_repr: str,
         ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
-            raise primap2.csg.StrategyUnableToProcess("no processing")
+            raise primap2.csg._strategies._exceptions.StrategyUnableToProcess("no processing")
 
     strategy_definition = primap2.csg.StrategyDefinition(
         strategies=[

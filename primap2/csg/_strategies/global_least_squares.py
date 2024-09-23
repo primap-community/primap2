@@ -5,7 +5,8 @@ from scipy.linalg import lstsq
 from scipy.optimize import least_squares
 
 import primap2
-from primap2.csg import StrategyUnableToProcess
+
+from .exceptions import StrategyUnableToProcess
 
 
 @frozen

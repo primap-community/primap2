@@ -13,7 +13,7 @@ installation
 usage/index
 
 data_format_examples
-usage
+usage/usage
 special_usage
 data_reading
 datalad
