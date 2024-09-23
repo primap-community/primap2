@@ -3,13 +3,14 @@
 import re
 
 import numpy as np
+import pandas as pd
 import pint
 import pytest
 import xarray as xr
 
 from primap2 import ureg
 
-from .utils import assert_aligned_equal, assert_ds_aligned_equal
+from .utils import allclose, assert_aligned_equal, assert_ds_aligned_equal
 
 
 @pytest.fixture
@@ -108,6 +109,25 @@ class TestDASetter:
         expected = da.copy()
         expected.loc[{"area (ISO3)": "COL"}] = ts[..., np.newaxis] * co2
         assert_aligned_equal(actual, expected)
+        assert actual["area (ISO3)"].dtype == da["area (ISO3)"].dtype
+
+    def test_regression_dtype(self):
+        da = xr.DataArray(
+            [[0.0, 1.0, 2.0, 3.0], [2.0, 3.0, 4.0, 5.0]],
+            coords=[
+                ("area (ISO3)", ["COL", "MEX"]),
+                ("time", pd.date_range("2000", "2003", freq="YS")),
+            ],
+        )
+        result = da.pr.set("area", "COL", np.array([0.5, 0.6, 0.7, 0.8]), existing="overwrite")
+        assert result["area (ISO3)"].dtype == da["area (ISO3)"].dtype
+
+    def test_exists_overwrite_time(self, da: xr.DataArray, co2: pint.Unit, new):
+        ts = np.linspace(0, 1, 4)
+        actual = da.pr.set("time", "2000", ts * co2, existing="overwrite", **new)
+        expected = da.copy()
+        expected.loc[{"time": "2000"}] = ts[np.newaxis, ..., np.newaxis] * co2
+        assert_aligned_equal(actual, expected)
 
     def test_exists_fillna(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit, new):
         expected = da.copy()
@@ -163,6 +183,19 @@ class TestDASetter:
             value_dims=["area (ISO3)", "time"],
             existing="overwrite",
         )
+        assert_aligned_equal(actual, expected)
+
+    def test_mixed_overwrite_broadcast(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
+        actual = da.pr.set(
+            "area",
+            ["COL", "CUB"],
+            ts * co2,
+            value_dims=["time"],
+            existing="overwrite",
+        )
+        expected = da.reindex({"area (ISO3)": [*da["area (ISO3)"].values, "CUB"]})
+        expected.loc[{"area (ISO3)": "COL"}] = ts[..., np.newaxis] * co2
+        expected.loc[{"area (ISO3)": "CUB"}] = ts[..., np.newaxis] * co2
         assert_aligned_equal(actual, expected)
 
     def test_mixed_fillna(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
@@ -399,6 +432,17 @@ class TestDsSetter:
             )
         expected = expected.pr.quantify()
         assert_ds_aligned_equal(actual, expected)
+        assert not allclose(minimal_ds["CO2"], actual["CO2"])
+
+    def test_existing_overwrite_nan(self, minimal_ds: xr.Dataset):
+        actual = minimal_ds.pr.set(
+            "area",
+            "COL",
+            xr.full_like(minimal_ds.pr.loc[{"area": "COL"}], np.nan),
+            existing="overwrite",
+        )
+        assert all(actual["CO2"].pr.loc[{"area": "COL"}].isnull())
+        assert all(~actual["CO2"].pr.loc[{"area": "ARG"}].isnull())
 
     def test_existing_fillna(self, minimal_ds: xr.Dataset, new):
         minimal_ds["CO2"].pr.loc[{"area": "COL", "time": "2001"}].pint.magnitude[:] = np.nan

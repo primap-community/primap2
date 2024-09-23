@@ -6,6 +6,9 @@ from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._aggregate import select_no_scalar_dimension
 from ._units import ureg
 
+# Needed for downscaling operations
+xr.set_options(use_numbagg=True)
+
 
 class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
     def downscale_timeseries(

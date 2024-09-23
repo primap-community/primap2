@@ -9,6 +9,7 @@ from attr import define
 
 import primap2
 from primap2._data_format import ProcessingStepDescription
+from primap2._dim_names import dim_names
 
 
 def equal_or_in(a, b):
@@ -292,7 +293,7 @@ class StrategyDefinition:
 
     def check_dimensions(self, ds: xr.Dataset):
         """Raise an error if the strategy definition uses the wrong dimensions."""
-        applicable_dimensions = set(ds.dims.keys()).union({"entity", "variable"})
+        applicable_dimensions = set(dim_names(ds)).union({"entity", "variable"})
         for sel, _ in self.strategies:
             for dim in sel:
                 if dim not in applicable_dimensions:

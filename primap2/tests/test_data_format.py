@@ -45,7 +45,7 @@ class TestEnsureValid:
     def test_time_dimension_for_metadata(self, opulent_processing_ds, caplog):
         opulent_processing_ds["Processing of CO2"] = opulent_processing_ds[
             "Processing of CO2"
-        ].expand_dims(dim={"time": np.array(["2020", "2021"], dtype=np.datetime64)})
+        ].expand_dims(dim={"time": np.array(["2020", "2021"], dtype="datetime64[ns]")})
         with pytest.raises(ValueError, match=r"contains metadata, but carries 'time' dimension"):
             opulent_processing_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
