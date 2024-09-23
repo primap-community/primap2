@@ -43,7 +43,7 @@ test: venv ## run tests quickly with the default Python
 	venv/bin/pytest --xdoc -rx
 
 test-all: ## run tests on every Python version with tox
-	tox -p
+	venv/bin/tox -p
 
 coverage: venv ## check code coverage quickly with the default Python
 	venv/bin/coverage run --source primap2 -m pytest
