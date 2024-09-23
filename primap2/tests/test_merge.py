@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Tests for _merge.py"""
 
+import pandas as pd
 import pytest
 import xarray as xr
 
@@ -167,3 +168,33 @@ def test_merge_ds_add_coord_disjoint_vars(opulent_ds):
             ds_result.coords["country_name"].loc[{"area (ISO3)": country}]
             == ds_compare.coords["country_name"].loc[{"area (ISO3)": country}]
         )
+
+
+def test_merge_message_time_yearly(opulent_ds):
+    da_start: xr.DataArray = opulent_ds["CO2"]
+    npa = opulent_ds["CO2"].loc[{"time": "2000"}].to_numpy().copy()
+    npa[:] = 0.0
+    da_merge: xr.DataArray = opulent_ds["CO2"].pr.set(
+        "time", "2000", npa.squeeze(), existing="overwrite"
+    )
+    with pytest.raises(
+        xr.MergeError, match=r"found discrepancies larger than tolerance \(1\.00%\) for time=2000,"
+    ):
+        da_start.pr.merge(da_merge)
+
+
+def test_merge_message_time_daily(opulent_ds):
+    da_start: xr.DataArray = opulent_ds["CO2"]
+    da_start = da_start.assign_coords(
+        {"time": pd.date_range("2000-01-01", freq="D", periods=len(da_start["time"]))}
+    )
+    npa = da_start.loc[{"time": "2000-01-02"}].to_numpy().copy()
+    npa[:] = 0.0
+    da_merge: xr.DataArray = da_start.pr.set(
+        "time", "2000-01-02", npa.squeeze(), existing="overwrite"
+    )
+    with pytest.raises(
+        xr.MergeError,
+        match=r"found discrepancies larger than tolerance \(1\.00%\) for time=2000-01-02",
+    ):
+        da_start.pr.merge(da_merge)

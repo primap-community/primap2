@@ -1,9 +1,9 @@
 """Merge arrays and datasets with optional tolerances."""
 
 import contextlib
-from datetime import date
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 from loguru import logger
 
@@ -91,9 +91,14 @@ def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
     scalar_dims = [dim for dim in da_error.dims if len(da_error[dim]) == 1]
     scalar_dims_format = []
     for dim in scalar_dims:
-        if dim == "time":
-            single_date = date.fromtimestamp(da_error[dim].item() / 1000000000)
-            scalar_dims_format.append(f"{dim}={single_date.strftime('%Y')}")
+        if pd.api.types.is_datetime64_any_dtype(da_error[dim]):
+            ts = pd.Timestamp(da_error[dim][0].values)
+            # optimization for the common case where we have data on a yearly or
+            # more coarse basis
+            if ts == pd.Timestamp(year=ts.year, month=1, day=1):
+                scalar_dims_format.append(f"{dim}={ts.strftime('%Y')}")
+            else:
+                scalar_dims_format.append(f"{dim}={ts!s}")
         else:
             scalar_dims_format.append(f"{dim}={da_error[dim].item()}")
     scalar_dims_str = ", ".join(scalar_dims_format)
