@@ -13,8 +13,8 @@ We also have a chapter for developers working on the library itself.
 installation
 usage/index
 data_format/index
+data_reading/index
 
-data_reading
 datalad
 development
 credits

@@ -1,4 +1,4 @@
-# Data packages
+# Data Packages
 
 Individual PRIMAP2 datasets are stored in netcdf files, which preserve all meta
 data and the structure of the data.

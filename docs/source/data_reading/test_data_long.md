@@ -1,6 +1,5 @@
 ---
 jupytext:
-  cell_metadata_filter: jupyter,-pycharm
   text_representation:
     extension: .md
     format_name: myst
@@ -12,15 +11,16 @@ kernelspec:
   name: python3
 ---
 
-# Data reading example 3 - minimal test dataset (long) #
-To run this example the file `test_csv_data_long.csv` must be placed in the same folder as this notebook. You can find the notebook and the csv file in the folder `docs/data_reading_examples` in the PRIMAP2 repository.
+# Data reading example 3 - minimal test dataset (long)
+To run this example the file `test_csv_data_long.csv` must be placed in the same folder as this notebook.
+You can find the notebook and the csv file in the folder `docs/source/data_reading_examples` in the PRIMAP2 repository.
 
-```{code-cell}
+```{code-cell} ipython3
 # imports
 import primap2 as pm2
 ```
 
-## Dataset Specifications ##
+## Dataset Specifications
 Here we define which columns of the csv file contain the metadata.
 The dict `coords_cols` contains the mapping of csv columns to PRIMAP2 dimensions.
 Default values not found in the CSV are set using `coords_defaults`.
@@ -46,7 +46,7 @@ For `category` this means that e.g. `IPC1A2` would be converted to `1.A.2` for `
 
 In this example, we also add `meta_data` to add a reference for the data and usage rights.
 
-```{code-cell}
+```{code-cell} ipython3
 file = "test_csv_data_long.csv"
 coords_cols = {
     "unit": "unit",
@@ -86,27 +86,15 @@ data_if = pm2.pm2io.read_long_csv_file_if(
 data_if.head()
 ```
 
-```{code-cell}
----
-jupyter:
-  outputs_hidden: false
----
+```{code-cell} ipython3
 data_if.attrs
 ```
 
-## Transformation to PRIMAP2 xarray format ##
-The transformation to PRIMAP2 xarray format is done using the function `from_interchange_format` which takes an interchange format DataFrame.
+## Transformation to PRIMAP2 xarray format
+The transformation to PRIMAP2 xarray format is done using the function {meth}`primap2.pm2io.from_interchange_format` which takes an interchange format DataFrame.
 The resulting xr Dataset is already quantified, thus the variables are pint arrays which include a unit.
 
-```{code-cell}
+```{code-cell} ipython3
 data_pm2 = pm2.pm2io.from_interchange_format(data_if)
 data_pm2
-```
-
-```{code-cell}
----
-jupyter:
-  outputs_hidden: false
----
-
 ```

@@ -1,4 +1,4 @@
-# Data reading
+# Data Reading
 
 To work with emissions data in PRIMAP2 it needs to be converted into the
 PRIMAP2 netcdf data format. For the most important datasets we will (in
@@ -43,8 +43,8 @@ v2.2 dataset into PRIMAP2.
 :caption: 'Examples wide csv:'
 :maxdepth: 2
 
-data_reading_writing_examples/test_data_wide
-data_reading_writing_examples/old-PRIMAP-hist
+test_data_wide
+old-PRIMAP-hist
 ```
 
 ## Long (tidy) csv file
@@ -56,14 +56,14 @@ The input for the function is very similar to the input for
 {meth}`primap2.pm2io.read_wide_csv_file_if` described previously, with the difference
 mainly that you have to specify the column where to find the data and time information.
 
-To illustrate the use of the function, we have again two examples.
+To illustrate the use of the function, we have again an example.
 The example just reads in some example data to understand how the function works.
 
 ```{toctree}
 :caption: 'Examples long CSV:'
 :maxdepth: 2
 
-data_reading_writing_examples/test_data_long
+test_data_long
 ```
 
 ## Treatment of string codes

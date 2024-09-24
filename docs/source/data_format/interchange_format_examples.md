@@ -104,8 +104,8 @@ import primap2 as pm2
 ### Reading csv data
 The PRIMAP2 data reading procedures first convert data into the interchange format.
 For explanations of the used parameters see the
-[Data reading example](../data_reading_writing_examples/test_data_wide). A more complex dataset is
-read in [Data reading PRIMAP-hist](../data_reading_writing_examples/old-PRIMAP-hist).
+[Data reading example](../data_reading/test_data_wide.md). A more complex dataset is
+read in [Data reading PRIMAP-hist](../data_reading/old-PRIMAP-hist.md).
 
 ```{code-cell} ipython3
 file = "../data_reading_writing_examples/test_csv_data_sec_cat.csv"

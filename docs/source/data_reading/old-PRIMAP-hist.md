@@ -1,6 +1,5 @@
 ---
 jupytext:
-  cell_metadata_filter: jupyter,-pycharm
   text_representation:
     extension: .md
     format_name: myst
@@ -17,7 +16,7 @@ kernelspec:
 In this example, we read an old version of PRIMAP-hist which is not available in the
 native format because it was produced before the native format was invented.
 
-```{code-cell}
+```{code-cell} ipython3
 # imports
 import primap2 as pm2
 ```
@@ -27,7 +26,7 @@ import primap2 as pm2
 The PRIMAP-hist data (doi:10.5281/zenodo.4479172) is available from Zenodo: https://zenodo.org/record/4479172 ,
 we download it directly.
 
-```{code-cell}
+```{code-cell} ipython3
 import requests
 response = requests.get("https://zenodo.org/records/4479172/files/PRIMAP-hist_v2.2_19-Jan-2021.csv?download=1")
 file = "PRIMAPHIST22__19-Jan-2021.csv"
@@ -35,7 +34,7 @@ with open(file, "w") as fd:
     fd.write(response.text)
 ```
 
-## Dataset Specifications ##
+## Dataset Specifications
 Here we define which columns of the csv file contain the coordinates.
 The dict `coords_cols` contains the mapping of csv columns to PRIMAP2 dimensions.
 Default values are set using `coords_defaults`.
@@ -46,7 +45,7 @@ Each entry in `filter_keep` specifies a subset of the input data which is kept w
 
 For details, we refer to the documentation of `read_wide_csv_file_if` located in the `pm2io` module of PRIMAP2.
 
-```{code-cell}
+```{code-cell} ipython3
 coords_cols = {
     "unit": "unit",
     "entity": "entity",
@@ -90,14 +89,15 @@ filter_remove = {"f1": {"scenario": "HISTTP"}}
 meta_data = {"references": "doi:10.5281/zenodo.4479172"}
 ```
 
-## Reading the data to interchange format ##
+## Reading the data to interchange format
 To enable a wider use of the PRIMAP2 data reading functionality we read into the PRIMAP2 interchange format, which is a wide format pandas DataFrame with coordinates in columns and following PRIMAP2 specifications.
 Additional metadata not captured in this format are stored in `DataFrame.attrs` as a dictionary.
 As the `attrs` functionality in pandas is experimental it is just stored in the DataFrame returned by the reading functions and should be stored individually before doing any processing with the DataFrame.
 
-Here we read the data using the `read_wide_csv_file_if()` function. We have specified restrictive filters above to limit the data included in this notebook.
+Here we read the data using the {meth}`primap2.pm2io.read_wide_csv_file_if` function.
+We have specified restrictive filters above to limit the data included in this notebook.
 
-```{code-cell}
+```{code-cell} ipython3
 PMH_if = pm2.pm2io.read_wide_csv_file_if(
     file,
     coords_cols=coords_cols,
@@ -111,27 +111,15 @@ PMH_if = pm2.pm2io.read_wide_csv_file_if(
 PMH_if.head()
 ```
 
-```{code-cell}
----
-jupyter:
-  outputs_hidden: false
----
+```{code-cell} ipython3
 PMH_if.attrs
 ```
 
-## Transformation to PRIMAP2 xarray format ##
-The transformation to PRIMAP2 xarray format is done using the function `from_interchange_format` which takes an interchange format DataFrame.
+## Transformation to PRIMAP2 xarray format
+The transformation to PRIMAP2 xarray format is done using the function {meth}`primap2.pm2io.from_interchange_format` which takes an interchange format DataFrame.
 The resulting xr Dataset is already quantified, thus the variables are pint arrays which include a unit.
 
-```{code-cell}
+```{code-cell} ipython3
 PMH_pm2 = pm2.pm2io.from_interchange_format(PMH_if)
 PMH_pm2
-```
-
-```{code-cell}
----
-jupyter:
-  outputs_hidden: false
----
-
 ```
