@@ -14,7 +14,6 @@ installation
 usage/index
 data_format/index
 data_reading/index
-
 datalad
 development
 credits

@@ -139,7 +139,7 @@ they are committed. All the configured checks and fixes are listed in the
 
 - `check-ast`: parses all python files and errors if the syntax is not valid.
 - `check-merge-conflict`: emits an error if it finds unresolved merge conflicts.
-- `ruff` and `doc8`: static analysis for unused imports and variables etc.
+- `ruff`: static analysis for unused imports and variables etc.
   Sometimes, it is unavoidable to trigger ruff errors, in that case add a comment of
   the form `# noqa: E501` at the end of the offending line (using the error code that
   ruff reports).
@@ -256,15 +256,34 @@ For documenting RPIMAP2, we use `sphinx` and host the documentation online at
 [ReadTheDocs](https://primap2.readthedocs.io/).
 Before your changes land in the main PRIMAP2 branch, where ReadTheDocs picks them up,
 you can compile the documentation locally using `make docs` in the terminal and
-open the `docs/_build/html/index.html` file in your web browser.
+open the `docs/build/html/index.html` file in your web browser.
 
 Static documentation (such as this section) is written directly in
 [Markedly Structured Text (MyST)](https://myst-parser.readthedocs.io)
-in files in the `docs/` directory and included into the documentation by adding the
-file to `docs/index.md`.
+in files in the `docs/source/` directory and included into the documentation by adding the
+file to `docs/source/index.md`.
 If you have a part of the documentation which is using python examples a lot, it might
-be a good idea to write the documentation as an ipython notebook instead.
-Add the notebook in the `docs/` folder and write and run it.
+be a good idea to write the documentation as a myst notebook instead.
+Add the notebook in the `docs/source/` folder or one of its sub-folders as a file with
+the `.md` suffix, then add the following at the very top:
+```
+---
+jupytext:
+  text_representation:
+    extension: .md
+    format_name: myst
+    format_version: 0.13
+    jupytext_version: 1.16.4
+kernelspec:
+  display_name: Python 3 (ipykernel)
+  language: python
+  name: python3
+---
+```
+Now, you can either write it directly in yuor editor, or open it in `jupyter lab`,
+right-click it, select "open with -> jupytext notebook" and edit and run it like a
+normal jupyter notebook. The notebook will be saved as markdown, which makes it easy to
+see changes using simple diffing tools and make quick edits with a simple text editor.
 The notebook will be run automatically when compiling the documentation, ensuring that
 the output is always up-to-date.
 
