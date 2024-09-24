@@ -1,6 +1,5 @@
 ---
 jupytext:
-  cell_metadata_filter: jupyter,-pycharm
   text_representation:
     extension: .md
     format_name: myst
@@ -46,7 +45,7 @@ The `time` dimension is included in the horizontal
 dimension of the tabular interchange format. Additionally, we have `unit` and `entity`
 as mandatory columns with the restriction that each entity can have only one unit.
 
-All optional dimensions (see [Data format details](data_format_details)) can be
+All optional dimensions (see [Data format details](data_format_details.md)) can be
 added as optional columns. Secondary categories are columns with free format names.
 They are listed as secondary columns in the metadata dict.
 
@@ -57,11 +56,11 @@ Additional columns are currently not possible, but the option will be added
 in a future release ([#25](https://github.com/pik-primap/primap2/issues/25)).
 
 The metadata dict has an `attrs` entry, which corresponds to the `attrs` dict of the
-xarray format (see [Data format details](data_format_details)).
+xarray format (see [Data format details](data_format_details.md)).
 Additionally, the metadata dict contains information on the `dimensions` of the
 data for each entity, on the `time_format` of the data columns and (if stored on disk)
 on the name of the `data_file`
-(see [Interchange format details](interchange_format_details)).
+(see [Interchange format details](interchange_format_details.md)).
 
 ## Use
 The interchange format is intended for use mainly in two settings.
@@ -97,11 +96,7 @@ file name to read the data.
 ## Examples
 Here we show a few examples of the interchange format.
 
-```{code-cell}
----
-jupyter:
-  outputs_hidden: false
----
+```{code-cell} ipython3
 # import all the used libraries
 import primap2 as pm2
 ```
@@ -109,15 +104,11 @@ import primap2 as pm2
 ### Reading csv data
 The PRIMAP2 data reading procedures first convert data into the interchange format.
 For explanations of the used parameters see the
-[Data reading example](data_reading_writing_examples/test_data_wide). A more complex dataset is
-read in [Data reading PRIMAP-hist](data_reading_writing_examples/old-PRIMAP-hist).
+[Data reading example](../data_reading_writing_examples/test_data_wide). A more complex dataset is
+read in [Data reading PRIMAP-hist](../data_reading_writing_examples/old-PRIMAP-hist).
 
-```{code-cell}
----
-jupyter:
-  outputs_hidden: false
----
-file = "data_reading_writing_examples/test_csv_data_sec_cat.csv"
+```{code-cell} ipython3
+file = "../data_reading_writing_examples/test_csv_data_sec_cat.csv"
 coords_cols = {
     "unit": "unit",
     "entity": "gas",
@@ -152,7 +143,7 @@ data_if = pm2.pm2io.read_wide_csv_file_if(
 data_if.head()
 ```
 
-+++ {"jupyter": {"outputs_hidden": false}}
++++
 
 ### Writing interchange format data
 Data is written using the `pm2io.write_interchange_format` function which takes a filename
@@ -160,12 +151,8 @@ and path (`str` or `pathlib.Path`), an interchange format dataframe (`pandas.Dat
 and optionally an attribute `dict` as inputs. If the filename has an ending, it will be
 ignored. The function writes a `yaml` file and a `csv` file.
 
-```{code-cell}
----
-jupyter:
-  outputs_hidden: false
----
-file_if = "data_reading_writing_examples/test_csv_data_sec_cat_if"
+```{code-cell} ipython3
+file_if = "../data_reading_writing_examples/test_csv_data_sec_cat_if"
 pm2.pm2io.write_interchange_format(file_if, data_if)
 ```
 
@@ -176,37 +163,25 @@ a `pandas.DataFrame` containing the data and metadata. The filename and path has
 to the `yaml` file. the `csv` file will be read from the filename contained in the `yaml`
 file.
 
-```{code-cell}
----
-jupyter:
-  outputs_hidden: false
----
+```{code-cell} ipython3
 data_if_read = pm2.pm2io.read_interchange_format(file_if)
 data_if_read.head()
 ```
 
-+++ {"jupyter": {"outputs_hidden": false}}
++++
 
 ### Converting to and from standard PRIMAP2 format
 Data in the standard, xarray-based PRIMAP2 format can be converted to and from the interchange format with the corresponding functions:
 
-```{code-cell}
----
-jupyter:
-  outputs_hidden: false
----
-ds_minimal = pm2.open_dataset("minimal_ds.nc")
+```{code-cell} ipython3
+ds_minimal = pm2.open_dataset("../minimal_ds.nc")
 
 if_minimal = ds_minimal.pr.to_interchange_format()
 
 if_minimal.head()
 ```
 
-```{code-cell}
----
-jupyter:
-  outputs_hidden: false
----
+```{code-cell} ipython3
 ds_minimal_re = pm2.pm2io.from_interchange_format(if_minimal)
 
 ds_minimal_re

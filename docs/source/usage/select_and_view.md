@@ -131,7 +131,8 @@ be accessed via the `pr` namespace:
 ds.pr.title
 ```
 
-You can find the definition of all standardized attributes at TODO.
+You can find the definition of all standardized attributes at
+{ref}`data_format_details_dataset_attributes`.
 
 ## Unit handling
 

@@ -2,8 +2,9 @@
 ```
 ## Documentation
 
-We have divided the documentation into documentation for users of the primap2 library
-and technical documentation  for developers working on the library itself.
+We have divided the documentation into chapters, most of the focussing on using the
+library.
+We also have a chapter for developers working on the library itself.
 
 ```{toctree}
 :caption: Contents
@@ -11,13 +12,10 @@ and technical documentation  for developers working on the library itself.
 
 installation
 usage/index
+data_format/index
 
-data_format_examples
 data_reading
 datalad
-interchange_format_examples
-data_format_details
-interchange_format_details
 development
 credits
 changelog

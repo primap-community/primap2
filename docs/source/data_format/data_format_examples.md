@@ -1,6 +1,5 @@
 ---
 jupytext:
-  cell_metadata_filter: jupyter,-pycharm
   text_representation:
     extension: .md
     format_name: myst
@@ -20,16 +19,10 @@ with defined coordinates and metadata.
 If you are not familiar with xarray data structures, we recommend reading
 [xarray's own primer](https://xarray.pydata.org/en/stable/data-structures.html) first.
 
-## Examples
-
 Let's start with two examples, one minimal example showing only what is required for a
 PRIMAP2 data set, and one opulent example showing the flexibility of the format.
 
-```{code-cell}
----
-jupyter:
-  outputs_hidden: false
----
+```{code-cell} ipython3
 # import all the used libraries
 import datetime
 
@@ -41,7 +34,7 @@ import primap2
 from primap2 import ureg
 ```
 
-### Minimal example
+## Minimal example
 
 This example contains only the required metadata, which are the time, the area,
 and the source.
@@ -51,7 +44,7 @@ gases are included in a single dataset and the use of units.
 The example is created with dummy data; note that in real usage, you would read
 data from a file or API instead.
 
-```{code-cell}
+```{code-cell} ipython3
 ---
 jupyter:
   outputs_hidden: false
@@ -110,18 +103,14 @@ Notice:
 
 +++
 
-### Opulent example
+## Opulent example
 
 The opulent example contains every standard metadata and also shows
 that the variables in the data set can have a different number of
 dimensions. Because it aims to show everything, creating it takes some effort,
 skip to the result unless you are interested in the details.
 
-```{code-cell}
----
-jupyter:
-  outputs_hidden: false
----
+```{code-cell} ipython3
 # create with dummy data
 coords = {
     "time": pd.date_range("2000-01-01", "2020-01-01", freq="YS"),
@@ -236,12 +225,12 @@ Compared to the minimal example, this data set has a lot more to unpack:
 
 +++
 
-### Processing information example
+## Processing information example
 
 For detailed descriptions of processing steps done to arrive at the dataset at hand, we use rich metadata types.
 This example shows a dataset with detailed processing step information.
 
-```{code-cell}
+```{code-cell} ipython3
 # we don't actually do the processing, but add corresponding metadata as if we did
 
 time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
@@ -304,7 +293,7 @@ Note that the processing information in the data variable "Processing of CO2" ha
 described variable "CO2", with the exception of the "time". The time information is included in the rich
 metadata object itself:
 
-```{code-cell}
+```{code-cell} ipython3
 print("COL processing:")
 print(with_processing["Processing of CO2"].pr.loc[{"area": "COL"}].item())
 print()
@@ -312,19 +301,10 @@ print("ARG processing:")
 print(with_processing["Processing of CO2"].pr.loc[{"area": "ARG"}].item())
 ```
 
-## Advantages
-
-* By using standard xarray datasets, the standard data analysis libraries for in the
-xarray universe can be used.
-* Due to xarray's compatibility with dask arrays, [dask](https://dask.org/) can be used
-to distribute calculations to multiple cores or a cluster of machines.
-* xarray provides a file storage format based on netcdf, which is well-suited for
-efficient long-term storage.
-
 ## Limitations
 
 * xarray does not provide a solution for the management of multiple data sets,
-  including search and discovery, change management etc. For this, we plan to use
-  [datalad](https://www.datalad.org/).
+  including search and discovery, change management etc. For this, we use
+  {ref}`datalad`.
 * At the moment, xarray does not deal with very sparse data efficiently. For large,
   very sparse datasets with lots of dimensions, primap2 is currently not usable.

@@ -96,6 +96,7 @@ For storage, the dataset should not be quantified and the units should be given 
 If given in the `attrs` as a string, the units must be parsable by
 [openscm-units](https://openscm-units.readthedocs.io).
 
+(data_format_details_dataset_attributes)=
 ## Dataset Attributes
 
 Metadata about the dimensions and the data set as a whole is stored in the dataset
