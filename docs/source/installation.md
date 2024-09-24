@@ -19,16 +19,10 @@ you through the process.
 The sources for PRIMAP2 can be downloaded from the
 [Github repo](https://github.com/pik-primap/primap2).
 
-You can either clone the public repository:
+Simply clone the public repository using git:
 
 ```shell
 $ git clone git://github.com/pik-primap/primap2
-```
-
-Or download the [tarball](https://github.com/pik-primap/pik-primap/tarball/master):
-
-```shell
-$ curl -OJL https://github.com/pik-primap/primap2/tarball/master
 ```
 
 Once you have a copy of the source, you can install it with:

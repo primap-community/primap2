@@ -11,7 +11,7 @@ https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 project = "primap2"
 # put the authors in their own variable, so they can be reused later
-authors = ", ".join(["Mika Pflüger", "Johannes Gütschow", "Annika Günther"])
+author = "Mika Pflüger and Johannes Gütschow"
 copyright = "2021-2023: Potsdam Institute for Climate Impact Research; 2023-2024: Climate Resource"
 
 # -- General configuration ---------------------------------------------------
@@ -96,7 +96,7 @@ nb_execution_timeout = 120
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-# Pick your theme for html output, we typically use the read the docs theme
+# Pick your theme for html output
 html_theme = "sphinx_book_theme"
 html_static_path = ["_static"]
 html_theme_options = {

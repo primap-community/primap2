@@ -1,9 +1,0 @@
--e .
-Sphinx>=4.2
-sphinx-rtd-theme
-nbsphinx
-numpydoc
-ipykernel
-sphinx-autosummary-accessors
-numpydoc
-matplotlib

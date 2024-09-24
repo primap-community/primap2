@@ -1,9 +1,16 @@
 ---
-file_format: mystnb
+jupytext:
+  formats: md:myst
+  text_representation:
+    extension: .md
+    format_name: myst
+    format_version: 0.13
+    jupytext_version: 1.16.4
 kernelspec:
+  display_name: Python 3 (ipykernel)
+  language: python
   name: python3
 ---
-
 # Select and View Data
 
 ## Datasets
@@ -11,8 +18,9 @@ kernelspec:
 In PRIMAP2, data is handled in
 [xarray datasets](https://xarray.pydata.org/en/stable/data-structures.html#dataset)
 with defined dimensions, coordinates and metadata.
-If you are not familiar with xarray data structures, we recommend reading
-[xarray's own primer](https://xarray.pydata.org/en/stable/data-structures.html) first.
+If you are not familiar with selecting data from using xarray, we recommend reading
+[the corresponding section in xarray's documentation](https://docs.xarray.dev/en/stable/user-guide/indexing.html)
+first.
 
 To get going, we will show the most important features of the data format using a
 toy example.
@@ -59,7 +67,7 @@ of mass emissions, the used metric is given in braces.
 ## Selecting
 
 Data can be selected using the
-[xarray indexing methods](https://xarray.pydata.org/en/stable/indexing.html),
+[xarray indexing methods](https://docs.xarray.dev/en/stable/user-guide/indexing.html),
 but PRIMAP2 also provides own versions of some of xarray's selection methods
 which are easier to use in the primap2 context.
 
