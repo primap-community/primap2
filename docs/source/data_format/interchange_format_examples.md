@@ -108,7 +108,7 @@ For explanations of the used parameters see the
 read in [Data reading PRIMAP-hist](../data_reading/old-PRIMAP-hist.md).
 
 ```{code-cell} ipython3
-file = "../data_reading_writing_examples/test_csv_data_sec_cat.csv"
+file = "../data_reading/test_csv_data_sec_cat.csv"
 coords_cols = {
     "unit": "unit",
     "entity": "gas",
@@ -152,7 +152,7 @@ and optionally an attribute `dict` as inputs. If the filename has an ending, it 
 ignored. The function writes a `yaml` file and a `csv` file.
 
 ```{code-cell} ipython3
-file_if = "../data_reading_writing_examples/test_csv_data_sec_cat_if"
+file_if = "../data_reading/test_csv_data_sec_cat_if"
 pm2.pm2io.write_interchange_format(file_if, data_if)
 ```
 
