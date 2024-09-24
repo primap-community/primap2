@@ -18,18 +18,10 @@ copyright = "2021-2023: Potsdam Institute for Climate Impact Research; 2023-2024
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    # tell sphinx that we're using numpy style docstrings
-    # https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
-    "sphinx.ext.napoleon",
-    # add support for type hints too (so type hints are included next to
-    # argument and return types in docs)
-    # https://github.com/tox-dev/sphinx-autodoc-typehints
-    # this must come after napoleon
-    # in the list for things to work properly
-    # https://github.com/tox-dev/sphinx-autodoc-typehints#compatibility-with-sphinxextnapoleon
-    "sphinx_autodoc_typehints",
     # Generate an API documentation automatically from docstrings
-    "autoapi.extension",
+    "sphinx.ext.autodoc",
+    # Numpy-style docstrings
+    "numpydoc",
     # jupytext rendered notebook support (also loads myst_parser)
     "myst_nb",
     # links to other docs
@@ -47,20 +39,8 @@ extensions = [
 add_module_names = True
 # Other global settings which we've never used but are included by default
 templates_path = ["_templates"]
-# Avoid sphinx thinking that conf.py is a source file because we use .py
-# endings for notebooks
-exclude_patterns = ["conf.py"]
 # Stop sphinx doing funny things with byte order markers
 source_encoding = "utf-8"
-
-# napoleon extension settings
-# https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html
-# We use numpy style docstrings
-napoleon_numpy_docstring = True
-# We don't use google docstrings
-napoleon_google_docstring = False
-# Don't use separate rtype for the return documentation
-napoleon_use_rtype = False
 
 # autodoc type hints settings
 # https://github.com/tox-dev/sphinx-autodoc-typehints
@@ -70,18 +50,6 @@ typehints_fully_qualified = True
 typehints_document_rtype = True
 # Put the return type as part of the return documentation
 typehints_use_rtype = False
-
-# AutoAPI generates the API documentation
-autoapi_dirs = ["../../primap2"]
-autoapi_ignore = ["*tests/*"]
-autoapi_options = [
-    "members",
-    "undoc-members",
-    "show-inheritance",
-    "show-module-summary",
-    "special-members",
-    "imported-members",
-]
 
 # Left-align maths equations
 mathjax3_config = {"chtml": {"displayAlign": "center"}}
@@ -107,15 +75,6 @@ html_theme_options = {
     "use_issues_button": True,
     "use_edit_page_button": True,
 }
-
-
-# Ignore ipynb files when building (see https://github.com/executablebooks/MyST-NB/issues/363).
-def setup(app):
-    """
-    Set up the Sphinx app
-    """
-    app.registry.source_suffix.pop(".ipynb", None)
-
 
 # Intersphinx mapping
 intersphinx_mapping = {
