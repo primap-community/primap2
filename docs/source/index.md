@@ -18,5 +18,5 @@ datalad
 development
 credits
 changelog
-apidoc/primap2.rst
+api/index
 ```

@@ -5,6 +5,7 @@ For the full list of built-in configuration values, see the documentation:
 https://www.sphinx-doc.org/en/master/usage/configuration.html
 """
 
+import sphinx_autosummary_accessors
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -13,6 +14,7 @@ project = "primap2"
 # put the authors in their own variable, so they can be reused later
 author = "Mika Pflüger and Johannes Gütschow"
 copyright = "2021-2023: Potsdam Institute for Climate Impact Research; 2023-2024: Climate Resource"
+language = "en"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -22,6 +24,10 @@ extensions = [
     "sphinx.ext.autodoc",
     # Numpy-style docstrings
     "numpydoc",
+    # Better summaries for API docs
+    "sphinx.ext.autosummary",
+    # also for our xarray accessor
+    "sphinx_autosummary_accessors",
     # jupytext rendered notebook support (also loads myst_parser)
     "myst_nb",
     # links to other docs
@@ -37,8 +43,8 @@ extensions = [
 # general sphinx settings
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 add_module_names = True
-# Other global settings which we've never used but are included by default
-templates_path = ["_templates"]
+# Add templates for sphinx autosummary accessors
+templates_path = ["_templates", sphinx_autosummary_accessors.templates_path]
 # Stop sphinx doing funny things with byte order markers
 source_encoding = "utf-8"
 
@@ -50,6 +56,12 @@ typehints_fully_qualified = True
 typehints_document_rtype = True
 # Put the return type as part of the return documentation
 typehints_use_rtype = False
+
+# Generate autosummary stubs automatically
+autosummary_generate = True
+
+# Nicer formatting for numpydoc
+numpydoc_class_members_toctree = False
 
 # Left-align maths equations
 mathjax3_config = {"chtml": {"displayAlign": "center"}}
