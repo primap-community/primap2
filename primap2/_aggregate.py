@@ -135,7 +135,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         Parameters
         ----------
         dim: str or list of str, optional
-          Dimension(s) over which to apply `sum`. Only one of ``dim`` and
+          Dimension(s) over which to apply ``sum``. Only one of ``dim`` and
           ``reduce_to_dim`` arguments can be supplied. If neither is supplied, then
           the sum is calculated over all dimensions.
         reduce_to_dim: str or list of str, optional
@@ -143,10 +143,10 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
           arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
           equivalent to giving ``dim=set(da.dims) - {"dim_1"}``, but more legible.
         skipna: bool, optional
-          If True, skip missing values (as marked by NaN). By default, only
+          If ``True``, skip missing values (as marked by NaN). By default, only
           skips missing values for float dtypes; other dtypes either do not
-          have a sentinel missing value (int) or skipna=True has not been
-          implemented (object, datetime64 or timedelta64).
+          have a sentinel missing value (int) or ``skipna=True`` has not been
+          implemented (``object``, ``datetime64`` or ``timedelta64``).
         skipna_evaluation_dims: str or list of str, optional
           Dimension(s) to evaluate along to determine if values should be skipped.
           Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
@@ -239,32 +239,35 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         Parameters
         ----------
         agg_info:
-            dict of the following form
-            agg_info = {
-                <coord1>: {
-                    <new_value>: {
-                        'sources': [source_values],
-                        <add_coord_name>: <value for additional coordinate> (optional),
-                        'tolerance': <non-default tolerance> (optional),
-                        'filter': <filter in pr.loc style> (optional),
+            dict of the following form::
+
+                agg_info = {
+                    <coord1>: {
+                        <new_value>: {
+                            'sources': [source_values],
+                            <add_coord_name>: <value for additional coordinate> (optional),
+                            'tolerance': <non-default tolerance> (optional),
+                            'filter': <filter in pr.loc style> (optional),
+                        },
                     },
-                },
-                <coord2>: { # simplified format for coord2
-                    <new_value>: [source_values]
-                ...},
-                ...
-            }
-            All values in `filter` must be lists to keep the dimensions in the data
-            returned by `da.pr.loc`
+                    <coord2>: { # simplified format for coord2
+                        <new_value>: [source_values]
+                        ...
+                    },
+                    ...
+                }
+
+            All values in ``filter`` must be lists to keep the dimensions in the data
+            returned by ``da.pr.loc``
             The normal format and the simplified list format can be mixed also
             within a coordinate
         tolerance:
             non-default tolerance for merging (default = 0.01 (1%))
         skipna: bool, optional
-            If True (default), skip missing values (as marked by NaN). By default, only
-            skips missing values for float dtypes; other dtypes either do not
-            have a sentinel missing value (int) or skipna=True has not been
-            implemented (object, datetime64 or timedelta64).
+            If ``True`` (default), skip missing values (as marked by NaN). By default, only
+            skips missing values for ``float`` dtypes; other dtypes either do not
+            have a sentinel missing value (int) or ``skipna=True`` has not been
+            implemented (``object``, ``datetime64`` or ``timedelta64``).
         min_count: int (default None, but set to 1 if skipna=True)
             The minimal number of non-NA values in a sum that is necessary for a non-NA
             result. This only has an effect if ``skipna=True``. As an example: you sum data
@@ -794,23 +797,26 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         Parameters
         ----------
         agg_info:
-            dict of the following form
-            agg_info = {
-                <coord1>: {
-                    <new_value>: {
-                        'sources': [source_values],
-                        <add_coord_name>: <value for additional coordinate> (optional),
-                        'tolerance': <non-default tolerance> (optional),
-                        'filter': <filter in pr.loc style> (optional),
+            dict of the following form::
+
+                agg_info = {
+                    <coord1>: {
+                        <new_value>: {
+                            'sources': [source_values],
+                            <add_coord_name>: <value for additional coordinate> (optional),
+                            'tolerance': <non-default tolerance> (optional),
+                            'filter': <filter in pr.loc style> (optional),
+                        },
                     },
-                },
-                <coord2>: { # simplified format for coord2
-                    <new_value>: [source_values]
-                ...},
-                ...
-            }
-            All values in `filter` must be lists to keep the dimensions in the data
-            returned by `da.pr.loc`
+                    <coord2>: { # simplified format for coord2
+                        <new_value>: [source_values]
+                        ...
+                    },
+                    ...
+                }
+
+            All values in ``filter`` must be lists to keep the dimensions in the data
+            returned by ``da.pr.loc``
             The normal format and the simplified list format can be mixed also
             within a coordinate
         tolerance:
@@ -832,9 +838,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         Returns
         -------
-            xr.Dataset with aggregated values for coordinates / dimensions as
-            specified in the agg_info dict
-
+            xr.Dataset
+                Input with added aggregated values for coordinates / dimensions as
+                specified in the agg_info dict
         """
         ds_out = self._ds.copy(deep=True)
         for var in ds_out.data_vars:
@@ -869,25 +875,28 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         Parameters
         ----------
-        gas_baskets
-            dict with the following format
-            gas_baskets = {
-                <new_variable1>: {
-                    'sources': [source_values],
-                    'tolerance': <non-default tolerance> (optional),
-                    'filter': <filter in pr.loc style> (optional),
-                },
-                <new_value>: [source_values] # simplified format for coord2
-                ...
-            }
-            example_config = {
-                'FGASES (AR4GWP100)': ['SF6', 'NF3', 'HFCS (AR4GWP100)', 'PFCS (AR4GWP100)'],
-                'KYOTOGHG (AR4GWP100)': {
-                    'sources': ['CO2', 'CH4', 'N2O', 'FGASES (AR4GWP100)'],
-                    'filter': {'area (ISO3)': ['COL']},
-                    'tolerance': 0.015,
-                },
-            }
+        gas_baskets: dict
+            dict with the following format::
+
+                gas_baskets = {
+                    "new_variable1": {
+                        'sources': [source_values],
+                        'tolerance': <non-default tolerance> (optional),
+                        'filter': <filter in pr.loc style> (optional),
+                    },
+                    "new_value": [source_values], # simplified format for coord2
+                    ...
+                }
+                example:
+                gas_baskets = {
+                    'FGASES (AR4GWP100)': ['SF6', 'NF3', 'HFCS (AR4GWP100)', 'PFCS (AR4GWP100)'],
+                    'KYOTOGHG (AR4GWP100)': {
+                        'sources': ['CO2', 'CH4', 'N2O', 'FGASES (AR4GWP100)'],
+                        'filter': {'area (ISO3)': ['COL']},
+                        'tolerance': 0.015,
+                    },
+                }
+
         tolerance:
             non-default tolerance for merging (default = 0.01 (1%))
         skipna: bool, optional
