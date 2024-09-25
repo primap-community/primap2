@@ -67,7 +67,9 @@ def generate_api_docs(app):
     import pathlib
 
     subprocess.run(
-        ["python3", "generate_api_docs.py"], cwd=pathlib.Path(".") / "source" / "api", check=True
+        ["python3", "generate_api_docs.py"],
+        cwd=pathlib.Path(__file__).parent / "api",
+        check=True,
     )
 
 
