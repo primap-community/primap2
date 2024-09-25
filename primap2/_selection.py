@@ -128,15 +128,17 @@ def alias_dims(
 ) -> typing.Callable[[FunctionT], FunctionT]:
     """Method decorator to automatically translate dimension aliases in parameters.
 
-    Use like this:
-    @alias_dims(["dim"])
-    def sum(self, dim):
-        return self._da.sum(dim)
+    Use like this::
 
-    To copy the documentation etc. from an xarray function, use the wraps parameter:
-    @alias_dims(["dim"], wraps=xr.DataArray.sum)
-    def sum(self, *args, **kwargs):
-        return self._da.sum(*args, **kwargs)
+        @alias_dims(["dim"])
+        def sum(self, dim):
+            return self._da.sum(dim)
+
+    To copy the documentation etc. from an xarray function, use the wraps parameter::
+
+        @alias_dims(["dim"], wraps=xr.DataArray.sum)
+        def sum(self, *args, **kwargs):
+            return self._da.sum(*args, **kwargs)
     """
 
     def decorator(func: FunctionT) -> FunctionT:
@@ -189,7 +191,9 @@ def alias_dims(
 
 
 class DataArrayAliasLocIndexer:
-    """Provides loc-style selection with aliases. Needs to be a separate class for
+    """Provides loc-style selection with aliases.
+
+    Needs to be a separate class for
     __getitem__ and __setitem__ functionality, which doesn't work directly on properties
     without an intermediate object.
     """
@@ -220,8 +224,8 @@ class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Returns
         -------
-        translations : dict
-            A mapping of all dimension aliases to full dimension names.
+            translations : dict
+                A mapping of all dimension aliases to full dimension names.
         """
         # we have to do string parsing because the Dataset's attrs are not available
         # in the DataArray context
@@ -231,7 +235,7 @@ class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
     def loc(self):
         """Location-based indexing like xr.DataArray.loc with added features.
 
-        Works like xarray's loc indexer, but has additional features:
+        Works like :py:attr:`xarray.DataArray.loc` indexer, but has additional features:
 
         * supports short aliases like ``area`` and translates them into the long names
           including the corresponding category-set.
@@ -248,7 +252,9 @@ class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
 
 
 class DatasetAliasLocIndexer:
-    """Provides loc-style selection with aliases. Needs to be a separate class for
+    """Provides loc-style selection with aliases.
+
+    Needs to be a separate class for
     __getitem__ functionality, which doesn't work directly on properties without an
     intermediate object.
     """
@@ -274,8 +280,8 @@ class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
 
         Returns
         -------
-        translations : dict
-            A mapping of all dimension aliases to full dimension names.
+            translations : dict
+                A mapping of all dimension aliases to full dimension names.
         """
         # First guess aliases from the names themselves. The meta data in attrs
         # is used to overwrite the guessed values where they are available
@@ -299,7 +305,7 @@ class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
     def loc(self):
         """Location-based indexing like xr.DataArray.loc with added features.
 
-        Works like xarray's loc indexer, but has additional features:
+        Works like :py:attr:`xarray.Dataset.loc` indexer, but has additional features:
 
         * supports short aliases like ``area`` and translates them into the long names
           including the corresponding category-set.

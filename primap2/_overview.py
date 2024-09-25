@@ -14,10 +14,10 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
     def to_df(self, name: str | None = None) -> pd.DataFrame | pd.Series:
         """Convert this array into an unstacked (i.e. non-tidy) pandas.DataFrame.
 
-        Converting to an unstacked pandas.DataFrame is most useful for two-dimensional
+        Converting to an unstacked :py:class:`pandas.DataFrame` is most useful for two-dimensional
         data because then there is no MultiIndex, making the result very easy to read.
 
-        If you want a tidy dataframe, use xarray's da.to_dataframe() instead.
+        If you want a tidy dataframe, use :py:meth:`xarray.DataArray.to_dataframe` instead.
 
         Parameters
         ----------
@@ -26,7 +26,7 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Returns
         -------
-        df: pandas.DataFrame
+            df : pandas.DataFrame
         """
         if name is None:
             name = self._da.name
@@ -58,9 +58,9 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Returns
         -------
-        coverage: pandas.DataFrame or pandas.Series
-            N-dimensional dataframe (series for N=1) summarizing the number of non-NaN
-            data points for each combination of values in the given dimensions.
+            coverage: pandas.DataFrame or pandas.Series
+                N-dimensional dataframe (series for N=1) summarizing the number of non-NaN
+                data points for each combination of values in the given dimensions.
         """
         if not dims:
             raise ValueError("Specify at least one dimension.")
@@ -84,7 +84,7 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
     ) -> pd.DataFrame:
         """Convert this dataset into a pandas.DataFrame.
 
-        It returns mostly the same as xarray's to_dataframe() method, but discards
+        It returns mostly the same as :py:meth:`xarray..Dataset.to_dataframe`, but discards
         additional coordinates instead of including them in the output.
 
         Parameters
@@ -94,7 +94,7 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
 
         Returns
         -------
-        df: pandas.DataFrame
+            df: pandas.DataFrame
         """
         df = self._ds.pr.remove_processing_info().reset_coords(drop=True).to_dataframe()
         if name is not None:
@@ -127,9 +127,9 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
 
         Returns
         -------
-        coverage: pandas.DataFrame or pandas.Series
-            N-dimensional dataframe (series for N=1) summarizing the number of non-NaN
-            data points for each combination of values in the given dimensions.
+            coverage: pandas.DataFrame or pandas.Series
+                N-dimensional dataframe (series for N=1) summarizing the number of non-NaN
+                data points for each combination of values in the given dimensions.
         """
         if not dims:
             raise ValueError("Specify at least one dimension.")

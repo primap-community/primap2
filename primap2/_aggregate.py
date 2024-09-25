@@ -85,7 +85,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         Parameters
         ----------
         dim: str or list of str, optional
-          Dimension(s) over which to apply `count`. Only one of ``dim`` and
+          Dimension(s) over which to apply ``count``. Only one of ``dim`` and
           ``reduce_to_dim`` arguments can be supplied. If neither is supplied, then
           the count is calculated over all dimensions.
         reduce_to_dim: str or list of str, optional
@@ -115,21 +115,21 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         keep_attrs: bool = True,
         min_count: int | None = None,
     ) -> xr.DataArray:
-        """Reduce this DataArray's data by applying `sum` along some dimension(s).
+        """Reduce this DataArray's data by applying ``sum`` along some dimension(s).
 
-        By default, works like da.sum(), but has additional features:
+        By default, works like :py:meth:`xarray.DataArray.sum`, but has additional features:
 
         1. Dimension aliases can be used instead of full dimension names everywhere.
         2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
            the dimensions that the result should have via ``reduce_to_dim``. Then,
-           `sum` will be applied along all other dimensions.
+           ``sum`` will be applied along all other dimensions.
         3. You can specify ``skipna_evaluation_dims`` to skip NA values only if all
            values along the given dimension(s) are NA. Example: If you have a data array
            with the dimensions ``time`` and ``position``, summing over ``time`` with the
            evaluation dimension ``position`` will skip only those values where all
            values with the same ``position`` are NA.
 
-        ``skipna`` and ``min_count`` work like in the :py:func:`xr.sum` function. The behaviour
+        ``skipna`` and ``min_count`` work like in the :py:func:`xarray.sum` function. The behaviour
         of primap1 is reproduced by ``skipna=True, min_count=1``.
 
         Parameters
@@ -165,6 +165,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
           zero. If ``min_count=0`` all NA values will be treated as zero
           also if there is no single non-NA value in the data that is to be summed.
 
+        See Also
+        --------
+        xarray.DataArray.sum
 
         Returns
         -------
@@ -280,8 +283,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
         Returns
         -------
-            xr.DataArray with aggregated values for coordinates / dimensions as
-            specified in the agg_info dict
+            xr.DataArray
+                Input array, but with aggregated values for coordinates / dimensions as
+                specified in the agg_info dict
 
         """
         # dequantify for improved speed. Unit handling is not necessary as we
@@ -462,7 +466,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
     ) -> DatasetOrDataArray:
         """Reduce this Dataset by counting along some dimension(s).
 
-        By default, works like ds.count(), but with some additional features:
+        By default, works like :py:meth:`xarray.Dataset.count`, but with some additional features:
 
         1. Dimension aliases can be used instead of full dimension names everywhere.
         2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
@@ -486,7 +490,11 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         keep_attrs: bool, optional
           Keep the attr metadata (default True).
         **kwargs: dict
-          Additional keyword arguments are passed directly to xarray's ds.count().
+          Additional keyword arguments are passed directly to :py:meth:`xarray.Dataset.count`.
+
+        See Also
+        --------
+        xarray.Dataset.count
 
         Returns
         -------
@@ -520,9 +528,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         keep_attrs: bool = True,
         min_count: int | None = None,
     ) -> DatasetOrDataArray:
-        """Reduce this Dataset's data by applying `sum` along some dimension(s).
+        """Reduce this Dataset's data by applying ``sum`` along some dimension(s).
 
-        By default, works like ds.sum(), but has additional features:
+        By default, works like :py:meth:`xarray.Dataset.sum`, but has additional features:
 
         1. Dimension aliases can be used instead of full dimension names everywhere.
         2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
@@ -537,7 +545,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
            and summed along the data variables (which will only work if the units of
            the DataArrays are compatible).
 
-        ``skipna`` and ``min_count`` work like in the :py:func:`xr.sum` function. The behaviour
+        ``skipna`` and ``min_count`` work like in the :py:func:`xarray.sum` function. The behaviour
         of primap1 is reproduced by ``skipna=True, min_count=1``.
 
         Parameters
@@ -553,10 +561,10 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           equivalent to giving ``dim=set(da.dims) + {"entity"} - {"dim_1"}``, but more
           legible.
         skipna: bool, optional
-          If True (default), skip missing values (as marked by NaN). By default, only
+          If ``True`` (default), skip missing values (as marked by NaN). By default, only
           skips missing values for float dtypes; other dtypes either do not
-          have a sentinel missing value (int) or skipna=True has not been
-          implemented (object, datetime64 or timedelta64).
+          have a sentinel missing value (int) or ``skipna=True`` has not been
+          implemented (``object``, ``datetime64`` or ``timedelta64``).
         skipna_evaluation_dims: str or list of str, optional
           Dimension(s) to evaluate along to determine if values should be skipped.
           Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
@@ -575,9 +583,13 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           zero. If ``min_count=0`` all NA values will be treated as zero
           also if there is no single non-NA value in the data that is to be summed.
 
+        See Also
+        --------
+        xarray.Dataset.sum
+
         Returns
         -------
-        summed : xr.DataArray
+        summed : xr.DataArray | xr.Dataset
         """
         if self._ds.pr.has_processing_info():
             raise NotImplementedError(
@@ -634,19 +646,19 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         ----------
         basket: str
           The name of the gas basket. Either an existing variable, i.e. a value from
-          `ds.keys()`, or a new variable name, in the usual format
-          `entity (gwp_context)`.
+          ``ds.keys()``, or a new variable name, in the usual format
+          ``entity (gwp_context)``.
         basket_contents: list of str
           The name of the gases in the gas basket. The sum of all basket_contents
-          equals the basket. Values from `ds.keys()`.
+          equals the basket. Values from ``ds.keys()``.
         basket_unit: str or pint.Unit, optional
           The unit to use for the result. If not given, we use the unit of the existing
-          basket, or if the basket does not exist `Gg CO2 / year`.
+          basket, or if the basket does not exist ``Gg CO2 / year``.
         skipna: bool, optional
-          If True (default), skip missing values (as marked by NaN). By default, only
+          If ``True`` (default), skip missing values (as marked by NaN). By default, only
           skips missing values for float dtypes; other dtypes either do not
-          have a sentinel missing value (int) or skipna=True has not been
-          implemented (object, datetime64 or timedelta64).
+          have a sentinel missing value (int) or ``skipna=True`` has not been
+          implemented (``object``, ``datetime64`` or ``timedelta64``).
         skipna_evaluation_dims: str or list of str, optional
           Dimension(s) to evaluate along to determine if values should be skipped.
           Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
@@ -722,19 +734,19 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         Parameters
         ----------
         basket: str
-          The name of the gas basket. A value from `ds.keys()`.
+          The name of the gas basket. A value from ``ds.keys()``.
         basket_contents: list of str
           The name of the gases in the gas basket. The sum of all basket_contents
-          equals the basket. Values from `ds.keys()`.
+          equals the basket. Values from ``ds.keys()``.
         sel: Selection dict, optional
           If the filling should only be done on a subset of the Dataset while
           retaining all other values unchanged, give a selection dictionary. The
-          filling will be done on `ds.loc[sel]`.
+          filling will be done on ``ds.loc[sel]``.
         skipna: bool, optional
-          If True (default), skip missing values (as marked by NaN). By default, only
+          If ``True`` (default), skip missing values (as marked by NaN). By default, only
           skips missing values for float dtypes; other dtypes either do not
-          have a sentinel missing value (int) or skipna=True has not been
-          implemented (object, datetime64 or timedelta64).
+          have a sentinel missing value (int) or ``skipna=True`` has not been
+          implemented (``object``, ``datetime64`` or ``timedelta64``).
         skipna_evaluation_dims: str or list of str, optional
           Dimension(s) to evaluate along to determine if values should be skipped.
           Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
@@ -822,10 +834,10 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         tolerance:
             non-default tolerance for merging (default = 0.01 (1%))
         skipna: bool, optional
-            If True (default), skip missing values (as marked by NaN). By default, only
+            If ``True`` (default), skip missing values (as marked by NaN). By default, only
             skips missing values for float dtypes; other dtypes either do not
-            have a sentinel missing value (int) or skipna=True has not been
-            implemented (object, datetime64 or timedelta64).
+            have a sentinel missing value (int) or ``skipna=True`` has not been
+            implemented (``object``, ``datetime64`` or ``timedelta64``).
         min_count: int (default None, but set to 1 if skipna=True)
             The minimal number of non-NA values in a sum that is necessary for a non-NA
             result. This only has an effect if ``skipna=True``. As an example: you sum data
@@ -900,10 +912,10 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         tolerance:
             non-default tolerance for merging (default = 0.01 (1%))
         skipna: bool, optional
-            If True (default), skip missing values (as marked by NaN). By default, only
+            If ``True`` (default), skip missing values (as marked by NaN). By default, only
             skips missing values for float dtypes; other dtypes either do not
-            have a sentinel missing value (int) or skipna=True has not been
-            implemented (object, datetime64 or timedelta64).
+            have a sentinel missing value (int) or ``skipna=True`` has not been
+            implemented (``object``, ``datetime64`` or ``timedelta64``).
         min_count: int (default None, but set to 1 if skipna=True)
             The minimal number of non-NA values in a sum that is necessary for a non-NA
             result. This only has an effect if ``skipna=True``. As an example: you sum data
@@ -916,8 +928,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         Returns
         -------
-        xr.Dataset with aggregated gas baskets
-
+            xr.Dataset
+                Input with aggregated gas baskets added
         """
         ds_out = self._ds.copy(deep=True)
         variables_present = set(ds_out.data_vars)

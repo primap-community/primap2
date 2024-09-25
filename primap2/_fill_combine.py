@@ -15,12 +15,13 @@ from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 
 class DataArrayFillAccessor(BaseDataArrayAccessor):
     def fillna(self: xr.DataArray, da_fill: xr.DataArray) -> xr.DataArray:
-        """
-        Wrapper for `fillna` which ensures that additional coordinates present in
-        the calling DataArray are also present in the result. The default xarray
-        `fillna` implementation silently drops additional (non-indexed) coordinates
-        if they need alignment (do not cover the same values in both DataArrays)
+        """Fill missing information from other array.
 
+        Wrapper for :py:meth:`xarray.DataArray.fillna` which ensures that additional
+        coordinates present in the calling DataArray are also present in the result.
+        The default :py:meth:`xarray.DataArray.fillna` implementation silently drops
+        additional (non-indexed) coordinates if they need alignment (do not cover the
+        same values in both DataArrays)
 
         Parameters
         ----------
@@ -29,8 +30,8 @@ class DataArrayFillAccessor(BaseDataArrayAccessor):
 
         Returns
         -------
-            calling DatArray where nan values are filled from da_fill where possible
-
+            filled
+                calling DataArray where nan values are filled from da_fill where possible
         """
         da_start = self._da
 
@@ -57,13 +58,13 @@ class DataArrayFillAccessor(BaseDataArrayAccessor):
         return filled
 
     def combine_first(self: xr.DataArray, da_combine: xr.DataArray) -> xr.DataArray:
-        """
-        Wrapper for `combine_first` which ensures that additional coordinates
-        present in the calling dataset are also present in the result. The default
-        xarray `fillna` implementation silently drops additional (non-indexed)
-        coordinates if they need alignment (do not cover the same values in both
-        DataArrays)
+        """Combine data from multiple arrays.
 
+        Wrapper for :py:meth`xarray.DataArray.combine_first` which ensures that
+        additional coordinates present in the calling dataset are also present in the
+        result. The default :py:meth`xarray.DataArray.combine_first`
+        implementation silently drops additional (non-indexed) coordinates if they need
+        alignment (do not cover the same values in both DataArrays)
 
         Parameters
         ----------
@@ -72,8 +73,8 @@ class DataArrayFillAccessor(BaseDataArrayAccessor):
 
         Returns
         -------
-            calling DataArray combined with da_combine
-
+            combined
+                calling DataArray combined with da_combine
         """
         da_start = self._da
 
@@ -105,12 +106,13 @@ class DatasetFillAccessor(BaseDatasetAccessor):
         self: xr.Dataset,
         ds_fill: xr.Dataset | xr.DataArray,
     ) -> xr.Dataset:
-        """
-        Wrapper for `fillna` which ensures that additional coordinates present in
-        the calling Dataset are also present in the result. The default xarray
-        `fillna` implementation silently drops additional (non-indexed) coordinates
-        if they need alignment (do not cover the same values in both Datasets)
+        """Fill missing information from other dataset.
 
+        Wrapper for :py:meth:`xarray.Dataset.fillna` which ensures that additional
+        coordinates present in the calling Dataset are also present in the result.
+        The default :py:meth:`xarray.Dataset.fillna` implementation silently drops
+        additional (non-indexed) coordinates if they need alignment (do not cover the
+        same values in both Datasets)
 
         Parameters
         ----------
@@ -119,8 +121,8 @@ class DatasetFillAccessor(BaseDatasetAccessor):
 
         Returns
         -------
-            calling Dataset where nan values are filled from ds_fill where possible
-
+            filled
+                calling Dataset where nan values are filled from ds_fill where possible
         """
         if self._ds.pr.has_processing_info():
             raise NotImplementedError(
@@ -156,12 +158,13 @@ class DatasetFillAccessor(BaseDatasetAccessor):
         self: xr.Dataset,
         ds_combine: xr.Dataset | xr.DataArray,
     ) -> xr.Dataset:
-        """
-        Wrapper for `fillna` which ensures that additional coordinates present in
-        the calling Dataset are also present in the result. The default xarray
-        `fillna` implementation silently drops additional (non-indexed) coordinates
-        if they need alignment (do not cover the same values in both Datasets)
+        """Combine with data from other dataset or array.
 
+        Wrapper for :py:meth:`xarray.Dataset.combine_first` which ensures that additional
+        coordinates present in the calling Dataset are also present in the result.
+        The default :py:meth:`xarray.Dataset.combine_first` implementation silently
+        drops additional (non-indexed) coordinates
+        if they need alignment (do not cover the same values in both Datasets)
 
         Parameters
         ----------
@@ -170,8 +173,8 @@ class DatasetFillAccessor(BaseDatasetAccessor):
 
         Returns
         -------
-            calling Dataset calling DataArray combined with da_combine
-
+            combined
+                calling Dataset calling DataArray combined with da_combine
         """
         if self._ds.pr.has_processing_info():
             raise NotImplementedError(
