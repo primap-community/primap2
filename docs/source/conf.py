@@ -105,18 +105,18 @@ html_theme_options = {
 
 # Intersphinx mapping
 intersphinx_mapping = {
-    "numpy": ("https://docs.scipy.org/doc/numpy", None),
+    "numpy": ("https://numpy.org/doc/stable", None),
     "pandas": ("https://pandas.pydata.org/pandas-docs/stable", None),
     "python": ("https://docs.python.org/3", None),
     "pyam": ("https://pyam-iamc.readthedocs.io/en/latest", None),
     "scmdata": ("https://scmdata.readthedocs.io/en/latest", None),
-    "xarray": ("http://xarray.pydata.org/en/stable", None),
+    "xarray": ("https://docs.xarray.dev/en/stable", None),
     "pint": (
         "https://pint.readthedocs.io/en/latest",
         None,
     ),
     "climate_categories": (
-        "https://climate-categories.readthedocs.io/en/latest/",
+        "https://climate-categories.readthedocs.io/en/latest",
         None,
     ),
 }
