@@ -13,7 +13,26 @@ import primap2
 primap2_top_level_api = [x for x in primap2.__all__ if x not in SUBMODULES_TO_DOCUMENT]
 primap2_top_level_api_formatted = "\n".join(f"    {x}" for x in sorted(primap2_top_level_api))
 
-submodules_to_document_formatted = "\n".join(f"    {x}" for x in sorted(SUBMODULES_TO_DOCUMENT))
+sm_documentation_formatted = []
+for sm in SUBMODULES_TO_DOCUMENT:
+    exec(f"import primap2.{sm}")
+    sm_top_level_api = getattr(primap2, sm).__all__
+    sm_top_level_api_formatted = "\n".join(f"    {sm}.{x}" for x in sorted(sm_top_level_api))
+    sm_documentation_formatted.append(f"""
+.. _primap2.{sm}:
+
+primap2.{sm}
+{'~'*(len('primap2.') + len(sm))}
+
+{getattr(primap2, sm).__doc__}
+
+.. autosummary::
+    :toctree: generated_{sm}/
+
+{sm_top_level_api_formatted}
+""")
+
+submodules_documentation_formatted = "\n".join(sm_documentation_formatted)
 
 
 def accessor_attrs_meths(accessor) -> tuple[list[str], list[str]]:
@@ -53,17 +72,18 @@ Top-level API
 
 {primap2_top_level_api_formatted}
 
-.. toctree::
-    :maxdepth: 2
 
-{submodules_to_document_formatted}
+Submodules
+----------
+
+{submodules_documentation_formatted}
 
 .. currentmodule:: xarray
 
 DataArray
 ---------
 
-.. da.pr.attributes:
+.. _da.pr.attributes:
 
 Attributes
 ~~~~~~~~~~
@@ -74,7 +94,7 @@ Attributes
 
 {da_pr_attrs_formatted}
 
-.. da.pr.methods:
+.. _da.pr.methods:
 
 Methods
 ~~~~~~~
@@ -89,7 +109,7 @@ Methods
 Dataset
 -------
 
-.. ds.pr.attributes:
+.. _ds.pr.attributes:
 
 Attributes
 ~~~~~~~~~~
@@ -100,7 +120,7 @@ Attributes
 
 {ds_pr_attrs_formatted}
 
-.. ds.pr.methods:
+.. _ds.pr.methods:
 
 Methods
 ~~~~~~~
@@ -110,21 +130,4 @@ Methods
    :template: autosummary/accessor_method.rst
 
 {ds_pr_meths_formatted}
-""")
-
-
-for sm in SUBMODULES_TO_DOCUMENT:
-    exec(f"import primap2.{sm}")
-    with open(f"{sm}.rst", "w") as fd:
-        fd.write(f"""
-.. primap2.{sm}:
-primap2.{sm} module
-====================
-
-{getattr(primap2, sm).__doc__}
-
-.. automodule:: primap2.{sm}
-   :members:
-   :undoc-members:
-   :show-inheritance:
 """)

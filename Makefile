@@ -51,12 +51,12 @@ coverage: venv ## check code coverage quickly with the default Python
 	venv/bin/coverage html
 	ls htmlcov/index.html
 
-docs: venv ## generate Sphinx HTML documentation, including API docs
-	#$(MAKE) -C docs clean
+clean-docs: venv ## Remove generated parts of documentation, then build docs
+	. venv/bin/activate ; $(MAKE) -C docs clean
 	. venv/bin/activate ; $(MAKE) -C docs html
 
-servedocs: docs ## compile the docs watching for changes
-	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
+docs: venv ## generate Sphinx HTML documentation, including API docs
+	. venv/bin/activate ; $(MAKE) -C docs html
 
 release: venv dist ## package and upload a release
 	venv/bin/twine upload --repository primap dist/*

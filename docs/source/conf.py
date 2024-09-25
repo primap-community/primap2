@@ -60,6 +60,21 @@ typehints_use_rtype = False
 # Generate autosummary stubs automatically
 autosummary_generate = True
 
+
+# Generate the necessary config for the API documentation
+def generate_api_docs(app):
+    import subprocess
+    import pathlib
+
+    subprocess.run(
+        ["python3", "generate_api_docs.py"], cwd=pathlib.Path(".") / "source" / "api", check=True
+    )
+
+
+def setup(app):
+    app.connect("builder-inited", generate_api_docs)
+
+
 # Nicer formatting for numpydoc
 numpydoc_class_members_toctree = False
 
