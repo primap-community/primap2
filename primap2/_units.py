@@ -291,12 +291,12 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
         """Removes units from the Dataset and its coordinates.
 
         Will replace ``.attrs['units']`` on each variable with a string
-        representation of the ``pint.Unit`` instance.
+        representation of the :py:class:`pint.Unit` instance.
 
         Returns
         -------
-            dequantified : Dataset
+            dequantified: Dataset
                 Dataset whose data variables are unitless, and of the type
-                that was previously wrapped by ``pint.Quantity``.
+                that was previously wrapped by :py:class:`pint.Quantity`.
         """
         return self._ds.pint.dequantify()

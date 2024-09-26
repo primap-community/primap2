@@ -13,21 +13,35 @@ from .exceptions import StrategyUnableToProcess
 class GlobalLSStrategy:
     """Fill missing data by global least square matching.
 
-    The NaNs in the first timeseries `ts(t)` are filled using harmonized data
-    from the lower priority timeseries `fill_ts(t)`. For harmonization we use
-    fill_ts(t)_h = fill_ts(t) * a + b,
-    where fill_ts(t)_h is the harmonized dataset and a and b are determined by minimizing
-    the least squares distance between ts(t) and fill_ts(t)_h.
+    The NaNs in the first timeseries :math:`\\textrm{ts}(t)` are filled using harmonized data
+    from the lower priority timeseries :math:`\\textrm{fill_ts}(t)`. For harmonization we use
 
-    If the class is initialized with `allow_shift = True` the faster
-    `scipy.linalg.lstsq` function is used and b can be arbitrary.
-    For the case `allow_shift = False` (b = 0) `scipi.optimize.least_squares` is used.
+    .. math::
 
-    If there is no overlap in non-NaN data between ts(t) and fill_ts(t) a
-    `StrategyUnableToProcess` error will be raised.
+       \\textrm{fill_ts}_h(t) = \\textrm{fill_ts}(t) \\times a + b,
 
-    If `allow_negative = False` and the harmonized time-series fill_ts(t)_h
-    contains negative data a `StrategyUnableToProcess` error will be raised.
+    where :math:`\\textrm{fill_ts}_h(t)` is the harmonized dataset and :math:`a` and :math:`b` are
+    determined by minimizing
+    the least squares distance between :math:`\\textrm{ts}(t)` and :math:`\\textrm{fill_ts}_h(t)`.
+
+    If the class is initialized with ``allow_shift = True`` the faster
+    :py:func:`scipy.linalg.lstsq` function is used and :math:`b` can be arbitrary.
+    For the case ``allow_shift = False`` (:math:`b = 0`) :py:func:`scipy.optimize.least_squares`
+    is used.
+
+    If there is no overlap in non-NaN data between :math:`\\textrm{ts}(t)` and
+    :math:`\\textrm{fill_ts}(t)` a :py:class:`StrategyUnableToProcess` error will be raised.
+
+    If ``allow_negative = False`` and the harmonized time-series :math:`\\textrm{fill_ts}_h(t)`
+    contains negative data a :py:class:`StrategyUnableToProcess` error will be raised.
+
+    Attributes
+    ----------
+    allow_shift: bool, default True
+        Allow the filling time series to shift up and down using the additive constant
+        :math:`b \\neq 0`.
+    allow_negative: bool, default False
+        Allow the filling time series to contain negative data initially.
     """
 
     allow_shift: bool = True
@@ -68,7 +82,8 @@ class GlobalLSStrategy:
 
         Returns
         -------
-                filled_ts, descriptions. filled_ts contains the result, where missing
+            filled_ts, descriptions.
+                filled_ts contains the result, where missing
                 data in ts is (partly) filled using scaled data from fill_ts.
                 descriptions contains information about which years were affected and
                 filled how.

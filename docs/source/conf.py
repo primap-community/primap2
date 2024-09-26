@@ -117,6 +117,7 @@ intersphinx_mapping = {
         "https://pint.readthedocs.io/en/latest",
         None,
     ),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "climate_categories": (
         "https://climate-categories.readthedocs.io/en/latest",
         None,

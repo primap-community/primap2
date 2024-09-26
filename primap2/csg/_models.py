@@ -75,7 +75,10 @@ class PriorityDefinition:
 
     Examples
     --------
-        [{"area (ISO3)": ["MEX", "COL"], "source": "A"}, {"source": "B"}]
+        priorities::
+
+            [{"area (ISO3)": ["MEX", "COL"], "source": "A"}, {"source": "B"}]
+
         would select source "A" as highest-priority source and source "B" as
         lower-priority source for Columbia and Mexico, but source "B" as
         highest-priority (and only) source for all other

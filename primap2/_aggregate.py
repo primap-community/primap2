@@ -75,31 +75,35 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
     ) -> xr.DataArray:
         """Reduce this array by counting along some dimension(s).
 
-        By default, works like da.count(), but with some additional features:
+        By default, works like :py:meth:`xarray.DataArray.count, but with some additional features:
 
         1. Dimension aliases can be used instead of full dimension names everywhere.
         2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
            the dimensions that the result should have via ``reduce_to_dim``. Then,
-           `count` will be applied along all other dimensions.
+           ``count`` will be applied along all other dimensions.
 
         Parameters
         ----------
         dim: str or list of str, optional
-          Dimension(s) over which to apply ``count``. Only one of ``dim`` and
-          ``reduce_to_dim`` arguments can be supplied. If neither is supplied, then
-          the count is calculated over all dimensions.
+            Dimension(s) over which to apply ``count``. Only one of ``dim`` and
+            ``reduce_to_dim`` arguments can be supplied. If neither is supplied, then
+            the count is calculated over all dimensions.
         reduce_to_dim: str or list of str, optional
-          Dimension(s) of the result. Only one of ``dim`` and ``reduce_to_dim``
-          arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
-          equivalent to giving ``dim=set(da.dims) - {"dim_1"}``, but more legible.
+            Dimension(s) of the result. Only one of ``dim`` and ``reduce_to_dim``
+            arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
+            equivalent to giving ``dim=set(da.dims) - {"dim_1"}``, but more legible.
         keep_attrs: bool, optional
-          Keep the attr metadata (default True).
+            Keep the attr metadata (default True).
         **kwargs: dict
-          Additional keyword arguments are passed directly to xarray's da.count().
+            Additional keyword arguments are passed directly to xarray's da.count().
+
+        See Also
+        --------
+        xarray.DataArray.count
 
         Returns
         -------
-        counted : xr.DataArray
+            counted: xr.DataArray
         """
         dim = self._reduce_dim(dim, reduce_to_dim)
         return self._da.count(dim=dim, keep_attrs=keep_attrs, **kwargs)
@@ -129,7 +133,8 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
            evaluation dimension ``position`` will skip only those values where all
            values with the same ``position`` are NA.
 
-        ``skipna`` and ``min_count`` work like in the :py:func:`xarray.sum` function. The behaviour
+        ``skipna`` and ``min_count`` work like in the :py:meth:`xarray.DataArray.sum` function.
+        The behaviour
         of primap1 is reproduced by ``skipna=True, min_count=1``.
 
         Parameters
@@ -463,7 +468,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         reduce_to_dim: DimOrDimsT | None = None,
         keep_attrs: bool = True,
         **kwargs,
-    ) -> DatasetOrDataArray:
+    ) -> xr.Dataset | xr.DataArray:
         """Reduce this Dataset by counting along some dimension(s).
 
         By default, works like :py:meth:`xarray.Dataset.count`, but with some additional features:
@@ -478,19 +483,19 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         Parameters
         ----------
         dim: str or list of str, optional
-          Dimension(s) over which to apply `count`. Only one of ``dim`` and
-          ``reduce_to_dim`` arguments can be supplied. If neither is supplied, then
-          the count is calculated over all dimensions. Use "entity" to convert to a
-          DataArray and sum along the data variables.
+            Dimension(s) over which to apply `count`. Only one of ``dim`` and
+            ``reduce_to_dim`` arguments can be supplied. If neither is supplied, then
+            the count is calculated over all dimensions. Use "entity" to convert to a
+            DataArray and sum along the data variables.
         reduce_to_dim: str or list of str, optional
-          Dimension(s) of the result. Only one of ``dim`` and ``reduce_to_dim``
-          arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
-          equivalent to giving ``dim=set(da.dims) + {"entity"} - {"dim_1"}``, but more
-          legible.
+            Dimension(s) of the result. Only one of ``dim`` and ``reduce_to_dim``
+            arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
+            equivalent to giving ``dim=set(da.dims) + {"entity"} - {"dim_1"}``, but more
+            legible.
         keep_attrs: bool, optional
-          Keep the attr metadata (default True).
+            Keep the attr metadata (default True).
         **kwargs: dict
-          Additional keyword arguments are passed directly to :py:meth:`xarray.Dataset.count`.
+            Additional keyword arguments are passed directly to :py:meth:`xarray.Dataset.count`.
 
         See Also
         --------
@@ -498,7 +503,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         Returns
         -------
-        counted : xr.Dataset or xr.DataArray if "entity" in dims.
+            counted : xr.Dataset or xr.DataArray if "entity" in dims.
         """
         dim = self._reduce_dim(dim, reduce_to_dim)
 
@@ -545,7 +550,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
            and summed along the data variables (which will only work if the units of
            the DataArrays are compatible).
 
-        ``skipna`` and ``min_count`` work like in the :py:func:`xarray.sum` function. The behaviour
+        ``skipna`` and ``min_count`` work like in the :py:meth:`xarray.Dataset.sum` function.
+        The behaviour
         of primap1 is reproduced by ``skipna=True, min_count=1``.
 
         Parameters
