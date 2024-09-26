@@ -1,1 +1,0 @@
-* Enhanced the API documentation.

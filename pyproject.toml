@@ -32,3 +32,47 @@ convention = "numpy"
 [tool.pytest.ini_options]
 # actually, importlib.resources.open_text will be undeprecated again in python 3.13
 filterwarnings = "ignore:.*open_text is deprecated.*:DeprecationWarning"
+
+[tool.towncrier]
+package = "primap2"
+package_dir = "primap2"
+filename = "docs/source/changelog.md"
+directory = "changelog/"
+title_format = "## primap2 {version} ({project_date})"
+underlines = ["", "", ""]
+issue_format = "[#{issue}](https://github.com/pik-primap/primap2/pull/{issue})"
+
+  [[tool.towncrier.type]]
+  directory = "breaking"
+  name = "Breaking Changes"
+  showcontent = true
+
+  [[tool.towncrier.type]]
+  directory = "deprecation"
+  name = "Deprecations"
+  showcontent = true
+
+  [[tool.towncrier.type]]
+  directory = "feature"
+  name = "Features"
+  showcontent = true
+
+  [[tool.towncrier.type]]
+  directory = "improvement"
+  name = "Improvements"
+  showcontent = true
+
+  [[tool.towncrier.type]]
+  directory = "fix"
+  name = "Bug Fixes"
+  showcontent = true
+
+  [[tool.towncrier.type]]
+  directory = "docs"
+  name = "Improved Documentation"
+  showcontent = true
+
+  [[tool.towncrier.type]]
+  directory = "trivial"
+  name = "Trivial/Internal Changes"
+  showcontent = false
