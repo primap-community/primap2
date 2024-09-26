@@ -23,7 +23,7 @@ We offer a few specialized functions for handling gas baskets.
 ## Summation
 
 To sum the contents of gas baskets , the function
-{ref}`ds.pr.gas_basket_contents_sum` is available.
+{py:meth}`xarray.Dataset.pr.gas_basket_contents_sum` is available.
 
 Let's first create an example dataset.
 
@@ -59,7 +59,7 @@ ds.pr.gas_basket_contents_sum(
 ```
 
 Note that like all PRIMAP2 functions,
-[gas_basket_contents_sum](https://primap2.readthedocs.io/en/main/generated/xarray.Dataset.pr.gas_basket_contents_sum.html)
+{py:meth}`xarray.Dataset.pr.gas_basket_contents_sum`
 returns the result without overwriting anything in the original dataset,
 so you have to explicitly overwrite existing data if you want that:
 
@@ -73,7 +73,7 @@ ds["KyotoGHG (AR4GWP100)"] = ds.pr.gas_basket_contents_sum(
 ## Filling in missing information
 
 To fill in missing data in a gas basket, use
-{ref}`ds.pr.fill_na_gas_basket_from_contents`
+{py:meth}`xarray.Dataset.pr.fill_na_gas_basket_from_contents`
 
 ```{code-cell}
 # delete all data about the years 2002-2003 (inclusive) from the
@@ -92,7 +92,7 @@ The reverse case is that you are missing some data in the timeseries of
 individual gases and want to fill those in using downscaled data from
 a gas basket.
 Here, use
-{ref}`ds.pr.downscale_gas_timeseries`
+{py:meth}`xarray.Dataset.pr.downscale_gas_timeseries`
 
 ```{code-cell}
 # delete all data about the years 2005-2009 from the individual gas data

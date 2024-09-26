@@ -27,7 +27,7 @@ You can either specify a dict for a metadata column which directly defines the m
  `filter_keep` and `filter_remove` filter the input data.
 Each entry in `filter_keep` specifies a subset of the input data which is kept while the subsets defined by `filter_remove` are removed from the input data.
 
-For details, we refer to the documentation of `read_wide_csv_file_if` located in the `pm2io` module of PRIMAP2.
+For details, we refer to the documentation of {py:func}`primap2.pm2io.read_wide_csv_file_if`.
 
 In the example, the CSV contains the coordinates `entity`, `area`, `category`, and the secondary category `class`.
 As secondary categories have free names, they are prefixed with `sec_cats__` to make clear that it is a secondary category.
@@ -42,7 +42,7 @@ For `category` this means that e.g. `IPC1A2` would be converted to `1.A.2` for `
 
 In this example, we also add `meta_data` to add a reference for the data and usage rights.
 
-For examples on using filters we refer to the second example which reads the PRIMAP-hist data.
+For examples on using filters we refer to the [second example which reads the PRIMAP-hist data](./old-PRIMAP-hist).
 
 ```{code-cell} ipython3
 file = "test_csv_data_sec_cat.csv"

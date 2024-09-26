@@ -38,6 +38,8 @@ extensions = [
     "sphinx_copybutton",
     # math support
     "sphinx.ext.mathjax",
+    # nicer tooltips
+    "sphinx_tippy",
 ]
 
 # general sphinx settings

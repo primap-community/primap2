@@ -13,7 +13,7 @@ kernelspec:
 
 # Data reading example 3 - minimal test dataset (long)
 To run this example the file `test_csv_data_long.csv` must be placed in the same folder as this notebook.
-You can find the notebook and the csv file in the folder `docs/source/data_reading_examples` in the PRIMAP2 repository.
+You can find the notebook and the csv file in the folder `docs/source/data_reading` in the PRIMAP2 repository.
 
 ```{code-cell} ipython3
 # imports

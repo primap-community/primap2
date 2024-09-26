@@ -24,8 +24,8 @@ the dataset.
 
 ## The `set` functions
 
-We provide {ref}`da.pr.set` and {ref}`ds.pr.set` functions, for `DataArray`s (individual
-gases) and `Dataset`s (multiple gases), respectively.
+We provide {py:meth}`xarray.DataArray.pr.set` and {py:meth}`xarray.Dataset.pr.set` functions,
+for `DataArray`s (individual gases) and `Dataset`s (multiple gases), respectively.
 
 The basic signature of the `set` functions is `set(dimension, keys, values)`, and it
 returns the changed object without changing the original one.

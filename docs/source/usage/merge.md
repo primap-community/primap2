@@ -20,7 +20,7 @@ with rounding / processing errors.
 Unfortunately, when reading data e.g. from country
 reports this is often needed as some sectors are included in several tables
 and might use different numbers of decimals.
-Thus, PRIMAP2 has added a merge
+Thus, PRIMAP2 has added the {py:meth}`xarray.Dataset.pr.merge`
 function that can accept data discrepancies not exceeding a given tolerance
 level.
 The merging of attributes is handled by xarray and the `combine_attrs`

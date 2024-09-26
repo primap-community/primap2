@@ -16,7 +16,8 @@ kernelspec:
 
 
 To downscale a super-category (for example, regional data) to sub-categories
-(for example, country-level data in the same region), the `downscale_timeseries`
+(for example, country-level data in the same region), the
+{py:meth}`xarray.DataArray.pr.downscale_timeseries`
 function is available. It determines shares from available data points, then
 does downscaling for years where full information is not available.
 

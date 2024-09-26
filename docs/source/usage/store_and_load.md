@@ -14,7 +14,8 @@ kernelspec:
 
 # Store and load datasets
 
-The native storage format for primap2 datasets is netcdf, which supports to store all
+The native storage format for primap2 datasets is [netcdf](https://www.unidata.ucar.edu/software/netcdf/),
+which supports to store all
 data and metadata in one file, as well as compression.
 We again use a toy example dataset to show how to store and reload datasets.
 
@@ -42,7 +43,7 @@ ds
 
 ## Store to disk
 
-Storing a dataset to disk works using the {ref}`ds.pr.to_netcdf` function.
+Storing a dataset to disk works using the {py:meth}`xarray.Dataset.pr.to_netcdf` function.
 
 ```{code-cell} ipython3
 import tempfile
@@ -63,7 +64,7 @@ with tempfile.TemporaryDirectory() as tdname:
 
 ## Load from disk
 
-We also provide a function to load datasets back into memory.
+We also provide the function {py:func}`primap2.open_dataset` to load datasets back into memory.
 In this example, we load a minimal dataset.
 
 ```{code-cell} ipython3

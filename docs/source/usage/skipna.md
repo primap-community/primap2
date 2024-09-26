@@ -16,8 +16,8 @@ kernelspec:
 
 ## Aggregation
 
-xarray provides robust functions for aggregation (`sum`).
-PRIMAP2 adds functions skip missing data points if the
+xarray provides robust functions for aggregation ({py:meth}`xarray.DataArray.sum`).
+PRIMAP2 adds functions which skip missing data points if the
 information is missing at all points along certain axes, for example for
 a whole time series.
 Let's first create an example with missing information:
@@ -44,7 +44,7 @@ da = xr.DataArray(
 da.pr.to_df()
 ```
 
-Now, we can use the primap2 `sum` function to evaluate the sum of countries
+Now, we can use the primap2 {py:meth}`xarray.DataArray.pr.sum` function to evaluate the sum of countries
 while ignoring only those countries where the whole timeseries is missing, using the
 `skipna_evaluation_dims` parameter:
 
@@ -66,7 +66,9 @@ da.sum(dim="area (ISO3)").pr.to_df()
 
 ## infilling
 
-The same functionality is available for filling in missing information. In this example, we fill missing information only where the whole time series is missing.
+The same functionality is available for filling in missing information using the
+{py:meth}`xarray.DataArray.pr.fill_all_na` function.
+In this example, we fill missing information only where the whole time series is missing.
 
 ```{code-cell} ipython3
 da.pr.fill_all_na("time", value=10).pr.to_df()

@@ -146,8 +146,8 @@ data_if.head()
 +++
 
 ### Writing interchange format data
-Data is written using the `pm2io.write_interchange_format` function which takes a filename
-and path (`str` or `pathlib.Path`), an interchange format dataframe (`pandas.DataFrame`)
+Data is written using the {py:func}`primap2.pm2io.write_interchange_format` function which takes a filename
+and path (`str` or {py:class}`pathlib.Path`), an interchange format dataframe ({py:class}`pandas.DataFrame`)
 and optionally an attribute `dict` as inputs. If the filename has an ending, it will be
 ignored. The function writes a `yaml` file and a `csv` file.
 
@@ -157,9 +157,9 @@ pm2.pm2io.write_interchange_format(file_if, data_if)
 ```
 
 ### Reading data from disk
-To read interchange format data from disk the function `pm2io.read_interchange_format`
-is used. It just takes a filename and path as input (`str` or `pathlib.Path`) and returns
-a `pandas.DataFrame` containing the data and metadata. The filename and path has to point
+To read interchange format data from disk the function {py:func}`primap2.pm2io.read_interchange_format`
+is used. It just takes a filename and path as input (`str` or {py:class}`pathlib.Path`) and returns
+a {py:class}`pandas.DataFrame` containing the data and metadata. The filename and path has to point
 to the `yaml` file. the `csv` file will be read from the filename contained in the `yaml`
 file.
 

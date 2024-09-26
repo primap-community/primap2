@@ -192,9 +192,9 @@ they are available directly at the package level.
 
 Some specialized, optional functionality is bundled together in sub-modules. Currently,
 there are two public sub-modules:
-- `primap2.pm2io` provides I/O functions for easily reading data from other formats into
+- {ref}`primap2.pm2io` provides I/O functions for easily reading data from other formats into
   the primap2 data format.
-- `primap2.csg` contains the Composite Source Generator functionality to combine
+- {ref}`primap2.csg` contains the Composite Source Generator functionality to combine
   multiple data sources into a single harmonized dataset.
 
 
@@ -290,7 +290,8 @@ the output is always up-to-date.
 The API documentation, i.e. the documentation of the functions in the `primap2/`
 directory, is done automatically using sphinx.
 To enable this for your functions, the first step is to document them using docstrings
-using the [numpy style](https://numpydoc.readthedocs.io/en/latest/format.html).
+using the [numpy style](https://numpydoc.readthedocs.io/en/latest/format.html)
+in reStructuredText syntax.
 PyCharm can help you with that (check below in the pycharm section for how to enable
 it), just start typing  three double quotes at the start of a function, and you will get
 a template already filled in with all arguments to the function.

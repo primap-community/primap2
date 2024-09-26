@@ -200,12 +200,12 @@ da_nounits.attrs
 ```
 
 Note that the units are then stored in the DataArray's `attrs`, and can be
-restored using the {ref}`da.pr.quantify` function.
+restored using the {py:meth}`xarray.DataArray.pr.quantify` function.
 
 ## Descriptive statistics
 
 To get an overview about the missing information in a Dataset or DataArray, you
-can use the `pr.coverage` function. It gives you a summary
+can use the {py:meth}`xarray.DataArray.pr.coverage` function. It gives you a summary
 of the number of non-NaN data points.
 
 To illustrate this, we use an array with missing information:

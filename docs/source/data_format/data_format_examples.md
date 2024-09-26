@@ -305,6 +305,6 @@ print(with_processing["Processing of CO2"].pr.loc[{"area": "ARG"}].item())
 
 * xarray does not provide a solution for the management of multiple data sets,
   including search and discovery, change management etc. For this, we use
-  {ref}`datalad`.
+  [datalad](../datalad).
 * At the moment, xarray does not deal with very sparse data efficiently. For large,
   very sparse datasets with lots of dimensions, primap2 is currently not usable.

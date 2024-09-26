@@ -14,7 +14,7 @@ kernelspec:
 
 # The Composite Source Generator
 
-The `primap2.csg` module can be used to create a composite dataset from multiple source
+The {ref}`primap2.csg` module can be used to create a composite dataset from multiple source
 datasets using specified rules.
 
 The general strategy for combining datasets is to always treat a single timeseries, i.e.
@@ -30,7 +30,7 @@ When no missing information is left in the result timeseries, the algorithm term
 It also terminates if all source timeseries are used, even if missing information is
 left.
 
-The core function to use is the `primap2.csg.compose` function.
+The core function to use is the {py:func}`primap2.csg.compose` function.
 It needs the following input:
 
 * The input dataset, containing all sources. The shape and dimensions of the input dataset also determine the shape

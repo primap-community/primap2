@@ -23,7 +23,7 @@ import primap2 as pm2
 
 ## Obtain the input data
 
-The PRIMAP-hist data (doi:10.5281/zenodo.4479172) is available from Zenodo: https://zenodo.org/record/4479172 ,
+The PRIMAP-hist data (doi:10.5281/zenodo.4479172) is available [from Zenodo](https://zenodo.org/record/4479172),
 we download it directly.
 
 ```{code-cell} ipython3
@@ -43,7 +43,7 @@ The terminologies (e.g. IPCC2006 for categories or the ISO3 country codes for ar
 `filter_keep` and `filter_remove` filter the input data.
 Each entry in `filter_keep` specifies a subset of the input data which is kept while the subsets defined by `filter_remove` are removed from the input data.
 
-For details, we refer to the documentation of `read_wide_csv_file_if` located in the `pm2io` module of PRIMAP2.
+For details, we refer to the documentation of {py:func}`primap2.pm2io.read_wide_csv_file_if`.
 
 ```{code-cell} ipython3
 coords_cols = {

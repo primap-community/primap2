@@ -75,7 +75,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
     ) -> xr.DataArray:
         """Reduce this array by counting along some dimension(s).
 
-        By default, works like :py:meth:`xarray.DataArray.count, but with some additional features:
+        By default, works like :py:meth:`xarray.DataArray.count`, but with some additional features:
 
         1. Dimension aliases can be used instead of full dimension names everywhere.
         2. Instead of specifying the dimension(s) to reduce via ``dim``, you can specify
