@@ -106,6 +106,10 @@ html_theme_options = {
     "use_issues_button": True,
     "use_edit_page_button": True,
 }
+html_context = {
+    # dark mode of sphinx-book-theme doesn't play nicely with xarray
+    "default_mode": "light",
+}
 
 # Intersphinx mapping
 intersphinx_mapping = {
