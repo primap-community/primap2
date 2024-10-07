@@ -19,6 +19,25 @@ of rst and use slightly different categories.
 
 <!-- towncrier release notes start -->
 
+## primap2 0.11.2 (2024-10-07)
+
+### Improvements
+
+- Added support for python 3.12.
+
+  Started testing the lowest supported versions of dependencies. ([#259](https://github.com/pik-primap/primap2/pull/259))
+- Added support for and required pandas 2.2.
+
+  Switched accelerated filling functions from bottleneck to numbagg. ([#261](https://github.com/pik-primap/primap2/pull/261))
+
+### Bug Fixes
+
+- Fixed handling of NaN values in {py.func}`xarray.DataArray.pr.set()` when `existing=overwrite`. ([#225](https://github.com/pik-primap/primap2/pull/225))
+
+### Improved Documentation
+
+- Enhanced the API documentation. ([#264](https://github.com/pik-primap/primap2/pull/264))
+
 
 ## 0.11.1
 
