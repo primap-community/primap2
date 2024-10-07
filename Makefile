@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit stubs update-venv README.rst check-python-version
+.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit stubs update-venv README.md check-python-version
 .DEFAULT_GOAL := help
 
 define PRINT_HELP_PYSCRIPT
@@ -93,5 +93,5 @@ stubs: venv ## generate directory with xarray stubs with inserted primap2 stubs
 	venv/bin/stubgen -p xarray -o stubs
 	(cd stubs; patch -s -p0 < ../primap-stubs.patch)
 
-README.rst: ## Update the citation information from zenodo
+README.md: ## Update the citation information from zenodo
 	venv/bin/python update_citation_info.py
