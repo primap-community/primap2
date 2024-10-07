@@ -105,6 +105,11 @@ html_theme_options = {
     "use_repository_button": True,
     "use_issues_button": True,
     "use_edit_page_button": True,
+    "logo": {
+        "text": "primap2 documentation",
+        "image_light": "_static/primap_logo_transparent.png",
+        "image_dark": "_static/primap_logo_transparent_dark.png",
+    },
 }
 html_context = {
     # dark mode of sphinx-book-theme doesn't play nicely with xarray
