@@ -22,7 +22,7 @@ clean-build: ## remove build artifacts
 	rm -fr dist/
 	rm -fr .eggs/
 	find . -name '*.egg-info' -exec rm -fr {} +
-	find . -name '*.egg' -exec rm -f {} +
+	find . -name '*.egg' -exec rm -fr {} +
 
 clean-pyc: ## remove Python file artifacts
 	find . -name '*.pyc' -exec rm -f {} +
@@ -62,8 +62,7 @@ release: venv dist ## package and upload a release
 	venv/bin/twine upload --repository primap dist/*
 
 dist: clean venv ## builds source and wheel package
-	venv/bin/python -m build
-	ls -l dist
+	. venv/bin/activate ; venv/bin/uv build
 
 install: clean ## install the package to the active Python's site-packages
 	python setup.py install
