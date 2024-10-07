@@ -62,7 +62,9 @@ release: venv dist ## package and upload a release
 	venv/bin/twine upload --repository primap dist/*
 
 dist: clean venv ## builds source and wheel package
-	. venv/bin/activate ; venv/bin/uv build
+	# because we update the citation info after releasing on github and zenodo but
+	# before building for pypi, we need to force the correct version.
+	SETUPTOOLS_SCM_PRETEND_VERSION=0.10.2 venv/bin/python -m build
 
 install: clean ## install the package to the active Python's site-packages
 	python setup.py install

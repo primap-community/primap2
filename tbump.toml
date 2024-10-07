@@ -34,6 +34,10 @@ search = '__version__ = "{current_version}"'
 src = "README.md"
 search = 'pik-primap/primap2: PRIMAP2 Version {current_version}.'
 
+[[file]]
+src = "Makefile"
+search = '\tSETUPTOOLS_SCM_PRETEND_VERSION={current_version}'
+
 # You can specify a list of commands to
 # run after the files have been patched
 # and before the git commit is made
