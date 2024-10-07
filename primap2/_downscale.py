@@ -23,14 +23,14 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         skipna: bool = True,
         tolerance: float = 0.01,
     ) -> xr.DataArray:
-        """Downscale timeseries along a dimension using a basket defined on a
-        broader timeseries.
+        """Downscale timeseries along a dimension using a basket defined on a broader timeseries.
 
         This is useful if you have data for many points in time for a total, for example
         the entire Energy sector, and higher-resolution data (e.g. fossil and non-fossil
         energies separately) for only a few points in time. In the example, the Energy
         sector is the ``basket`` and fossil and non-fossil energies are the basket
         contents.
+
         From any time points where all the basket contents are known, the
         relative shares of the basket contents are determined, and then interpolated
         linearly and extrapolated constantly to the full timeseries. The shares are then
@@ -132,14 +132,14 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         skipna: bool = True,
         tolerance: float = 0.01,
     ) -> xr.Dataset:
-        """Downscale timeseries along a dimension using a basket defined on a
-        broader timeseries.
+        """Downscale timeseries along a dimension using a basket defined on a broader timeseries.
 
         This is useful if you have data for many points in time for a total, for example
         the entire Energy sector, and higher-resolution data (e.g. fossil and non-fossil
         energies separately) for only a few points in time. In the example, the Energy
         sector is the ``basket`` and fossil and non-fossil energies are the basket
         contents.
+
         From any time points where all the basket contents are known, the
         relative shares of the basket contents are determined, and then interpolated
         linearly and extrapolated constantly to the full timeseries. The shares are then

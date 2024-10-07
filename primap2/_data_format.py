@@ -48,7 +48,7 @@ def open_dataset(
         store multiple times. Defaults to True unless you specify the `chunks`
         argument to use dask, in which case it defaults to False. Does not
         change the behavior of coordinates corresponding to dimensions, which
-        always load their data from disk into a ``pandas.Index``.
+        always load their data from disk into a :py:class:`pandas.Index`.
     drop_variables: str or iterable, optional
         A variable or list of variables to exclude from being parsed from the
         dataset. This may be useful to drop variables with problems or
@@ -224,8 +224,8 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         path : str or Path
             File path to which to save this dataset.
         mode : {"w", "a"}, default: "w"
-            Write ('w') or append ('a') mode. If mode='w', any existing file at
-            this location will be overwritten. If mode='a', existing variables
+            Write (``w``) or append (``a``) mode. If ``mode='w'``, any existing file at
+            this location will be overwritten. If ``mode='a'``, existing variables
             will be overwritten.
         group : str, optional
             Path to the netCDF4 group in the given file to open. The group(s)
@@ -278,11 +278,13 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         terminology: str | None = None,
     ) -> xr.Dataset:
         """
-        Add a dimension and coordinate to dataset and if a terminology is given also to attrs.
-        Dimension has length 1. primap2 equivalent of xarray's `expand_dims`
+        Add a dimension and coordinate to dataset.
 
-        To add a dimension to a PRIMAP2 DataArray use the native xarray method
-        `expand_dims`. As PRIMAP2 DataArrays don't have the coordinate information
+        If a terminology is given, also adds it to attrs.
+        Dimension has length 1. primap2 equivalent of :py:meth:`xarray.Dataset.expand_dims`.
+
+        To add a dimension to a PRIMAP2 DataArray use :py:meth:`xarray.DataArray.expand_dims`.
+        As PRIMAP2 DataArrays don't have the coordinate information
         in the attributes, no additional code is needed.
 
         Parameters
@@ -290,12 +292,14 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         dim
             dimension to add. A coordinate with the same name will be added as well
         coord_value
-            value for the
+            value for the coordinate
         terminology
+            terminology of the dimension to add.
 
         Returns
         -------
-            dataset with added dimension and coordinate
+            with_dim
+                dataset with added dimension and coordinate
         """
         ds_out = self._ds.copy(deep=True)  # deep=True necessary to keep attrs of original ds
         if terminology is not None:
@@ -303,7 +307,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             # attrs)
             dim_to_add = f"{dim} ({terminology})"
             translations = translations_from_dims([dim_to_add])
-            shortest_key = min(list(translations.keys()), key=len)
+            shortest_key = min(translations.keys(), key=len)
             # store in attributes
             ds_out.attrs[shortest_key] = translations[shortest_key]
         else:
@@ -314,9 +318,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
 
 
 def split_dim_name(dim_name: str) -> tuple[str, str]:
-    """Split a dimension name composed of the dimension, and the category set in
-    parentheses into its parts.
-    """
+    """Split a dimension name composed of the dimension and the category set."""
     try:
         dim, category_set = dim_name.split("(", 1)
     except ValueError:
@@ -326,9 +328,7 @@ def split_dim_name(dim_name: str) -> tuple[str, str]:
 
 
 def split_var_name(var_name: str) -> tuple[str, str]:
-    """Split a variable name composed of the entity and the gwp_context in parentheses
-    into its parts.
-    """
+    """Split a variable name composed of the entity and the gwp_context."""
     try:
         entity, gwp_context = var_name.split("(", maxsplit=1)
     except ValueError:

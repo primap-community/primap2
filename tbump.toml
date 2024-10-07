@@ -31,7 +31,7 @@ src = "primap2/__init__.py"
 search = '__version__ = "{current_version}"'
 
 [[file]]
-src = "README.rst"
+src = "README.md"
 search = 'pik-primap/primap2: PRIMAP2 Version {current_version}.'
 
 # You can specify a list of commands to
@@ -43,12 +43,16 @@ name = "lint"
 cmd = "make lint"
 
 [[before_commit]]
+name = "update github release notes"
+cmd = "rm .github_release_notes_file.md; venv/bin/towncrier build --version {new_version} --draft --config towncrier_github_release_notes.toml > .github_release_notes_file.md"
+
+[[before_commit]]
 name = "update changelog"
-cmd = "venv/bin/python update_changelog.py {new_version}"
+cmd = "venv/bin/towncrier build --version {new_version} --yes"
 
 # Or run some commands after the git tag and the branch
 # have been pushed:
 
 [[after_push]]
 name = "release on github"
-cmd = "gh release create --repo pik-primap/primap2 v{new_version} --title 'PRIMAP2 Version {new_version}' --notes-file .changelog_latest_version.rst"
+cmd = "gh release create --repo pik-primap/primap2 v{new_version} --title 'PRIMAP2 Version {new_version}' --notes-file .github_release_notes_file.md"
