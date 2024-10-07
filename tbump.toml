@@ -51,4 +51,5 @@ cmd = "venv/bin/towncrier --build --version {new_version}"
 
 [[after_push]]
 name = "release on github"
+# TODO: the notes file doesn't exist anymore, figure something out.
 cmd = "gh release create --repo pik-primap/primap2 v{new_version} --title 'PRIMAP2 Version {new_version}' --notes-file .changelog_latest_version.rst"
