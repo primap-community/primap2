@@ -1,19 +1,8 @@
 # PRIMAP2
 
-```{image} https://img.shields.io/pypi/v/primap2.svg
-:alt: PyPI status
-:target: https://pypi.python.org/pypi/primap2
-```
-
-```{image} https://readthedocs.org/projects/primap2/badge/?version=main
-:alt: Documentation Status
-:target: https://primap2.readthedocs.io/en/main/?badge=main
-```
-
-```{image} https://zenodo.org/badge/DOI/10.5281/zenodo.4535902.svg
-:alt: Zenodo release
-:target: https://doi.org/10.5281/zenodo.4535902
-```
+[![PyPI status](https://img.shields.io/pypi/v/primap2.svg)](https://pypi.python.org/pypi/primap2)
+[![Documentation Status](https://readthedocs.org/projects/primap2/badge/?version=main)](https://primap2.readthedocs.io/en/stable/?badge=main)
+[![Zenodo release](https://zenodo.org/badge/DOI/10.5281/zenodo.4535902.svg)](https://doi.org/10.5281/zenodo.4535902)
 
 PRIMAP2 is the next generation of the PRIMAP climate policy analysis suite.
 PRIMAP2 is free software, you are welcome to use it in your own research.
