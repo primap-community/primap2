@@ -8,7 +8,7 @@ import xarray as xr
 from loguru import logger
 
 from . import _accessor_base
-from ._alias_selection import alias_dims
+from ._selection import alias_dims
 
 
 class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
