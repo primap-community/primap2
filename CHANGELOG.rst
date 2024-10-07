@@ -2,6 +2,53 @@
 Changelog
 =========
 
+0.11.1
+------
+* Workaround for xarray's additional coordinate bug
+* Improved a few error messages
+* Disable xdoc as it throws errors
+* Fixed reading the interchange format with dimensionless data (where the unit is
+  an empty string).
+
+0.11.0
+------
+* Removed Python 3.9 support.
+* Added ``exclude_result`` and ``exclude_input`` parameters to priority definitions for
+  ``compose``. They can be used to skip processing entire result timeseries or specific
+  input timeseries, e.g. because of invalid data or categories.
+* Added protocol for skipping strategies when they aren't applicable for
+  input timeseries using the StrategyUnableToProcess exception.
+* Added support for specifying the entity in priority and strategy selectors.
+* Added support for specifying multiple values in priority and strategy selectors.
+* Added negative selection using the ``primap2.Not`` value when using the ``loc``
+  accessor.
+* Use ruff formatting instead of black formatting.
+* Added a new `csg` sub-module which contains functions and configuration models to
+  generate a composite dataset from multiple input datasets.
+* add global least squares strategy
+* add function to add dimension to DatasetDataFormatAccessor
+* add functions to aggregate values for coordinates / dimension and entities
+  to aggregation accessors
+* Added metadata variables to the primap2 data format. Metadata variables describe
+  the processing steps done to derive the data on a timeseries level. Also added the
+  metadata classes used for the description to the public API. We support saving
+  datasets with metadata variables to netcdf, but converting to the interchange format
+  looses the metadata variables.
+* Explicitly required supported python versions.
+
+0.10.0
+------
+* Fixed compatibility with latest `pint` and `pint-xarray` libraries.
+
+0.9.8
+-----
+* add additional control over nan treatment to downscaling functionality
+* Allow kwargs in gas basket summation
+* use min_count=1 as default in pr.sum
+* fix error message for 0-dimensional arrays in pr.merge
+* fix building the documentation on readthedocs.org
+* Modify unit harmonization to return native units if possible
+
 0.9.7
 -----
 * Fix the test suite to work with Pint release 0.21.

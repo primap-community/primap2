@@ -1,9 +1,17 @@
-"""Simple selection and loc-style accessor which automatically translates PRIMAP2 short
-column names to the actual long names including the categorization."""
+"""Functionalities for easier selection of subsets of data.
+
+Provides a loc-style accessor with additional functionality:
+
+* automatically translates PRIMAP2 short column names to the actual long names
+  including the categorization
+* supports deselecting values using Not objects.
+"""
+
 import functools
 import inspect
 import typing
 
+import attrs
 import xarray as xr
 
 from . import _accessor_base
@@ -11,8 +19,37 @@ from ._types import DimOrDimsT, FunctionT, KeyT
 
 
 class DimensionNotExistingError(ValueError):
+    """Dimension does not exist."""
+
     def __init__(self, dim):
         super().__init__(f"Dimension {dim!r} does not exist.")
+
+
+@attrs.define(frozen=True)
+class Not:
+    """Inverted selector value.
+
+    Use in pr.loc to select everything but the specified value or values.
+    """
+
+    value: typing.Any
+
+
+def resolve_not(
+    *,
+    input_selector: typing.Mapping[typing.Hashable, typing.Any],
+    xarray_obj: xr.DataArray | xr.Dataset,
+) -> dict[typing.Hashable, typing.Any]:
+    """Resolve Not objects in the input_selector, returns a selector for xarray."""
+    ret = {}
+    for dim, val in input_selector.items():
+        if isinstance(val, Not):
+            index = xarray_obj.get_index(dim)
+            new_index = index.drop(val.value)
+            ret[dim] = new_index
+        else:
+            ret[dim] = val
+    return ret
 
 
 def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) -> KeyT:
@@ -101,7 +138,7 @@ def alias(
 
 def alias_dims(
     args_to_alias: typing.Iterable[str],
-    wraps: typing.Optional[typing.Callable] = None,
+    wraps: typing.Callable | None = None,
     additional_allowed_values: typing.Iterable[str] = (),
 ) -> typing.Callable[[FunctionT], FunctionT]:
     """Method decorator to automatically translate dimension aliases in parameters.
@@ -138,9 +175,7 @@ def alias_dims(
             # translate kwargs
             for arg_to_alias in args_to_alias:
                 if arg_to_alias in kwargs and kwargs[arg_to_alias] is not None:
-                    kwargs[arg_to_alias] = alias(
-                        kwargs[arg_to_alias], translations, dims
-                    )
+                    kwargs[arg_to_alias] = alias(kwargs[arg_to_alias], translations, dims)
 
             # translate args
             args_translated = []
@@ -171,22 +206,23 @@ def alias_dims(
 class DataArrayAliasLocIndexer:
     """Provides loc-style selection with aliases. Needs to be a separate class for
     __getitem__ and __setitem__ functionality, which doesn't work directly on properties
-    without an intermediate object."""
+    without an intermediate object.
+    """
 
     __slots__ = ("_da",)
 
     def __init__(self, da: xr.DataArray):
         self._da = da
 
-    def __getitem__(
-        self, item: typing.Mapping[typing.Hashable, typing.Any]
-    ) -> xr.DataArray:
-        return self._da.loc[translate(item, self._da.pr.dim_alias_translations)]
+    def __getitem__(self, item: typing.Mapping[typing.Hashable, typing.Any]) -> xr.DataArray:
+        translated = translate(item, self._da.pr.dim_alias_translations)
+        resolved = resolve_not(input_selector=translated, xarray_obj=self._da)
+        return self._da.loc[resolved]
 
     def __setitem__(self, key: typing.Mapping[typing.Hashable, typing.Any], value):
-        self._da.loc.__setitem__(
-            translate(key, self._da.pr.dim_alias_translations), value
-        )
+        translated = translate(key, self._da.pr.dim_alias_translations)
+        resolved = resolve_not(input_selector=translated, xarray_obj=self._da)
+        self._da.loc.__setitem__(resolved, value)
 
 
 class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
@@ -208,31 +244,39 @@ class DataArrayAliasSelectionAccessor(_accessor_base.BaseDataArrayAccessor):
 
     @property
     def loc(self):
-        """Attribute for location-based indexing like xr.DataArray.loc, but also
-        supports short aliases like ``area`` and translates them into the long
-        names including the corresponding category-set."""
+        """Location-based indexing like xr.DataArray.loc with added features.
+
+        Works like xarray's loc indexer, but has additional features:
+
+        * supports short aliases like ``area`` and translates them into the long names
+          including the corresponding category-set.
+        * supports negative selection (selecting everything but a specified value) using
+          ``primap2.Not``.
+        """
         return DataArrayAliasLocIndexer(self._da)
 
     def __getitem__(self, item: typing.Hashable) -> xr.DataArray:
         """Like da[], but translates short aliases like "area" into the long names
-        including the corresponding category-set."""
+        including the corresponding category-set.
+        """
         return self._da[self.dim_alias_translations.get(item, item)]
 
 
 class DatasetAliasLocIndexer:
     """Provides loc-style selection with aliases. Needs to be a separate class for
     __getitem__ functionality, which doesn't work directly on properties without an
-    intermediate object."""
+    intermediate object.
+    """
 
     __slots__ = ("_ds",)
 
     def __init__(self, ds: xr.Dataset):
         self._ds = ds
 
-    def __getitem__(
-        self, item: typing.Mapping[typing.Hashable, typing.Any]
-    ) -> xr.Dataset:
-        return self._ds.loc[translate(item, self._ds.pr.dim_alias_translations)]
+    def __getitem__(self, item: typing.Mapping[typing.Hashable, typing.Any]) -> xr.Dataset:
+        translated = translate(item, self._ds.pr.dim_alias_translations)
+        resolved = resolve_not(input_selector=translated, xarray_obj=self._ds)
+        return self._ds.loc[resolved]
 
 
 class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
@@ -255,21 +299,26 @@ class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
         return ret
 
     @typing.overload
-    def __getitem__(self, item: str) -> xr.DataArray:
-        ...
+    def __getitem__(self, item: str) -> xr.DataArray: ...
 
     @typing.overload
-    def __getitem__(self, item: typing.Mapping[str, typing.Any]) -> xr.Dataset:
-        ...
+    def __getitem__(self, item: typing.Mapping[str, typing.Any]) -> xr.Dataset: ...
 
     def __getitem__(self, item):
         """Like ds[], but translates short aliases like "area" into the long names
-        including the corresponding category-set."""
+        including the corresponding category-set.
+        """
         return self._ds[translate(item, self.dim_alias_translations)]
 
     @property
     def loc(self):
-        """Attribute for location-based indexing like xr.Dataset.loc, but also
-        supports short aliases like ``area`` and translates them into the long
-        names including the corresponding category-set."""
+        """Location-based indexing like xr.DataArray.loc with added features.
+
+        Works like xarray's loc indexer, but has additional features:
+
+        * supports short aliases like ``area`` and translates them into the long names
+          including the corresponding category-set.
+        * supports negative selection (selecting everything but a specified value) using
+          ``primap2.Not``.
+        """
         return DatasetAliasLocIndexer(self._ds)

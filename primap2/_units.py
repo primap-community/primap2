@@ -1,9 +1,8 @@
 """Unit handling based on pint, pint_xarray and openscm_units.
 
 Portions of this file are copied from pint_xarray and are
-Copyright 2020, pint-xarray developers."""
-
-from typing import Optional, Union
+Copyright 2020, pint-xarray developers.
+"""
 
 import pint
 import pint_xarray
@@ -69,10 +68,10 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         ...     coords={"wavelength": [1e-4, 2e-4, 4e-4, 6e-4, 1e-3, 2e-3]},
         ... )
         >>> da.pint.quantify(units="Hz")
-        <xarray.DataArray (wavelength: 6)>
+        <xarray.DataArray (wavelength: 6)> Size: 48B
         <Quantity([0.4 0.9 1.7 4.8 3.2 9.1], 'hertz')>
         Coordinates:
-          * wavelength  (wavelength) float64 0.0001 0.0002 0.0004 0.0006 0.001 0.002
+          * wavelength  (wavelength) float64 48B 0.0001 0.0002 0.0004 0.0006 0.001 0.002
         """
         return self._da.pint.quantify(unit_registry=ureg, **kwargs)
 
@@ -90,9 +89,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         """
         return self._da.pint.dequantify()
 
-    def convert_to_gwp(
-        self, gwp_context: str, units: Union[str, pint.Unit]
-    ) -> xr.DataArray:
+    def convert_to_gwp(self, gwp_context: str, units: str | pint.Unit) -> xr.DataArray:
         """Convert to a global warming potential
 
         Parameters
@@ -108,10 +105,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         -------
         converted : xr.DataArray
         """
-        if (
-            "gwp_context" in self._da.attrs
-            and self._da.attrs["gwp_context"] != gwp_context
-        ):
+        if "gwp_context" in self._da.attrs and self._da.attrs["gwp_context"] != gwp_context:
             raise ValueError(
                 f"Incompatible gwp conversions: {self._da.attrs['gwp_context']!r}"
                 f" != {gwp_context!r}."
@@ -140,9 +134,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
             raise ValueError("reference array has no gwp_context.")
         if like.pint.units is None:
             raise ValueError("reference array has no units attached.")
-        return self.convert_to_gwp(
-            gwp_context=like.attrs["gwp_context"], units=like.pint.units
-        )
+        return self.convert_to_gwp(gwp_context=like.attrs["gwp_context"], units=like.pint.units)
 
     @property
     def gwp_context(self) -> pint.Context:
@@ -156,7 +148,6 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         >>> ds = primap2.tests.minimal_ds()
         >>> with ds["SF6 (SARGWP100)"].pr.gwp_context:
         ...     ds["CH4"].pint.to("Gg CO2 / year")
-        ...
 
         Returns
         -------
@@ -165,7 +156,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         return ureg.context(self._da.attrs["gwp_context"])
 
     def convert_to_mass(
-        self, gwp_context: Optional[str] = None, entity: Optional[str] = None
+        self, gwp_context: str | None = None, entity: str | None = None
     ) -> xr.DataArray:
         """Convert a global warming potential of a greenhouse gas to a mass.
 
@@ -197,22 +188,18 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
             try:
                 entity = self._da.attrs["entity"]
             except KeyError:
-                raise ValueError(
-                    "No entity given and no entity available in the attrs."
-                ) from None
+                raise ValueError("No entity given and no entity available in the attrs.") from None
 
         if isinstance(entity, str):
             entity = ureg.parse_units(entity)
 
         with ureg.context(gwp_context):
-            da = self._da.pint.to(
-                self._da.pint.units / ureg.parse_units("CO2") * entity
-            )
+            da = self._da.pint.to(self._da.pint.units / ureg.parse_units("CO2") * entity)
 
         if "gwp_context" in da.attrs:
             del da.attrs["gwp_context"]
-        da.attrs["entity"] = entity
-        da.name = entity
+        da.attrs["entity"] = str(entity)
+        da.name = str(entity)
         return da
 
 
@@ -270,7 +257,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
         ...     coords={"x": [0, 1, 2], "u": ("x", [-1, 0, 1], {"units": "s"})},
         ... )
         >>> ds
-        <xarray.Dataset>
+        <xarray.Dataset> Size: ...
         Dimensions:  (x: 3)
         Coordinates:
           * x        (x) int... 0 1 2
@@ -280,7 +267,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
             b        (x) int... 5 -2 1
 
         >>> ds.pr.quantify()
-        <xarray.Dataset>
+        <xarray.Dataset> Size: ...
         Dimensions:  (x: 3)
         Coordinates:
           * x        (x) int... 0 1 2
@@ -289,7 +276,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
             a        (x) int... [m] 0 3 2
             b        (x) int... 5 -2 1
         >>> ds.pr.quantify({"b": "dm"})
-        <xarray.Dataset>
+        <xarray.Dataset> Size: ...
         Dimensions:  (x: 3)
         Coordinates:
           * x        (x) int... 0 1 2

@@ -1,4 +1,5 @@
 """Tests for _data_reading.py"""
+
 import datetime
 from pathlib import Path
 
@@ -41,9 +42,7 @@ DATA_PATH = Path(__file__).parent / "data"
     ],
 )
 def test_metadata_for_variable(unit, entity, expected_attrs):
-    assert (
-        pm2io._interchange_format.metadata_for_variable(unit, entity) == expected_attrs
-    )
+    assert pm2io._interchange_format.metadata_for_variable(unit, entity) == expected_attrs
 
 
 @pytest.mark.parametrize(
@@ -116,10 +115,7 @@ def test_parse_code_nan(code_to_test_nan, expected_result):
     ],
 )
 def test_create_na_replacement_dict(strs, user_na_conv, expected_result):
-    assert (
-        pm2io._data_reading.create_str_replacement_dict(strs, user_na_conv)
-        == expected_result
-    )
+    assert pm2io._data_reading.create_str_replacement_dict(strs, user_na_conv) == expected_result
 
 
 def assert_attrs_equal(attrs_result, attrs_expected):
@@ -128,9 +124,7 @@ def assert_attrs_equal(attrs_result, attrs_expected):
     assert attrs_result["time_format"] == attrs_expected["time_format"]
     assert attrs_result["dimensions"].keys() == attrs_expected["dimensions"].keys()
     for entity in attrs_result["dimensions"]:
-        assert set(attrs_result["dimensions"][entity]) == set(
-            attrs_expected["dimensions"][entity]
-        )
+        assert set(attrs_result["dimensions"][entity]) == set(attrs_expected["dimensions"][entity])
 
 
 @pytest.fixture
@@ -611,9 +605,7 @@ class TestReadWideCSVFile:
 
         del coords_cols["unit"]
         coords_defaults["unit"] = "Gg"
-        coords_value_mapping[
-            "category"
-        ] = pm2io._conversion.convert_ipcc_code_primap_to_primap2
+        coords_value_mapping["category"] = pm2io._conversion.convert_ipcc_code_primap_to_primap2
         filter_remove["f1"] = {"gas": "KYOTOGHG"}
 
         df_result = pm2io.read_wide_csv_file_if(
@@ -697,9 +689,7 @@ class TestReadWideCSVFile:
 
         add_coords_cols = {"test": ["gas", "category"]}
 
-        with pytest.raises(
-            ValueError, match="{'gas'} given in coords_cols and add_coords_cols."
-        ):
+        with pytest.raises(ValueError, match="{'gas'} given in coords_cols and add_coords_cols."):
             pm2io.read_wide_csv_file_if(
                 file_input,
                 coords_cols=coords_cols,
@@ -732,9 +722,7 @@ class TestReadWideCSVFile:
 
         del coords_cols["entity"]
 
-        with pytest.raises(
-            ValueError, match="Mandatory dimension 'entity' not defined."
-        ):
+        with pytest.raises(ValueError, match="Mandatory dimension 'entity' not defined."):
             pm2io.read_wide_csv_file_if(
                 file_input,
                 coords_cols=coords_cols,
@@ -1066,8 +1054,7 @@ class TestLong:
 
         with pytest.raises(
             ValueError,
-            match="No data column in the CSV specified in coords_cols, so nothing to"
-            " read.",
+            match="No data column in the CSV specified in coords_cols, so nothing to" " read.",
         ):
             pm2io.read_long_csv_file_if(
                 file_input_long,
@@ -1143,8 +1130,7 @@ class TestAdditionalCoordinateMetadata:
 
         with pytest.raises(
             ValueError,
-            match="Additional coordinate category_name refers to unknown "
-            "coordinate category",
+            match="Additional coordinate category_name refers to unknown " "coordinate category",
         ):
             additional_coordinate_metadata(
                 coords_cols=coords_cols,
@@ -1156,13 +1142,9 @@ class TestAdditionalCoordinateMetadata:
 class TestRegression:
     def test_read_published_data(self):
         actual = pm2io.from_interchange_format(
-            pm2io.read_interchange_format(
-                DATA_PATH / "Guetschow-et-al-2021-PRIMAP-crf96_2021-v1"
-            )
+            pm2io.read_interchange_format(DATA_PATH / "Guetschow-et-al-2021-PRIMAP-crf96_2021-v1")
         )
-        expected = primap2.open_dataset(
-            DATA_PATH / "Guetschow-et-al-2021-PRIMAP-crf96_2021-v1.nc"
-        )
+        expected = primap2.open_dataset(DATA_PATH / "Guetschow-et-al-2021-PRIMAP-crf96_2021-v1.nc")
         assert_ds_aligned_equal(actual, expected, equal_nan=True)
 
 

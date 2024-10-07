@@ -57,6 +57,16 @@ def test_convert_to_mass(opulent_ds: xr.Dataset):
     assert_equal(da_converted, da_expected)
 
 
+def test_convert_round_trip(opulent_ds: xr.Dataset):
+    da: xr.DataArray = opulent_ds["SF6"]
+    assert da.attrs["entity"] == "SF6"
+    da_gwp = da.pr.convert_to_gwp(gwp_context="AR4GWP100", units="Gg CO2 / year")
+    da_rt = da_gwp.pr.convert_to_mass()
+    assert_equal(da, da_rt)
+    assert da_rt.attrs["entity"] == "SF6"
+    assert isinstance(da_rt.attrs["entity"], str)
+
+
 def test_convert_to_mass_missing_info(opulent_ds: xr.Dataset):
     da: xr.DataArray = opulent_ds["SF6"]
     with pytest.raises(
@@ -67,9 +77,7 @@ def test_convert_to_mass_missing_info(opulent_ds: xr.Dataset):
 
     da = opulent_ds["SF6 (SARGWP100)"]
     del da.attrs["entity"]
-    with pytest.raises(
-        ValueError, match="No entity given and no entity available in the attrs"
-    ):
+    with pytest.raises(ValueError, match="No entity given and no entity available in the attrs"):
         da.pr.convert_to_mass()
 
 

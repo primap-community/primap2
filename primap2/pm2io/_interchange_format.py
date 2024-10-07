@@ -2,7 +2,6 @@ import csv
 import itertools
 import re
 from pathlib import Path
-from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -45,7 +44,6 @@ INTERCHANGE_FORMAT_STRICTYAML_SCHEMA = sy.Map(
                 sy.Optional("title"): sy.Str(),
                 sy.Optional("comment"): sy.Str(),
                 sy.Optional("institution"): sy.Str(),
-                sy.Optional("history"): sy.Str(),
                 sy.Optional("entity_terminology"): sy.Str(),
                 sy.Optional("publication_date"): sy.Datetime(),
             }
@@ -104,12 +102,15 @@ def metadata_for_variable(unit: str, variable: str) -> dict[str, str]:
 
     Examples
     --------
-
     >>> metadata_for_variable("Gg CO2 / year", "Kyoto-GHG (SARGWP100)")
     {'units': 'Gg CO2 / year', 'gwp_context': 'SARGWP100', 'entity': 'Kyoto-GHG'}
 
     """
     attrs = {}
+
+    if not isinstance(unit, str):
+        unit = ""
+
     if unit != "no unit":
         attrs["units"] = unit
 
@@ -131,7 +132,7 @@ def metadata_for_variable(unit: str, variable: str) -> dict[str, str]:
 
 
 def write_interchange_format(
-    filepath: Union[str, Path], data: pd.DataFrame, attrs: Optional[dict] = None
+    filepath: str | Path, data: pd.DataFrame, attrs: dict | None = None
 ) -> None:
     """Write dataset in interchange format to disk.
 
@@ -175,7 +176,7 @@ def write_interchange_format(
 
 
 def read_interchange_format(
-    filepath: Union[str, Path],
+    filepath: str | Path,
 ) -> pd.DataFrame:
     """Read a dataset in the interchange format from disk into memory.
 
@@ -211,9 +212,7 @@ def read_interchange_format(
 
     # strictyaml parses a datetime, we only want a date
     if "publication_date" in data.attrs["attrs"]:
-        data.attrs["attrs"]["publication_date"] = data.attrs["attrs"][
-            "publication_date"
-        ].date()
+        data.attrs["attrs"]["publication_date"] = data.attrs["attrs"]["publication_date"].date()
     # already read in
     if "data_file" in data.attrs:
         del data.attrs["data_file"]
@@ -223,7 +222,7 @@ def read_interchange_format(
 
 def from_interchange_format(
     data: pd.DataFrame,
-    attrs: Optional[dict] = None,
+    attrs: dict | None = None,
     max_array_size: int = 1024 * 1024 * 1024,
 ) -> xr.Dataset:
     """Convert dataset from the interchange format to the standard PRIMAP2 format.
@@ -277,7 +276,7 @@ def from_interchange_format(
                 f"value for {coord}."
             )
 
-        add_coord_mapping_dicts[coord] = dict(zip(dim_values, coord_values))
+        add_coord_mapping_dicts[coord] = dict(zip(dim_values, coord_values, strict=False))
 
     # drop additional coordinates. make a copy first to not alter input DF
     data_drop = data.drop(columns=attrs["additional_coordinates"].keys(), inplace=False)
@@ -353,9 +352,7 @@ def from_interchange_format(
     # add the additional coordinates
     for coord in attrs["additional_coordinates"].keys():
         dim_values_xr = list(data_xr[attrs["additional_coordinates"][coord]].values)
-        coord_values_ordered = [
-            add_coord_mapping_dicts[coord][value] for value in dim_values_xr
-        ]
+        coord_values_ordered = [add_coord_mapping_dicts[coord][value] for value in dim_values_xr]
         data_xr = data_xr.assign_coords(
             {
                 coord: xr.DataArray(
@@ -372,8 +369,8 @@ def from_interchange_format(
 
     # fill the entity/variable attributes
     for variable in data_xr:
-        csv_units = np.unique(units.loc[{entity_col: variable}])
-        if len(csv_units) > 1:
+        csv_units = np.unique(units.loc[{entity_col: variable}], equal_nan=True)
+        if len(csv_units) > 1 and any(isinstance(x, str) for x in csv_units):
             logger.error(
                 f"More than one unit for entity {variable!r}: {csv_units!r}. "
                 + "There is an error in the unit harmonization."

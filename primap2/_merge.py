@@ -1,10 +1,9 @@
 """Merge arrays and datasets with optional tolerances."""
 
-
 import contextlib
-import typing
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 from loguru import logger
 
@@ -79,7 +78,7 @@ def merge_with_tolerance_core(
 
     # all differences are within the tolerance or ignored, take the first
     # value everywhere
-    return da_start.combine_first(da_merge)
+    return da_start.pr.combine_first(da_merge)
 
 
 def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
@@ -90,7 +89,19 @@ def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
     * convert the rest into a pandas dataframe for nice printing
     """
     scalar_dims = [dim for dim in da_error.dims if len(da_error[dim]) == 1]
-    scalar_dims_str = ", ".join(f"{dim}={da_error[dim].item()}" for dim in scalar_dims)
+    scalar_dims_format = []
+    for dim in scalar_dims:
+        if pd.api.types.is_datetime64_any_dtype(da_error[dim]):
+            ts = pd.Timestamp(da_error[dim][0].values)
+            # optimization for the common case where we have data on a yearly or
+            # more coarse basis
+            if ts == pd.Timestamp(year=ts.year, month=1, day=1):
+                scalar_dims_format.append(f"{dim}={ts.strftime('%Y')}")
+            else:
+                scalar_dims_format.append(f"{dim}={ts!s}")
+        else:
+            scalar_dims_format.append(f"{dim}={da_error[dim].item()}")
+    scalar_dims_str = ", ".join(scalar_dims_format)
     da_error_dequ = da_error.squeeze(drop=True).pint.dequantify()
     if np.ndim(da_error_dequ.data) == 0:
         errors_str = str(da_error_dequ.data)
@@ -100,15 +111,14 @@ def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
     return (
         f"pr.merge error: found discrepancies larger than tolerance "
         f"({tolerance * 100:.2f}%) for {scalar_dims_str}:\n"
-        f"shown are relative discrepancies.\n" + errors_str
+        f"shown are relative discrepancies. ({da_error.name})\n" + errors_str
     )
 
 
-def ensure_compatible_coords_dims(
-    a: typing.Union[xr.Dataset, xr.DataArray], b: typing.Union[xr.Dataset, xr.DataArray]
-):
+def ensure_compatible_coords_dims(a: xr.Dataset | xr.DataArray, b: xr.Dataset | xr.DataArray):
     """Check if coordinates and dimensions of both Datasets or DataArrays agree,
-    raise exception otherwise."""
+    raise exception otherwise.
+    """
     if set(a.coords) != set(b.coords):
         logger.error("pr.merge error: coords of objects to merge must agree")
         raise ValueError("pr.merge error: coords of objects to merge must agree")
@@ -152,7 +162,6 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
             xr.DataArray: DataArray with data from da_merge merged into the calling
             object
         """
-
         # check if coordinates and dimensions agree
         da_start = self._da
         ensure_compatible_coords_dims(da_start, da_merge)
@@ -199,6 +208,12 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
         -------
             xr.Dataset: Dataset with data from da_merge merged into the calling object
         """
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
+            )
+
         ds_start = self._ds
 
         with contextlib.suppress(xr.MergeError, ValueError):

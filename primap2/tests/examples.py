@@ -4,13 +4,14 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-import primap2  # noqa: F401
+import primap2
 from primap2 import ureg
+from primap2._dim_names import dim_names
 
 
-def minimal_ds():
+def minimal_ds() -> xr.Dataset:
     """A valid, minimal dataset."""
-    time = pd.date_range("2000-01-01", "2020-01-01", freq="AS")
+    time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
     area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
 
     # seed the rng with a constant to achieve predictable "randomness"
@@ -40,7 +41,7 @@ def minimal_ds():
 
 
 COORDS = {
-    "time": pd.date_range("2000-01-01", "2020-01-01", freq="AS"),
+    "time": pd.date_range("2000-01-01", "2020-01-01", freq="YS"),
     "area (ISO3)": np.array(["COL", "ARG", "MEX", "BOL"]),
     "category (IPCC 2006)": np.array(["0", "1", "2", "3", "4", "5", "1.A", "1.B"]),
     "animal (FAOSTAT)": np.array(["cow", "swine", "goat"]),
@@ -52,9 +53,8 @@ COORDS = {
 }
 
 
-def opulent_ds():
+def opulent_ds() -> xr.Dataset:
     """A valid dataset using lots of features."""
-
     # seed the rng with a constant to achieve predictable "randomness"
     rng = np.random.default_rng(1)
 
@@ -80,8 +80,6 @@ def opulent_ds():
             "title": "Completely invented GHG inventory data",
             "comment": "GHG inventory data ...",
             "institution": "PIK",
-            "history": "2021-01-14 14:50 data invented\n"
-            "2021-01-14 14:51 additional processing step",
             "publication_date": datetime.date(2099, 12, 31),
         },
     )
@@ -134,9 +132,10 @@ def opulent_ds():
     return opulent
 
 
-def opulent_str_ds():
+def opulent_str_ds() -> xr.Dataset:
     """Like the opulent dataset, but additionally with a stringly typed data variable
-    "method"."""
+    "method".
+    """
     opulent = opulent_ds()
 
     method_coords = {
@@ -155,16 +154,50 @@ def opulent_str_ds():
         dims=list(method_coords.keys()),
         attrs={"entity": "method"},
     )
-    opulent["method"].pr.loc[
-        {"time": "2000", "area": "COL", "source": "RAND2020"}
-    ] = "text"
+    opulent["method"].pr.loc[{"time": "2000", "area": "COL", "source": "RAND2020"}] = "text"
 
     return opulent
 
 
-def empty_ds():
+def opulent_processing_ds() -> xr.Dataset:
+    """Like the opulent dataset, but additionally with processing information data
+    variables.
+    """
+    opulent = opulent_ds()
+
+    new_vars = {}
+    for var in opulent.keys():
+        dims = [dim for dim in dim_names(opulent) if dim != "time"]
+        shape = tuple(len(opulent[x]) for x in dims)
+        new_vars[f"Processing of {var}"] = xr.DataArray(
+            data=np.full(
+                shape=shape,
+                fill_value=primap2.TimeseriesProcessingDescription(
+                    steps=[
+                        primap2.ProcessingStepDescription(
+                            time="all",
+                            function="random",
+                            description="Values created randomly.",
+                        )
+                    ]
+                ),
+            ),
+            coords=opulent[dims],
+            dims=dims,
+            attrs={
+                "entity": f"Processing of {var}",
+                "described_variable": var,
+            },
+        )
+
+    opulent.update(new_vars)
+
+    return opulent
+
+
+def empty_ds() -> xr.Dataset:
     """An empty hull of a dataset with missing data."""
-    time = pd.date_range("2000-01-01", "2020-01-01", freq="AS")
+    time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
     area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
     coords = {
         "time": time,
@@ -197,3 +230,10 @@ def empty_ds():
     ).pr.quantify()
 
     return empty
+
+
+_cached_minimal_ds = minimal_ds()
+_cached_opulent_ds = opulent_ds()
+_cached_opulent_str_ds = opulent_str_ds()
+_cached_opulent_processing_ds = opulent_processing_ds()
+_cached_empty_ds = empty_ds()

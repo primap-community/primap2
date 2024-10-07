@@ -3,16 +3,17 @@
 import xarray as xr
 
 from ._aggregate import DataArrayAggregationAccessor, DatasetAggregationAccessor
-from ._alias_selection import (
-    DataArrayAliasSelectionAccessor,
-    DatasetAliasSelectionAccessor,
-)
 from ._convert import DataArrayConversionAccessor
 from ._data_format import DatasetDataFormatAccessor
 from ._downscale import DataArrayDownscalingAccessor, DatasetDownscalingAccessor
+from ._fill_combine import DataArrayFillAccessor, DatasetFillAccessor
 from ._merge import DataArrayMergeAccessor, DatasetMergeAccessor
 from ._metadata import DatasetMetadataAccessor
 from ._overview import DataArrayOverviewAccessor, DatasetOverviewAccessor
+from ._selection import (
+    DataArrayAliasSelectionAccessor,
+    DatasetAliasSelectionAccessor,
+)
 from ._setters import DataArraySettersAccessor, DatasetSettersAccessor
 from ._units import DataArrayUnitAccessor, DatasetUnitAccessor
 
@@ -28,6 +29,7 @@ class PRIMAP2DatasetAccessor(
     DatasetOverviewAccessor,
     DatasetSettersAccessor,
     DatasetUnitAccessor,
+    DatasetFillAccessor,
 ):
     """Collection of methods useful for climate policy analysis."""
 
@@ -42,5 +44,6 @@ class PRIMAP2DataArrayAccessor(
     DataArrayOverviewAccessor,
     DataArraySettersAccessor,
     DataArrayUnitAccessor,
+    DataArrayFillAccessor,
 ):
     """Collection of methods useful for climate policy analysis."""

@@ -24,7 +24,7 @@ import sphinx_autosummary_accessors
 
 sys.path.insert(0, os.path.abspath(".."))
 
-import primap2  # noqa: E402
+import primap2
 
 # -- General configuration ---------------------------------------------
 
@@ -57,7 +57,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "PRIMAP2"
-copyright = "2021, Potsdam Institute for Climate Impact Research (PIK) e. V."
+copyright = "2021-2023, PIK; 2023-2024, CR"  # noqa: A001
 author = "Mika Pflüger"
 
 # The version info for the project you're documenting, acts as replacement
@@ -89,6 +89,7 @@ todo_include_todos = False
 
 # Generate autosummary stubs automatically
 autosummary_generate = True
+numpydoc_class_members_toctree = False
 
 
 # -- Options for HTML output -------------------------------------------
@@ -105,7 +106,7 @@ html_theme = "alabaster"
 html_theme_options = {
     "fixed_sidebar": True,
     "body_max_width": "auto",
-    "page_width": "1100px",
+    "page_width": "1200px",
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,

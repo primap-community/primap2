@@ -1,18 +1,17 @@
 """Summarization and descriptive statistics functions to get an overview of a data
-set."""
+set.
+"""
 
 import typing
 
 import pandas as pd
 
 from . import _accessor_base
-from ._alias_selection import alias_dims
+from ._selection import alias_dims
 
 
 class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
-    def to_df(
-        self, name: typing.Optional[str] = None
-    ) -> typing.Union[pd.DataFrame, pd.Series]:
+    def to_df(self, name: str | None = None) -> pd.DataFrame | pd.Series:
         """Convert this array into an unstacked (i.e. non-tidy) pandas.DataFrame.
 
         Converting to an unstacked pandas.DataFrame is most useful for two-dimensional
@@ -33,15 +32,13 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
             name = self._da.name
         pandas_obj = self._da.reset_coords(drop=True).to_dataframe(name)[name]
         pandas_obj.name = name
-        if isinstance(pandas_obj, pd.DataFrame) or isinstance(
-            pandas_obj.index, pd.MultiIndex
-        ):
+        if isinstance(pandas_obj, pd.DataFrame) or isinstance(pandas_obj.index, pd.MultiIndex):
             return pandas_obj.unstack()
         else:  # Series without MultiIndex can't be unstacked, return them as-is
             return pandas_obj
 
     @alias_dims(["dims"])
-    def coverage(self, *dims: typing.Hashable) -> typing.Union[pd.DataFrame, pd.Series]:
+    def coverage(self, *dims: typing.Hashable) -> pd.DataFrame | pd.Series:
         """Summarize how many data points exist for a dimension combination.
 
         For each combinations of values in the given dimensions, count the number of
@@ -83,7 +80,7 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
 class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
     def to_df(
         self,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
     ) -> pd.DataFrame:
         """Convert this dataset into a pandas.DataFrame.
 
@@ -99,13 +96,13 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
         -------
         df: pandas.DataFrame
         """
-        df = self._ds.reset_coords(drop=True).to_dataframe()
+        df = self._ds.pr.remove_processing_info().reset_coords(drop=True).to_dataframe()
         if name is not None:
             df.columns.name = name
         return df
 
     @alias_dims(["dims"], additional_allowed_values=["entity"])
-    def coverage(self, *dims: typing.Hashable) -> typing.Union[pd.DataFrame, pd.Series]:
+    def coverage(self, *dims: typing.Hashable) -> pd.DataFrame | pd.Series:
         """Summarize how many data points exist for a dimension combination.
 
         For each combinations of values in the given dimensions, count the number of

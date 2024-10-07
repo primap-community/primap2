@@ -1,11 +1,13 @@
 from collections.abc import Hashable, Sequence
-from typing import Optional, Union
 
 import xarray as xr
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._aggregate import select_no_scalar_dimension
 from ._units import ureg
+
+# Needed for downscaling operations
+xr.set_options(use_numbagg=True)
 
 
 class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
@@ -16,8 +18,8 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Union[None, Sequence[Hashable]] = None,
+        sel: dict[Hashable, Sequence] | None = None,
+        skipna_evaluation_dims: None | Sequence[Hashable] = None,
         skipna: bool = True,
         tolerance: float = 0.01,
     ) -> xr.DataArray:
@@ -98,7 +100,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
                 raise ValueError(
                     f"Sum of the basket_contents {basket_contents!r} deviates"
                     f" {devmax * 100} % from the basket"
-                    f" {basket!r}, which is more than the allowed 1 %. "
+                    f" {basket!r}, which is more than the allowed {tolerance*100}%. "
                     "To continue regardless, set check_consistency=False."
                 )
 
@@ -125,8 +127,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Optional[Sequence[Hashable]] = None,
+        sel: dict[Hashable, Sequence] | None = None,
+        skipna_evaluation_dims: Sequence[Hashable] | None = None,
         skipna: bool = True,
         tolerance: float = 0.01,
     ) -> xr.Dataset:
@@ -185,6 +187,12 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         -------
         downscaled: xr.Dataset
         """
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
+            )
+
         ds_sel = select_no_scalar_dimension(self._ds, sel)
 
         basket_contents_ds = ds_sel.loc[{dim: basket_contents}]
@@ -237,8 +245,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
-        sel: Optional[dict[Hashable, Sequence]] = None,
-        skipna_evaluation_dims: Optional[Sequence[Hashable]] = None,
+        sel: dict[Hashable, Sequence] | None = None,
+        skipna_evaluation_dims: Sequence[Hashable] | None = None,
         skipna: bool = True,
         tolerance: float = 0.01,
     ) -> xr.Dataset:
@@ -289,6 +297,12 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         -------
         downscaled: xr.Dataset
         """
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
+            )
+
         ds_sel = select_no_scalar_dimension(self._ds, sel)
 
         basket_contents_converted = xr.Dataset()
@@ -320,7 +334,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                 raise ValueError(
                     f"Sum of the basket_contents {basket_contents!r} deviates"
                     f" {devmax * 100} % from the basket"
-                    f" {basket!r}, which is more than the allowed 1 %. "
+                    f" {basket!r}, which is more than the allowed "
+                    f"{tolerance * 100}%. "
                     f" {deviation}"
                     "To continue regardless, set check_consistency=False."
                 )
@@ -345,4 +360,4 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                     downscaled[var].pint.to(ds_sel[var].pint.units)
                 )
 
-        return self._ds.fillna(downscaled_converted)
+        return self._ds.pr.fillna(downscaled_converted)

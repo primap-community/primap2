@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Tests for _data_format.py"""
+
 import logging
 
 import numpy as np
@@ -8,6 +9,7 @@ import pytest
 import xarray as xr
 
 import primap2
+from primap2._selection import translations_from_dims
 
 from .utils import assert_ds_aligned_equal
 
@@ -40,11 +42,39 @@ class TestEnsureValid:
         any_ds.pr.ensure_valid()
         assert not caplog.records
 
+    def test_time_dimension_for_metadata(self, opulent_processing_ds, caplog):
+        opulent_processing_ds["Processing of CO2"] = opulent_processing_ds[
+            "Processing of CO2"
+        ].expand_dims(dim={"time": np.array(["2020", "2021"], dtype="datetime64[ns]")})
+        with pytest.raises(ValueError, match=r"contains metadata, but carries 'time' dimension"):
+            opulent_processing_ds.pr.ensure_valid()
+        assert "ERROR" in caplog.text
+        assert "'Processing of CO2' is a metadata variable, but 'time' is a dimension."
+
+    def test_metadata_missing_attr(self, opulent_processing_ds, caplog):
+        del opulent_processing_ds["Processing of CO2"].attrs["described_variable"]
+        with pytest.raises(
+            ValueError,
+            match=r"'described_variable' attr missing for 'Processing of CO2'",
+        ):
+            opulent_processing_ds.pr.ensure_valid()
+        assert "ERROR" in caplog.text
+
+    def test_metadata_wrong_attr(self, opulent_processing_ds, caplog):
+        opulent_processing_ds["Processing of CO2"].attrs["described_variable"] = "CH4"
+        with pytest.raises(
+            ValueError,
+            match=r"variable name 'Processing of CO2' inconsistent with "
+            r"described_variable 'CH4'",
+        ):
+            opulent_processing_ds.pr.ensure_valid()
+        assert "ERROR" in caplog.text
+
     def test_required_dimension_missing(self, caplog):
         ds = xr.Dataset(
             {
                 "area (ISO3)": ["a"],
-                "time": pd.date_range("2000-01-01", "2020-01-01", freq="AS"),
+                "time": pd.date_range("2000-01-01", "2020-01-01", freq="YS"),
             },
             attrs={"area": "area (ISO3)"},
         ).pr.quantify()
@@ -53,6 +83,14 @@ class TestEnsureValid:
             ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
         assert "'source' not found in dims, but is required." in caplog.text
+
+    def test_required_dimension_missing_var(self, minimal_ds, caplog):
+        minimal_ds["CO2"] = minimal_ds["CO2"].squeeze("source", drop=True)
+
+        with pytest.raises(ValueError, match=r"'source' not in dims"):
+            minimal_ds.pr.ensure_valid()
+        assert "ERROR" in caplog.text
+        assert "'source' not found in dims for variable 'CO2', but is required" in caplog.text
 
     def test_required_coordinate_missing(self, minimal_ds, caplog):
         del minimal_ds["source"]
@@ -67,8 +105,7 @@ class TestEnsureValid:
             minimal_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
         assert (
-            "'area' not found in attrs, required dimension is therefore undefined."
-            in caplog.text
+            "'area' not found in attrs, required dimension is therefore undefined." in caplog.text
         )
 
     def test_dimension_metadata_wrong(self, minimal_ds, caplog):
@@ -76,9 +113,7 @@ class TestEnsureValid:
         with pytest.raises(ValueError, match=r"'area' dimension not in dims"):
             minimal_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
-        assert (
-            "'asdf' defined as 'area' dimension, but not found in dims." in caplog.text
-        )
+        assert "'asdf' defined as 'area' dimension, but not found in dims." in caplog.text
 
     def test_wrong_provenance_value(self, opulent_ds, caplog):
         opulent_ds["provenance"] = ["asdf"]
@@ -99,24 +134,17 @@ class TestEnsureValid:
     def test_wrong_dimension_key(self, minimal_ds, caplog):
         ds = minimal_ds.rename_dims({"area (ISO3)": "asdf"})
         ds.attrs["area"] = "asdf"
-        with pytest.raises(
-            ValueError, match=r"'asdf' not in the format 'dim \(category_set\)'"
-        ):
+        with pytest.raises(ValueError, match=r"'asdf' not in the format 'dim \(category_set\)'"):
             ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
         assert "'asdf' not in the format 'dim (category_set)'." in caplog.text
 
     def test_missing_sec_cat(self, minimal_ds, caplog):
         minimal_ds.attrs["sec_cats"] = ["missing"]
-        with pytest.raises(
-            ValueError, match="Secondary category 'missing' not in dims"
-        ):
+        with pytest.raises(ValueError, match="Secondary category 'missing' not in dims"):
             minimal_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
-        assert (
-            "Secondary category 'missing' defined, but not found in dims:"
-            in caplog.text
-        )
+        assert "Secondary category 'missing' defined, but not found in dims:" in caplog.text
 
     def test_missing_optional_dim(self, minimal_ds, caplog):
         minimal_ds.attrs["scen"] = "missing"
@@ -130,16 +158,11 @@ class TestEnsureValid:
         ds.attrs["sec_cats"] = ["something (cset)"]
         ds.pr.ensure_valid()
         assert "WARNING" in caplog.text
-        assert (
-            "Secondary category defined, but no primary category defined, weird."
-            in caplog.text
-        )
+        assert "Secondary category defined, but no primary category defined, weird." in caplog.text
 
     def test_additional_coordinate_space(self, opulent_ds: xr.Dataset, caplog):
         ds = opulent_ds.rename({"category_names": "category names"})
-        with pytest.raises(
-            ValueError, match=r"Coord key 'category names' contains a space"
-        ):
+        with pytest.raises(ValueError, match=r"Coord key 'category names' contains a space"):
             ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
         assert (
@@ -184,9 +207,7 @@ class TestEnsureValid:
         with pytest.raises(ValueError, match="data already has units"):
             minimal_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
-        assert (
-            "'units' in variable attrs, but data is quantified already." in caplog.text
-        )
+        assert "'units' in variable attrs, but data is quantified already." in caplog.text
 
     def test_invalid_units(self, minimal_ds, caplog):
         deq = minimal_ds.pint.dequantify()
@@ -198,8 +219,7 @@ class TestEnsureValid:
         minimal_ds["SF6 (SARGWP100)"].attrs["gwp_context"] = "i_am_not_a_gwp_context"
         with pytest.raises(
             ValueError,
-            match=r"Invalid gwp_context 'i_am_not_a_gwp_context' for "
-            r"'SF6 \(SARGWP100\)'",
+            match=r"Invalid gwp_context 'i_am_not_a_gwp_context' for " r"'SF6 \(SARGWP100\)'",
         ):
             minimal_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
@@ -210,9 +230,7 @@ class TestEnsureValid:
 
     def test_extraneous_gwp_context(self, minimal_ds, caplog):
         minimal_ds["SF6"].attrs["gwp_context"] = "SARGWP100"
-        with pytest.raises(
-            ValueError, match=r"SF6 has wrong dimensionality for gwp_context."
-        ):
+        with pytest.raises(ValueError, match=r"SF6 has wrong dimensionality for gwp_context."):
             minimal_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
         assert (
@@ -240,9 +258,7 @@ class TestEnsureValid:
         minimal_ds["SF6_gwp"] = minimal_ds["SF6 (SARGWP100)"]
         minimal_ds.pr.ensure_valid()
         assert "WARNING" in caplog.text
-        assert (
-            "'SF6_gwp' has a gwp_context in attrs, but not in its name." in caplog.text
-        )
+        assert "'SF6_gwp' has a gwp_context in attrs, but not in its name." in caplog.text
 
     def test_weird_contact(self, minimal_ds, caplog):
         caplog.set_level(logging.INFO)
@@ -295,3 +311,50 @@ class TestToInterchangeFormat:
             "Additional coordinate 'addl_coord_2d' has more than one dimension, which"
             " is not supported." in caplog.text
         )
+
+
+def test_remove_processing_info(opulent_processing_ds):
+    result = opulent_processing_ds.pr.remove_processing_info()
+    assert all(not x.startswith("Processing of") for x in result)
+
+
+def test_remove_processing_info_nothing_to_do(opulent_ds):
+    result = opulent_ds.pr.remove_processing_info()
+    xr.testing.assert_identical(opulent_ds, result)
+
+
+def test_has_processing_info_not(opulent_ds):
+    assert not opulent_ds.pr.has_processing_info()
+
+
+def test_has_processing_info(opulent_processing_ds):
+    assert opulent_processing_ds.pr.has_processing_info()
+
+
+def test_expand_dims(minimal_ds):
+    result_ds = minimal_ds.pr.expand_dims(
+        dim="new_dim",
+        coord_value="new_value",
+        terminology="new_terminology",
+    )
+
+    new_dim = "new_dim (new_terminology)"
+
+    assert new_dim in result_ds.coords
+    assert "new_value" in result_ds.coords[new_dim].values
+
+    translations = translations_from_dims([new_dim])
+    shortest_key = min(list(translations.keys()), key=len)
+
+    assert result_ds.attrs[shortest_key] == translations[shortest_key]
+
+    # without terminology
+    result_ds = minimal_ds.pr.expand_dims(
+        dim="new_dim",
+        coord_value="new_value",
+    )
+
+    new_dim = "new_dim"
+
+    assert new_dim in result_ds.coords
+    assert "new_value" in result_ds.coords[new_dim].values

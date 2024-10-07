@@ -123,7 +123,6 @@ contact             who can answer questions about the data   free-form ``str`` 
 title               a succinct description                    free-form ``str``
 comment             longer form description                   free-form ``str``
 institution         where the data originates                 free-form ``str``
-history             processing steps done on the data         ``str`` with specific rules (see text)
 entity_terminology  terminology for data variable entities    ``str``
 publication_date    date of publication of the dataset        ``datetime.date``
 ==================  ========================================  =========================================
@@ -131,8 +130,6 @@ publication_date    date of publication of the dataset        ``datetime.date``
 All of these attributes are optional.
 If the ``references`` field starts with ``doi:``, it is a doi, otherwise it is a
 free-form literature reference.
-In the ``history`` field, an audit trail of modifications can be stored. Steps are
-separated by a newline character, and processing steps should append to the field.
 
 These attributes describing the data set contents are inspired by the
 `CF conventions <https://cfconventions.org/Data/cf-conventions/cf-conventions-1.8/cf-conventions.html#description-of-file-contents>`_
@@ -142,3 +139,41 @@ The ``entity_terminology`` (if present) defines the meaning of the codes used in
 data variables' names and ``entity`` attributes.
 In ``entity_terminology``, the name of the used terminology is stored and the
 terminology is defined elsewhere.
+
+Timeseries-Level Processing Information
+---------------------------------------
+
+To record processing information, rich processing information can be stored in
+special data variables.
+These store processing information for a specific normal data variable.
+For each timeseries in the normal data variable, a list of processing steps is kept.
+The name of these variables is ``Processing of {var}`` where ``{var}`` is the
+full name of the data variable which is described. Additionally, the following
+attributes are defined:
+
+==================  ========================================================================  ============================
+attribute           content                                                                   required
+------------------  ------------------------------------------------------------------------  ----------------------------
+entity              The same as the name, i.e. ``Processing of {var}``                        yes
+described_variable  The name of the described variable, i.e. ``{var}``.                       yes
+==================  ========================================================================  ============================
+
+The ``gwp_context`` and ``units`` attributes must not be given.
+
+``time`` must not be a dimension of the array, all other dimensions must be the same
+as the data variable which is described.
+The data array contains processing information as rich metadata types.
+Therefore, the data type is ``object`` and it contains
+``primap2.TimeseriesProcessingDescription`` objects.
+Each ``TimeseriesProcessingDescription`` object comprises multiple
+``primap2.ProcessingStepDescription`` objects.
+Each ``ProcessingStepDescription`` contains the following information:
+
+===========  =================================  =============================================================================
+attribute    type                               description
+-----------  ---------------------------------  -----------------------------------------------------------------------------
+time         ``np.datetime64`` or string "all"  The time points affected by the operation, or "all" to denote operations on the whole timeseries
+function     str                                Identifier for the function which did the operation
+description  str                                Long-form description of the operation which was performed
+source       str or ``None``                    If applicable, identifier for the data source which was used in the operation
+===========  =================================  =============================================================================

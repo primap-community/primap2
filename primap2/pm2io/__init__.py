@@ -1,6 +1,5 @@
 """Data reading module of the PRIMAP2 climate policy analysis package."""
 
-
 from ._data_reading import (
     convert_long_dataframe_if,
     convert_wide_dataframe_if,

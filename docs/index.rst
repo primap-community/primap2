@@ -9,6 +9,7 @@ Welcome to PRIMAP2's documentation!
    installation
    data_format_examples
    usage
+   special_usage
    data_reading
    datalad
    interchange_format_examples
