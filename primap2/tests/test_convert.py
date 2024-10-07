@@ -27,13 +27,5 @@ def test_convert_ipcc(empty_ds: xr.Dataset):
         auxiliary_dimensions={"gas": "source (gas)"},
     )
 
-    assert (
-        (result.pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
-        .all()
-        .item()
-    )
-    assert (
-        (result.pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year"))
-        .all()
-        .item()
-    )
+    assert (result.pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
+    assert (result.pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year")).all().item()

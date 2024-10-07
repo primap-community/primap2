@@ -15,15 +15,13 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
     @alias_dims(["dim"])
     def convert(
         self,
-        dim: typing.Union[Hashable, str],
-        categorization: typing.Union[climate_categories.Categorization, str],
+        dim: Hashable | str,
+        categorization: climate_categories.Categorization | str,
         *,
-        sum_rule: typing.Optional[
-            typing.Union[typing.Literal["intensive"], typing.Literal["extensive"]]
-        ] = None,
-        input_weights: typing.Optional[xr.DataArray] = None,
-        output_weights: typing.Optional[xr.DataArray] = None,
-        auxiliary_dimensions: typing.Optional[dict[str, str]] = None,
+        sum_rule: typing.Literal["intensive", "extensive"] | None = None,
+        input_weights: xr.DataArray | None = None,
+        output_weights: xr.DataArray | None = None,
+        auxiliary_dimensions: dict[str, str] | None = None,
     ) -> xr.DataArray:
         """Convert the data along the given dimension into the new categorization.
 
@@ -88,9 +86,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         dim_name, old_categorization_name = extract_categorization_from_dim(dim)
         old_categorization = ensure_categorization_instance(old_categorization_name)
         conversion = old_categorization.conversion_to(new_categorization)
-        auxiliary_dimensions = prepare_auxiliary_dimensions(
-            conversion, auxiliary_dimensions
-        )
+        auxiliary_dimensions = prepare_auxiliary_dimensions(conversion, auxiliary_dimensions)
         new_dim = f"{dim_name} ({new_categorization.name})"
 
         converted_da = initialize_empty_converted_da(
@@ -128,12 +124,10 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         already_converted_categories: list[climate_categories.Category],
         category: climate_categories.Category,
         conversion: climate_categories.Conversion,
-        sum_rule: typing.Optional[str],
-        auxiliary_dimensions: typing.Optional[
-            dict[climate_categories.Categorization, str]
-        ],
-        input_weights: typing.Optional[xr.DataArray] = None,
-        output_weights: typing.Optional[xr.DataArray] = None,
+        sum_rule: str | None,
+        auxiliary_dimensions: dict[climate_categories.Categorization, str] | None,
+        input_weights: xr.DataArray | None = None,
+        output_weights: xr.DataArray | None = None,
     ) -> tuple[list[climate_categories.Category], xr.DataArray]:
         """Return a copy of da with the given category filled by values converted
         using the given conversion.
@@ -232,9 +226,9 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 continue
 
             # the left-hand side of the conversion formula summed up
-            lhs = (
-                input_factors * effective_input_weights * self._da.loc[input_selection]
-            ).sum(dim=dim)
+            lhs = (input_factors * effective_input_weights * self._da.loc[input_selection]).sum(
+                dim=dim
+            )
             # the right-hand side of the conversion formula split up
             rhs = lhs / output_factors / effective_output_weights
 
@@ -295,7 +289,7 @@ def applicable_rules(conversion, category) -> list[climate_categories.Conversion
 
 
 def ensure_categorization_instance(
-    cat: typing.Union[str, climate_categories.Categorization]
+    cat: str | climate_categories.Categorization,
 ) -> climate_categories.Categorization:
     """Takes a categorization name or object and returns the corresponding
     categorization object."""
@@ -304,21 +298,20 @@ def ensure_categorization_instance(
     return climate_categories.cats[cat]
 
 
-def check_valid_sum_rule_types(sum_rule: typing.Optional[str]):
+def check_valid_sum_rule_types(sum_rule: str | None):
     """Checks if the sum_rule is either "intensive", "extensive", or None.
 
     Raises a ValueError if an invalid sum_rule is used."""
     if sum_rule not in (None, "extensive", "intensive"):
         raise ValueError(
-            f"if defined, sum_rule must be either 'extensive' or 'intensive', not"
-            f" {sum_rule}"
+            f"if defined, sum_rule must be either 'extensive' or 'intensive', not" f" {sum_rule}"
         )
 
 
 def initialize_empty_converted_da(
     *,
     old_da: xr.DataArray,
-    old_dim: typing.Union[Hashable, str],
+    old_dim: Hashable | str,
     new_dim: str,
     new_categorization: climate_categories.Categorization,
 ) -> xr.DataArray:
@@ -399,9 +392,7 @@ def factors_categories_to_xarray(
     *,
     dim: str,
     factors_categories: dict[climate_categories.Category, int],
-    auxiliary_categories: dict[
-        climate_categories.Categorization, set[climate_categories.Category]
-    ],
+    auxiliary_categories: dict[climate_categories.Categorization, set[climate_categories.Category]],
     auxiliary_dimensions: dict[climate_categories.Categorization, str],
 ) -> tuple[dict[str, list[str]], xr.DataArray]:
     """Convert dictionary mapping categories to factors into xarray-compatible objects.
@@ -467,11 +458,11 @@ def derive_weights(
     dim: str,
     category: climate_categories.Category,
     rule: climate_categories.ConversionRule,
-    sum_rule: typing.Optional[str],
+    sum_rule: str | None,
     operation_type: str,
-    weights: typing.Optional[xr.DataArray],
+    weights: xr.DataArray | None,
     selection: dict[str, list[str]],
-) -> typing.Union[xr.DataArray, float]:
+) -> xr.DataArray | float:
     """Derive the weights to use for applying a specific rule.
 
     Parameters
@@ -542,8 +533,8 @@ def derive_weights(
 
 def prepare_auxiliary_dimensions(
     conversion: climate_categories.Conversion,
-    auxiliary_dimensions: typing.Optional[dict[str, str]],
-) -> typing.Optional[dict[climate_categories.Categorization, str]]:
+    auxiliary_dimensions: dict[str, str] | None,
+) -> dict[climate_categories.Categorization, str] | None:
     """Prepare and check the auxiliary dimension mapping.
 
     Check if all auxiliary categorizations used in the conversion are matched in
@@ -580,6 +571,5 @@ def prepare_auxiliary_dimensions(
         return auxiliary_dimensions
 
     return {
-        climate_categories.cats[name]: auxiliary_dimensions[name]
-        for name in auxiliary_dimensions
+        climate_categories.cats[name]: auxiliary_dimensions[name] for name in auxiliary_dimensions
     }
