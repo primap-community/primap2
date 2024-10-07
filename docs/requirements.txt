@@ -7,3 +7,4 @@ jupytext>=1.16
 sphinx-copybutton>=0.5.2
 sphinx-autosummary-accessors>=2023.4
 sphinx-tippy>=0.4.3
+sphinx-favicon>=1.0

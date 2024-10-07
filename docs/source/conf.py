@@ -40,6 +40,8 @@ extensions = [
     "sphinx.ext.mathjax",
     # nicer tooltips
     "sphinx_tippy",
+    # better favicons
+    "sphinx_favicon",
 ]
 
 # general sphinx settings
@@ -115,6 +117,15 @@ html_context = {
     # dark mode of sphinx-book-theme doesn't play nicely with xarray
     "default_mode": "light",
 }
+
+# favicon
+favicons = [
+    {"href": "favicon-48x48.png", "sizes": "48x48"},
+    {"href": "favicon.svg"},
+    {"href": "favicon.ico", "rel": "shortcut icon"},
+    {"href": "apple-touch-icon.png", "rel": "apple-touch-icon", "sizes": "180x180"},
+    {"href": "site.webmanifest", "rel": "manifest"},
+]
 
 # Intersphinx mapping
 intersphinx_mapping = {
