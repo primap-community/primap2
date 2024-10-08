@@ -1,11 +1,14 @@
 """Tests for the interchange format."""
 
 import csv
+import importlib
+import importlib.resources
 
 import pandas as pd
 import pytest
 import xarray as xr
 
+import primap2
 from primap2 import pm2io
 
 from . import utils
@@ -62,3 +65,24 @@ def test_inharmonic_units(minimal_ds, tmp_path):
 
     with pytest.raises(ValueError, match="More than one unit"):
         pm2io.from_interchange_format(pm2io.read_interchange_format(path))
+
+
+def test_stable_sorting(empty_ds, tmp_path):
+    path = tmp_path / "test_empty_ds_if"
+    ds = empty_ds.copy()
+    # add some unsorted metadata
+    ds.pr.contact = "Someone"
+    ds.pr.comment = "This needs to be sorted alphabetically."
+    ds.pr.title = "Test Dataset"
+    # mess up the sorting of the data
+    ds_if = ds.pr.to_interchange_format()
+    ds_if = ds_if.sort_values("entity")
+    pm2io.write_interchange_format(path, ds_if)
+    result_csv = path.with_suffix(".csv").read_bytes()
+    result_yaml = path.with_suffix(".yaml").read_bytes()
+    test_data_dir = importlib.resources.files(primap2).joinpath("tests").joinpath("data")
+    expected_csv = test_data_dir.joinpath("test_empty_ds_if.csv").read_bytes()
+    expected_yaml = test_data_dir.joinpath("test_empty_ds_if.yaml").read_bytes()
+
+    assert result_csv == expected_csv
+    assert result_yaml == expected_yaml

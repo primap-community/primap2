@@ -162,17 +162,27 @@ def write_interchange_format(
     data_file = filepath.parent / (filepath.stem + ".csv")
     meta_file = filepath.parent / (filepath.stem + ".yaml")
 
+    # sort the data for stable output
+    data_sorted = data.sort_values(list(data.columns))
+
     # write the data
-    data.to_csv(data_file, index=False, quoting=csv.QUOTE_NONNUMERIC)
+    data_sorted.to_csv(data_file, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
     attrs["data_file"] = data_file.name
+
+    # we need to sort the metadata for stable output
+    attrs_sorted = dict(sorted(attrs.items()))
+    for entry in attrs_sorted["dimensions"]:
+        attrs_sorted["dimensions"][entry] = list(sorted(attrs_sorted["dimensions"][entry]))
+    attrs_sorted["dimensions"] = dict(sorted(attrs_sorted["dimensions"].items()))
+    attrs_sorted["attrs"] = dict(sorted(attrs_sorted["attrs"].items()))
 
     yaml = YAML()
     # settings for strictyaml compatibility: don't use flow style or aliases
     yaml.default_flow_style = False
     yaml.representer.ignore_aliases = lambda x: True
     with meta_file.open("w") as fd:
-        yaml.dump(attrs, fd)
+        yaml.dump(attrs_sorted, fd)
 
 
 def read_interchange_format(

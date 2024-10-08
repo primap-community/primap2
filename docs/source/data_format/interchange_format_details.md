@@ -68,7 +68,13 @@ Dimension information has to be given for all entities, i.e. if no default dimen
 are specified using `*`, there has to exist an entry in the dimensions dict for each
 unique value in the entity column in the tabular data.
 
-## Data Format
+## On-disk format details
+
+### CSV file
 
 Numeric values are given unquoted and string values are quoted with `"`.
 Missing information is denoted by an empty string `""`.
+
+### YAML file
+
+All keys have to be sorted alphabetically.
