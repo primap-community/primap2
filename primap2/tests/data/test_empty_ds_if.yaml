@@ -1,0 +1,14 @@
+attrs:
+  area: area (ISO3)
+  comment: This needs to be sorted alphabetically.
+  contact: Someone
+  title: Test Dataset
+data_file: test_empty_ds_if.csv
+dimensions:
+  '*':
+  - area (ISO3)
+  - entity
+  - source
+  - time
+  - unit
+time_format: '%Y'
