@@ -68,12 +68,16 @@ def test_inharmonic_units(minimal_ds, tmp_path):
 
 
 def test_stable_sorting(empty_ds, tmp_path):
-    path = tmp_path / "if"
+    path = tmp_path / "test_empty_ds_if"
     ds = empty_ds.copy()
+    # add some unsorted metadata
     ds.pr.contact = "Someone"
     ds.pr.comment = "This needs to be sorted alphabetically."
     ds.pr.title = "Test Dataset"
-    pm2io.write_interchange_format(path, ds.pr.to_interchange_format())
+    # mess up the sorting of the data
+    ds_if = ds.pr.to_interchange_format()
+    ds_if = ds_if.sort_values("entity")
+    pm2io.write_interchange_format(path, ds_if)
     result_csv = path.with_suffix(".csv").read_bytes()
     result_yaml = path.with_suffix(".yaml").read_bytes()
     test_data_dir = importlib.resources.files(primap2).joinpath("tests").joinpath("data")
