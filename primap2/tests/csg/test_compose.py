@@ -6,7 +6,6 @@ import pytest
 import xarray as xr
 
 import primap2.csg
-import primap2.csg._compose
 from primap2.tests.csg.utils import get_single_ts
 
 

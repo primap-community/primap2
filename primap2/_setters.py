@@ -234,8 +234,8 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Returns
         -------
-        da : xr.DataArray
-            modified DataArray
+            da : xr.DataArray
+                modified DataArray
         """
         if np.ndim(key) == 0:  # scalar
             key = [key]
@@ -558,8 +558,8 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
 
         Returns
         -------
-        ds : xr.Dataset
-            modified Dataset
+            ds : xr.Dataset
+                modified Dataset
         """
         if not isinstance(value, xr.Dataset):
             raise TypeError(f"value must be a Dataset, not {type(value)}")

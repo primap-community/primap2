@@ -40,6 +40,39 @@ def minimal_ds() -> xr.Dataset:
     return minimal
 
 
+def toy_ds() -> xr.Dataset:
+    """A toy dataset which can be used to demonstrate a lot of concepts."""
+    time = pd.date_range("2015-01-01", "2020-01-01", freq="YS")
+    area_iso3 = np.array(["COL", "ARG"])
+    cat = np.array(["0", "1", "2", "1.A", "1.B"])
+
+    # seed the rng with a constant to achieve predictable "randomness"
+    rng = np.random.default_rng(1)
+
+    toy = xr.Dataset(
+        {
+            ent: xr.DataArray(
+                data=rng.random((len(time), len(area_iso3), len(cat), 2)),
+                coords={
+                    "time": time,
+                    "area (ISO3)": area_iso3,
+                    "category (IPCC2006)": cat,
+                    "source": ["RAND2020", "RAND2021"],
+                },
+                dims=["time", "area (ISO3)", "category (IPCC2006)", "source"],
+                attrs={"units": f"{ent} Gg / year", "entity": ent},
+            )
+            for ent in ("CO2", "CH4")
+        },
+        attrs={"area": "area (ISO3)", "cat": "category (IPCC2006)"},
+    ).pr.quantify()
+
+    with ureg.context("SARGWP100"):
+        toy["CH4 (SARGWP100)"] = toy["CH4"].pint.to("CO2 Gg / year")
+    toy["CH4 (SARGWP100)"].attrs["gwp_context"] = "SARGWP100"
+    return toy
+
+
 COORDS = {
     "time": pd.date_range("2000-01-01", "2020-01-01", freq="YS"),
     "area (ISO3)": np.array(["COL", "ARG", "MEX", "BOL"]),

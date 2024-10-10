@@ -96,6 +96,10 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
             new_categorization=new_categorization,
         )
 
+        # idea: convert 1-to-1 mappings first, should be easy in a single xarray
+        # operation
+        # note: if you have multiple rules to fill a single category, we should
+        # use something like fillna
         converted_categories = []
         for category in converted_da[new_dim]:
             if category in converted_categories:

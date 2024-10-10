@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit stubs update-venv README.rst check-python-version
+.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit stubs update-venv README.md check-python-version
 .DEFAULT_GOAL := help
 
 define PRINT_HELP_PYSCRIPT
@@ -22,7 +22,7 @@ clean-build: ## remove build artifacts
 	rm -fr dist/
 	rm -fr .eggs/
 	find . -name '*.egg-info' -exec rm -fr {} +
-	find . -name '*.egg' -exec rm -f {} +
+	find . -name '*.egg' -exec rm -fr {} +
 
 clean-pyc: ## remove Python file artifacts
 	find . -name '*.pyc' -exec rm -f {} +
@@ -51,20 +51,20 @@ coverage: venv ## check code coverage quickly with the default Python
 	venv/bin/coverage html
 	ls htmlcov/index.html
 
-docs: venv ## generate Sphinx HTML documentation, including API docs
-	rm -rf docs/generated
-	$(MAKE) -C docs clean
-	$(MAKE) -C docs html
+clean-docs: venv ## Remove generated parts of documentation, then build docs
+	. venv/bin/activate ; $(MAKE) -C docs clean
+	. venv/bin/activate ; $(MAKE) -C docs html
 
-servedocs: docs ## compile the docs watching for changes
-	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
+docs: venv ## generate Sphinx HTML documentation, including API docs
+	. venv/bin/activate ; $(MAKE) -C docs html
 
 release: venv dist ## package and upload a release
 	venv/bin/twine upload --repository primap dist/*
 
 dist: clean venv ## builds source and wheel package
-	venv/bin/python -m build
-	ls -l dist
+	# because we update the citation info after releasing on github and zenodo but
+	# before building for pypi, we need to force the correct version.
+	SETUPTOOLS_SCM_PRETEND_VERSION=0.11.2 venv/bin/python -m build
 
 install: clean ## install the package to the active Python's site-packages
 	python setup.py install
@@ -94,5 +94,5 @@ stubs: venv ## generate directory with xarray stubs with inserted primap2 stubs
 	venv/bin/stubgen -p xarray -o stubs
 	(cd stubs; patch -s -p0 < ../primap-stubs.patch)
 
-README.rst: ## Update the citation information from zenodo
+README.md: ## Update the citation information from zenodo
 	venv/bin/python update_citation_info.py

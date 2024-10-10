@@ -18,8 +18,7 @@ def merge_with_tolerance_core(
     error_on_discrepancy: bool = True,
 ) -> xr.DataArray:
     """
-    Merge two DataArrays with a given tolerance for discrepancies in values
-    present in both DataArrays.
+    Merge two DataArrays with a tolerance for discrepancies in values present in both DataArrays.
 
     If values from the data to merge are already present in da_start they are
     treated as equal if the relative difference is below the tolerance threshold.
@@ -27,10 +26,10 @@ def merge_with_tolerance_core(
 
     If a merge using xr.merge is not possible the function identifies the conflicting
     values and checks if the relative difference is above the tolerance threshold.
-    If it is, an error is raised (if error_on_discrepancy = True) or a warning is
-    logged (if error_on_discrepancy = False).
+    If it is, an error is raised (if ``error_on_discrepancy = True``) or a warning is
+    logged (if ``error_on_discrepancy = False``).
 
-    The function assumes dataarrays have been checked for identical coordinates
+    The function assumes DataArrays have been checked for identical coordinates
     etc. as it is called by DataArray.pr.merge() and Dataset.pr.merge().
 
     Parameters
@@ -49,7 +48,8 @@ def merge_with_tolerance_core(
 
     Returns
     -------
-        xr.DataArray: DataArray with data from da_merge merged into da_start
+        merged : xr.DataArray
+            DataArray with data from da_merge merged into da_start
     """
     with contextlib.suppress(xr.MergeError):
         da_result = xr.merge(
@@ -85,6 +85,7 @@ def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
     """Generate a single large log message for all given errors.
 
     Strategy:
+
     * remove all length-1 dimensions and put them in description
     * convert the rest into a pandas dataframe for nice printing
     """
@@ -116,9 +117,7 @@ def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
 
 
 def ensure_compatible_coords_dims(a: xr.Dataset | xr.DataArray, b: xr.Dataset | xr.DataArray):
-    """Check if coordinates and dimensions of both Datasets or DataArrays agree,
-    raise exception otherwise.
-    """
+    """Check if coordinates and dimensions of both Datasets or DataArrays agree."""
     if set(a.coords) != set(b.coords):
         logger.error("pr.merge error: coords of objects to merge must agree")
         raise ValueError("pr.merge error: coords of objects to merge must agree")
@@ -134,9 +133,7 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
         tolerance: float = 0.01,
         error_on_discrepancy: bool = True,
     ) -> xr.DataArray:
-        """
-        Merge this data array with another using a given tolerance for
-        discrepancies in values present in both DataArrays.
+        """Merge with da_merge with a tolerance for discrepancies in values found in both.
 
         If values from the data to merge are already
         present they are treated as equal if the relative
@@ -159,8 +156,9 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
 
         Returns
         -------
-            xr.DataArray: DataArray with data from da_merge merged into the calling
-            object
+            merged
+                xr.DataArray: DataArray with data from da_merge merged into the calling
+                object
         """
         # check if coordinates and dimensions agree
         da_start = self._da
@@ -182,9 +180,9 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
         error_on_discrepancy: bool = True,
         combine_attrs: xr.core.types.CombineAttrsOptions = "drop_conflicts",
     ) -> xr.Dataset:
-        """
-        Merge two Datasets with a given tolerance for discrepancies in values
-        present in both Datasets. If values from the data to merge are already
+        """Merge two Datasets with a tolerance for discrepancies in values present in both Datasets.
+
+        If values from the data to merge are already
         present in the calling object they are treated as equal if the relative
         difference is below the tolerance threshold. The result will use the values
         of the calling object.
@@ -206,7 +204,8 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
 
         Returns
         -------
-            xr.Dataset: Dataset with data from da_merge merged into the calling object
+            merged
+                Dataset with data from da_merge merged into the calling object
         """
         if self._ds.pr.has_processing_info():
             raise NotImplementedError(

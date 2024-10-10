@@ -7,8 +7,8 @@ new_doi = resp["metadata"]["doi"]
 new_date = resp["metadata"]["publication_date"]
 new_title = resp["metadata"]["title"]
 
-citation = f"""Citation
---------
+citation = f"""## Citation
+
 If you use this library and want to cite it, please cite it as:
 
 Mika Pflüger and Johannes Gütschow. ({new_date}).
@@ -16,10 +16,10 @@ Mika Pflüger and Johannes Gütschow. ({new_date}).
 Zenodo. {new_link}
 """
 
-with open("README.rst") as fd:
+with open("README.md") as fd:
     old_content = fd.read().splitlines(keepends=True)
 
-with open("README.rst", "w") as fd:
+with open("README.md", "w") as fd:
     skip_to_next_section = False
     i = 0
     while True:
@@ -27,19 +27,16 @@ with open("README.rst", "w") as fd:
             line = old_content[i]
         except IndexError:
             break
-        if line == "Citation\n":
+        if line == "## Citation\n":
             fd.write(citation)
             skip_to_next_section = True
-            i += 2
         elif skip_to_next_section:
-            if line.startswith("---"):
+            if line.startswith("#"):
                 fd.write("\n")
-                fd.write(old_content[i - 1])
                 fd.write(line)
                 skip_to_next_section = False
-            i += 1
         else:
             fd.write(line)
-            i += 1
+        i += 1
 
     fd.truncate()

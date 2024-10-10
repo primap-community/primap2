@@ -1,0 +1,2 @@
+formats = "ipynb,myst"
+cell_metadata_filter = "-pycharm"
