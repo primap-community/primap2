@@ -5,15 +5,15 @@ attrs:
   sec_cats:
   - Class (class)
   - Type (type)
-time_format: '%Y'
+data_file: test_csv_data_sec_cat_if.csv
 dimensions:
   '*':
-  - source
-  - scenario (general)
-  - area (ISO3)
-  - entity
-  - unit
-  - category (IPCC2006)
   - Class (class)
   - Type (type)
-data_file: test_csv_data_sec_cat_if.csv
+  - area (ISO3)
+  - category (IPCC2006)
+  - entity
+  - scenario (general)
+  - source
+  - unit
+time_format: '%Y'
