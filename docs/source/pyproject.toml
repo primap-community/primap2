@@ -1,0 +1,9 @@
+[tool.ruff]
+# Extend the general settings
+extend = "../../pyproject.toml"
+
+[tool.ruff.lint]
+ignore = [
+    "B018",  # Useless expression - common and fine in notebooks.
+    "E402",  # Module level import not at top of file - fine in notebooks
+]

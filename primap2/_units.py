@@ -20,7 +20,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
     def quantify(self, **kwargs):
         """Attaches units to the DataArray.
 
-        Units can be specified as a pint.Unit or as a string. If no units are specified
+        Units can be specified as a :py:class`pint.Unit` or as a string. If no units are specified
         then the
         units will be parsed from the `'units'` entry of the DataArray's
         `.attrs`. Will raise a ValueError if the DataArray already contains a
@@ -54,12 +54,6 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         **unit_kwargs
             Keyword argument form of units.
 
-        Returns
-        -------
-        quantified : DataArray
-            DataArray whose wrapped array data will now be a Quantity
-            array with the specified units.
-
         Examples
         --------
         >>> da = xr.DataArray(
@@ -72,6 +66,12 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         <Quantity([0.4 0.9 1.7 4.8 3.2 9.1], 'hertz')>
         Coordinates:
           * wavelength  (wavelength) float64 48B 0.0001 0.0002 0.0004 0.0006 0.001 0.002
+
+        Returns
+        -------
+            quantified : DataArray
+                DataArray whose wrapped array data will now be a Quantity
+                array with the specified units.
         """
         return self._da.pint.quantify(unit_registry=ureg, **kwargs)
 
@@ -79,13 +79,13 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         """Removes units from the DataArray and its coordinates.
 
         Will replace ``.attrs['units']`` on each variable with a string
-        representation of the ``pint.Unit`` instance.
+        representation of the :py:class:`pint.Unit` instance.
 
         Returns
         -------
-        dequantified : DataArray
-            DataArray whose array data is unitless, and of the type
-            that was previously wrapped by `pint.Quantity`.
+            dequantified : DataArray
+                DataArray whose array data is unitless, and of the type
+                that was previously wrapped by `pint.Quantity`.
         """
         return self._da.pint.dequantify()
 
@@ -103,7 +103,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Returns
         -------
-        converted : xr.DataArray
+            converted : xr.DataArray
         """
         if "gwp_context" in self._da.attrs and self._da.attrs["gwp_context"] != gwp_context:
             raise ValueError(
@@ -118,8 +118,9 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         return da
 
     def convert_to_gwp_like(self, like: xr.DataArray) -> xr.DataArray:
-        """Convert to a global warming potential in the units of a reference array
-        using the ``gwp_context`` of the reference array.
+        """Convert to a global warming potential in the units of a reference array.
+
+        Uses the ``gwp_context`` of the reference array.
 
         Parameters
         ----------
@@ -128,7 +129,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Returns
         -------
-        converted : xr.DataArray
+            converted : xr.DataArray
         """
         if "gwp_context" not in like.attrs or like.attrs["gwp_context"] is None:
             raise ValueError("reference array has no gwp_context.")
@@ -138,8 +139,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
 
     @property
     def gwp_context(self) -> pint.Context:
-        """The pint conversion context for this DataArray, directly usable for
-        conversions.
+        """The pint conversion context for this DataArray, directly usable for conversions.
 
         Examples
         --------
@@ -151,7 +151,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Returns
         -------
-        context : pint.Context
+            context : pint.Context
         """
         return ureg.context(self._da.attrs["gwp_context"])
 
@@ -175,7 +175,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Returns
         -------
-        converted : xr.DataArray
+            converted : xr.DataArray
         """
         if gwp_context is None:
             try:
@@ -209,7 +209,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
     def quantify(self, units=None, **unit_kwargs) -> xr.Dataset:
         """Attaches units to each variable in the Dataset.
 
-        Units can be specified as a ``pint.Unit`` or as a
+        Units can be specified as a :py:class:`pint.Unit` or as a
         string. If no
         units are specified then the units will be parsed from the
         ``"units"`` entry of the Dataset variable's ``.attrs``. Will
@@ -241,12 +241,6 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
             from all variables except from dimension coordinates.
         **unit_kwargs
             Keyword argument form of ``units``.
-
-        Returns
-        -------
-        quantified : Dataset
-            The variables in quantified will now contain Quantity arrays
-            with units.
 
         Examples
         --------
@@ -284,6 +278,12 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
         Data variables:
             a        (x) int... [m] 0 3 2
             b        (x) int... [dm] 5 -2 1
+
+        Returns
+        -------
+            quantified : Dataset
+                The variables in quantified will now contain Quantity arrays
+                with units.
         """
         return self._ds.pint.quantify(unit_registry=ureg, units=units, **unit_kwargs)
 
@@ -291,12 +291,12 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
         """Removes units from the Dataset and its coordinates.
 
         Will replace ``.attrs['units']`` on each variable with a string
-        representation of the ``pint.Unit`` instance.
+        representation of the :py:class:`pint.Unit` instance.
 
         Returns
         -------
-        dequantified : Dataset
-            Dataset whose data variables are unitless, and of the type
-            that was previously wrapped by ``pint.Quantity``.
+            dequantified: Dataset
+                Dataset whose data variables are unitless, and of the type
+                that was previously wrapped by :py:class:`pint.Quantity`.
         """
         return self._ds.pint.dequantify()

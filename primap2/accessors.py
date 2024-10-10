@@ -47,3 +47,6 @@ class PRIMAP2DataArrayAccessor(
     DataArrayFillAccessor,
 ):
     """Collection of methods useful for climate policy analysis."""
+
+
+__all__ = ["PRIMAP2DataArrayAccessor", "PRIMAP2DatasetAccessor"]

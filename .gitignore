@@ -1,4 +1,4 @@
-.changelog_latest_version.rst
+.github_release_notes_file.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -11,6 +11,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 env/
+docs-old/generated/
 docs/generated/
 build/
 develop-eggs/
@@ -69,7 +70,7 @@ instance/
 .scrapy
 
 # Sphinx documentation
-docs/_build/
+docs-old/_build/
 
 # PyBuilder
 target/
