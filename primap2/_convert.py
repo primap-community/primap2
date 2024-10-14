@@ -85,11 +85,11 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         """
         dim_name, old_categorization_name = extract_categorization_from_dim(dim)
 
-        # user put in str of new category or categorisation object
         if isinstance(categorization, (climate_categories.Categorization, str)):
             new_categorization = ensure_categorization_instance(categorization)
             old_categorization = ensure_categorization_instance(old_categorization_name)
             conversion = old_categorization.conversion_to(new_categorization)
+        # TODO: Refactor or change variable name for categorization. Conversion is not really the same
         elif isinstance(categorization, climate_categories._conversions.Conversion):
             new_categorization = ensure_categorization_instance(
                 categorization.categorization_b_name
