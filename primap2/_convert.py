@@ -16,10 +16,11 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
     def convert(
         self,
         dim: Hashable | str,
-        categorization: climate_categories.Categorization
-        | climate_categories._conversions.Conversion
-        | str,
+        # TODO naming
+        categorization: climate_categories.Categorization | str,
         *,
+        custom_categorisation_a : climate_categories.Categorization | None = None,
+        custom_categorisation_b : climate_categories.Categorization | None = None,
         sum_rule: typing.Literal["intensive", "extensive"] | None = None,
         input_weights: xr.DataArray | None = None,
         output_weights: xr.DataArray | None = None,
@@ -34,6 +35,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Parameters
         ----------
+        # TODO
         dim : str
             Dimension to convert. Has to be a dimension from ``da.dims``.
         categorization : climate_categories.Categorization or str
@@ -85,16 +87,22 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         """
         dim_name, old_categorization_name = extract_categorization_from_dim(dim)
 
+        # TODO find better logic for all this
         if isinstance(categorization, (climate_categories.Categorization, str)):
             new_categorization = ensure_categorization_instance(categorization)
             old_categorization = ensure_categorization_instance(old_categorization_name)
             conversion = old_categorization.conversion_to(new_categorization)
         # TODO: Refactor or change variable name for categorization. Conversion is not really the same
         elif isinstance(categorization, climate_categories._conversions.Conversion):
-            new_categorization = ensure_categorization_instance(
-                categorization.categorization_b_name
-            )
-            conversion = categorization
+            if custom_categorisation_a and custom_categorisation_b:
+                old_categorization = ensure_categorization_instance(custom_categorisation_a)
+                new_categorization = ensure_categorization_instance(custom_categorisation_b)
+                conversion = categorization
+            else:
+                new_categorization = ensure_categorization_instance(
+                    categorization.categorization_b_name
+                )
+                conversion = categorization
         else:
             raise ValueError(
                 f"categorization must be of instance climate_categories.Categorization "
