@@ -19,79 +19,14 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         #  https://github.com/primap-community/climate_categories/pull/164 is merged
         *,
         conversion: climate_categories._conversions.Conversion,
-        old_categorization: climate_categories.Categorization,
         new_categorization: climate_categories.Categorization,
         sum_rule: typing.Literal["intensive", "extensive"] | None = None,
         input_weights: xr.DataArray | None = None,
         output_weights: xr.DataArray | None = None,
         auxiliary_dimensions: dict[str, str] | None = None,
     ) -> xr.DataArray:
-        """Convert the data along the given dimension into the new categorization.
-
-        Maps the given dimension from one categorization (terminology) into another.
-        Fetches the rules to do the mapping from the climate_categories package, and
-        therefore will only work if there are conversions rules to convert from the
-        current categorization to the new categorization.
-
-        Parameters
-        ----------
-        dim : str
-            Dimension to convert. Has to be a dimension from ``da.dims``.
-        # TODO type will change to climate_categories.Conversion when climate_categories/pull/164 is merged
-        conversion : climate_categories.Categorization or str or climate_categories._conversions.Conversion
-            New categorization to convert the given dimension to. Either give the title
-            of the new categorization (like ``IPCC1996``) or a
-            ``climate_categories.Categorization`` object or a
-            ``climate_categories._conversions.Conversion`` object.
-        custom_categorization_input
-            A custom categorization for the input data. Must be provided if conversion uses
-            input categorisation that is not in ``climate_categories``.
-            Overwrites categorisation in conversion if both are provided.
-        custom_categorization_output
-            A custom categorization for the output data. Must be provided if conversion uses
-            output categorisation that is not in ``climate_categories``.
-            Overwrites categorisation in conversion if both are provided.
-        sum_rule : ``extensive``, ``intensive``, or None (default)
-            If data of categories has to be summed up or divided, we need information
-            whether the quantity measured is extensive (like, for example, total
-            emissions in a year subdivided into multiple sectoral categories) or
-            intensive (like, for example, average per-person emissions in a year
-            subdivided into different territorial entities). By default (None), a
-            warning is issued if data has to be summed up or divided.
-        input_weights : xr.DataArray, optional
-            If data in input categories has to be summed up and the sum_rule is
-            ``intensive``, weights for the input categories are required.
-            The weights can be given in any shape compatible with the DataArray that
-            is converted, e.g. to give different weights for industrial sectors by
-            country. However, at least the ``dim`` that is converted needs to be in
-            ``input_weights.dims``.
-            If no weights are specified but a rule requiring weights is specified
-            in the conversion rules, a warning is issued and the respective rule is
-            skipped (probably resulting in more NaNs in the output).
-        output_weights : xr.DataArray, optional
-            If data has to be divided into several output categories and the sum_rule is
-            ``extensive``, weights for the output categories are required.
-            The weights can be given in any shape compatible with the DataArray that
-            is converted, e.g. to give different weights for industrial sectors by
-            country. However, at least the ``dim`` that is converted needs to be in
-            ``output_weights.dims``.
-            If no weights are specified but a rule requiring weights is specified
-            in the conversion rules, a warning is issued and the respective rule is
-            skipped (probably resulting in more NaNs in the output).
-        auxiliary_dimensions : dict[str, str], optional
-            Mapping of auxiliary categorizations to dimension names used in this
-            DataArray. In conversions which contain rules which are valid only for
-            certain orthogonal dimensions (e.g. a conversion between different sectoral
-            terminologies, but some rules are only valid for specific countries), only
-            the categorization is specified. Therefore, in this case you have to specify
-            a mapping from categorization name to dimension name.
-            Example: {"ISO3": "area (ISO3)"}) .
-
-        Returns
-        -------
-        converted : xr.DataArray
-            A copy of the DataArray with the given dimension converted in the new
-            categorization.
+        """
+        See docstring of `convert` for details on arguments and behavior.
         """
 
         check_valid_sum_rule_types(sum_rule)
@@ -136,27 +71,91 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
     @alias_dims(["dim"])
     def convert(
         self,
-        dim,
-        new_categorization=None,
-        conversion=None,
+        dim:  Hashable | str,
+        conversion: climate_categories._conversions.Conversion = None,
+        new_categorization: climate_categories.Categorization = None,
         sum_rule: typing.Literal["intensive", "extensive"] | None = None,
         input_weights: xr.DataArray | None = None,
         output_weights: xr.DataArray | None = None,
         auxiliary_dimensions: dict[str, str] | None = None,
-    ):
-        if not new_categorization and not conversion:
-            raise ValueError("conversion or new_categorization must be provided.")
+    ) -> xr.DataArray:
+        """Convert the data along the given dimension into the new categorization.
 
-        # TODO clean up algorithm
+        Maps the given dimension from one categorization (terminology) into another.
+        Fetches the rules to do the mapping from the climate_categories package, and
+        therefore will only work if there are conversions rules to convert from the
+        current categorization to the new categorization.
+
+        Parameters
+        ----------
+        dim : str
+            Dimension to convert. Has to be a dimension from ``da.dims``.
+        conversion : climate_categories.Conversion
+            The conversion rules that describe the conversion from the old to the new categorization.
+            Contains ``climate_categories.Categorization`` object for old and new categorisation.
+        new_categorization: str
+            New categorization to convert the given dimension to. If the categorization
+            is part of climate categories the title of the new categorization (like ``IPCC1996``)
+            will work. A ``climate_categories.Categorization`` object can be used regardless
+            of wether it is part of climate_categories. When providing just the new categorization,
+            the old categorization as well as the conversion must be part of climate_categories.
+        sum_rule : ``extensive``, ``intensive``, or None (default)
+            If data of categories has to be summed up or divided, we need information
+            whether the quantity measured is extensive (like, for example, total
+            emissions in a year subdivided into multiple sectoral categories) or
+            intensive (like, for example, average per-person emissions in a year
+            subdivided into different territorial entities). By default (None), a
+            warning is issued if data has to be summed up or divided.
+        input_weights : xr.DataArray, optional
+            If data in input categories has to be summed up and the sum_rule is
+            ``intensive``, weights for the input categories are required.
+            The weights can be given in any shape compatible with the DataArray that
+            is converted, e.g. to give different weights for industrial sectors by
+            country. However, at least the ``dim`` that is converted needs to be in
+            ``input_weights.dims``.
+            If no weights are specified but a rule requiring weights is specified
+            in the conversion rules, a warning is issued and the respective rule is
+            skipped (probably resulting in more NaNs in the output).
+        output_weights : xr.DataArray, optional
+            If data has to be divided into several output categories and the sum_rule is
+            ``extensive``, weights for the output categories are required.
+            The weights can be given in any shape compatible with the DataArray that
+            is converted, e.g. to give different weights for industrial sectors by
+            country. However, at least the ``dim`` that is converted needs to be in
+            ``output_weights.dims``.
+            If no weights are specified but a rule requiring weights is specified
+            in the conversion rules, a warning is issued and the respective rule is
+            skipped (probably resulting in more NaNs in the output).
+        auxiliary_dimensions : dict[str, str], optional
+            Mapping of auxiliary categorizations to dimension names used in this
+            DataArray. In conversions which contain rules which are valid only for
+            certain orthogonal dimensions (e.g. a conversion between different sectoral
+            terminologies, but some rules are only valid for specific countries), only
+            the categorization is specified. Therefore, in this case you have to specify
+            a mapping from categorization name to dimension name.
+            Example: {"ISO3": "area (ISO3)"}) .
+
+        Returns
+        -------
+        converted : xr.DataArray
+            A copy of the DataArray with the given dimension converted in the new
+            categorization.
+        """
+
+        # user provides only conversion
         if conversion and not new_categorization:
             old_categorization = conversion.categorization_a
             new_categorization = conversion.categorization_b
+        # user provides only new categorisation
         elif new_categorization and not conversion:
             new_categorization = ensure_categorization_instance(new_categorization)
             dim_name, old_categorization = extract_categorization_from_dim(dim)
             old_categorization = ensure_categorization_instance(old_categorization)
             conversion = old_categorization.conversion_to(new_categorization)
-        elif new_categorization and conversion:
+        # user provides conversion AND new categorisation
+        # TODO: There is no additional value in providing both because all
+        # the information is already in conversion. Maybe we shouldn't allow this case?
+        elif new_categorization:
             new_categorization = ensure_categorization_instance(new_categorization)
             if new_categorization != conversion.categorization_b:
                 raise ValueError(
@@ -164,11 +163,13 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 )
             old_categorization = conversion.categorization_a
             new_categorization = conversion.categorization_b
+        # User does not provide anything
+        else:
+            raise ValueError("conversion or new_categorization must be provided.")
 
         return self.convert_inner(
             dim,
             conversion=conversion,
-            old_categorization=old_categorization,
             new_categorization=new_categorization,
             sum_rule=sum_rule,
             input_weights=input_weights,
