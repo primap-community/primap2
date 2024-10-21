@@ -124,7 +124,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
     @alias_dims(["dim"])
     def convert(
         self,
-        dim:  Hashable | str,
+        dim: Hashable | str,
         conversion: climate_categories._conversions.Conversion | None = None,
         new_categorization: climate_categories.Categorization | str | None = None,
         sum_rule: typing.Literal["intensive", "extensive"] | None = None,
@@ -151,10 +151,10 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         new_categorization: str
             New categorization to convert the given dimension to. If the categorization
             is part of climate categories the title of the new categorization (like ``IPCC1996``)
-            will work. A ``climate_categories.Categorization`` object can be used regardless
-            of whether it is part of climate_categories. When providing just the new categorization,
+            will work. When providing just the new categorization,
             the old categorization as well as the conversion must be part of climate_categories.
-            Either conversion or new_categorization must be provided.
+            Either conversion or new_categorization must be provided. Note that if both
+            new_categorization and conversion are provided, conversion will be prioritized.
         sum_rule : ``extensive``, ``intensive``, or None (default)
             If data of categories has to be summed up or divided, we need information
             whether the quantity measured is extensive (like, for example, total
@@ -198,9 +198,8 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
             categorization.
         """
 
-
         # User provides neither conversion nor new categorization
-        if (not new_categorization and not conversion):
+        if not new_categorization and not conversion:
             raise ValueError("conversion or new_categorization must be provided.")
         if new_categorization:
             # User provides only new_categorization
@@ -209,8 +208,8 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 dim_name, old_categorization = extract_categorization_from_dim(dim)
                 old_categorization = ensure_categorization_instance(old_categorization)
                 conversion = old_categorization.conversion_to(new_categorization)
-            # User provides new_categorizatiom amd conversion, but they don't match
-            # TODO: What's the use case of provoding both? Maybe remove
+            # User provides new_categorization and conversion, but they don't match
+            # TODO: What's the use case of providing both? Maybe remove
             elif new_categorization != conversion.categorization_b:
                 raise ValueError(
                     "New categorization is different to target categorisation in conversion."

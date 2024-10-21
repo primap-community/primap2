@@ -11,6 +11,16 @@ import xarray as xr
 import primap2
 
 
+def test_conversion_and_new_categorisation_missing(empty_ds: xr.Dataset):
+    da = empty_ds["CO2"]
+    da = da.expand_dims({"category (IPCC1996)": list(cc.IPCC1996.keys())})
+    da = da.expand_dims({"source (gas)": list(cc.gas.keys())})
+    with pytest.raises(ValueError, match="conversion or new_categorization must be provided."):
+        da.pr.convert(
+            dim="category",
+        )
+
+
 # test with existing conversion and two existing categorisations
 def test_convert_ipcc(empty_ds: xr.Dataset):
     # build a DA categorized by IPCC1996 and with 1 everywhere so results are easy
