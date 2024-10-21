@@ -350,6 +350,11 @@ what `make lint` and `make test` do, but for all supported python versions.
 You can check out the
 [results at github](https://github.com/pik-primap/primap2/actions).
 
+Additionally, we also test if everything works using the development versions of central
+upstream libraries. This helps us identify problems with updates in libraries we depend
+on before they are released. The exact workflow is defined in
+`.github/workflows/ci-upstream-dev.yml`.
+
 ## Pycharm integration
 
 Developing PRIMAP2 with Pycharm works best if you:
