@@ -62,6 +62,18 @@ with tempfile.TemporaryDirectory() as tdname:
     ds.pr.to_netcdf(td / "toy_ds_compressed.nc", encoding=encoding)
 ```
 
+```{caution}
+`netcdf` files are not reproducible.
+
+`netcdf` is a very flexible format, which e.g. supports compression using a range
+of libraries, therefore the exact same `Dataset` can be represented by different
+`netcdf` files on disk. Unfortunately, even if you specify the compression options,
+`netcdf` files additionally contain metadata about all software versions used to
+produce the file. Therefore, if you reproduce a `Dataset` containing the same data
+and metadata and store it to a `netcdf` file, it will generally not create a file
+which is identical.
+```
+
 ## Load from disk
 
 We also provide the function {py:func}`primap2.open_dataset` to load datasets back into memory.
