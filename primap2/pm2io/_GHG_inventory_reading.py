@@ -163,7 +163,7 @@ def nir_convert_df_to_long(
     if header_long is None:
         header_long = ["category", "orig_cat_name", "entity", "unit", "time", "data"]
 
-    df_stacked = df_nir.stack([0, 1], dropna=True).to_frame()
+    df_stacked = df_nir.stack([0, 1], dropna=False).to_frame()
     df_stacked.insert(0, "year", str(year))
     df_stacked = df_stacked.reset_index()
     df_stacked.columns = header_long
