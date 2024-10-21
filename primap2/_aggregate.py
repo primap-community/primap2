@@ -310,22 +310,22 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                     else:
                         rule_tolerance = tolerance
                     if "sel" in rule.keys():
-                        sel_ = rule.pop("sel")
-                        if "variable" in sel_.keys():
-                            if da_out.name in sel_["variable"]:
-                                sel_.pop("variable")
+                        sel = rule.pop("sel")
+                        if "variable" in sel.keys():
+                            if da_out.name in sel["variable"]:
+                                sel.pop("variable")
                             else:
                                 continue
-                        if "entity" in sel_.keys():
-                            if da_out.attrs["entity"] in sel_["entity"]:
-                                sel_.pop("entity")
+                        if "entity" in sel.keys():
+                            if da_out.attrs["entity"] in sel["entity"]:
+                                sel.pop("entity")
                             else:
                                 continue
                     else:
-                        sel_ = {}
+                        sel = {}
                 elif isinstance(rule, list):
                     source_values = rule
-                    sel_ = {}
+                    sel = {}
                     rule_tolerance = tolerance
                 else:
                     logger.error(
@@ -346,8 +346,8 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                             f"{value_to_aggregate!r} in coordinate {full_coord_name!r}. "
                             f"Missing: {missing_values}. (variable: {da_out.name})"
                         )
-                    sel_.update({coordinate: source_values_present})
-                    data_agg = da_out.pr.loc[sel_].pr.sum(
+                    sel.update({coordinate: source_values_present})
+                    data_agg = da_out.pr.loc[sel].pr.sum(
                         dim=coordinate, skipna=skipna, min_count=min_count
                     )
                     if not data_agg.isnull().all():
@@ -945,9 +945,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 # new format, which allows filtering
                 basket_contents = current_basket_config["sources"]
                 if "sel" in current_basket_config.keys():
-                    sel_ = current_basket_config["sel"]
+                    sel = current_basket_config["sel"]
                 else:
-                    sel_ = None
+                    sel = None
                 if "tolerance" in current_basket_config.keys():
                     tolerance_basket = current_basket_config["tolerance"]
                 else:
@@ -955,7 +955,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             elif isinstance(current_basket_config, list):
                 # legacy format
                 basket_contents = current_basket_config
-                sel_ = None
+                sel = None
                 tolerance_basket = tolerance
             else:
                 logger.error(f"Unrecognized basket type for {basket!r}")
@@ -967,8 +967,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                     f"Not all variables present for {basket}. " f"Missing: {missing_variables}"
                 )
             if basket_contents_present:
-                if sel_ is not None:
-                    basket_da = ds_out.pr.loc[sel_].pr.gas_basket_contents_sum(
+                if sel is not None:
+                    basket_da = ds_out.pr.loc[sel].pr.gas_basket_contents_sum(
                         basket=basket,
                         basket_contents=basket_contents_present,
                         skipna=skipna,
