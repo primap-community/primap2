@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: "5 2 * * tue" # Tuesdays at 02:05 UTC.
   workflow_dispatch: # allows you to trigger the workflow run manually
+  pull_request:
 
 jobs:
   test:
