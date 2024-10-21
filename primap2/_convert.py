@@ -153,17 +153,15 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
             old_categorization = ensure_categorization_instance(old_categorization)
             conversion = old_categorization.conversion_to(new_categorization)
         # user provides conversion AND new categorisation
-        # TODO: There is no additional value in providing both because all
-        # the information is already in conversion. Maybe we shouldn't allow this case?
+        # TODO: There is no additional value in providing conversion AND new_categorization because all
+        # information is already in conversion. Maybe we shouldn't allow this case?
         elif new_categorization:
-            new_categorization = ensure_categorization_instance(new_categorization)
             if new_categorization != conversion.categorization_b:
                 raise ValueError(
                     "New categorization is different to target categorisation in conversion."
                 )
-            old_categorization = conversion.categorization_a
             new_categorization = conversion.categorization_b
-        # User does not provide anything
+        # User provides neither conversion nor new categorization
         else:
             raise ValueError("conversion or new_categorization must be provided.")
 
