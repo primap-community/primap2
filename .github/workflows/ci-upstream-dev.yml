@@ -34,14 +34,6 @@ jobs:
       run: |
         uv pip install --resolution highest --prerelease allow .[test,upstream-dev]
 
-    - name: Test with pytest (linux)
-      if: startsWith(matrix.os, 'ubuntu')
+    - name: Test with pytest
       run: |
-        source .venv/bin/activate
-        pytest --xdoc
-
-    - name: Test with pytest (windows)
-      if: startsWith(matrix.os, 'windows')
-      run: |
-        .venv\Scripts\activate
-        pytest --xdoc
+        uv run pytest --xdoc
