@@ -134,10 +134,6 @@ def test_convert_BURDI(empty_ds: xr.Dataset):
     # )
 
 
-# def test_with_custom_conversion_and_one_custom_categorisation(empty_ds):
-#     assert False
-
-
 # test with new conversion and new categorisations
 def test_custom_conversion_and_two_custom_categorisations(empty_ds):
     # make categorisation A from yaml
