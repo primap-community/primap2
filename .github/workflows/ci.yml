@@ -37,7 +37,7 @@ jobs:
       if: startsWith(matrix.os, 'ubuntu')
       run: |
         source .venv/bin/activate
-        pytest --xdoc --cov=primap2 --cov-report=xml
+        pytest --xdoc --cov=primap2 --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
 
     - name: Test with pytest (windows)
       if: startsWith(matrix.os, 'windows')
