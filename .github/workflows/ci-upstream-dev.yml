@@ -1,0 +1,44 @@
+name: CI upstream development versions
+
+on:
+  schedule:
+    - cron: "5 2 * * tue" # Tuesdays at 02:05 UTC.
+  workflow_dispatch: # allows you to trigger the workflow run manually
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+        python-version: [ "3.12" ]
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up uv and caching
+      uses: astral-sh/setup-uv@v2
+      with:
+        enable-cache: true
+        cache-suffix: "${{ matrix.os }}-${{ matrix.python-version }}-upstream-dev"
+        cache-dependency-glob: "setup.cfg"
+        version: "0.4.9"
+
+    - name: Create venv
+      run: |
+        uv venv --seed --python ${{ matrix.python-version }}
+
+    - name: Install ${{ matrix.resolution }} dependencies
+      run: |
+        uv pip install --resolution highest --prerelease allow .[test,upstream-dev]
+
+    - name: Test with pytest (linux)
+      if: startsWith(matrix.os, 'ubuntu')
+      run: |
+        source .venv/bin/activate
+        pytest --xdoc
+
+    - name: Test with pytest (windows)
+      if: startsWith(matrix.os, 'windows')
+      run: |
+        .venv\Scripts\activate
+        pytest --xdoc
