@@ -129,7 +129,7 @@ except MergeError as err:
     print(err)
 ```
 
-We can set the tolerance high enough such that the tests passes and no error is thrown. This is only possible in the complex mode for the aggregation rules.
+We can set the tolerance high enough such that the test passes and no error is thrown. This is only possible in the complex mode for the aggregation rules.
 
 ```{code-cell} ipython3
 recomputed_ds = filtered_ds.pr.add_aggregates_variables(
