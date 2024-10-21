@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch: # allows you to trigger the workflow run manually
 
 jobs:
   test:
