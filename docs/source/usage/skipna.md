@@ -98,20 +98,20 @@ summed_ds = ds_min.pr.add_aggregates_variables(
 summed_ds["test (SARGWP100)"]
 ```
 
-We can also use a filter to limit the aggregation to e.g. a single country:
+We can also use a filter / selector to limit the aggregation to a selection e.g. a single country:
 
 ```{code-cell} ipython3
 filtered_ds = ds_min.pr.add_aggregates_variables(
     gas_baskets={
         "test (SARGWP100)": {
             "sources": ["CO2", "SF6", "CH4"],
-            "filter": {"area (ISO3)": ["COL"]},
+            "sel": {"area (ISO3)": ["COL"]},
         },
     },
 )
 filtered_ds["test (SARGWP100)"]
 ```
-When filtering it is important to note that entities and variables are not the same thing. The difference between the `entity` and `variable` filters is that `'entity': ['SF6']` will match both variables `'SF6'` and `'SF6 (SARGWP100)'` (as both variables are for the entity `'SF6'`) while `'variable': ['SF6']` will match only the variable `'SF6'`.
+When filtering it is important to note that entities and variables are not the same thing. The difference between the `entity` and `variable` filters / selectors is that `'entity': ['SF6']` will match both variables `'SF6'` and `'SF6 (SARGWP100)'` (as both variables are for the entity `'SF6'`) while `'variable': ['SF6']` will match only the variable `'SF6'`.
 
 If we recompute an existing timeseries it has to be consistent with the existing data. Here we use the simple mode to specify the aggregation rules. The example below fails because the result is inconsistent with existing data.
 

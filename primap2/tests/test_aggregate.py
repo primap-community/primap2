@@ -439,9 +439,9 @@ class TestGasBasket:
         )
         assert "KYOTOGHG (AR4GWP100)" in filled.data_vars
 
-    def test_add_aggregates_variables_filter(self, partly_filled_ds, caplog):
+    def test_add_aggregates_variables_sel(self, partly_filled_ds, caplog):
         """
-        test if the filter setting works
+        test if the sel setting works
         """
         reference_ds = partly_filled_ds.pr.add_aggregates_variables(
             gas_baskets={
@@ -453,7 +453,7 @@ class TestGasBasket:
             gas_baskets={
                 "test (SARGWP100)": {
                     "sources": ["CO2", "SF6", "CH4"],
-                    "filter": {"area (ISO3)": ["COL"]},
+                    "sel": {"area (ISO3)": ["COL"]},
                 },
             },
         )
@@ -551,24 +551,24 @@ class TestAddAggregatesCoordinates:
         actual_result = test_ds["CO2"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
         xr.testing.assert_allclose(expected_result, actual_result)
 
-    def test_add_aggregates_coordinates_result_filter(self, minimal_ds):
+    def test_add_aggregates_coordinates_result_sel(self, minimal_ds):
         """
-        test if filtering works and only the selected time series are actually
+        test if selection works and only the selected time series are actually
         computed and correct
         """
-        # filter entity
+        # select entity
         test_ds = minimal_ds.pr.add_aggregates_coordinates(
             agg_info={
                 "area (ISO3)": {
                     "all": {
                         "sources": ["COL", "ARG", "MEX", "BOL"],
-                        "filter": {"entity": ["SF6"]},
+                        "sel": {"entity": ["SF6"]},
                     }
                 }
             }
         )
 
-        # as we filter for entity we expect the variables SF6 and SF6 (SARGWP100)
+        # as we select entities we expect the variables SF6 and SF6 (SARGWP100)
         # to be aggregated but for CO2 we expect np.nan
         expected_result_SF6 = minimal_ds["SF6"].pr.sum(dim="area (ISO3)")
         actual_result_SF6 = (
@@ -591,19 +591,19 @@ class TestAddAggregatesCoordinates:
         )
         xr.testing.assert_allclose(expected_result_CO2, actual_result_CO2)
 
-        # filter variable
+        # select variable
         test_ds = minimal_ds.pr.add_aggregates_coordinates(
             agg_info={
                 "area (ISO3)": {
                     "all": {
                         "sources": ["COL", "ARG", "MEX", "BOL"],
-                        "filter": {"variable": ["SF6"]},
+                        "sel": {"variable": ["SF6"]},
                     }
                 }
             }
         )
 
-        # as we filter for entity we expect the variables SF6 and SF6 (SARGWP100)
+        # as we select entities we expect the variables SF6 and SF6 (SARGWP100)
         # to be aggregated but for CO2 we expect np.nan
         expected_result_SF6 = minimal_ds["SF6"].pr.sum(dim="area (ISO3)")
         actual_result_SF6 = (
@@ -722,7 +722,3 @@ class TestAddAggregatesCoordinates:
         )
 
         assert "All Countries" in test_ds.coords["area_name"]
-
-
-# filter, also for individual items in the list and check if results fine
-# filter for entity, variable and a coordinate
