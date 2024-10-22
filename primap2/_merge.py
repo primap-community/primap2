@@ -105,7 +105,7 @@ def generate_log_message(da_error: xr.DataArray, tolerance: float) -> str:
     scalar_dims_str = ", ".join(scalar_dims_format)
     da_error_dequ = da_error.squeeze(drop=True).pint.dequantify()
     if np.ndim(da_error_dequ.data) == 0:
-        errors_str = str(da_error_dequ.data)
+        errors_str = f"{da_error_dequ.data:.2f}"
     else:
         errors_str = da_error_dequ.to_dataframe().dropna().to_string()
 
