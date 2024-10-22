@@ -138,7 +138,6 @@ opulent = xr.Dataset(
         "entity_terminology": "primap2",
         "area": "area (ISO3)",
         "cat": "category (IPCC 2006)",
-        "sec_cats": ["animal (FAOSTAT)", "product (FAOSTAT)"],
         "scen": "scenario (FAOSTAT)",
         "references": "doi:10.1012",
         "rights": "Use however you want.",
@@ -205,11 +204,8 @@ Compared to the minimal example, this data set has a lot more to unpack:
   specific set of
   categories given in parentheses and with appropriate metadata in the `attrs`.
   The `scenario` is a standard dimension, and the metadata in `attrs` is given using
-  the `scen` key. The `animal` and `product` dimensions are nonstandard, and are
-  included in the
-  secondary categories at `attrs['sec_cats']`. Note that `sec_cats` contains a list, so
-  that multiple nonstandard dimensions can be included if needed.
-* There is also s coordinate which is not defining a dimensions, `category names`. It
+  the `scen` key. The `animal` and `product` dimensions are nonstandard.
+* There is also a coordinate which is not defining a dimension, `category names`. It
   gives additional information about categories, which can be helpful for humans
   trying to make sense of the category codes without looking them up. Note that
   because this coordinate is not used as an index for a dimension, the category
@@ -218,7 +214,7 @@ Compared to the minimal example, this data set has a lot more to unpack:
   the population data does not use all dimensions. For each data variable, only the
   dimensions which make sense have to be used.
 * In the `attrs`, the terminology for the entities is explicitly defined, so that the
-  meaning of the entity attributes is unambigously defined.
+  meaning of the entity attributes is unambiguously defined.
 * In the `attrs`, additional metadata useful for humans is included: citable
   `references`, usage `rights`, a descriptive `title`, a long-form `comment`,
    an email address to `contact` for questions about the data set, and the `publication_date`.
