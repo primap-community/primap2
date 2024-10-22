@@ -9,7 +9,7 @@ import primap2  # noqa: F401
 from . import examples
 
 
-# monkey-patch caplog to work wit loguru
+# monkey-patch caplog to work with loguru
 # see https://loguru.readthedocs.io/en/stable/resources/migration.html#making-things-work-with-pytest-and-caplog
 @pytest.fixture
 def caplog(caplog):
