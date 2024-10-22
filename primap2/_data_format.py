@@ -13,9 +13,8 @@ import xarray as xr
 from attr import define
 from loguru import logger
 
-from primap2._selection import translations_from_dims
-
 from . import _accessor_base, pm2io
+from ._selection import translations_from_dims
 from ._units import ureg
 
 
@@ -78,6 +77,7 @@ def open_dataset(
         backend_kwargs=backend_kwargs,
         engine="h5netcdf",
     ).pint.quantify(unit_registry=ureg)
+    # backwards compatibility: ignore sec_cats
     if "sec_cats" in ds.attrs:
         del ds.attrs["sec_cats"]
     if "publication_date" in ds.attrs:

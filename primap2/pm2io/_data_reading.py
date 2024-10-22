@@ -1122,7 +1122,7 @@ def fill_from_other_col(
     -------
     pd.DataFrame
     """
-    dim_aliases = _selection.translations_from_attrs(attrs, include_entity=True)
+    dim_aliases = _selection.translations_from_dims(df.columns)
 
     # loop over target columns in value mapping
     for target_col in coords_value_filling:
@@ -1186,7 +1186,7 @@ def map_metadata_unordered(
     attrs: dict[str, Any],
 ):
     """Map the metadata according to specifications given in meta_mapping."""
-    dim_aliases = _selection.translations_from_attrs(attrs, include_entity=True)
+    dim_aliases = _selection.translations_from_dims(data)
 
     # TODO: add additional mapping functions here
     # values: (function, additional arguments)
@@ -1499,7 +1499,7 @@ def harmonize_units(
     data_cols = list(set(data.columns.values) - set(dimensions))
 
     if attrs is not None:
-        dim_aliases = _selection.translations_from_attrs(attrs, include_entity=True)
+        dim_aliases = _selection.translations_from_dims(data.columns)
         entity_col = dim_aliases.get("entity", "entity")
     else:
         entity_col = "entity"
