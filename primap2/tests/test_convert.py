@@ -1,6 +1,7 @@
 """Tests for _convert.py"""
 
 import pathlib
+import re
 
 import climate_categories as cc
 import climate_categories._conversions as conversions
@@ -11,17 +12,31 @@ import xarray as xr
 import primap2
 
 
-def test_conversion_and_new_categorisation_missing(empty_ds: xr.Dataset):
+def test_conversion_source_does_not_match_dataset_dimension(empty_ds):
+    # make a data set with IPCC1996 categories
     da = empty_ds["CO2"]
     da = da.expand_dims({"category (IPCC1996)": list(cc.IPCC1996.keys())})
     da = da.expand_dims({"source (gas)": list(cc.gas.keys())})
-    with pytest.raises(ValueError, match="conversion or new_categorization must be provided."):
-        da.pr.convert(
+    arr = da.data.copy()
+    arr[:] = 1 * primap2.ureg("Gg CO2 / year")
+    da.data = arr
+
+    # load the BURDI to IPCC2006 category conversion
+    filepath = pathlib.Path("data/BURDI_conversion.csv")
+    conv = conversions.ConversionSpec.from_csv(filepath)
+    conv = conv.hydrate(cats=cc.cats)
+
+    msg = (
+        "The source categorization in the conversion (BURDI) "
+        "does not match the categorization in the data set (IPCC1996)."
+    )
+    with pytest.raises(ValueError, match=re.escape(msg)):
+        result = da.pr.convert(
             dim="category",
+            conversion=conv,
         )
 
 
-# test with existing conversion and two existing categorisations
 def test_convert_ipcc(empty_ds: xr.Dataset):
     # build a DA categorized by IPCC1996 and with 1 everywhere so results are easy
     # to see
@@ -32,18 +47,18 @@ def test_convert_ipcc(empty_ds: xr.Dataset):
     arr[:] = 1 * primap2.ureg("Gg CO2 / year")
     da.data = arr
 
-    new_categorization_name = "IPCC2006"
+    conversion = cc.IPCC1996.conversion_to(cc.IPCC2006)
 
     with pytest.raises(ValueError, match="The conversion uses auxiliary categories"):
         da.pr.convert(
             dim="category",
-            new_categorization=new_categorization_name,
+            conversion=conversion,
             sum_rule="extensive",
         )
 
     result = da.pr.convert(
         dim="category",
-        new_categorization=new_categorization_name,
+        conversion=conversion,
         sum_rule="extensive",
         auxiliary_dimensions={"gas": "source (gas)"},
     )
@@ -172,7 +187,6 @@ def test_custom_conversion_and_two_custom_categorisations(empty_ds):
     result = da.pr.convert(
         dim="category",
         conversion=conv,
-        new_categorization=categorisation_b,
         sum_rule="extensive",
     )
 
