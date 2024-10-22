@@ -16,7 +16,6 @@ from loguru import logger
 from primap2._selection import translations_from_dims
 
 from . import _accessor_base, pm2io
-from ._dim_names import dim_names
 from ._units import ureg
 
 
@@ -80,7 +79,7 @@ def open_dataset(
         engine="h5netcdf",
     ).pint.quantify(unit_registry=ureg)
     if "sec_cats" in ds.attrs:
-        ds.attrs["sec_cats"] = list(ds.attrs["sec_cats"])
+        del ds.attrs["sec_cats"]
     if "publication_date" in ds.attrs:
         ds.attrs["publication_date"] = datetime.date.fromisoformat(ds.attrs["publication_date"])
     for entity in ds:
@@ -389,7 +388,6 @@ def ensure_valid_attributes(ds: xr.Dataset):
         "institution",
         "area",
         "cat",
-        "sec_cats",
         "scen",
         "entity_terminology",
         "publication_date",
@@ -527,8 +525,7 @@ def ensure_valid_coordinate_values(ds: xr.Dataset):
 def ensure_valid_dimensions(ds: xr.Dataset):
     required_direct_dims = {"time", "source"}
     required_indirect_dims = {"area"}
-    optional_direct_dims = {"provenance", "model"}
-    optional_indirect_dims = {"cat", "scen"}  # sec_cats is special
+    optional_indirect_dims = {"cat", "scen"}
 
     for req_dim in required_direct_dims:
         if req_dim not in ds.dims:
@@ -572,32 +569,6 @@ def ensure_valid_dimensions(ds: xr.Dataset):
             if long_name not in ds.dims:
                 logger.error(f"{long_name!r} defined as {opt_dim}, but not found in dims.")
                 raise ValueError(f"{opt_dim!r} not in dims")
-
-    if "sec_cats" in ds.attrs:
-        for sec_cat in ds.attrs["sec_cats"]:
-            included_optional_dims.append(sec_cat)
-            if sec_cat not in ds.dims:
-                logger.error(
-                    f"Secondary category {sec_cat!r} defined, but not found in dims: " f"{ds.dims}."
-                )
-                raise ValueError(f"Secondary category {sec_cat!r} not in dims")
-
-    if "sec_cats" in ds.attrs and "cat" not in ds.attrs:
-        logger.warning("Secondary category defined, but no primary category defined, weird.")
-
-    all_dims = set(dim_names(ds))
-    unknown_dims = (
-        all_dims
-        - required_direct_dims
-        - set(required_indirect_dims_long)
-        - optional_direct_dims
-        - set(included_optional_dims)
-    )
-
-    if unknown_dims:
-        logger.warning(
-            f"Dimension(s) {unknown_dims} unknown, likely a typo or missing in" f" sec_cats."
-        )
 
     for dim in required_indirect_dims.union(optional_indirect_dims):
         if dim in ds.attrs:

@@ -77,7 +77,7 @@ def translations_from_attrs(
         if abbrev in attrs:
             ret[key] = attrs[abbrev]
             ret[abbrev] = attrs[abbrev]
-    if "sec_cats" in attrs:
+    if "sec_cats" in attrs:  # relevant in interchange format, where sec_cats in attrs
         for full_name in attrs["sec_cats"]:
             key = full_name.split("(")[0][:-1]
             ret[key] = full_name

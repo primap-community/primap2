@@ -232,7 +232,6 @@ class TestReadWideCSVFile:
         attrs_expected = {
             "attrs": {
                 "references": "Just ask around.",
-                "sec_cats": ["Class (class)", "Type (type)"],
                 "scen": "scenario (general)",
                 "area": "area (ISO3)",
                 "cat": "category (IPCC2006)",

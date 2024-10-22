@@ -391,6 +391,10 @@ def from_interchange_format(
     # add the dataset wide attributes
     data_xr.attrs = attrs["attrs"]
 
+    if "sec_cats" in data_xr.attrs:
+        # only needed in interchange format
+        del data_xr.attrs["sec_cats"]
+
     data_xr = data_xr.pr.quantify()
 
     data_xr.pr.ensure_valid()
