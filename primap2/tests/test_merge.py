@@ -56,7 +56,7 @@ def test_merge_fail_tolerance(opulent_ds):
         da_start.pr.merge(da_merge, tolerance=0.01)
 
 
-def test_merge_fail_tolerance_warn(opulent_ds):
+def test_merge_fail_tolerance_warn(opulent_ds, caplog):
     da_start = opulent_ds["CO2"]
     data_to_modify = opulent_ds["CO2"].pr.loc[{"area": ["ARG"]}].pr.sum("area")
     data_to_modify.data = data_to_modify.data * 1.09
@@ -64,6 +64,9 @@ def test_merge_fail_tolerance_warn(opulent_ds):
 
     da_result = da_start.pr.merge(da_merge, tolerance=0.01, error_on_discrepancy=False)
     assert_aligned_equal(da_result, da_start)
+    assert (
+        "pr.merge error: found discrepancies larger than tolerance " "(1.00%) for " in caplog.text
+    )
 
 
 def test_coords_not_matching_ds(opulent_ds):
@@ -198,3 +201,38 @@ def test_merge_message_time_daily(opulent_ds):
         match=r"found discrepancies larger than tolerance \(1\.00%\) for time=2000-01-02",
     ):
         da_start.pr.merge(da_merge)
+
+
+def test_log_formatting(minimal_ds, caplog):
+    da_start = minimal_ds["CO2"]
+    data_to_modify = (
+        minimal_ds["CO2"].pr.loc[{"area": ["ARG"], "time": ["2001", "2002"]}].pr.sum("area")
+    )
+    data_to_modify.data = data_to_modify.data * 1.09
+    da_merge = minimal_ds["CO2"].pr.set("area", "ARG", data_to_modify, existing="overwrite")
+
+    da_result = da_start.pr.merge(da_merge, tolerance=0.01, error_on_discrepancy=False)
+    assert_aligned_equal(da_result, da_start)
+    assert (
+        "pr.merge error: found discrepancies larger than tolerance (1.00%) "
+        "for area (ISO3)=ARG, source=RAND2020:" in caplog.text
+    )
+    assert (
+        "(CO2)\n             CO2\ntime            \n2001-01-01  0.09"
+        "\n2002-01-01  0.09" in caplog.text
+    )
+
+
+def test_log_formatting_single_date(minimal_ds, caplog):
+    da_start = minimal_ds["CO2"]
+    data_to_modify = minimal_ds["CO2"].pr.loc[{"area": ["ARG"], "time": ["2000"]}].pr.sum("area")
+    data_to_modify.data = data_to_modify.data * 1.09
+    da_merge = minimal_ds["CO2"].pr.set("area", "ARG", data_to_modify, existing="overwrite")
+
+    da_result = da_start.pr.merge(da_merge, tolerance=0.01, error_on_discrepancy=False)
+    assert_aligned_equal(da_result, da_start)
+    assert (
+        "pr.merge error: found discrepancies larger than tolerance (1.00%) "
+        "for time=2000, area (ISO3)=ARG, source=RAND2020:" in caplog.text
+    )
+    assert "(CO2)\n0.09" in caplog.text
