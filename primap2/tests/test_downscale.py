@@ -54,6 +54,30 @@ def dim_downscaling_da(dim_downscaling_ds):
     return dim_downscaling_ds["CO2"]
 
 
+@pytest.fixture
+def dim_downscaling_expected_da(dim_downscaling_da):
+    expected = dim_downscaling_da.copy()
+
+    expected.loc[{"area (ISO3)": ["COL", "ARG", "MEX"], "source": "RAND2020"}] = np.broadcast_to(
+        np.concatenate(
+            [
+                np.array([1, 1]),
+                np.linspace(1 / 6, 2 / 8, 11) * np.array([6] * 9 + [8] * 2),
+                np.linspace(2, 2 * 10 / 8, 8),
+            ]
+        ),
+        (3, 21),
+    ).T * ureg("Gg CO2 / year")
+    expected.loc[{"area (ISO3)": "BOL", "source": "RAND2020"}] = np.concatenate(
+        [
+            np.array([3, 3]),
+            np.linspace(3 / 6, 2 / 8, 11) * np.array([6] * 9 + [8] * 2),
+            np.linspace(2, 2 * 10 / 8, 8),
+        ]
+    ) * ureg("Gg CO2 / year")
+    return expected
+
+
 def test_downscale_gas_timeseries(gas_downscaling_ds):
     downscaled = gas_downscaling_ds.pr.downscale_gas_timeseries(
         basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
@@ -87,34 +111,15 @@ def test_downscale_gas_timeseries(gas_downscaling_ds):
         )
 
 
-def test_downscale_timeseries(dim_downscaling_ds, dim_downscaling_da):
+def test_downscale_timeseries(dim_downscaling_ds, dim_downscaling_da, dim_downscaling_expected_da):
     downscaled = dim_downscaling_da.pr.downscale_timeseries(
         dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
     )
-    expected = dim_downscaling_da.copy()
-
-    expected.loc[{"area (ISO3)": ["COL", "ARG", "MEX"], "source": "RAND2020"}] = np.broadcast_to(
-        np.concatenate(
-            [
-                np.array([1, 1]),
-                np.linspace(1 / 6, 2 / 8, 11) * np.array([6] * 9 + [8] * 2),
-                np.linspace(2, 2 * 10 / 8, 8),
-            ]
-        ),
-        (3, 21),
-    ).T * ureg("Gg CO2 / year")
-    expected.loc[{"area (ISO3)": "BOL", "source": "RAND2020"}] = np.concatenate(
-        [
-            np.array([3, 3]),
-            np.linspace(3 / 6, 2 / 8, 11) * np.array([6] * 9 + [8] * 2),
-            np.linspace(2, 2 * 10 / 8, 8),
-        ]
-    ) * ureg("Gg CO2 / year")
 
     # we need a higher atol, because downscale_timeseries actually does the
     # downscaling using a proper calendar while here we use a calendar where all years
     # have the same length.
-    assert_equal(downscaled, expected, equal_nan=True, atol=0.01)
+    assert_equal(downscaled, dim_downscaling_expected_da, equal_nan=True, atol=0.01)
     allclose(
         downscaled.loc[{"area (ISO3)": "CAMB"}],
         downscaled.loc[{"area (ISO3)": ["COL", "ARG", "MEX", "BOL"]}].sum(dim="area (ISO3)"),
@@ -123,7 +128,7 @@ def test_downscale_timeseries(dim_downscaling_ds, dim_downscaling_da):
     downscaled_ds = dim_downscaling_ds.pr.downscale_timeseries(
         dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
     )
-    assert_equal(downscaled_ds["CO2"], expected, equal_nan=True, atol=0.01)
+    assert_equal(downscaled_ds["CO2"], dim_downscaling_expected_da, equal_nan=True, atol=0.01)
 
     with pytest.raises(
         ValueError,
@@ -216,4 +221,20 @@ def test_downscale_timeseries(dim_downscaling_ds, dim_downscaling_da):
     assert_equal(downscaled, expected, equal_nan=True, atol=0.01)
 
 
-# def test_downscale_timeseries_zero(empty_ds):
+def test_downscale_timeseries_da_zero(dim_downscaling_da, dim_downscaling_expected_da):
+    dim_downscaling_da.data = dim_downscaling_da.data * 0
+
+    dim_downscaling_expected_da.data = dim_downscaling_expected_da.data * 0
+
+    downscaled = dim_downscaling_da.pr.downscale_timeseries(
+        dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
+    )
+
+    # we need a higher atol, because downscale_timeseries actually does the
+    # downscaling using a proper calendar while here we use a calendar where all years
+    # have the same length.
+    assert_equal(downscaled, dim_downscaling_expected_da, equal_nan=True, atol=0.01)
+    allclose(
+        downscaled.loc[{"area (ISO3)": "CAMB"}],
+        downscaled.loc[{"area (ISO3)": ["COL", "ARG", "MEX", "BOL"]}].sum(dim="area (ISO3)"),
+    )
