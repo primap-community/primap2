@@ -10,7 +10,8 @@ from primap2 import ureg
 from .utils import allclose, assert_equal
 
 
-def test_downscale_gas_timeseries(empty_ds):
+@pytest.fixture
+def gas_downscaling_ds(empty_ds):
     for key in empty_ds:
         empty_ds[key].pint.magnitude[:] = np.nan
     empty_ds["CO2"].loc[{"time": "2002"}] = 1 * ureg("Gg CO2 / year")
@@ -22,40 +23,11 @@ def test_downscale_gas_timeseries(empty_ds):
     empty_ds["KYOTOGHG (AR4GWP100)"].loc[{"time": "2020"}] = (
         2 * (1 + sf6 + ch4) * ureg("Gg CO2 / year")
     )
-
-    downscaled = empty_ds.pr.downscale_gas_timeseries(
-        basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
-    )
-    expected = empty_ds.copy()
-    expected["CO2"][:] = 1 * ureg("Gg CO2 / year")
-    expected["SF6"][:] = 1 * ureg("Gg SF6 / year")
-    expected["CH4"][:] = 1 * ureg("Gg CH4 / year")
-    expected["CO2"].loc[{"time": "2020"}] = 2 * ureg("Gg CO2 / year")
-    expected["SF6"].loc[{"time": "2020"}] = 2 * ureg("Gg SF6 / year")
-    expected["CH4"].loc[{"time": "2020"}] = 2 * ureg("Gg CH4 / year")
-
-    xr.testing.assert_identical(downscaled, expected)
-
-    with pytest.raises(
-        ValueError,
-        match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both.",
-    ):
-        empty_ds.pr.downscale_gas_timeseries(
-            basket="KYOTOGHG (AR4GWP100)",
-            basket_contents=["CO2", "SF6", "CH4"],
-            skipna_evaluation_dims=["time"],
-            skipna=True,
-        )
-
-    empty_ds["SF6"].loc[{"time": "2002"}] = 2 * ureg("Gg SF6 / year")
-
-    with pytest.raises(ValueError, match="To continue regardless, set check_consistency=False"):
-        empty_ds.pr.downscale_gas_timeseries(
-            basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
-        )
+    return empty_ds
 
 
-def test_downscale_timeseries(empty_ds):
+@pytest.fixture
+def dim_downscaling_ds(empty_ds):
     for key in empty_ds:
         empty_ds[key].pint.magnitude[:] = np.nan
     t = empty_ds.loc[{"area (ISO3)": "BOL"}].copy()
@@ -74,11 +46,52 @@ def test_downscale_timeseries(empty_ds):
     da.loc[{"area (ISO3)": "CAMB", "source": "RAND2020"}] = np.concatenate(
         [np.array([6] * 11), np.stack([8, 8]), np.linspace(8, 10, 8)]
     ) * ureg("Gg CO2 / year")
+    return ds
 
-    downscaled = da.pr.downscale_timeseries(
+
+@pytest.fixture
+def dim_downscaling_da(dim_downscaling_ds):
+    return dim_downscaling_ds["CO2"]
+
+
+def test_downscale_gas_timeseries(gas_downscaling_ds):
+    downscaled = gas_downscaling_ds.pr.downscale_gas_timeseries(
+        basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
+    )
+    expected = gas_downscaling_ds.copy()
+    expected["CO2"][:] = 1 * ureg("Gg CO2 / year")
+    expected["SF6"][:] = 1 * ureg("Gg SF6 / year")
+    expected["CH4"][:] = 1 * ureg("Gg CH4 / year")
+    expected["CO2"].loc[{"time": "2020"}] = 2 * ureg("Gg CO2 / year")
+    expected["SF6"].loc[{"time": "2020"}] = 2 * ureg("Gg SF6 / year")
+    expected["CH4"].loc[{"time": "2020"}] = 2 * ureg("Gg CH4 / year")
+
+    xr.testing.assert_identical(downscaled, expected)
+
+    with pytest.raises(
+        ValueError,
+        match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both.",
+    ):
+        gas_downscaling_ds.pr.downscale_gas_timeseries(
+            basket="KYOTOGHG (AR4GWP100)",
+            basket_contents=["CO2", "SF6", "CH4"],
+            skipna_evaluation_dims=["time"],
+            skipna=True,
+        )
+
+    gas_downscaling_ds["SF6"].loc[{"time": "2002"}] = 2 * ureg("Gg SF6 / year")
+
+    with pytest.raises(ValueError, match="To continue regardless, set check_consistency=False"):
+        gas_downscaling_ds.pr.downscale_gas_timeseries(
+            basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
+        )
+
+
+def test_downscale_timeseries(dim_downscaling_ds, dim_downscaling_da):
+    downscaled = dim_downscaling_da.pr.downscale_timeseries(
         dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
     )
-    expected = da.copy()
+    expected = dim_downscaling_da.copy()
 
     expected.loc[{"area (ISO3)": ["COL", "ARG", "MEX"], "source": "RAND2020"}] = np.broadcast_to(
         np.concatenate(
@@ -107,7 +120,7 @@ def test_downscale_timeseries(empty_ds):
         downscaled.loc[{"area (ISO3)": ["COL", "ARG", "MEX", "BOL"]}].sum(dim="area (ISO3)"),
     )
 
-    downscaled_ds = ds.pr.downscale_timeseries(
+    downscaled_ds = dim_downscaling_ds.pr.downscale_timeseries(
         dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
     )
     assert_equal(downscaled_ds["CO2"], expected, equal_nan=True, atol=0.01)
@@ -116,7 +129,7 @@ def test_downscale_timeseries(empty_ds):
         ValueError,
         match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both.",
     ):
-        ds.pr.downscale_timeseries(
+        dim_downscaling_ds.pr.downscale_timeseries(
             dim="area (ISO3)",
             basket="CAMB",
             basket_contents=["COL", "ARG", "MEX", "BOL"],
@@ -124,22 +137,22 @@ def test_downscale_timeseries(empty_ds):
             skipna=True,
         )
 
-    da.loc[{"area (ISO3)": "BOL", "time": "2002"}] = 2 * ureg("Gg CO2 / year")
+    dim_downscaling_da.loc[{"area (ISO3)": "BOL", "time": "2002"}] = 2 * ureg("Gg CO2 / year")
     with pytest.raises(ValueError, match="To continue regardless, set check_consistency=False"):
-        da.pr.downscale_timeseries(
+        dim_downscaling_da.pr.downscale_timeseries(
             dim="area (ISO3)",
             basket="CAMB",
             basket_contents=["COL", "ARG", "MEX", "BOL"],
         )
 
-    downscaled = da.pr.downscale_timeseries(
+    downscaled = dim_downscaling_da.pr.downscale_timeseries(
         dim="area (ISO3)",
         basket="CAMB",
         basket_contents=["COL", "ARG", "MEX", "BOL"],
         check_consistency=False,
     )
 
-    expected = da.copy()
+    expected = dim_downscaling_da.copy()
 
     expected.loc[{"area (ISO3)": ["COL", "ARG", "MEX"], "source": "RAND2020"}] = np.broadcast_to(
         np.concatenate(
@@ -161,14 +174,14 @@ def test_downscale_timeseries(empty_ds):
 
     assert_equal(downscaled, expected, equal_nan=True, atol=0.01)
 
-    downscaled = da.pr.downscale_timeseries(
+    downscaled = dim_downscaling_da.pr.downscale_timeseries(
         dim="area (ISO3)",
         basket="CAMB",
         basket_contents=["COL", "ARG", "MEX", "BOL"],
         check_consistency=False,
         sel={"time": slice("2005", "2020")},
     )
-    expected = da.copy()
+    expected = dim_downscaling_da.copy()
 
     expected.loc[{"area (ISO3)": ["COL", "ARG", "MEX", "BOL"], "source": "RAND2020"}] = (
         np.broadcast_to(
@@ -201,3 +214,6 @@ def test_downscale_timeseries(empty_ds):
     expected.loc[{"area (ISO3)": "BOL", "time": "2002"}] = 2 * ureg("Gg CO2 / year")
 
     assert_equal(downscaled, expected, equal_nan=True, atol=0.01)
+
+
+# def test_downscale_timeseries_zero(empty_ds):
