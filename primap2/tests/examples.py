@@ -105,7 +105,6 @@ def opulent_ds() -> xr.Dataset:
             "entity_terminology": "primap2",
             "area": "area (ISO3)",
             "cat": "category (IPCC 2006)",
-            "sec_cats": ["animal (FAOSTAT)", "product (FAOSTAT)"],
             "scen": "scenario (FAOSTAT)",
             "references": "doi:10.1012",
             "rights": "Use however you want.",

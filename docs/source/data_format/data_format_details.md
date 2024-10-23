@@ -12,16 +12,16 @@ For all dimensions, defined names have to be used and additional metadata about 
 dimensions is stored in the datasets `attrs`.
 The dimensions are:
 
-| dimension       | dimension key         | req. | notes                     | attrs                                 |
-|-----------------|-----------------------|------|---------------------------|---------------------------------------|
-| time            | time                  | ✗    | for periods, the start    |                                       |
-| area            | area (<category-set>) | ✗    | pre-defined category sets | `'area': 'area (<category set>)'`     |
-| category        | category (<c-set>)    |      | primary category          | `'cat': 'category (<c-set>)'`         |
-| sec. categories | <type> (<c-set>)      |      | there can be multiple     | `'sec_cats': ['<type> (<c-set>)', …]` |
-| scenario        | scenario (<c-set>)    |      |                           | `'scen': 'scenario (<c-set>)'`        |
-| provenance      | provenance            |      | values from fixed set     |                                       |
-| model           | model                 |      |                           |                                       |
-| source          | source                | ✗    | a short source identifier |                                       |
+| dimension       | dimension key           | req. | notes                     | attrs                             |
+|-----------------|-------------------------|------|---------------------------|-----------------------------------|
+| `time`          | `time`                  | ✗    | for periods, the start    |                                   |
+| `area`          | `area (<category-set>)` | ✗    | pre-defined category sets | `'area': 'area (<category set>)'` |
+| `category`      | `category (<c-set>)`    |      | primary category          | `'cat': 'category (<c-set>)'`     |
+| sec. categories | `<type> (<c-set>)`      |      | there can be multiple     |                                   |
+| `scenario`      | `scenario (<c-set>)`    |      |                           | `'scen': 'scenario (<c-set>)'`    |
+| `provenance`    | `provenance`            |      | values from fixed set     |                                   |
+| `model`         | `model`                 |      |                           |                                   |
+| `source`        | `source`                | ✗    | a short source identifier |                                   |
 
 For some dimensions, the meaning of the data is directly visible from the data type
 (`time` uses an xarray datetime data type) or the values come from a pre-defined list

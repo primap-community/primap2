@@ -36,6 +36,7 @@ INTERCHANGE_FORMAT_STRICTYAML_SCHEMA = sy.Map(
             {
                 "area": sy.Str(),
                 sy.Optional("cat"): sy.Str(),
+                # sec_cats is only for backward compatibility, will be ignored
                 sy.Optional("sec_cats"): sy.Seq(sy.Str()),
                 sy.Optional("scen"): sy.Str(),
                 sy.Optional("references"): sy.Str(),
@@ -219,6 +220,8 @@ def read_interchange_format(
 
     data = pd.read_csv(data_file, dtype=object)
     data.attrs = meta_data
+    if "sec_cats" in data.attrs["attrs"]:
+        del data.attrs["attrs"]["sec_cats"]
 
     # strictyaml parses a datetime, we only want a date
     if "publication_date" in data.attrs["attrs"]:

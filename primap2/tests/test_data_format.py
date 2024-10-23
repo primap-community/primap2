@@ -122,15 +122,6 @@ class TestEnsureValid:
         assert "ERROR" in caplog.text
         assert "provenance contains invalid values: {'asdf'}" in caplog.text
 
-    def test_additional_dimension(self, minimal_ds: xr.Dataset, caplog):
-        ds = minimal_ds.expand_dims({"addl_dim": ["a", "b", "c"]})  # type: ignore
-        ds.pr.ensure_valid()
-        assert "WARNING" in caplog.text
-        assert (
-            "Dimension(s) {'addl_dim'} unknown, likely a typo or missing in sec_cats."
-            in caplog.text
-        )
-
     def test_wrong_dimension_key(self, minimal_ds, caplog):
         ds = minimal_ds.rename_dims({"area (ISO3)": "asdf"})
         ds.attrs["area"] = "asdf"
@@ -139,26 +130,12 @@ class TestEnsureValid:
         assert "ERROR" in caplog.text
         assert "'asdf' not in the format 'dim (category_set)'." in caplog.text
 
-    def test_missing_sec_cat(self, minimal_ds, caplog):
-        minimal_ds.attrs["sec_cats"] = ["missing"]
-        with pytest.raises(ValueError, match="Secondary category 'missing' not in dims"):
-            minimal_ds.pr.ensure_valid()
-        assert "ERROR" in caplog.text
-        assert "Secondary category 'missing' defined, but not found in dims:" in caplog.text
-
     def test_missing_optional_dim(self, minimal_ds, caplog):
         minimal_ds.attrs["scen"] = "missing"
         with pytest.raises(ValueError, match="'scen' not in dims"):
             minimal_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
         assert "'missing' defined as scen, but not found in dims." in caplog.text
-
-    def test_sec_cat_without_primary_cat(self, minimal_ds, caplog):
-        ds = minimal_ds.expand_dims({"something (cset)": ["a", "b", "c"]})
-        ds.attrs["sec_cats"] = ["something (cset)"]
-        ds.pr.ensure_valid()
-        assert "WARNING" in caplog.text
-        assert "Secondary category defined, but no primary category defined, weird." in caplog.text
 
     def test_additional_coordinate_space(self, opulent_ds: xr.Dataset, caplog):
         ds = opulent_ds.rename({"category_names": "category names"})
