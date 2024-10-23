@@ -26,19 +26,6 @@ To get going, we will show the most important features of the data format using 
 toy example.
 
 ```{code-cell} ipython3
-:tags: [hide-cell]
-:mystnb:
-:  code_prompt_show: "Logging setup for the docs"
-
-# setup logging for the docs - we don't need debug logs
-import sys
-from loguru import logger
-
-logger.remove()
-logger.add(sys.stderr, level="INFO")
-```
-
-```{code-cell} ipython3
 import primap2
 import primap2.tests
 

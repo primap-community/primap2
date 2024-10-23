@@ -13,6 +13,7 @@ In this section, we will show the fundamentals of how to work with primap2 data.
 select_and_view
 store_and_load
 add_and_overwrite
+logging
 merge
 skipna
 downscaling
