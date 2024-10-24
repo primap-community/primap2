@@ -1,6 +1,7 @@
 """Tests for _convert.py"""
 
-import pathlib
+import importlib
+import importlib.resources
 import re
 
 import climate_categories as cc
@@ -9,6 +10,10 @@ import pytest
 import xarray as xr
 
 import primap2
+
+
+def get_test_data_filepath(fname: str):
+    return importlib.resources.files("primap2.tests.data").joinpath(fname)
 
 
 def test_conversion_source_does_not_match_dataset_dimension(empty_ds):
@@ -21,7 +26,7 @@ def test_conversion_source_does_not_match_dataset_dimension(empty_ds):
     da.data = arr
 
     # load the BURDI to IPCC2006 category conversion
-    filepath = pathlib.Path("data/BURDI_conversion.csv")
+    filepath = get_test_data_filepath("BURDI_conversion.csv")
 
     conv = cc.Conversion.from_csv(filepath)
 
@@ -30,7 +35,7 @@ def test_conversion_source_does_not_match_dataset_dimension(empty_ds):
         "does not match the categorization in the data set (IPCC1996)."
     )
     with pytest.raises(ValueError, match=re.escape(msg)):
-        result = da.pr.convert(
+        result = da.pr.convert(  # noqa: F841
             dim="category",
             conversion=conv,
         )
@@ -69,7 +74,7 @@ def test_convert_ipcc(empty_ds: xr.Dataset):
 # test with new conversion and two existing categorisations
 def test_convert_BURDI(empty_ds: xr.Dataset):
     # make a sample conversion object in climate categories
-    filepath = pathlib.Path("data/BURDI_conversion.csv")
+    filepath = get_test_data_filepath("BURDI_conversion.csv")
     conv = cc.Conversion.from_csv(filepath)
 
     # taken from UNFCCC_non-AnnexI_data/src/unfccc_ghg_data/unfccc_di_reader/
@@ -159,10 +164,10 @@ def test_convert_BURDI(empty_ds: xr.Dataset):
 # test with new conversion and new categorisations
 def test_custom_conversion_and_two_custom_categorisations(empty_ds):
     # make categorisation A from yaml
-    categorisation_a = cc.from_yaml("data/simple_categorisation_a.yaml")
+    categorisation_a = cc.from_yaml(get_test_data_filepath("simple_categorisation_a.yaml"))
 
     # make categorisation B from yaml
-    categorisation_b = cc.from_yaml("data/simple_categorisation_b.yaml")
+    categorisation_b = cc.from_yaml(get_test_data_filepath("simple_categorisation_b.yaml"))
 
     # categories not part of climate categories so we need to add them manually
     cats = {
@@ -171,7 +176,7 @@ def test_custom_conversion_and_two_custom_categorisations(empty_ds):
     }
 
     # make conversion from csv
-    conv = cc.Conversion.from_csv("data/simple_conversion.csv", cats=cats)
+    conv = cc.Conversion.from_csv(get_test_data_filepath("simple_conversion.csv"), cats=cats)
 
     # make a dummy dataset based on A cats
     da = empty_ds["CO2"]
