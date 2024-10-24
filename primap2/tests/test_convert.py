@@ -27,7 +27,6 @@ def test_conversion_source_does_not_match_dataset_dimension(empty_ds):
 
     # load the BURDI to IPCC2006 category conversion
     filepath = get_test_data_filepath("BURDI_conversion.csv")
-
     conv = cc.Conversion.from_csv(filepath)
 
     msg = (

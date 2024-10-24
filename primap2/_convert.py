@@ -17,9 +17,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         self,
         dim: Hashable | str,
         *,
-        # TODO type will change to climate_categories.Conversion when
-        #  https://github.com/primap-community/climate_categories/pull/164 is merged
-        conversion: climate_categories._conversions.Conversion,
+        conversion: climate_categories.Conversion,
         sum_rule: typing.Literal["intensive", "extensive"] | None = None,
         input_weights: xr.DataArray | None = None,
         output_weights: xr.DataArray | None = None,
