@@ -16,8 +16,8 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
     def convert(
         self,
         dim: Hashable | str,
-        categorization: climate_categories.Categorization | str,
         *,
+        conversion: climate_categories.Conversion,
         sum_rule: typing.Literal["intensive", "extensive"] | None = None,
         input_weights: xr.DataArray | None = None,
         output_weights: xr.DataArray | None = None,
@@ -34,10 +34,10 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         ----------
         dim : str
             Dimension to convert. Has to be a dimension from ``da.dims``.
-        categorization : climate_categories.Categorization or str
-            New categorization to convert the given dimension to. Either give the title
-            of the new categorization (like ``IPCC1996``) or a
-            ``climate_categories.Categorization`` object.
+        conversion : climate_categories.Conversion
+            The conversion rules that describe the conversion from the old to the new
+            categorization. Contains ``climate_categories.Categorization``
+            object for old and new categorization.
         sum_rule : ``extensive``, ``intensive``, or None (default)
             If data of categories has to be summed up or divided, we need information
             whether the quantity measured is extensive (like, for example, total
@@ -80,13 +80,23 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
             A copy of the DataArray with the given dimension converted in the new
             categorization.
         """
-        new_categorization = ensure_categorization_instance(categorization)
+
         check_valid_sum_rule_types(sum_rule)
 
-        dim_name, old_categorization_name = extract_categorization_from_dim(dim)
-        old_categorization = ensure_categorization_instance(old_categorization_name)
-        conversion = old_categorization.conversion_to(new_categorization)
         auxiliary_dimensions = prepare_auxiliary_dimensions(conversion, auxiliary_dimensions)
+
+        dim_name, old_categorization = extract_categorization_from_dim(dim)
+
+        if conversion.categorization_a_name != old_categorization:
+            msg = (
+                "The source categorization in the conversion "
+                f"({conversion.categorization_a_name}) does "
+                "not match the categorization in the data set "
+                f"({old_categorization})."
+            )
+            raise ValueError(msg)
+
+        new_categorization = conversion.categorization_b
         new_dim = f"{dim_name} ({new_categorization.name})"
 
         converted_da = initialize_empty_converted_da(
