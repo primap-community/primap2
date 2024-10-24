@@ -222,19 +222,133 @@ def test_downscale_timeseries(dim_downscaling_ds, dim_downscaling_da, dim_downsc
 
 
 def test_downscale_timeseries_da_zero(dim_downscaling_da, dim_downscaling_expected_da):
-    dim_downscaling_da.data = dim_downscaling_da.data * 0
+    dim_downscaling_da = dim_downscaling_da * 0
 
-    dim_downscaling_expected_da.data = dim_downscaling_expected_da.data * 0
+    dim_downscaling_expected_da = dim_downscaling_expected_da * 0
 
     downscaled = dim_downscaling_da.pr.downscale_timeseries(
         dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
     )
 
-    # we need a higher atol, because downscale_timeseries actually does the
-    # downscaling using a proper calendar while here we use a calendar where all years
-    # have the same length.
-    assert_equal(downscaled, dim_downscaling_expected_da, equal_nan=True, atol=0.01)
+    assert_equal(downscaled, dim_downscaling_expected_da, equal_nan=True)
     allclose(
         downscaled.loc[{"area (ISO3)": "CAMB"}],
         downscaled.loc[{"area (ISO3)": ["COL", "ARG", "MEX", "BOL"]}].sum(dim="area (ISO3)"),
     )
+
+
+def test_downscale_timeseries_da_partial_zero(dim_downscaling_da, dim_downscaling_expected_da):
+    dim_downscaling_da.loc[{"time": "2002"}] = dim_downscaling_da.loc[{"time": "2002"}] * 0
+
+    dim_downscaling_expected_da.loc[
+        {"area (ISO3)": ["COL", "ARG", "MEX", "BOL"], "source": "RAND2020"}
+    ] = np.broadcast_to(
+        np.concatenate(
+            [
+                np.array([1.5, 1.5]),
+                np.array([0]),
+                1 / 4 * np.array([6] * 8 + [8] * 2),
+                np.linspace(2, 2 * 10 / 8, 8),
+            ]
+        ),
+        (4, 21),
+    ).T * ureg("Gg CO2 / year")
+
+    dim_downscaling_expected_da.loc[
+        {"area (ISO3)": ["CAMB"], "source": "RAND2020", "time": ["2002"]}
+    ] = 0 * ureg("Gg CO2 / year")
+
+    downscaled = dim_downscaling_da.pr.downscale_timeseries(
+        dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
+    )
+
+    assert_equal(downscaled, dim_downscaling_expected_da, equal_nan=True)
+    allclose(
+        downscaled.loc[{"area (ISO3)": "CAMB"}],
+        downscaled.loc[{"area (ISO3)": ["COL", "ARG", "MEX", "BOL"]}].sum(dim="area (ISO3)"),
+    )
+
+
+def test_downscale_timeseries_da_zero_sum_error(dim_downscaling_da):
+    dim_downscaling_da.loc[{"area (ISO3)": ["COL", "ARG", "MEX", "BOL"]}] = 0 * ureg(
+        str(dim_downscaling_da.pint.units)
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"pr.downscale_timeseries error: found zero basket content sum for "
+        r"non-zero basket data for source=RAND2020:",
+    ):
+        dim_downscaling_da.pr.downscale_timeseries(
+            dim="area (ISO3)",
+            basket="CAMB",
+            basket_contents=["COL", "ARG", "MEX", "BOL"],
+            check_consistency=False,
+        )
+
+
+def test_downscale_gas_timeseries_zero(gas_downscaling_ds):
+    for var in gas_downscaling_ds.data_vars:
+        gas_downscaling_ds[var].data = gas_downscaling_ds[var].data * 0
+
+    downscaled = gas_downscaling_ds.pr.downscale_gas_timeseries(
+        basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
+    )
+    expected = gas_downscaling_ds.copy()
+    expected["CO2"][:] = 0 * ureg("Gg CO2 / year")
+    expected["SF6"][:] = 0 * ureg("Gg SF6 / year")
+    expected["CH4"][:] = 0 * ureg("Gg CH4 / year")
+
+    xr.testing.assert_identical(downscaled, expected)
+
+
+def test_downscale_gas_timeseries_zero_sum_error(gas_downscaling_ds):
+    basket_contents = ["CO2", "SF6", "CH4"]
+
+    for var in basket_contents:
+        gas_downscaling_ds[var].loc[{"area (ISO3)": ["COL", "ARG", "MEX", "BOL"]}] = 0 * ureg(
+            str(gas_downscaling_ds[var].pint.units)
+        )
+
+    with pytest.raises(
+        ValueError,
+        match=r"pr.downscale_gas_timeseries error: found zero basket content "
+        r"sum for non-zero basket data for source=RAND2020:",
+    ):
+        gas_downscaling_ds.pr.downscale_gas_timeseries(
+            basket="KYOTOGHG (AR4GWP100)",
+            basket_contents=basket_contents,
+            check_consistency=False,
+        )
+
+
+def test_downscale_gas_timeseries_da_partial_zero(gas_downscaling_ds):
+    for var in ["CO2", "SF6", "CH4"]:
+        gas_downscaling_ds[var].loc[{"time": ["2010"]}] = 0 * gas_downscaling_ds[var].loc[
+            {"time": ["2002"]}
+        ].squeeze(dim="time")
+    gas_downscaling_ds["KYOTOGHG (AR4GWP100)"].loc[{"time": ["2010"]}] = 0 * gas_downscaling_ds[
+        "KYOTOGHG (AR4GWP100)"
+    ].loc[{"time": ["2002"]}].squeeze(dim="time")
+
+    downscaled = gas_downscaling_ds.pr.downscale_gas_timeseries(
+        basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
+    )
+
+    expected = gas_downscaling_ds.copy()
+    expected["CO2"][:] = 1 * ureg("Gg CO2 / year")
+    expected["SF6"][:] = 1 * ureg("Gg SF6 / year")
+    expected["CH4"][:] = 1 * ureg("Gg CH4 / year")
+    expected["CO2"].loc[{"time": "2020"}] = 2 * ureg("Gg CO2 / year")
+    expected["SF6"].loc[{"time": "2020"}] = 2 * ureg("Gg SF6 / year")
+    expected["CH4"].loc[{"time": "2020"}] = 2 * ureg("Gg CH4 / year")
+    expected["CO2"].loc[{"time": "2010"}] = 0 * ureg("Gg CO2 / year")
+    expected["SF6"].loc[{"time": "2010"}] = 0 * ureg("Gg SF6 / year")
+    expected["CH4"].loc[{"time": "2010"}] = 0 * ureg("Gg CH4 / year")
+
+    xr.testing.assert_identical(downscaled, expected)
+
+
+# TODO more tests:
+
+# * zero and non-zero data
