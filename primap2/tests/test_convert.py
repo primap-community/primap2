@@ -4,7 +4,6 @@ import pathlib
 import re
 
 import climate_categories as cc
-import climate_categories._conversions as conversions
 import numpy as np
 import pytest
 import xarray as xr
@@ -23,8 +22,8 @@ def test_conversion_source_does_not_match_dataset_dimension(empty_ds):
 
     # load the BURDI to IPCC2006 category conversion
     filepath = pathlib.Path("data/BURDI_conversion.csv")
-    conv = conversions.ConversionSpec.from_csv(filepath)
-    conv = conv.hydrate(cats=cc.cats)
+
+    conv = cc.Conversion.from_csv(filepath)
 
     msg = (
         "The source categorization in the conversion (BURDI) "
@@ -71,8 +70,7 @@ def test_convert_ipcc(empty_ds: xr.Dataset):
 def test_convert_BURDI(empty_ds: xr.Dataset):
     # make a sample conversion object in climate categories
     filepath = pathlib.Path("data/BURDI_conversion.csv")
-    conv = conversions.ConversionSpec.from_csv(filepath)
-    conv = conv.hydrate(cats=cc.cats)
+    conv = cc.Conversion.from_csv(filepath)
 
     # taken from UNFCCC_non-AnnexI_data/src/unfccc_ghg_data/unfccc_di_reader/
     # unfccc_di_reader_config.py
@@ -153,10 +151,9 @@ def test_convert_BURDI(empty_ds: xr.Dataset):
     # 2.E + 2.B = 2.E, 2.E should not be part of new data set
     assert np.isnan(result.pr.loc[{"category": "2.E"}].values).all()
     # cat 14638 in BURDI equals cat M.BIO in IPCC2006_PRIMAP
-    # TODO: This will fail. M.BIO is currently not listed in climate categories
-    # assert (
-    #     (result.pr.loc[{"category": "M.BIO"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
-    # )
+    assert (
+        (result.pr.loc[{"category": "M.BIO"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
+    )
 
 
 # test with new conversion and new categorisations
@@ -167,14 +164,14 @@ def test_custom_conversion_and_two_custom_categorisations(empty_ds):
     # make categorisation B from yaml
     categorisation_b = cc.from_yaml("data/simple_categorisation_b.yaml")
 
-    # make conversion from csv
-    conv = conversions.ConversionSpec.from_csv("data/simple_conversion.csv")
     # categories not part of climate categories so we need to add them manually
     cats = {
         "A": categorisation_a,
         "B": categorisation_b,
     }
-    conv = conv.hydrate(cats=cats)
+
+    # make conversion from csv
+    conv = cc.Conversion.from_csv("data/simple_conversion.csv", cats=cats)
 
     # make a dummy dataset based on A cats
     da = empty_ds["CO2"]

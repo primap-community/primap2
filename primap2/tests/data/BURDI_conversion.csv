@@ -36,5 +36,6 @@ BURDI,IPCC2006_PRIMAP,comment
 15163,M.0.EL
 14637,M.BK
 14424,M.BK.A
-14423,M.BK.M, leaving 14638 --> M.BIO out for now, as it's not in climate categories
+14423,M.BK.M,
+14638, M.BIO
 7,5, 5.A-D ignored as not fitting 2006 cats
