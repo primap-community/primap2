@@ -232,7 +232,6 @@ class TestReadWideCSVFile:
         attrs_expected = {
             "attrs": {
                 "references": "Just ask around.",
-                "sec_cats": ["Class (class)", "Type (type)"],
                 "scen": "scenario (general)",
                 "area": "area (ISO3)",
                 "cat": "category (IPCC2006)",
@@ -831,7 +830,6 @@ class TestInterchangeFormat:
                 "area": "area (ISO3)",
                 "cat": "category (IPCC2006)",
                 "scen": "scenario (general)",
-                "sec_cats": ["Class (class)", "Type (type)"],
             },
             "time_format": "%Y",
             "dimensions": {"*": dims},
@@ -907,7 +905,6 @@ class TestInterchangeFormat:
                 "area": "area (ISO3)",
                 "cat": "category (IPCC2006)",
                 "scen": "scenario (general)",
-                "sec_cats": ["Class (class)", "Type (type)"],
             },
             "time_format": "%Y",
             "dimensions": {"CO2": ["area (ISO3)"]},

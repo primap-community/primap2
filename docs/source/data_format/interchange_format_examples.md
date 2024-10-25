@@ -52,9 +52,6 @@ They are listed as secondary columns in the metadata dict.
 Column names correspond to the dimension key of the xarray format, i.e. they contain
 the terminology in parentheses (e.g. `area (ISO3)`).
 
-Additional columns are currently not possible, but the option will be added
-in a future release ([#25](https://github.com/pik-primap/primap2/issues/25)).
-
 The metadata dict has an `attrs` entry, which corresponds to the `attrs` dict of the
 xarray format (see [Data format details](data_format_details.md)).
 Additionally, the metadata dict contains information on the `dimensions` of the

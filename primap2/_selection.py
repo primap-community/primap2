@@ -77,10 +77,6 @@ def translations_from_attrs(
         if abbrev in attrs:
             ret[key] = attrs[abbrev]
             ret[abbrev] = attrs[abbrev]
-    if "sec_cats" in attrs:
-        for full_name in attrs["sec_cats"]:
-            key = full_name.split("(")[0][:-1]
-            ret[key] = full_name
 
     if include_entity and "entity_terminology" in attrs:
         ret["entity"] = f"entity ({attrs['entity_terminology']})"

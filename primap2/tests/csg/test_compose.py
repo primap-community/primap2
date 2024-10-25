@@ -538,11 +538,10 @@ def test_compose_pbar(opulent_ds):
 
 
 def test_compose_sec_cats_missing(opulent_ds):
-    """Compose should also work when a dimensions is missing in `sec_cats`."""
+    """Compose should also work when a secondary category dimension is missing."""
     input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
         {"animal": ["cow"], "category": ["0", "1"]}
     ]
-    input_data.attrs["sec_cats"].remove("product (FAOSTAT)")
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source", "scenario (FAOSTAT)", "product (FAOSTAT)"],
         priorities=[

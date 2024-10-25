@@ -1,6 +1,5 @@
 """Compose a harmonized dataset from multiple input datasets."""
 
-import contextlib
 import math
 import typing
 from collections.abc import Hashable
@@ -163,10 +162,6 @@ def compose(
             del result_ds.attrs["cat"]
         elif dim == "scenario":
             del result_ds.attrs["scen"]
-        elif dim not in ("provenance", "model", "source"):
-            # remove from sec_cats if it is in sec_cats
-            with contextlib.suppress(ValueError):
-                result_ds.attrs["sec_cats"].remove(dim_key)
     return result_ds
 
 

@@ -1122,7 +1122,7 @@ def fill_from_other_col(
     -------
     pd.DataFrame
     """
-    dim_aliases = _selection.translations_from_attrs(attrs, include_entity=True)
+    dim_aliases = _selection.translations_from_dims(df.columns)
 
     # loop over target columns in value mapping
     for target_col in coords_value_filling:
@@ -1186,7 +1186,7 @@ def map_metadata_unordered(
     attrs: dict[str, Any],
 ):
     """Map the metadata according to specifications given in meta_mapping."""
-    dim_aliases = _selection.translations_from_attrs(attrs, include_entity=True)
+    dim_aliases = _selection.translations_from_dims(data)
 
     # TODO: add additional mapping functions here
     # values: (function, additional arguments)
@@ -1260,7 +1260,6 @@ def rename_columns(
     attr_names = {"category": "cat", "scenario": "scen", "area": "area"}
 
     attrs = {}
-    sec_cats = []
     coord_renaming = {}
 
     for coord in itertools.chain(coords_cols, coords_defaults):
@@ -1273,7 +1272,6 @@ def rename_columns(
 
         if coord.startswith(SEC_CATS_PREFIX):
             name = name[len(SEC_CATS_PREFIX) :]
-            sec_cats.append(name)
         elif coord in attr_names:
             attrs[attr_names[coord]] = name
 
@@ -1283,9 +1281,6 @@ def rename_columns(
         coord_renaming[add_coords_cols[coord][0]] = coord
 
     data.rename(columns=coord_renaming, inplace=True)
-
-    if sec_cats:
-        attrs["sec_cats"] = sec_cats
 
     return attrs
 
@@ -1504,7 +1499,7 @@ def harmonize_units(
     data_cols = list(set(data.columns.values) - set(dimensions))
 
     if attrs is not None:
-        dim_aliases = _selection.translations_from_attrs(attrs, include_entity=True)
+        dim_aliases = _selection.translations_from_dims(data.columns)
         entity_col = dim_aliases.get("entity", "entity")
     else:
         entity_col = "entity"
