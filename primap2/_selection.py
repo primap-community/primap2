@@ -53,7 +53,22 @@ def resolve_not(
 
 
 def translate(item: KeyT, translations: typing.Mapping[typing.Hashable, str]) -> KeyT:
-    """Translate primap2 short names into xarray names."""
+    """Translates a single str key or the keys of a dict using the given translations.
+
+    If a key is not found in the translations, return it untranslated.
+
+    Parameters
+    ----------
+    item : str or dict with str keys
+        The input to translate. Either a str or a dict with str keys.
+    translations : dict
+        The translations to apply.
+
+    Returns
+    -------
+    translated : str or dict with str keys
+        The same type as the input item, but translated.
+    """
     if isinstance(item, str):
         if item in translations:
             return translations[item]

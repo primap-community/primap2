@@ -3,6 +3,7 @@
 import xarray as xr
 
 from ._aggregate import DataArrayAggregationAccessor, DatasetAggregationAccessor
+from ._convert import DataArrayConversionAccessor
 from ._data_format import DatasetDataFormatAccessor
 from ._downscale import DataArrayDownscalingAccessor, DatasetDownscalingAccessor
 from ._fill_combine import DataArrayFillAccessor, DatasetFillAccessor
@@ -37,6 +38,7 @@ class PRIMAP2DatasetAccessor(
 class PRIMAP2DataArrayAccessor(
     DataArrayAggregationAccessor,
     DataArrayAliasSelectionAccessor,
+    DataArrayConversionAccessor,
     DataArrayDownscalingAccessor,
     DataArrayMergeAccessor,
     DataArrayOverviewAccessor,
