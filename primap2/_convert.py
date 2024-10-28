@@ -389,7 +389,7 @@ def factors_categories_to_xarray(
     """Convert dictionary mapping categories to factors into xarray-compatible objects.
 
     Using the xarray objects ensures that in subsequent calculations, everything
-    will cleanly multiply reagardless of the dimensionality of the data.
+    will cleanly multiply regardless of the dimensionality of the data.
 
     Parameters
     ----------
@@ -479,13 +479,9 @@ def derive_weights(
     """
     if operation_type == "input":
         operation_verb = "sum up"
-        trivial_sum_rule = "extensive"
-        nontrivial_sum_rule = "intensive"
         rule_cardinality = rule.cardinality_a
     else:
         operation_verb = "split"
-        trivial_sum_rule = "intensive"
-        nontrivial_sum_rule = "extensive"
         rule_cardinality = rule.cardinality_b
 
     # just one category or trivial sum rule, so no weights required
