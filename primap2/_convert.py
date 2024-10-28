@@ -1,5 +1,4 @@
 import copy
-import typing
 from collections.abc import Hashable
 
 import climate_categories
@@ -18,7 +17,6 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         dim: Hashable | str,
         *,
         conversion: climate_categories.Conversion,
-        sum_rule: typing.Literal["intensive", "extensive"] | None = None,
         input_weights: xr.DataArray | None = None,
         output_weights: xr.DataArray | None = None,
         auxiliary_dimensions: dict[str, str] | None = None,
@@ -28,7 +26,11 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         Maps the given dimension from one categorization (terminology) into another.
         Fetches the rules to do the mapping from the climate_categories package, and
         therefore will only work if there are conversions rules to convert from the
-        current categorization to the new categorization.
+        current categorization to the new categorization. The input data must always be
+        extensive (like, for example, total emissions in a year subdivided into multiple
+        sectoral categories). Handling of intensive data (like, for example, average
+        per-person emissions in a year subdivided into different territorial entities)
+        is not supported.
 
         Parameters
         ----------
@@ -38,13 +40,6 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
             The conversion rules that describe the conversion from the old to the new
             categorization. Contains ``climate_categories.Categorization``
             object for old and new categorization.
-        sum_rule : ``extensive``, ``intensive``, or None (default)
-            If data of categories has to be summed up or divided, we need information
-            whether the quantity measured is extensive (like, for example, total
-            emissions in a year subdivided into multiple sectoral categories) or
-            intensive (like, for example, average per-person emissions in a year
-            subdivided into different territorial entities). By default (None), a
-            warning is issued if data has to be summed up or divided.
         input_weights : xr.DataArray, optional
             If data in input categories has to be summed up and the sum_rule is
             ``intensive``, weights for the input categories are required.
@@ -80,8 +75,6 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
             A copy of the DataArray with the given dimension converted in the new
             categorization.
         """
-
-        check_valid_sum_rule_types(sum_rule)
 
         auxiliary_dimensions = prepare_auxiliary_dimensions(conversion, auxiliary_dimensions)
 
@@ -121,7 +114,6 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 already_converted_categories=converted_categories,
                 category=category.item(),
                 conversion=conversion,
-                sum_rule=sum_rule,
                 auxiliary_dimensions=auxiliary_dimensions,
                 input_weights=input_weights,
                 output_weights=output_weights,
@@ -138,7 +130,6 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         already_converted_categories: list[climate_categories.Category],
         category: climate_categories.Category,
         conversion: climate_categories.Conversion,
-        sum_rule: str | None,
         auxiliary_dimensions: dict[climate_categories.Categorization, str] | None,
         input_weights: xr.DataArray | None = None,
         output_weights: xr.DataArray | None = None,
@@ -162,8 +153,6 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
             The category from the new dimension which should be filled.
         conversion: climate_categories.Conversion
             The conversion to use to compute the values for the given category.
-        sum_rule: str, optional
-            See docstring of `convert`.
         auxiliary_dimensions:
             See docstring of `convert`.
         input_weights: xr.DataArray, optional
@@ -223,7 +212,6 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                     rule=rule,
                     operation_type="input",
                     selection=input_selection,
-                    sum_rule=sum_rule,
                     weights=input_weights,
                 )
                 effective_output_weights = derive_weights(
@@ -232,7 +220,6 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                     rule=rule,
                     operation_type="output",
                     selection=output_selection,
-                    sum_rule=sum_rule,
                     weights=output_weights,
                 )
             except WeightingInfoMissing as err:
@@ -310,16 +297,6 @@ def ensure_categorization_instance(
     if isinstance(cat, climate_categories.Categorization):
         return cat
     return climate_categories.cats[cat]
-
-
-def check_valid_sum_rule_types(sum_rule: str | None):
-    """Checks if the sum_rule is either "intensive", "extensive", or None.
-
-    Raises a ValueError if an invalid sum_rule is used."""
-    if sum_rule not in (None, "extensive", "intensive"):
-        raise ValueError(
-            f"if defined, sum_rule must be either 'extensive' or 'intensive', not" f" {sum_rule}"
-        )
 
 
 def initialize_empty_converted_da(
@@ -472,7 +449,6 @@ def derive_weights(
     dim: str,
     category: climate_categories.Category,
     rule: climate_categories.ConversionRule,
-    sum_rule: str | None,
     operation_type: str,
     weights: xr.DataArray | None,
     selection: dict[str, list[str]],
@@ -487,13 +463,6 @@ def derive_weights(
         Category which should be derived.
     rule: climate_categories.ConversionRule
         Rule that should be used to derive the category.
-    sum_rule : ``extensive``, ``intensive``, or None (default)
-        If data of categories has to be summed up or divided, we need information
-        whether the quantity measured is extensive (like, for example, total
-        emissions in a year subdivided into multiple sectoral categories) or
-        intensive (like, for example, average per-person emissions in a year
-        subdivided into different territorial entities). By default (None), a
-        warning is issued if data has to be summed up or divided.
     operation_type: ``input`` or ``output``
         If weights for the source data (input) or the result data (output) should
         be derived.
@@ -520,9 +489,9 @@ def derive_weights(
         rule_cardinality = rule.cardinality_b
 
     # just one category or trivial sum rule, so no weights required
-    if rule_cardinality == "one" or sum_rule == trivial_sum_rule:
+    if rule_cardinality == "one" or operation_type == "input":
         return 1.0
-    if sum_rule == nontrivial_sum_rule:
+    if operation_type == "output":
         if weights is None:
             raise WeightingInfoMissing(
                 category=category,
