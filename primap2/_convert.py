@@ -440,10 +440,8 @@ def derive_weights(
         weights.
     """
     if operation_type == "input":
-        operation_verb = "sum up"
         rule_cardinality = rule.cardinality_a
     else:
-        operation_verb = "split"
         rule_cardinality = rule.cardinality_b
 
     # just one category or trivial sum rule, so no weights required
