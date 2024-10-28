@@ -148,7 +148,7 @@ def test_convert_BURDI(empty_ds: xr.Dataset):
         .item()
     )
     # 3.C.7 (converted from 4.C) should still be part of the data set,
-    # although it apprears in two conversion rules
+    # although it appears in two conversion rules
     assert (
         (result.pr.loc[{"category": "3.C.7"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
     )
