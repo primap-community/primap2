@@ -39,6 +39,11 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         used to downscale the basket to its contents, which is used to fill gaps in the
         timeseries of the basket contents.
 
+        If the data to downscale contains only 0 an NaN the result will be all
+        zero timeseries. If the data is only for individual basket and basket_content
+        values the resulting downscaled data points are zero but the shares for other years
+        are not be influenced
+
         Parameters
         ----------
         dim: str
@@ -116,7 +121,10 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
             error_message = generate_error_message(basket_sum_zero)
             raise ValueError(f"pr.downscale_timeseries {error_message}")
 
-        if not basket_both_zero.isnull().all():
+        any_nonzero = basket_sum.where(basket_sum != 0).notnull().any()
+
+        # treat the case where all data is zero or NaN
+        if (not basket_both_zero.isnull().all()) & (not any_nonzero):
             unit_content = str(basket_contents_da.pint.units)
             basket_da_squeeze = basket_da.drop(dim)
             basket_contents_da = basket_contents_da.where(
@@ -138,6 +146,11 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
             .ffill(dim="time")
             .bfill(dim="time")
         )
+
+        # treat the case where there are zero values in basket_sum and basket_da but also
+        # non-zero data
+        if (not basket_both_zero.isnull().all()) & any_nonzero:
+            shares = shares.where((basket_da != 0) | (basket_sum != 0), 0)
 
         downscaled: xr.DataArray = basket_da * shares
 
@@ -170,6 +183,11 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         linearly and extrapolated constantly to the full timeseries. The shares are then
         used to downscale the basket to its contents, which is used to fill gaps in the
         timeseries of the basket contents.
+
+        If the data to downscale contains only 0 an NaN the result will be all
+        zero timeseries. If the data is only for individual basket and basket_content
+        values the resulting downscaled data points are zero but the shares for other years
+        are not be influenced
 
         Parameters
         ----------
@@ -259,6 +277,11 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         converted back afterwards; for both conversions the gwp conversions of the
         basket are used.
 
+        If the data to downscale contains only 0 an NaN the result will be all
+        zero timeseries. If the data is only for individual basket and basket_content
+        values the resulting downscaled data points are zero but the shares for other years
+        are not be influenced
+
         Parameters
         ----------
         basket: str
@@ -344,7 +367,10 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
             error_message = generate_error_message(basket_sum_zero)
             raise ValueError(f"pr.downscale_gas_timeseries {error_message}")
 
-        if not basket_both_zero.isnull().all():
+        any_nonzero = basket_sum.where(basket_sum != 0).notnull().any()
+
+        # treat the case where all data is zero or NaN
+        if (not basket_both_zero.isnull().all()) & (not any_nonzero):
             unit_content = str(basket_da.pint.units)
             basket_contents_converted = basket_contents_converted.where(
                 (basket_da != 0) | (basket_sum != 0), 1 * ureg(unit_content)
@@ -365,6 +391,11 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
             .ffill(dim="time")
             .bfill(dim="time")
         )
+
+        # treat the case where there are zero values in basket_sum and basket_da but also
+        # non-zero data
+        if (not basket_both_zero.isnull().all()) & any_nonzero:
+            shares = shares.where((basket_da != 0) | (basket_sum != 0), 0)
 
         downscaled = basket_da * shares
 
