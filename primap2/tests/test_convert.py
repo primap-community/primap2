@@ -121,7 +121,7 @@ def test_convert_BURDI(empty_ds: xr.Dataset):
         "7",
     ]
 
-    # build a DA categorized by BURDI and with 1 everywhere so results are easy
+    # build a DA categorised by BURDI and with 1 everywhere so results are easy
     # to see
     da = empty_ds["CO2"]
     da = da.expand_dims({"category (BURDI)": BURDI_categories})
