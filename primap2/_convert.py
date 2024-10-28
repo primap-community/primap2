@@ -497,20 +497,15 @@ def derive_weights(
                 category=category,
                 rule=rule,
                 message=f"We need to {operation_verb} multiple categories with"
-                f" sum_rule={nontrivial_sum_rule}, but no {operation_type}_weights are"
+                f" but no {operation_type}_weights are"
                 f" specified.",
             )
         effective_weights = weights.loc[selection]
         # normalize so it is actually a weight, not a factor
         return effective_weights / effective_weights.sum(dim=dim)
 
-    raise WeightingInfoMissing(
-        category=category,
-        rule=rule,
-        message=f"We need to {operation_verb} multiple categories, but the sum_rule is"
-        f" not specified. Rule can only be used if sum_rule={trivial_sum_rule!r} or"
-        f" sum_rule={nontrivial_sum_rule} and {operation_type}_weights are"
-        f" specified.",
+    raise NotImplementedError(
+        f"operation_type must be either input or output. Got {operation_type}"
     )
 
 
