@@ -446,8 +446,8 @@ def derive_weights(
         else:
             raise NotImplementedError(
                 "Splitting input categories into multiple"
-                " output categories is currently not supported."
-                f"{rule=}, {category=}"
+                " output categories is currently not supported. "
+                f"{rule.csv_original_text=}, {category=}"
             )
     else:
         raise NotImplementedError(
