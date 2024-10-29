@@ -67,6 +67,9 @@ def test_convert_ipcc(empty_ds: xr.Dataset):
 
     assert (result.pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
     assert (result.pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year")).all().item()
+    # TODO that name is a bit crazy, naming up for discussion
+    mcat = "M.1.A.2.f_1.A.2.g_1.A.2.h_1.A.2.i_1.A.2.j_1.A.2.k_1.A.2.l_1.A.2.m"
+    assert (result.pr.loc[{"category": mcat}] == 8.0 * primap2.ureg("Gg CO2 / year")).all().item()
 
 
 # test with new conversion and two existing categorisations

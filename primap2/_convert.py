@@ -175,31 +175,39 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 )
                 continue
 
-            try:
-                effective_input_weights = derive_weights(
-                    dim=dim,
-                    category=category,
-                    rule=rule,
-                    operation_type="input",
-                )
-                effective_output_weights = derive_weights(
-                    dim=new_dim,
-                    category=category,
-                    rule=rule,
-                    operation_type="output",
-                )
-            except WeightingInfoMissing as err:
-                logger.warning(str(err))
-                continue
+            # try:
+            #     effective_input_weights = derive_weights(
+            #         dim=dim,
+            #         category=category,
+            #         rule=rule,
+            #         operation_type="input",
+            #     )
+            #     effective_output_weights = derive_weights(
+            #         dim=new_dim,
+            #         category=category,
+            #         rule=rule,
+            #         operation_type="output",
+            #     )
+            # except WeightingInfoMissing as err:
+            #     logger.warning(str(err))
+            #     continue
 
             # the left-hand side of the conversion formula summed up
-            lhs = (input_factors * effective_input_weights * self._da.loc[input_selection]).sum(
-                dim=dim
-            )
+            lhs = (input_factors * 1.0 * self._da.loc[input_selection]).sum(dim=dim)
             # the right-hand side of the conversion formula split up
-            rhs = lhs / output_factors / effective_output_weights
+            rhs = lhs / output_factors / 1.0
 
-            da.loc[output_selection] = rhs
+            # somewhere here we need to extend the categories with new M-categories
+            # if there is more than one category on the target side
+            if len(output_selection[new_dim]) > 1:
+                # this leads to very long category names
+                new_category = "M." + "_".join(output_selection[new_dim])
+                new_categories = list(da.indexes["category (IPCC2006)"]) + [new_category]
+                da = da.reindex({"category (IPCC2006)": new_categories}, fill_value=np.nan)
+                # TODO fails for aux dimensions, e.g. apply only for NO2
+                da.loc[{new_dim: new_category}] = rhs.sum(dim=new_dim)
+            else:
+                da.loc[output_selection] = rhs
 
             if not rule.is_restricted:
                 # stop processing rules for this category
@@ -437,22 +445,23 @@ def derive_weights(
         Object which can be multiplied with the input or output DataArray to apply
         weights.
     """
-    # TODO this may change again in the next PR
-    if operation_type == "input":
-        return 1.0
-    elif operation_type == "output":
-        if rule.cardinality_b == "one":
-            return 1.0
-        else:
-            raise NotImplementedError(
-                "Splitting input categories into multiple"
-                " output categories is currently not supported. "
-                f"{rule.csv_original_text=}, {category=}"
-            )
-    else:
-        raise NotImplementedError(
-            f"operation_type must be either input or output. Got {operation_type}"
-        )
+    return 1.0
+    # # TODO this may change again in the next PR
+    # if operation_type == "input":
+    #     return 1.0
+    # elif operation_type == "output":
+    #     if rule.cardinality_b == "one":
+    #         return 1.0
+    #     else:
+    #         raise NotImplementedError(
+    #             "Splitting input categories into multiple"
+    #             " output categories is currently not supported. "
+    #             f"{rule.csv_original_text=}, {category=}"
+    #         )
+    # else:
+    #     raise NotImplementedError(
+    #         f"operation_type must be either input or output. Got {operation_type}"
+    #     )
 
 
 def prepare_auxiliary_dimensions(
