@@ -437,26 +437,22 @@ def derive_weights(
         Object which can be multiplied with the input or output DataArray to apply
         weights.
     """
+    # TODO this may change again in the next PR
     if operation_type == "input":
-        rule_cardinality = rule.cardinality_a
-    else:
-        rule_cardinality = rule.cardinality_b
-
-    # just one category or trivial sum rule, so no weights required
-    if rule_cardinality == "one" or operation_type == "input":
         return 1.0
-    # if there are several categories ob the right side
-    if operation_type == "output":
-        # TODO: This case will be implemented in another PR
+    elif operation_type == "output":
+        if rule.cardinality_b == "one":
+            return 1.0
+        else:
+            raise NotImplementedError(
+                "Splitting input categories into multiple"
+                " output categories is currently not supported."
+                f"{rule=}, {category=}"
+            )
+    else:
         raise NotImplementedError(
-            "Splitting input categories into multiple"
-            " output categories is currently not supported."
-            f"{rule=}, {category=}"
+            f"operation_type must be either input or output. Got {operation_type}"
         )
-
-    raise NotImplementedError(
-        f"operation_type must be either input or output. Got {operation_type}"
-    )
 
 
 def prepare_auxiliary_dimensions(
