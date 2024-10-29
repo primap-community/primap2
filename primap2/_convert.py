@@ -430,8 +430,6 @@ def derive_weights(
     operation_type: ``input`` or ``output``
         If weights for the source data (input) or the result data (output) should
         be derived.
-    selection: dict[str, list[str]]
-        Selection derived from the rule.
 
     Returns
     -------
@@ -447,7 +445,9 @@ def derive_weights(
     # just one category or trivial sum rule, so no weights required
     if rule_cardinality == "one" or operation_type == "input":
         return 1.0
+    # if there are several categories ob the right side
     if operation_type == "output":
+        # TODO: This case will be implemented in another PR
         raise NotImplementedError(
             "Splitting input categories into multiple"
             " output categories is currently not supported."
