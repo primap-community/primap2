@@ -28,6 +28,13 @@ class TestToNetCDF:
         assert attrs_before == ds.attrs
         assert attrs_before == nds.attrs
 
+    def test_processing_info_none(self, opulent_processing_ds: xr.Dataset, caplog, tmp_path):
+        ds = opulent_processing_ds
+        ds["Processing of CO2"].loc[{"area (ISO3)": ["ARG", "MEX", "BOL"]}] = None
+
+        ds.pr.to_netcdf(tmp_path / "temp.nc")
+        assert not caplog.records
+
 
 class TestEnsureValid:
     def test_something_else_entirely(self, caplog):
