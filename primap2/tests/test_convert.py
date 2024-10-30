@@ -40,7 +40,6 @@ def test_conversion_source_does_not_match_dataset_dimension(empty_ds):
         )
 
 
-@pytest.mark.xfail
 def test_convert_ipcc(empty_ds: xr.Dataset):
     # build a DA categorized by IPCC1996 and with 1 everywhere so results are easy
     # to see
@@ -64,12 +63,30 @@ def test_convert_ipcc(empty_ds: xr.Dataset):
         conversion=conversion,
         auxiliary_dimensions={"gas": "source (gas)"},
     )
-
+    # rule 1 -> 1
     assert (result.pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
+    # rule 2 + 3 -> 2
     assert (result.pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year")).all().item()
-    # TODO that name is a bit crazy, naming up for discussion
-    mcat = "M.1.A.2.f_1.A.2.g_1.A.2.h_1.A.2.i_1.A.2.j_1.A.2.k_1.A.2.l_1.A.2.m"
+    # rule 1.A.2.f -> 1.A.2.f + 1.A.2.g + 1.A.2.h + 1.A.2.i + 1.A.2.j + 1.A.2.k + 1.A.2.l + 1.A.2.m
+    mcat = "M_1.A.2.f_1.A.2.g_1.A.2.h_1.A.2.i_1.A.2.j_1.A.2.k_1.A.2.l_1.A.2.m"
     assert (result.pr.loc[{"category": mcat}] == 8.0 * primap2.ureg("Gg CO2 / year")).all().item()
+    # rule 4.D for N2O only -> 3.C.4 + 3.C.5
+    mcat = "M_3.C.4_3.C.5"
+    assert (
+        (
+            result.pr.loc[{"category": mcat, "source (gas)": "N2O"}]
+            == 2.0 * primap2.ureg("Gg CO2 / year")
+        )
+        .all()
+        .item()
+    )
+    all_gases_but_N2O = list(result.indexes["source (gas)"])
+    all_gases_but_N2O.remove("N2O")
+    assert np.isnan(
+        result.pr.loc[{"category": mcat, "source (gas)": all_gases_but_N2O}].values
+    ).all()
+    # rule 7 -> 5
+    assert (result.pr.loc[{"category": "5"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
 
 
 # test with new conversion and two existing categorisations

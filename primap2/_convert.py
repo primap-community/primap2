@@ -175,43 +175,27 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 )
                 continue
 
-            # try:
-            #     effective_input_weights = derive_weights(
-            #         dim=dim,
-            #         category=category,
-            #         rule=rule,
-            #         operation_type="input",
-            #     )
-            #     effective_output_weights = derive_weights(
-            #         dim=new_dim,
-            #         category=category,
-            #         rule=rule,
-            #         operation_type="output",
-            #     )
-            # except WeightingInfoMissing as err:
-            #     logger.warning(str(err))
-            #     continue
-
             # the left-hand side of the conversion formula summed up
             lhs = (input_factors * 1.0 * self._da.loc[input_selection]).sum(dim=dim)
             # the right-hand side of the conversion formula split up
             rhs = lhs / output_factors / 1.0
 
-            # somewhere here we need to extend the categories with new M-categories
             # if there is more than one category on the target side
             if len(output_selection[new_dim]) > 1:
                 # this leads to very long category names
-                new_category = "M." + "_".join(output_selection[new_dim])
+                new_category = "M_" + "_".join(output_selection[new_dim])
                 new_categories = list(da.indexes["category (IPCC2006)"]) + [new_category]
                 da = da.reindex({"category (IPCC2006)": new_categories}, fill_value=np.nan)
-                # TODO fails for aux dimensions, e.g. apply only for NO2
-                da.loc[{new_dim: new_category}] = rhs.sum(dim=new_dim)
+                new_output_selection = output_selection.copy()
+                new_output_selection[new_dim] = new_category
+                da.loc[new_output_selection] = rhs.sum(dim=new_dim)
+                return output_selection[new_dim], da
             else:
                 da.loc[output_selection] = rhs
 
-            if not rule.is_restricted:
-                # stop processing rules for this category
-                return output_selection[new_dim], da
+                if not rule.is_restricted:
+                    # stop processing rules for this category
+                    return output_selection[new_dim], da
 
         logger.debug(
             f"No unrestricted rule to derive data for {category!r} applied, some or "
