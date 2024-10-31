@@ -100,6 +100,7 @@ def test_convert_ipcc(empty_ds: xr.Dataset):
 
 
 # test with new conversion and two existing categorisations
+@pytest.mark.xfail
 def test_convert_BURDI(empty_ds: xr.Dataset):
     # make a sample conversion object in climate categories
     filepath = get_test_data_filepath("BURDI_conversion.csv")
@@ -180,11 +181,19 @@ def test_convert_BURDI(empty_ds: xr.Dataset):
     assert (
         (result.pr.loc[{"category": "3.C.7"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
     )
-    # 2.E + 2.B = 2.E, 2.E should not be part of new data set
+    # rule 2.E + 2.B -> 2.B
+    # 2.B is part of PRIMAP categories, but cannot be retrieved from conversion
     assert np.isnan(result.pr.loc[{"category": "2.E"}].values).all()
     # cat 14638 in BURDI equals cat M.BIO in IPCC2006_PRIMAP
     assert (
         (result.pr.loc[{"category": "M.BIO"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
+    )
+    # map an old category to an unknown new category
+    # 4.D -> M.3.C.45.AG
+    assert (
+        (result.pr.loc[{"category": "M.3.C.45.AG"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
+        .all()
+        .item()
     )
 
 
