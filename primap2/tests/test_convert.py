@@ -188,10 +188,14 @@ def test_convert_BURDI(empty_ds: xr.Dataset):
     assert (
         (result.pr.loc[{"category": "M.BIO"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
     )
-    # map an old category to an unknown new category
     # 4.D -> M.3.C.45.AG
+    # This category is only available on M3C45AG branch in climate categories
+    # test locally with:
+    # `source venv/bin/activate`
+    # `pip install -e ../climate_categories`
+    # Will pass after climate categories release
     assert (
-        (result.pr.loc[{"category": "M.3.C.45.AG"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
+        (result.pr.loc[{"category": "3.C.45.AG"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
         .all()
         .item()
     )
@@ -237,5 +241,5 @@ def test_custom_conversion_and_two_custom_categorisations(empty_ds):
     assert (result.pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year")).all().item()
 
     # check result has 2 categories (input categorisation had 3)
-    # TODO this is ambiguous when order changes
+    # TODO this is ambiguous, order may change
     assert result.shape == (2, 21, 4, 1)
