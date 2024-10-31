@@ -80,6 +80,7 @@ def test_convert_ipcc(empty_ds: xr.Dataset):
         .all()
         .item()
     )
+    # all other gases should be nan
     all_gases_but_N2O = list(result.indexes["source (gas)"])
     all_gases_but_N2O.remove("N2O")
     assert np.isnan(
@@ -87,6 +88,15 @@ def test_convert_ipcc(empty_ds: xr.Dataset):
     ).all()
     # rule 7 -> 5
     assert (result.pr.loc[{"category": "5"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
+    # rule 2.F.6 -> 2.E + 2.F.6 + 2.G.1 + 2.G.2 + 2.G.4,
+    # rule 2.F.6 + 3.D -> 2.E + 2.F.6 + 2.G - ignored because 2.F.G already converted
+    # rule 2.G -> 2.H.3 - 1-to-1-conversion
+    mcat = "M_2.E_2.F.6_2.G.1_2.G.2_2.G.4"
+    assert (result.pr.loc[{"category": mcat}] == 5.0 * primap2.ureg("Gg CO2 / year")).all().item()
+    assert "M_2.E_2.F.6_2.G" not in list(result.indexes["category (IPCC2006)"])
+    assert (
+        (result.pr.loc[{"category": "2.H.3"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
+    )
 
 
 # test with new conversion and two existing categorisations
