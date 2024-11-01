@@ -56,13 +56,11 @@ def test_convert_ipcc(empty_ds: xr.Dataset):
         da.pr.convert(
             dim="category",
             conversion=conversion,
-            sum_rule="extensive",
         )
 
     result = da.pr.convert(
         dim="category",
         conversion=conversion,
-        sum_rule="extensive",
         auxiliary_dimensions={"gas": "source (gas)"},
     )
 
@@ -133,7 +131,6 @@ def test_convert_BURDI(empty_ds: xr.Dataset):
     result = da.pr.convert(
         dim="category",
         conversion=conv,
-        sum_rule="extensive",
         auxiliary_dimensions={"gas": "source (gas)"},
     )
 
@@ -188,7 +185,6 @@ def test_custom_conversion_and_two_custom_categorisations(empty_ds):
     result = da.pr.convert(
         dim="category",
         conversion=conv,
-        sum_rule="extensive",
     )
 
     # category name includes B - the target categorisation
