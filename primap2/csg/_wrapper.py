@@ -39,11 +39,9 @@ def create_composite_source(
 ) -> xr.Dataset:
     """Create a composite data source
 
-    TODO: links in docstrigs possible
     This is a wrapper around `primap2.csg.compose` that prepares the input data and sets result
     values for the priority coordinates.
 
-    TODO: set metadata here?
 
     Parameters
     ----------

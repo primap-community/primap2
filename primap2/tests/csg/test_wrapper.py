@@ -7,10 +7,6 @@ import primap2.csg
 from primap2.csg import create_composite_source, set_priority_coords
 from primap2.tests.utils import assert_ds_aligned_equal
 
-# TODO: write test for set_priority coords
-# write individual tests for create_composite_source??
-# probably not because compose is tested and all other used functions as well
-
 DATA_PATH = Path(__file__).parent.parent / "data"
 
 
@@ -77,6 +73,8 @@ def test_create_composite_source():
         "source": {"value": "PRIMAP-test"},
         "scenario": {"value": "HISTORY", "terminology": "PRIMAP"},
     }
+
+    metadata = {"references": "test-data", "author": "Johannes Gütschow"}
 
     input_data = primap2.open_dataset(DATA_PATH / "primap2_test_data_v2.5.1_final.nc")
 
@@ -156,6 +154,7 @@ def test_create_composite_source():
         limit_coords=test_limit_coords,
         time_range=test_time_range,
         progress_bar=None,
+        metadata=metadata,
     )
 
     # remove processing info as following functions can't deal with it yet
