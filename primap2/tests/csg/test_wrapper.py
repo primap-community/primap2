@@ -74,7 +74,7 @@ def test_create_composite_source():
         "scenario": {"value": "HISTORY", "terminology": "PRIMAP"},
     }
 
-    metadata = {"references": "test-data", "author": "Johannes Gütschow"}
+    metadata = {"references": "test-data", "contact": "test@example.xx"}
 
     input_data = primap2.open_dataset(DATA_PATH / "primap2_test_data_v2.5.1_final.nc")
 
