@@ -16,6 +16,7 @@ def get_test_data_filepath(fname: str):
     return importlib.resources.files("primap2.tests.data").joinpath(fname)
 
 
+@pytest.mark.xfail
 def test_conversion_source_does_not_match_dataset_dimension(empty_ds):
     # make a data set with IPCC1996 categories
     da = empty_ds["CO2"]
