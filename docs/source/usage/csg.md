@@ -221,5 +221,5 @@ complete_result_ds
 
 ## Filling strategies
 Currently the following filling strategies are implemented
-* Global least square matching: {py:func}`primap2.csg.GlobalLSStrategy`
-* Straight substitution: {py:func}`primap2.csg.SubstitutionStrategy`
+* Global least square matching: {py:class}`primap2.csg.GlobalLSStrategy`
+* Straight substitution: {py:class}`primap2.csg.SubstitutionStrategy`

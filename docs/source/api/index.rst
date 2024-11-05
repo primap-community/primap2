@@ -58,6 +58,7 @@ source priorities and matching algorithms.
     :toctree: generated_csg/
 
     csg.GlobalLSStrategy
+    csg.LocalTrendsStrategy
     csg.PriorityDefinition
     csg.StrategyDefinition
     csg.StrategyUnableToProcess
