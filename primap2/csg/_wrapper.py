@@ -83,7 +83,7 @@ def create_composite_source(
         Optional parameter to limit the time coverage of the input data. Currently
         only (year_from, year_to) is supported
     metadata
-        Set metadata values such as author and references
+        Set metadata values such as title and references
     progress_bar
         By default, show progress bars using the tqdm package during the
         operation. If None, don't show any progress bars. You can supply a class
