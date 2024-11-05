@@ -185,10 +185,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
 
             # if there is more than one category on the target side
             if len(output_selection[new_dim]) > 1:
-                # TODO this leads to very long category names
                 new_category = create_category_name(rule)
-                # new_category = "A_(" + "_".join(output_selection[new_dim]) + ")"
-                # add newly created category to da
                 new_categories = list(da.indexes["category (IPCC2006)"]) + [new_category]
                 da = da.reindex({"category (IPCC2006)": new_categories}, fill_value=np.nan)
                 new_output_selection = output_selection.copy()
@@ -435,10 +432,22 @@ def prepare_auxiliary_dimensions(
     }
 
 
-def create_category_name(rule):
+def create_category_name(rule: climate_categories.ConversionRule):
+    """
+    Create a category name based on the provided rule.
+
+    Parameters
+    ----------
+    rule : climate_categories.ConversionRule
+        rule to convert between categories from two different categorizations.
+
+    Returns
+    -------
+        The generated category name.
+    """
     factor_to_string = {1: "+", -1: "-"}
     components = [factor_to_string[i[1]] + i[0].codes[0] for i in rule.factors_categories_b.items()]
-    # remove the first "+" sign in the name (leave a "-" sign in)
+    # remove the first "+" sign in the name (leave "-" sign in)
     if components[0][0] == "+":
         components[0] = components[0][1:]
     return "A_(" + "".join(components) + ")"
