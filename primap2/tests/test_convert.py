@@ -195,7 +195,7 @@ def test_convert_BURDI(empty_ds: xr.Dataset):
     # `pip install -e ../climate_categories`
     # Will pass after climate categories release
     assert (
-        (result.pr.loc[{"category": "3.C.45.AG"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
+        (result.pr.loc[{"category": "M.3.C.45.AG"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
         .all()
         .item()
     )
