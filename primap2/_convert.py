@@ -186,7 +186,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
             # if there is more than one category on the target side
             if len(output_selection[new_dim]) > 1:
                 new_category = create_category_name(rule)
-                new_categories = list(da.indexes["category (IPCC2006)"]) + [new_category]
+                new_categories = [*da.indexes["category (IPCC2006)"], new_category]
                 da = da.reindex({"category (IPCC2006)": new_categories}, fill_value=np.nan)
                 new_output_selection = output_selection.copy()
                 new_output_selection[new_dim] = new_category

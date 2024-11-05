@@ -187,7 +187,7 @@ def test_convert_BURDI(empty_ds: xr.Dataset):
         (result.pr.loc[{"category": "3.C.7"}] == 1.0 * primap2.ureg("Gg CO2 / year")).all().item()
     )
     # rule 2.E + 2.B -> 2.B
-    # 2.B is part of PRIMAP categories, but cannot be retrieved from conversion
+    # 2.E is part of PRIMAP categories, but cannot be retrieved from conversion
     assert np.isnan(result.pr.loc[{"category": "2.E"}].values).all()
     # cat 14638 in BURDI equals cat M.BIO in IPCC2006_PRIMAP
     assert (
