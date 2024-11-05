@@ -104,7 +104,7 @@ def test_convert_ipcc(empty_ds: xr.Dataset):
 
 
 # test with new conversion and two existing categorisations
-# @pytest.mark.xfail
+@pytest.mark.xfail
 def test_convert_BURDI(empty_ds: xr.Dataset):
     # make a sample conversion object in climate categories
     filepath = get_test_data_filepath("BURDI_conversion.csv")
@@ -198,11 +198,11 @@ def test_convert_BURDI(empty_ds: xr.Dataset):
     # `source venv/bin/activate`
     # `pip install -e ../climate_categories`
     # Will pass after climate categories release
-    # assert (
-    #     (result.pr.loc[{"category": "M.3.C.45.AG"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
-    #     .all()
-    #     .item()
-    # )
+    assert (
+        (result.pr.loc[{"category": "M.3.C.45.AG"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
+        .all()
+        .item()
+    )
 
 
 # test with new conversion and new categorisations
