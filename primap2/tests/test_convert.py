@@ -40,7 +40,6 @@ def test_conversion_source_does_not_match_dataset_dimension(empty_ds):
         )
 
 
-@pytest.mark.xfail
 def test_convert_ipcc(empty_ds: xr.Dataset):
     # build a DA categorized by IPCC1996 and with 1 everywhere so results are easy
     # to see

@@ -17,6 +17,8 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         dim: Hashable | str,
         *,
         conversion: climate_categories.Conversion,
+        input_weights: xr.DataArray | None = None,
+        output_weights: xr.DataArray | None = None,
         auxiliary_dimensions: dict[str, str] | None = None,
     ) -> xr.DataArray:
         """Convert the data along the given dimension into the new categorization.
@@ -38,6 +40,26 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
             The conversion rules that describe the conversion from the old to the new
             categorization. Contains ``climate_categories.Categorization``
             object for old and new categorization.
+        input_weights : xr.DataArray, optional
+            If data in input categories has to be summed up and the sum_rule is
+            ``intensive``, weights for the input categories are required.
+            The weights can be given in any shape compatible with the DataArray that
+            is converted, e.g. to give different weights for industrial sectors by
+            country. However, at least the ``dim`` that is converted needs to be in
+            ``input_weights.dims``.
+            If no weights are specified but a rule requiring weights is specified
+            in the conversion rules, a warning is issued and the respective rule is
+            skipped (probably resulting in more NaNs in the output).
+        output_weights : xr.DataArray, optional
+            If data has to be divided into several output categories and the sum_rule is
+            ``extensive``, weights for the output categories are required.
+            The weights can be given in any shape compatible with the DataArray that
+            is converted, e.g. to give different weights for industrial sectors by
+            country. However, at least the ``dim`` that is converted needs to be in
+            ``output_weights.dims``.
+            If no weights are specified but a rule requiring weights is specified
+            in the conversion rules, a warning is issued and the respective rule is
+            skipped (probably resulting in more NaNs in the output).
         auxiliary_dimensions : dict[str, str], optional
             Mapping of auxiliary categorizations to dimension names used in this
             DataArray. In conversions which contain rules which are valid only for
@@ -93,6 +115,8 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 category=category.item(),
                 conversion=conversion,
                 auxiliary_dimensions=auxiliary_dimensions,
+                input_weights=input_weights,
+                output_weights=output_weights,
             )
             converted_categories += newly_converted_categories
 
@@ -107,6 +131,8 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         category: climate_categories.Category,
         conversion: climate_categories.Conversion,
         auxiliary_dimensions: dict[climate_categories.Categorization, str] | None,
+        input_weights: xr.DataArray | None = None,
+        output_weights: xr.DataArray | None = None,
     ) -> tuple[list[climate_categories.Category], xr.DataArray]:
         """Return a copy of da with the given category filled by values converted
         using the given conversion.
@@ -128,6 +154,10 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         conversion: climate_categories.Conversion
             The conversion to use to compute the values for the given category.
         auxiliary_dimensions:
+            See docstring of `convert`.
+        input_weights: xr.DataArray, optional
+            See docstring of `convert`.
+        output_weights: xr.DataArray, optional
             See docstring of `convert`.
 
         Returns
@@ -181,12 +211,16 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                     category=category,
                     rule=rule,
                     operation_type="input",
+                    selection=input_selection,
+                    weights=input_weights,
                 )
                 effective_output_weights = derive_weights(
                     dim=new_dim,
                     category=category,
                     rule=rule,
                     operation_type="output",
+                    selection=output_selection,
+                    weights=output_weights,
                 )
             except WeightingInfoMissing as err:
                 logger.warning(str(err))
@@ -416,6 +450,8 @@ def derive_weights(
     category: climate_categories.Category,
     rule: climate_categories.ConversionRule,
     operation_type: str,
+    weights: xr.DataArray | None,
+    selection: dict[str, list[str]],
 ) -> xr.DataArray | float:
     """Derive the weights to use for applying a specific rule.
 
@@ -430,6 +466,10 @@ def derive_weights(
     operation_type: ``input`` or ``output``
         If weights for the source data (input) or the result data (output) should
         be derived.
+    weights: xr.DataArray, optional
+        Weights for the individual categories.
+    selection: dict[str, list[str]]
+        Selection derived from the rule.
 
     Returns
     -------
@@ -437,22 +477,32 @@ def derive_weights(
         Object which can be multiplied with the input or output DataArray to apply
         weights.
     """
-    # TODO this may change again in the next PR
     if operation_type == "input":
-        return 1.0
-    elif operation_type == "output":
-        if rule.cardinality_b == "one":
-            return 1.0
-        else:
-            raise NotImplementedError(
-                "Splitting input categories into multiple"
-                " output categories is currently not supported. "
-                f"{rule.csv_original_text=}, {category=}"
-            )
+        operation_verb = "sum up"
+        rule_cardinality = rule.cardinality_a
     else:
-        raise NotImplementedError(
-            f"operation_type must be either input or output. Got {operation_type}"
-        )
+        operation_verb = "split"
+        rule_cardinality = rule.cardinality_b
+
+    # just one category or trivial sum rule, so no weights required
+    if rule_cardinality == "one" or operation_type == "input":
+        return 1.0
+    if operation_type == "output":
+        if weights is None:
+            raise WeightingInfoMissing(
+                category=category,
+                rule=rule,
+                message=f"We need to {operation_verb} multiple categories with"
+                f" but no {operation_type}_weights are"
+                f" specified.",
+            )
+        effective_weights = weights.loc[selection]
+        # normalize so it is actually a weight, not a factor
+        return effective_weights / effective_weights.sum(dim=dim)
+
+    raise NotImplementedError(
+        f"operation_type must be either input or output. Got {operation_type}"
+    )
 
 
 def prepare_auxiliary_dimensions(
