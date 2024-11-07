@@ -166,6 +166,9 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
             already_converted = set(output_selection[new_dim]).intersection(
                 set(already_converted_categories)
             )
+            # if there are several categories on the target side
+            # we can still convert because it will
+            # create a new category
             if already_converted:
                 logger.warning(
                     f"For category {category!r}, would want to use a "
@@ -175,35 +178,26 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 )
                 continue
 
-            try:
-                effective_input_weights = derive_weights(
-                    dim=dim,
-                    category=category,
-                    rule=rule,
-                    operation_type="input",
-                )
-                effective_output_weights = derive_weights(
-                    dim=new_dim,
-                    category=category,
-                    rule=rule,
-                    operation_type="output",
-                )
-            except WeightingInfoMissing as err:
-                logger.warning(str(err))
-                continue
-
             # the left-hand side of the conversion formula summed up
-            lhs = (input_factors * effective_input_weights * self._da.loc[input_selection]).sum(
-                dim=dim
-            )
+            lhs = (input_factors * self._da.loc[input_selection]).sum(dim=dim)
             # the right-hand side of the conversion formula split up
-            rhs = lhs / output_factors / effective_output_weights
+            rhs = lhs / output_factors
 
-            da.loc[output_selection] = rhs
-
-            if not rule.is_restricted:
-                # stop processing rules for this category
+            # if there is more than one category on the target side
+            if len(output_selection[new_dim]) > 1:
+                new_category = create_category_name(rule)
+                new_categories = [*da.indexes["category (IPCC2006)"], new_category]
+                da = da.reindex({"category (IPCC2006)": new_categories}, fill_value=np.nan)
+                new_output_selection = output_selection.copy()
+                new_output_selection[new_dim] = new_category
+                da.loc[new_output_selection] = rhs.sum(dim=new_dim)
                 return output_selection[new_dim], da
+            else:
+                da.loc[output_selection] = rhs
+
+                if not rule.is_restricted:
+                    # stop processing rules for this category
+                    return output_selection[new_dim], da
 
         logger.debug(
             f"No unrestricted rule to derive data for {category!r} applied, some or "
@@ -394,67 +388,6 @@ def factors_categories_to_xarray(
     return selection, factors
 
 
-class WeightingInfoMissing(ValueError):
-    """Some information to derive weighting factors for a rule is missing."""
-
-    def __init__(
-        self,
-        category: climate_categories.Category,
-        rule: climate_categories.ConversionRule,
-        message: str,
-    ):
-        full_message = (
-            f"Can not derive data for category {category!r} using rule"
-            f" '{rule}': {message} Skipping this rule."
-        )
-        ValueError.__init__(self, full_message)
-
-
-def derive_weights(
-    *,
-    dim: str,
-    category: climate_categories.Category,
-    rule: climate_categories.ConversionRule,
-    operation_type: str,
-) -> xr.DataArray | float:
-    """Derive the weights to use for applying a specific rule.
-
-    Parameters
-    ----------
-    dim: str
-        Dimension which contains the categories.
-    category: climate_categories.Category
-        Category which should be derived.
-    rule: climate_categories.ConversionRule
-        Rule that should be used to derive the category.
-    operation_type: ``input`` or ``output``
-        If weights for the source data (input) or the result data (output) should
-        be derived.
-
-    Returns
-    -------
-    factors: float or xr.DataArray
-        Object which can be multiplied with the input or output DataArray to apply
-        weights.
-    """
-    # TODO this may change again in the next PR
-    if operation_type == "input":
-        return 1.0
-    elif operation_type == "output":
-        if rule.cardinality_b == "one":
-            return 1.0
-        else:
-            raise NotImplementedError(
-                "Splitting input categories into multiple"
-                " output categories is currently not supported. "
-                f"{rule.csv_original_text=}, {category=}"
-            )
-    else:
-        raise NotImplementedError(
-            f"operation_type must be either input or output. Got {operation_type}"
-        )
-
-
 def prepare_auxiliary_dimensions(
     conversion: climate_categories.Conversion,
     auxiliary_dimensions: dict[str, str] | None,
@@ -497,3 +430,24 @@ def prepare_auxiliary_dimensions(
     return {
         climate_categories.cats[name]: auxiliary_dimensions[name] for name in auxiliary_dimensions
     }
+
+
+def create_category_name(rule: climate_categories.ConversionRule):
+    """
+    Create a category name based on the provided rule.
+
+    Parameters
+    ----------
+    rule : climate_categories.ConversionRule
+        rule to convert between categories from two different categorizations.
+
+    Returns
+    -------
+        The generated category name.
+    """
+    factor_to_string = {1: "+", -1: "-"}
+    components = [factor_to_string[i[1]] + i[0].codes[0] for i in rule.factors_categories_b.items()]
+    # remove the first "+" sign in the name (leave "-" sign in)
+    if components[0][0] == "+":
+        components[0] = components[0][1:]
+    return "A_(" + "".join(components) + ")"

@@ -25,3 +25,12 @@ categories:
     alternative_codes:
       - B
       - CatB
+  3:
+    title: Category 3
+    comment: The third category
+  4:
+    title: Category 4
+    comment: The fourth category
+  5:
+    title: Category 5
+    comment: The fifth category
