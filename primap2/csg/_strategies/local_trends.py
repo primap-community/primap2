@@ -2,6 +2,7 @@ import xarray as xr
 from attrs import frozen
 
 import primap2
+from primap2.csg._strategies.gaps import get_gaps
 
 from .exceptions import StrategyUnableToProcess
 
@@ -136,6 +137,20 @@ class LocalTrendsStrategy:
             overlap = ts.notnull() & fill_ts.notnull()
             if overlap.any():
                 # TODO implement boundary and gap filling
+                gaps = get_gaps(ts)
+                for gap in gaps:
+                    if gap.type == "g":
+                        # fill a gap
+                        print("not implemented")
+                    elif gap.type == "l":
+                        # left boundary
+                        print("not implemented")
+                    elif gap.type == "r":
+                        # right boundary
+                        print("not implemented")
+                    else:
+                        raise ValueError(f"Unknown gap type: {gap.type}")
+
                 # e = fill_ts[overlap.data].data
                 # e_ref = ts[overlap.data].data
                 # a0 = [1]  #  start with 1 as scaling factor
