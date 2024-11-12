@@ -17,16 +17,19 @@ BURDI,IPCC2006_PRIMAP,comment
 2.C,2.C
 2.F,2.F
 2.G + 2.D, 2.H
+2.G, 2.H.3
 3,2.D
 4,M.AG
 4.A,3.A.1
 4.B,3.A.2
 4.C,3.C.7
+4.D, M.3.C.45.AG
 4.D + 4.C + 4.E + 4.F + 4.G,3.C
 4.E,3.C.1.c
 4.F,3.C.1.b
 4.G,3.C.8
 5,M.LULUCF
+4+5,3
 6,4
 6.A,4.A
 6.B,4.D
