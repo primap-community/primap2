@@ -203,7 +203,7 @@ def calculate_right_boundary_trend(
     if len(ts_fit.where(ts_fit.notnull(), drop=True)) >= min_trend_points:
         fit = ts_fit.polyfit(dim="time", deg=fit_degree, skipna=True)
         value = xr.polyval(
-            ts_fit.coords["time"].pr.loc[{"time": point_to_modify}] - ts_fit.coords["time"].data[0],
+            ts_fit.coords["time"].pr.loc[{"time": point_to_modify}],
             fit.polyfit_coefficients,
         )
         ts.pr.loc[{"time": point_to_modify}] = value
@@ -271,7 +271,7 @@ def calculate_left_boundary_trend(
     if len(ts_fit.where(ts_fit.notnull(), drop=True)) >= min_trend_points:
         fit = ts_fit.polyfit(dim="time", deg=fit_degree, skipna=True)
         value = xr.polyval(
-            ts_fit.coords["time"].pr.loc[{"time": point_to_modify}] - ts_fit.coords["time"].data[0],
+            ts_fit.coords["time"].pr.loc[{"time": point_to_modify}],
             fit.polyfit_coefficients,
         )
         ts.pr.loc[{"time": point_to_modify}] = value
