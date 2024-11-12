@@ -11,7 +11,7 @@ class Gap:
     # possible types:
     #   'start': start of timeseries boundary (nan, nan, X, X)
     #   'end': end oftimeseries boundary (X, X, nan, nan)
-    #   'ggap': gap (X, nan, nan, X)
+    #   'gap': gap (X, nan, nan, X)
     left: np.datetime64 = None  # left end of the gap
     right: np.datetime64 = None  # right end of the gap
 
@@ -132,7 +132,7 @@ def calculate_boundary_trend(
         # left boundary
         ts = calculate_left_boundary_trend(
             ts,
-            boundary=gap.right,
+            boundary=gap.left,
             fit_degree=fit_degree,
             trend_length=trend_length,
             min_trend_points=min_trend_points,
@@ -141,7 +141,7 @@ def calculate_boundary_trend(
         # right boundary
         ts = calculate_right_boundary_trend(
             ts,
-            boundary=gap.left,
+            boundary=gap.right,
             fit_degree=fit_degree,
             trend_length=trend_length,
             min_trend_points=min_trend_points,

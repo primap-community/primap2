@@ -4,6 +4,7 @@ import pytest
 import xarray as xr
 
 from primap2.csg._strategies.gaps import (
+    calculate_boundary_trend,
     calculate_left_boundary_trend,
     calculate_right_boundary_trend,
     get_gaps,
@@ -220,6 +221,65 @@ def test_calculate_right_boundary_trend(test_ts, caplog):
     assert log_str in caplog.text
 
 
+def test_calculate_boundary_trend(test_ts):
+    # as we test all the individual functions we just construct one big example
+    # using a beginning, an end and a gap
+    gaps = get_gaps(test_ts)
+    fit_degree = 1
+    test_ts.pr.loc[{"time": pd.date_range(gaps[2].right, gaps[3].left, freq="YS")}] = (
+        test_ts.pr.loc
+    )[{"time": pd.date_range(gaps[2].right, gaps[3].left, freq="YS")}] * np.nan
+    gaps = get_gaps(test_ts)
+
+    # expected result
+    expected_ts = test_ts.copy()
+    # beginning
+    data_to_interpolate = test_ts.pr.loc[{"time": slice("1956", "1965")}].data
+    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
+    expected_ts.pr.loc[{"time": "1956-01-01"}] = np.polyval(coeff, 0)
+    # end
+    data_to_interpolate = test_ts.pr.loc[{"time": slice("1996", "2005")}].data
+    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
+    expected_ts.pr.loc[{"time": "2005-01-01"}] = np.polyval(coeff, 9)
+    # gap left
+    data_to_interpolate = test_ts.pr.loc[{"time": slice("1957", "1966")}].data
+    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
+    expected_ts.pr.loc[{"time": "1966-01-01"}] = np.polyval(coeff, 9)
+    # gap right
+    data_to_interpolate = test_ts.pr.loc[{"time": slice("1991", "2000")}].data
+    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
+    expected_ts.pr.loc[{"time": "1991-01-01"}] = np.polyval(coeff, 0)
+
+    # calculate trends (we can do this all on one dataset as the trend intervals don't
+    # overlap with calculated trend values)
+    trend_ts = calculate_boundary_trend(
+        test_ts,
+        gap=gaps[0],
+        fit_degree=fit_degree,
+        trend_length=10,
+        trend_length_unit="YS",
+        min_trend_points=5,
+    )
+    trend_ts = calculate_boundary_trend(
+        trend_ts,
+        gap=gaps[1],
+        fit_degree=fit_degree,
+        trend_length=10,
+        trend_length_unit="YS",
+        min_trend_points=5,
+    )
+    trend_ts = calculate_boundary_trend(
+        trend_ts,
+        gap=gaps[2],
+        fit_degree=fit_degree,
+        trend_length=4,
+        trend_length_unit="YS",
+        min_trend_points=4,
+    )
+
+    assert_aligned_equal(trend_ts, expected_ts, rtol=1e-04, equal_nan=True)
+
+
 def test_timeseries_coords_repr(test_ts):
     test_repr = timeseries_coord_repr(ts=test_ts)
     assert test_repr == "{'category': 'test'}"
@@ -228,3 +288,25 @@ def test_timeseries_coords_repr(test_ts):
     test_repr = timeseries_coord_repr(ts=test_ts)
     expected_repr = "{'area (ISO3)': 'TUV', 'category': 'test', 'scenario': 'test'}"
     assert test_repr == expected_repr
+
+
+def test_temp_polyval():
+    test_ts = xr.DataArray(
+        np.linspace(6, 12, 11),
+        coords={"time": pd.date_range("1956-01-01", "1966-01-01", freq="YS")},
+        dims="time",
+        name="test_ts",
+    )
+
+    time_to_eval = np.datetime64("1957-01-01")
+
+    fit = test_ts.polyfit(dim="time", deg=1, skipna=True)
+    value = xr.polyval(
+        test_ts.coords["time"].loc[{"time": [time_to_eval]}], fit.polyfit_coefficients
+    )
+
+    assert np.allclose(
+        test_ts.loc[{"time": [time_to_eval]}].data,
+        value.data,
+        rtol=1e-03,
+    )
