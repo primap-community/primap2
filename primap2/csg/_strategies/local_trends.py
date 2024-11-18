@@ -2,9 +2,7 @@ import xarray as xr
 from attrs import frozen
 
 import primap2
-from primap2.csg._strategies.gaps import get_gaps
-
-from .exceptions import StrategyUnableToProcess
+from primap2.csg._strategies.gaps import calculate_boundary_trend, get_gaps
 
 
 @frozen
@@ -91,9 +89,18 @@ class LocalTrendsStrategy:
         Allow the filling time series to contain negative data initially.
     """
 
-    allow_negative: bool = False
+    # TODO: add fallback options so we can calculate a trend for one to also if the
+    #  other doesn't have sufficient information. similarly if we have several gaps to fill
+    #  we can use trends where possible, but not for all gaps if data is not sufficient
+    #  for all gaps
+    # fallback_option
+
+    fit_degree = 1  # linear trend by default
+    fallback_degree = 0  # take average as fallback
+    allow_negative: bool = False  # not implemented yet
     trend_length: int = 1
     min_trend_points: int = 1
+    trend_length_unit: str = "YS"
     type = "localTrends"
 
     def fill(
@@ -130,23 +137,53 @@ class LocalTrendsStrategy:
         """
         filled_mask = ts.isnull() & ~fill_ts.isnull()
         time_filled = filled_mask["time"][filled_mask].to_numpy()
+        # overlap = ts.notnull() & fill_ts.notnull() # commented for linting to pass
 
         if time_filled.any():
-            # check if we have overlap. if not raise a StrategyUnableToProcess error so
-            # the user can decide which fallback method to use
-            overlap = ts.notnull() & fill_ts.notnull()
-            if overlap.any():
-                # TODO implement boundary and gap filling
-                gaps = get_gaps(ts)
-                for gap in gaps:
-                    if gap.type == "g":
+            # TODO implement boundary and gap filling
+            # any_filled = False # commented for linting to pass
+            gaps = get_gaps(ts)
+            for gap in gaps:
+                # check if we have overlap. if not raise a StrategyUnableToProcess error so
+                # the user can decide which fallback method to use
+                # check if we have information for the specific gap
+                filled_mask_gap = (filled_mask.pr.loc)[gap.get_date_slice()]
+                time_filled_gap = filled_mask_gap["time"][filled_mask_gap].to_numpy()
+
+                if time_filled_gap.any():
+                    if gap.type == "gap":
                         # fill a gap
                         print("not implemented")
-                    elif gap.type == "l":
-                        # left boundary
+                    elif gap.type == "start":
+                        # start of timeseries
                         print("not implemented")
-                    elif gap.type == "r":
-                        # right boundary
+                        # calculate trend values for ts and fillts
+                        # TODO: remove as there is a function to calulate the scaling
+                        #  factor now
+                        trend_ts = calculate_boundary_trend(
+                            ts,
+                            gap=gap,
+                            fit_degree=self.fit_degree,
+                            trend_length=self.trend_length,
+                            min_trend_points=self.min_trend_points,
+                            trend_length_unit=self.trend_length_unit,
+                        )
+                        if trend_ts is None:
+                            trend_ts = calculate_boundary_trend(
+                                ts,
+                                gap=gap,
+                                fit_degree=self.fit_degree,
+                                trend_length=self.trend_length,
+                                min_trend_points=self.min_trend_points,
+                                trend_length_unit=self.trend_length_unit,
+                            )
+                        # get factor
+
+                        # multiply fill_ts by factor
+
+                        # fill nans (in the gap only)
+                    elif gap.type == "end":
+                        # end of timeseries
                         print("not implemented")
                     else:
                         raise ValueError(f"Unknown gap type: {gap.type}")
@@ -169,8 +206,9 @@ class LocalTrendsStrategy:
                         source=fill_ts_repr,
                     )
                 ]
-            else:
-                raise StrategyUnableToProcess(reason="No overlap between timeseries, can't match")
+                # else:
+                #     raise StrategyUnableToProcess(reason="No overlap between
+                #     timeseries, can't match")
 
         else:
             # if we don't have anything to fill we don't need to calculate anything

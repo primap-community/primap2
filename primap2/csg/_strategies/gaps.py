@@ -10,10 +10,13 @@ class Gap:
     type: str = None
     # possible types:
     #   'start': start of timeseries boundary (nan, nan, X, X)
-    #   'end': end oftimeseries boundary (X, X, nan, nan)
+    #   'end': end of timeseries boundary (X, X, nan, nan)
     #   'gap': gap (X, nan, nan, X)
     left: np.datetime64 = None  # left end of the gap
     right: np.datetime64 = None  # right end of the gap
+
+    def get_date_slice(self) -> dict[str, slice]:
+        return {"time": slice(self.left, self.right)}
 
 
 def get_gaps(ts: xr.DataArray) -> list[Gap]:
@@ -69,6 +72,80 @@ def get_gaps(ts: xr.DataArray) -> list[Gap]:
     return gaps
 
 
+def calculate_boundary_trend_with_fallback(
+    ts: xr.DataArray,
+    gap: Gap,
+    fit_degree: int = 1,
+    fallback_degree: int = 0,
+    trend_length: int = 1,
+    trend_length_unit: str = "YS",
+    min_trend_points: int = 1,
+) -> tuple[float | None]:
+    """
+    Calculate trend values for boundary points. Uses fallback if not enough fit points
+    available.
+
+    Parameters
+    ----------
+    ts :
+        Time-series to calculate trend for
+    gap :
+        Gap definition
+    fit_degree :
+        degree of the polynomial to fit to calculate the trend value. 0 for mean value
+        and 1 for linear trend make most sense. The higher the order, the higher the
+        chance of unexpected results
+    fallback_degree :
+        Fallback degree to use if less than min_trend_points of not-nan data
+    trend_length :
+        length of the trend in time steps (usually years)
+    trend_length_unit :
+        Unit for the length of the trend. String passed to the `freq` argument of
+        `pd.date_range`. Default is 'YS' (yearly at start of year)
+    min_trend_points :
+        minimal number of points to calculate the trend. Default is 1, but if the degree
+        of the fit polynomial is higher than 1, the minimal number of data points equals
+        the degree of the fit polynomial
+
+    Returns
+    -------
+        Tuple with calculated trend values for left and right boundary of the gap. If trend
+        calculation is not possible, `None` is returned so the calling strategy can
+        raise the StrategyUnableToProcess error.
+
+    """
+
+    trend_ts = calculate_boundary_trend(
+        ts,
+        gap=gap,
+        fit_degree=fit_degree,
+        trend_length=trend_length,
+        min_trend_points=min_trend_points,
+        trend_length_unit=trend_length_unit,
+    )
+    if not all(trend_ts):
+        trend_ts = calculate_boundary_trend(
+            ts,
+            gap=gap,
+            fit_degree=fallback_degree,
+            trend_length=trend_length,
+            min_trend_points=1,
+            trend_length_unit=trend_length_unit,
+        )
+        if not all(trend_ts):
+            logger.info(
+                f"Not enough values to calculate fit for ts and gap:"
+                f"{gap.type}, [{gap.left}:{gap.right}].\n"
+                f"fit_degree: {fit_degree}, "
+                f"fallback_degree: {fallback_degree}, "
+                f"trend_length: {trend_length}, "
+                f"trend_length_unit: {trend_length_unit}, "
+                f"min_trend_points: {min_trend_points}.\n"
+                f"Timeseries info: {timeseries_coord_repr(ts)}"
+            )
+    return trend_ts
+
+
 def calculate_boundary_trend(
     ts: xr.DataArray,
     gap: Gap,
@@ -76,9 +153,9 @@ def calculate_boundary_trend(
     trend_length: int = 1,
     trend_length_unit: str = "YS",
     min_trend_points: int = 1,
-) -> xr.DataArray | None:
+) -> tuple[float | None]:
     """
-    Replace boundary points by trend values
+    Calculate trend values for boundary points
 
     Parameters
     ----------
@@ -102,7 +179,7 @@ def calculate_boundary_trend(
 
     Returns
     -------
-        Time-series (xr.DataArray) with boundary point replaced by trend. If trend
+        Tuple with calculated trend values for left and right boundary of the gap. If trend
         calculation is not possible, `None` is returned so the calling strategy can
         raise the StrategyUnableToProcess error.
 
@@ -110,7 +187,7 @@ def calculate_boundary_trend(
 
     if gap.type == "gap":
         # right boundary
-        ts = calculate_right_boundary_trend(
+        right = calculate_right_boundary_trend(
             ts,
             boundary=gap.right,
             fit_degree=fit_degree,
@@ -118,10 +195,8 @@ def calculate_boundary_trend(
             trend_length_unit=trend_length_unit,
             min_trend_points=min_trend_points,
         )
-        if ts is None:
-            return None
         # left boundary
-        ts = calculate_left_boundary_trend(
+        left = calculate_left_boundary_trend(
             ts,
             boundary=gap.left,
             fit_degree=fit_degree,
@@ -130,26 +205,28 @@ def calculate_boundary_trend(
         )
     elif gap.type == "end":
         # left boundary
-        ts = calculate_left_boundary_trend(
+        left = calculate_left_boundary_trend(
             ts,
             boundary=gap.left,
             fit_degree=fit_degree,
             trend_length=trend_length,
             min_trend_points=min_trend_points,
         )
+        right = left
     elif gap.type == "start":
         # right boundary
-        ts = calculate_right_boundary_trend(
+        right = calculate_right_boundary_trend(
             ts,
             boundary=gap.right,
             fit_degree=fit_degree,
             trend_length=trend_length,
             min_trend_points=min_trend_points,
         )
+        left = right
     else:
         raise ValueError(f"Unknown gap type: {gap.type}")
 
-    return ts
+    return (left, right)
 
 
 def calculate_right_boundary_trend(
@@ -159,7 +236,7 @@ def calculate_right_boundary_trend(
     trend_length: int = 1,
     trend_length_unit: str = "YS",
     min_trend_points: int = 1,
-) -> xr.DataArray | None:
+) -> float | None:
     """
     Replace right boundary point by trend value
 
@@ -187,7 +264,7 @@ def calculate_right_boundary_trend(
 
     Returns
     -------
-        Time-series (xr.DataArray) with boundary point replaced by trend. If trend
+        Calculated trend value for boundary point. If trend
         calculation is not possible, `None` is returned so the calling strategy can
         raise the StrategyUnableToProcess error.
 
@@ -206,15 +283,17 @@ def calculate_right_boundary_trend(
             ts_fit.coords["time"].pr.loc[{"time": point_to_modify}],
             fit.polyfit_coefficients,
         )
-        ts.pr.loc[{"time": point_to_modify}] = value
-        return ts
+        # ts.pr.loc[{"time": point_to_modify}] = value
+        # return ts
+        return float(value.data)
     else:
         logger.info(
             f"Not enough values to calculate fit for right boundary at "
-            f"{point_to_modify}. fit_degree: {fit_degree}, "
+            f"{point_to_modify}.\n"
+            f"fit_degree: {fit_degree}, "
             f"trend_length: {trend_length}, "
             f"trend_length_unit: {trend_length_unit}, "
-            f"min_trend_points: {min_trend_points}. "
+            f"min_trend_points: {min_trend_points}.\n"
             f"Timeseries info: {timeseries_coord_repr(ts)}"
         )
         return None
@@ -255,7 +334,7 @@ def calculate_left_boundary_trend(
 
     Returns
     -------
-        Time-series (xr.DataArray) with boundary point replaced by trend. If trend
+        Calculated trend value for boundary point. If trend
         calculation is not possible, `None` is returned so the calling strategy can
         raise the StrategyUnableToProcess error.
 
@@ -274,18 +353,102 @@ def calculate_left_boundary_trend(
             ts_fit.coords["time"].pr.loc[{"time": point_to_modify}],
             fit.polyfit_coefficients,
         )
-        ts.pr.loc[{"time": point_to_modify}] = value
-        return ts
+        return float(value.data)
     else:
         logger.info(
             f"Not enough values to calculate fit for left boundary at "
-            f"{point_to_modify}. fit_degree: {fit_degree}, "
+            f"{point_to_modify}.\n"
+            f"fit_degree: {fit_degree}, "
             f"trend_length: {trend_length}, "
             f"trend_length_unit: {trend_length_unit}, "
-            f"min_trend_points: {min_trend_points}. "
+            f"min_trend_points: {min_trend_points}.\n"
             f"Timeseries info: {timeseries_coord_repr(ts)}"
         )
         return None
+
+
+def calculate_scaling_factor(
+    ts: xr.DataArray,
+    fill_ts: xr.DataArray,
+    gap: Gap,
+    fit_degree: int = 1,
+    fallback_degree: int = 0,
+    trend_length: int = 1,
+    trend_length_unit: str = "YS",
+    min_trend_points: int = 1,
+) -> float | tuple[float]:
+    """
+    Calculate scaling factor(s) to fill gaps
+
+    Both trend values (for ts and fill_ts) are calculated in the same way. If default
+    trend fails for one of the timeseries we use the fallback for both, so we compare
+    the same thing when calculating the factors
+
+    Parameters
+    ----------
+    ts :
+        Timeseries ith gaps to fill
+    fill_ts :
+        Timeseries to fill gaps with
+    gap :
+        Definition of the gap
+    fit_degree :
+        degree of the polynomial to fit to calculate the trend value. 0 for mean value
+        and 1 for linear trend make most sense. The higher the order, the higher the
+        chance of unexpected results
+    fallback_degree :
+        Fallback degree to use if less than min_trend_points of not-nan data
+    trend_length :
+        length of the trend in time steps (usually years)
+    trend_length_unit :
+        Unit for the length of the trend. String passed to the `freq` argument of
+        `pd.date_range`. Default is 'YS' (yearly at start of year)
+    min_trend_points :
+        minimal number of points to calculate the trend. Default is 1, but if the degree
+        of the fit polynomial is higher than 1, the minimal number of data points equals
+        the degree of the fit polynomial
+
+    Returns
+    -------
+        tuple with left and right scaling factors. For a start and end boundary one of
+        the elements is None
+
+    """
+
+    # TODO:
+    # calc trend, if None in it use fallback and fill None (for the same TS only)
+    # factor calc by division. (Need special treatment for 0)
+    # general thing to think about is negative values for trend. use flag if we allow that
+    # need to be passed on
+
+    trend_ts = calculate_boundary_trend_with_fallback(
+        ts,
+        gap=gap,
+        fit_degree=fit_degree,
+        fallback_degree=fallback_degree,
+        trend_length=trend_length,
+        min_trend_points=min_trend_points,
+        trend_length_unit=trend_length_unit,
+    )
+    if not all(trend_ts):
+        # logging has been done already
+        return None
+
+    # trend values for fill_ts
+    trend_fill = calculate_boundary_trend_with_fallback(
+        fill_ts,
+        gap=gap,
+        fit_degree=fit_degree,
+        trend_length=trend_length,
+        min_trend_points=min_trend_points,
+        trend_length_unit=trend_length_unit,
+    )
+    if not all(trend_fill):
+        # logging has been done already
+        return None
+
+    # TODO continue here with factor calculation and treatment of special cases
+    #   (e.g. division by 0)
 
 
 def get_shifted_time_value(
