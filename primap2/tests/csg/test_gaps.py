@@ -1,12 +1,18 @@
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
 
 from primap2.csg._strategies.gaps import (
+    FitParameters,
+    Gap,
     calculate_boundary_trend,
+    calculate_boundary_trend_with_fallback,
     calculate_left_boundary_trend,
     calculate_right_boundary_trend,
+    calculate_scaling_factor,
     get_gaps,
     get_shifted_time_value,
     timeseries_coord_repr,
@@ -33,6 +39,99 @@ def test_ts() -> xr.DataArray:
         name="test_ts",
     )
     return ts
+
+
+@pytest.fixture
+def fill_ts(test_ts: xr.DataArray) -> xr.DataArray:
+    fill_ts = test_ts.copy()
+    fill_ts.pr.loc[{"time": pd.date_range("1956-01-01", "1966-01-01", freq="YS")}] = (
+        fill_ts.pr.loc[{"time": pd.date_range("1956-01-01", "1966-01-01", freq="YS")}] * 3
+    )
+    fill_ts.pr.loc[{"time": pd.date_range("1952-01-01", "1955-01-01", freq="YS")}] = np.linspace(
+        7, 6, 4
+    )
+    fill_ts.pr.loc[{"time": pd.date_range("1967-01-01", "1972-01-01", freq="YS")}] = np.linspace(
+        11, 17, 6
+    )
+    return fill_ts
+
+
+@pytest.fixture
+def fit_params_linear() -> FitParameters:
+    return FitParameters(
+        fit_degree=1,
+        trend_length=10,
+        trend_length_unit="YS",
+        min_trend_points=5,
+        fallback_degree=0,
+    )
+
+
+@pytest.fixture
+def fit_params_constant() -> FitParameters:
+    return FitParameters(
+        fit_degree=0,
+        trend_length=10,
+        trend_length_unit="YS",
+        min_trend_points=5,
+    )
+
+
+def test_gap():
+    gap = Gap(type="gap", left=np.datetime64("1952-01-01"), right=np.datetime64("2025-01-01"))
+    assert gap.get_date_slice() == {
+        "time": slice(np.datetime64("1952-01-01"), np.datetime64("2025-01-01"))
+    }
+    assert gap.type == "gap"
+    assert gap.left == np.datetime64("1952-01-01")
+    assert gap.right == np.datetime64("2025-01-01")
+
+
+def test_fit_parameters():
+    # check default initialization
+    fit_params = FitParameters()
+    assert fit_params.fit_degree == 1
+    assert fit_params.min_trend_points == 5
+    assert fit_params.trend_length == 10
+    assert fit_params.fallback_degree == 0
+    assert fit_params.trend_length_unit == "YS"
+
+    # check log output
+    fit_params = FitParameters(
+        fit_degree=2,
+        min_trend_points=4,
+        trend_length=5,
+        fallback_degree=1,
+        trend_length_unit="YE",
+    )
+    assert (
+        fit_params.log_string(fallback=True)
+        == "fit_degree: 2, trend_length: 5, trend_length_unit: YE, "
+        "min_trend_points: 4, fallback_degree: 1.\n"
+    )
+
+    assert (
+        fit_params.log_string(fallback=False)
+        == "fit_degree: 2, trend_length: 5, trend_length_unit: YE, "
+        "min_trend_points: 4.\n"
+    )
+
+    # check fallback object
+    fallback_params = fit_params.get_fallback()
+    assert fallback_params.fit_degree == 1
+    assert fallback_params.min_trend_points == 1
+
+    # check error message
+    with pytest.raises(
+        ValueError,
+        match=re.escape("min_trend_points (4) must not " "be smaller than fit_degree (5)."),
+    ):
+        FitParameters(
+            fit_degree=5,
+            min_trend_points=4,
+            trend_length=5,
+            trend_length_unit="YS",
+        )
 
 
 def test_get_gaps_left_boundary(test_ts):
@@ -88,7 +187,7 @@ def test_get_shifted_time_value(test_ts):
     assert shifted_value == np.datetime64("1952-01-01")
 
 
-def test_calculate_left_boundary_trend(test_ts, caplog):
+def test_calculate_left_boundary_trend(test_ts, fit_params_linear, fit_params_constant, caplog):
     gaps = get_gaps(test_ts)
 
     # linear trend for a left boundary
@@ -97,16 +196,11 @@ def test_calculate_left_boundary_trend(test_ts, caplog):
     data_to_interpolate = test_ts.pr.loc[{"time": slice("1996", "2005")}].data
     coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
     expected_value = np.polyval(coeff, 9)
-
     trend_value = calculate_left_boundary_trend(
         test_ts,
         boundary=gaps[1].left,
-        fit_degree=fit_degree,
-        trend_length=10,
-        trend_length_unit="YS",
-        min_trend_points=5,
+        fit_params=fit_params_linear,
     )
-
     assert np.allclose(expected_value, trend_value)
 
     # constant trend for a right boundary
@@ -114,16 +208,11 @@ def test_calculate_left_boundary_trend(test_ts, caplog):
     # expected result
     coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
     expected_value = np.polyval(coeff, 9)
-
     trend_value = calculate_left_boundary_trend(
         test_ts,
         boundary=gaps[1].left,
-        fit_degree=fit_degree,
-        trend_length=10,
-        trend_length_unit="YS",
-        min_trend_points=5,
+        fit_params=fit_params_constant,
     )
-
     assert np.allclose(expected_value, trend_value)
 
     # test logging if not enough data points
@@ -131,18 +220,13 @@ def test_calculate_left_boundary_trend(test_ts, caplog):
         test_ts.loc[{"time": slice("1997", "2002")}] * np.nan
     )
     trend_value = calculate_left_boundary_trend(
-        test_ts,
-        boundary=gaps[1].left,
-        fit_degree=fit_degree,
-        trend_length=10,
-        trend_length_unit="YS",
-        min_trend_points=5,
+        test_ts, boundary=gaps[1].left, fit_params=fit_params_linear
     )
     assert trend_value is None
 
     log_str = (
         "Not enough values to calculate fit for left boundary at "
-        "2005-01-01T00:00:00.000000000.\nfit_degree: 0, trend_length: 10, "
+        "2005-01-01T00:00:00.000000000.\nfit_degree: 1, trend_length: 10, "
         "trend_length_unit: YS, min_trend_points: 5.\nTimeseries info: "
         "{'category': 'test'}"
     )
@@ -150,7 +234,7 @@ def test_calculate_left_boundary_trend(test_ts, caplog):
     assert log_str in caplog.text
 
 
-def test_calculate_right_boundary_trend(test_ts, caplog):
+def test_calculate_right_boundary_trend(test_ts, fit_params_linear, fit_params_constant, caplog):
     gaps = get_gaps(test_ts)
 
     # linear trend for a right boundary
@@ -163,10 +247,7 @@ def test_calculate_right_boundary_trend(test_ts, caplog):
     trend_value = calculate_right_boundary_trend(
         test_ts,
         boundary=gaps[0].right,
-        fit_degree=fit_degree,
-        trend_length=10,
-        trend_length_unit="YS",
-        min_trend_points=5,
+        fit_params=fit_params_linear,
     )
 
     assert np.allclose(expected_value, trend_value, rtol=1e-04)
@@ -180,10 +261,7 @@ def test_calculate_right_boundary_trend(test_ts, caplog):
     trend_value = calculate_right_boundary_trend(
         test_ts,
         boundary=gaps[0].right,
-        fit_degree=fit_degree,
-        trend_length=10,
-        trend_length_unit="YS",
-        min_trend_points=5,
+        fit_params=fit_params_constant,
     )
 
     assert np.allclose(expected_value, trend_value, rtol=1e-04)
@@ -195,16 +273,13 @@ def test_calculate_right_boundary_trend(test_ts, caplog):
     trend_value = calculate_right_boundary_trend(
         test_ts,
         boundary=gaps[0].right,
-        fit_degree=fit_degree,
-        trend_length=10,
-        trend_length_unit="YS",
-        min_trend_points=5,
+        fit_params=fit_params_linear,
     )
     assert trend_value is None
 
     log_str = (
         "Not enough values to calculate fit for right boundary at "
-        "1956-01-01T00:00:00.000000000.\nfit_degree: 0, trend_length: 10, "
+        "1956-01-01T00:00:00.000000000.\nfit_degree: 1, trend_length: 10, "
         "trend_length_unit: YS, min_trend_points: 5.\nTimeseries info: "
         "{'category': 'test'}"
     )
@@ -212,7 +287,7 @@ def test_calculate_right_boundary_trend(test_ts, caplog):
     assert log_str in caplog.text
 
 
-def test_calculate_boundary_trend(test_ts):
+def test_calculate_boundary_trend(test_ts, fit_params_linear):
     # as we test all the individual functions we just construct one big example
     # using a beginning, an end and a gap
     gaps = get_gaps(test_ts)
@@ -244,33 +319,76 @@ def test_calculate_boundary_trend(test_ts):
     trend_start = calculate_boundary_trend(
         test_ts,
         gap=gaps[0],
-        fit_degree=fit_degree,
-        trend_length=10,
-        trend_length_unit="YS",
-        min_trend_points=5,
+        fit_params=fit_params_linear,
     )
     assert np.allclose(trend_start[1], expected_start, rtol=1e-04)
 
     trend_end = calculate_boundary_trend(
         test_ts,
         gap=gaps[1],
-        fit_degree=fit_degree,
-        trend_length=10,
-        trend_length_unit="YS",
-        min_trend_points=5,
+        fit_params=fit_params_linear,
     )
     assert np.allclose(trend_end[0], expected_end, rtol=1e-04)
 
-    trend_gap = calculate_boundary_trend(
-        test_ts,
-        gap=gaps[2],
+    fit_params_short = FitParameters(
         fit_degree=fit_degree,
         trend_length=4,
         trend_length_unit="YS",
         min_trend_points=4,
     )
 
-    assert np.allclose(trend_gap, (expected_gap_left, expected_gap_right), rtol=1e-04)
+    trend_gap = calculate_boundary_trend(
+        test_ts,
+        gap=gaps[2],
+        fit_params=fit_params_short,
+    )
+
+    assert np.allclose(trend_gap, [expected_gap_left, expected_gap_right], rtol=1e-04)
+
+
+def test_calculate_boundary_trend_with_fallback(test_ts, fit_params_linear):
+    gaps = get_gaps(test_ts)
+
+    # expected result linear
+    data_to_interpolate = test_ts.pr.loc[{"time": slice("1956", "1965")}].data
+    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=1)
+    value = np.polyval(coeff, 0)
+    expected_linear = [value, value]
+
+    trend_values = calculate_boundary_trend_with_fallback(
+        test_ts,
+        gap=gaps[0],
+        fit_params=fit_params_linear,
+    )
+    assert np.allclose(trend_values, expected_linear, rtol=1e-04)
+
+    # remove some data points for fallback
+    test_ts.loc[{"time": slice("1958", "1964")}] = (
+        test_ts.loc[{"time": slice("1958", "1964")}] * np.nan
+    )
+    # expected result constant
+    data_to_interpolate = test_ts.pr.loc[{"time": slice("1956", "1965")}].data
+    idx_notna = np.isfinite(data_to_interpolate)
+    x_vals = np.array(range(0, 10))
+    coeff = np.polyfit(x_vals[idx_notna], data_to_interpolate[idx_notna], deg=0)
+    value = np.polyval(coeff, 0)
+    expected_constant = [value, value]
+
+    trend_values = calculate_boundary_trend_with_fallback(
+        test_ts,
+        gap=gaps[0],
+        fit_params=fit_params_linear,
+    )
+    assert np.allclose(trend_values, expected_constant, rtol=1e-04)
+
+
+def test_calculate_scaling_factor(test_ts, fill_ts, fit_params_linear):
+    gaps = get_gaps(test_ts)
+
+    factor = calculate_scaling_factor(
+        ts=test_ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gaps[2]
+    )
+    assert np.allclose([0.33333, 1], factor)
 
 
 def test_timeseries_coords_repr(test_ts):

@@ -4,6 +4,9 @@ from attrs import frozen
 import primap2
 from primap2.csg._strategies.gaps import calculate_boundary_trend, get_gaps
 
+# TODO: deal with negative values? also trigger fallback? then we need to incorporate
+#  allow negative into FitParameters
+
 
 @frozen
 class LocalTrendsStrategy:

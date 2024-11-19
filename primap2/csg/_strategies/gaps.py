@@ -7,16 +7,115 @@ from loguru import logger
 
 @frozen
 class Gap:
+    """
+    Class to define a gap in a time-series
+
+    Attributes
+    ----------
+    type :
+        type of the gap
+        possible types:
+            'start': start of timeseries boundary (nan, nan, X, X)
+            'end': end of timeseries boundary (X, X, nan, nan)
+            'gap': gap (X, nan, nan, X)
+    left :
+        left end of the gap
+    right :
+        right end of the gap
+
+    Methods
+    _______
+    get_date_slice()
+        Return a xr.loc type filter for 'time' with a slice from left to right
+        end of the gap
+
+    """
+
     type: str = None
-    # possible types:
-    #   'start': start of timeseries boundary (nan, nan, X, X)
-    #   'end': end of timeseries boundary (X, X, nan, nan)
-    #   'gap': gap (X, nan, nan, X)
+
     left: np.datetime64 = None  # left end of the gap
     right: np.datetime64 = None  # right end of the gap
 
     def get_date_slice(self) -> dict[str, slice]:
         return {"time": slice(self.left, self.right)}
+
+
+@frozen
+class FitParameters:
+    """
+    Class to represent parameters for a polynomial fit. While `min_data_points` refers
+    to the actual number of data points `trend_length` does not. `trend_length` and
+    `trend_length_unit` together define a time span which is independent of the actual
+    data points and their spacing.
+
+    Note:
+        Very unevenly distributed data points can lead to fit problems,
+        e.g. if we use a 10 year period and have 5 data point all in one year. But as the
+        normal use case are evenly distributed data points, sometimes with gaps it's
+        currently not relevant
+
+    Attributes
+    __________
+    fit_degree :
+        degree of the polynomial to fit to calculate the trend value. 0 for mean value
+        and 1 for linear trend make most sense. The higher the order, the higher the
+        chance of unexpected results
+    fallback_degree :
+        Fallback degree to use if less than min_trend_points of not-nan data
+    trend_length :
+        length of the trend in time steps (usually years)
+    trend_length_unit :
+        Unit for the length of the trend. String passed to the `freq` argument of
+        `pd.date_range`. Default is 'YS' (yearly at start of year)
+    min_trend_points :
+        minimal number of points to calculate the trend. Default is 1, but if the degree
+        of the fit polynomial is higher than 1, the minimal number of data points
+        the degree of the fit polynomial
+
+    Methods
+    -------
+    log_string(fallback=False):
+        Create a string with the classes parameters
+    get_fallback():
+        Return FitParameters object with the `fit_degree` set to the `fallback_degree`
+        of the original object.
+
+    """
+
+    fit_degree: int = 1
+    fallback_degree: int = 0
+    trend_length: int = 10
+    trend_length_unit: str = "YS"
+    min_trend_points: int = 5
+
+    def __attrs_post_init__(self):
+        if self.min_trend_points < self.fit_degree:
+            raise ValueError(
+                f"min_trend_points ({self.min_trend_points}) "
+                f"must not be smaller than "
+                f"fit_degree ({self.fit_degree})."
+            )
+
+    def log_string(self, fallback: bool = False) -> str:
+        log_str = (
+            f"fit_degree: {self.fit_degree}, "
+            f"trend_length: {self.trend_length}, "
+            f"trend_length_unit: {self.trend_length_unit}, "
+            f"min_trend_points: {self.min_trend_points}"
+        )
+        if fallback:
+            log_str = log_str + f", fallback_degree: {self.fallback_degree}.\n"
+        else:
+            log_str = log_str + ".\n"
+        return log_str
+
+    def get_fallback(self):
+        return FitParameters(
+            fit_degree=self.fallback_degree,
+            trend_length=self.trend_length,
+            trend_length_unit=self.trend_length_unit,
+            min_trend_points=1,
+        )
 
 
 def get_gaps(ts: xr.DataArray) -> list[Gap]:
@@ -75,12 +174,8 @@ def get_gaps(ts: xr.DataArray) -> list[Gap]:
 def calculate_boundary_trend_with_fallback(
     ts: xr.DataArray,
     gap: Gap,
-    fit_degree: int = 1,
-    fallback_degree: int = 0,
-    trend_length: int = 1,
-    trend_length_unit: str = "YS",
-    min_trend_points: int = 1,
-) -> tuple[float | None]:
+    fit_params: FitParameters,
+) -> np.array:
     """
     Calculate trend values for boundary points. Uses fallback if not enough fit points
     available.
@@ -91,21 +186,8 @@ def calculate_boundary_trend_with_fallback(
         Time-series to calculate trend for
     gap :
         Gap definition
-    fit_degree :
-        degree of the polynomial to fit to calculate the trend value. 0 for mean value
-        and 1 for linear trend make most sense. The higher the order, the higher the
-        chance of unexpected results
-    fallback_degree :
-        Fallback degree to use if less than min_trend_points of not-nan data
-    trend_length :
-        length of the trend in time steps (usually years)
-    trend_length_unit :
-        Unit for the length of the trend. String passed to the `freq` argument of
-        `pd.date_range`. Default is 'YS' (yearly at start of year)
-    min_trend_points :
-        minimal number of points to calculate the trend. Default is 1, but if the degree
-        of the fit polynomial is higher than 1, the minimal number of data points equals
-        the degree of the fit polynomial
+    fit_params :
+        FitParameters object which holds all parameters for the fit
 
     Returns
     -------
@@ -114,46 +196,33 @@ def calculate_boundary_trend_with_fallback(
         raise the StrategyUnableToProcess error.
 
     """
-
     trend_ts = calculate_boundary_trend(
         ts,
         gap=gap,
-        fit_degree=fit_degree,
-        trend_length=trend_length,
-        min_trend_points=min_trend_points,
-        trend_length_unit=trend_length_unit,
+        fit_params=fit_params,
     )
     if not all(trend_ts):
         trend_ts = calculate_boundary_trend(
             ts,
             gap=gap,
-            fit_degree=fallback_degree,
-            trend_length=trend_length,
-            min_trend_points=1,
-            trend_length_unit=trend_length_unit,
+            fit_params=fit_params.get_fallback(),
         )
         if not all(trend_ts):
             logger.info(
                 f"Not enough values to calculate fit for ts and gap:"
                 f"{gap.type}, [{gap.left}:{gap.right}].\n"
-                f"fit_degree: {fit_degree}, "
-                f"fallback_degree: {fallback_degree}, "
-                f"trend_length: {trend_length}, "
-                f"trend_length_unit: {trend_length_unit}, "
-                f"min_trend_points: {min_trend_points}.\n"
+                f"{fit_params.log_string(fallback=True)}"
                 f"Timeseries info: {timeseries_coord_repr(ts)}"
             )
+
     return trend_ts
 
 
 def calculate_boundary_trend(
     ts: xr.DataArray,
     gap: Gap,
-    fit_degree: int = 1,
-    trend_length: int = 1,
-    trend_length_unit: str = "YS",
-    min_trend_points: int = 1,
-) -> tuple[float | None]:
+    fit_params: FitParameters,
+) -> np.array:
     """
     Calculate trend values for boundary points
 
@@ -163,19 +232,9 @@ def calculate_boundary_trend(
         Time-series to calculate trend for
     gap :
         Gap definition
-    fit_degree :
-        degree of the polynomial to fit to calculate the trend value. 0 for mean value
-        and 1 for linear trend make most sense. The higher the order, the higher the
-        chance of unexpected results
-    trend_length :
-        length of the trend in time steps (usually years)
-    trend_length_unit :
-        Unit for the length of the trend. String passed to the `freq` argument of
-        `pd.date_range`. Default is 'YS' (yearly at start of year)
-    min_trend_points :
-        minimal number of points to calculate the trend. Default is 1, but if the degree
-        of the fit polynomial is higher than 1, the minimal number of data points equals
-        the degree of the fit polynomial
+    fit_params :
+        FitParameters object which holds all parameters for the fit. This function does
+        not handle fallback options thus the fallback attribute is ignored.
 
     Returns
     -------
@@ -190,27 +249,20 @@ def calculate_boundary_trend(
         right = calculate_right_boundary_trend(
             ts,
             boundary=gap.right,
-            fit_degree=fit_degree,
-            trend_length=trend_length,
-            trend_length_unit=trend_length_unit,
-            min_trend_points=min_trend_points,
+            fit_params=fit_params,
         )
         # left boundary
         left = calculate_left_boundary_trend(
             ts,
             boundary=gap.left,
-            fit_degree=fit_degree,
-            trend_length=trend_length,
-            min_trend_points=min_trend_points,
+            fit_params=fit_params,
         )
     elif gap.type == "end":
         # left boundary
         left = calculate_left_boundary_trend(
             ts,
             boundary=gap.left,
-            fit_degree=fit_degree,
-            trend_length=trend_length,
-            min_trend_points=min_trend_points,
+            fit_params=fit_params,
         )
         right = left
     elif gap.type == "start":
@@ -218,29 +270,22 @@ def calculate_boundary_trend(
         right = calculate_right_boundary_trend(
             ts,
             boundary=gap.right,
-            fit_degree=fit_degree,
-            trend_length=trend_length,
-            min_trend_points=min_trend_points,
+            fit_params=fit_params,
         )
         left = right
     else:
         raise ValueError(f"Unknown gap type: {gap.type}")
 
-    return (left, right)
+    return [left, right]
 
 
 def calculate_right_boundary_trend(
     ts: xr.DataArray,
     boundary: np.datetime64,
-    fit_degree: int = 1,
-    trend_length: int = 1,
-    trend_length_unit: str = "YS",
-    min_trend_points: int = 1,
+    fit_params: FitParameters,
 ) -> float | None:
     """
     Replace right boundary point by trend value
-
-    The function assumes equally spaced
 
     Parameters
     ----------
@@ -248,19 +293,10 @@ def calculate_right_boundary_trend(
         Time-series to calculate trend for
     boundary :
         boundary point (last NaN value)
-    fit_degree :
-        degree of the polynomial to fit to calculate the trend value. 0 for mean value
-        and 1 for linear trend make most sense. The higher the order, the higher the
-        chance of unexpected results
-    trend_length :
-        length of the trend in time steps (usually years)
-    trend_length_unit :
-        Unit for the length of the trend. String passed to the `freq` argument of
-        `pd.date_range`. Default is 'YS' (yearly at start of year)
-    min_trend_points :
-        minimal number of points to calculate the trend. Default is 1, but if the degree
-        of the fit polynomial is higher than 1, the minimal number of data points equals
-        the degree of the fit polynomial
+    fit_params :
+        FitParameters object which holds all parameters for the fit.
+        This function does not handle fallback options thus the fallback
+        attribute is ignored.
 
     Returns
     -------
@@ -269,31 +305,29 @@ def calculate_right_boundary_trend(
         raise the StrategyUnableToProcess error.
 
     """
-    if min_trend_points < fit_degree:
-        min_trend_points = fit_degree
-
     point_to_modify = get_shifted_time_value(ts, original_value=boundary, shift=1)
     ts_fit = ts.pr.loc[
-        {"time": pd.date_range(start=point_to_modify, periods=trend_length, freq=trend_length_unit)}
+        {
+            "time": pd.date_range(
+                start=point_to_modify,
+                periods=fit_params.trend_length,
+                freq=fit_params.trend_length_unit,
+            )
+        }
     ]
 
-    if len(ts_fit.where(ts_fit.notnull(), drop=True)) >= min_trend_points:
-        fit = ts_fit.polyfit(dim="time", deg=fit_degree, skipna=True)
+    if len(ts_fit.where(ts_fit.notnull(), drop=True)) >= fit_params.min_trend_points:
+        fit = ts_fit.polyfit(dim="time", deg=fit_params.fit_degree, skipna=True)
         value = xr.polyval(
             ts_fit.coords["time"].pr.loc[{"time": point_to_modify}],
             fit.polyfit_coefficients,
         )
-        # ts.pr.loc[{"time": point_to_modify}] = value
-        # return ts
         return float(value.data)
     else:
         logger.info(
             f"Not enough values to calculate fit for right boundary at "
             f"{point_to_modify}.\n"
-            f"fit_degree: {fit_degree}, "
-            f"trend_length: {trend_length}, "
-            f"trend_length_unit: {trend_length_unit}, "
-            f"min_trend_points: {min_trend_points}.\n"
+            f"{fit_params.log_string(fallback=False)}"
             f"Timeseries info: {timeseries_coord_repr(ts)}"
         )
         return None
@@ -302,11 +336,8 @@ def calculate_right_boundary_trend(
 def calculate_left_boundary_trend(
     ts: xr.DataArray,
     boundary: np.datetime64,
-    fit_degree: int = 1,
-    trend_length: int = 1,
-    trend_length_unit: str = "YS",
-    min_trend_points: int = 1,
-) -> xr.DataArray | None:
+    fit_params: FitParameters,
+) -> float | None:
     """
     Replace left boundary point by trend value
 
@@ -318,19 +349,9 @@ def calculate_left_boundary_trend(
         Time-series to calculate trend for
     boundary :
         boundary point (last NaN value)
-    fit_degree :
-        degree of the polynomial to fit to calculate the trend value. 0 for mean value
-        and 1 for linear trend make most sense. The higher the order, the higher the
-        chance of unexpected results
-    trend_length :
-        length of the trend in time steps (usually years)
-    trend_length_unit :
-        Unit for the length of the trend. String passed to the `freq` argument of
-        `pd.date_range`. Default is 'YS' (yearly at start of year)
-    min_trend_points :
-        minimal number of points to calculate the trend. Default is 1, but if the degree
-        of the fit polynomial is higher than 1, the minimal number of data points equals
-        the degree of the fit polynomial
+    fit_params :
+        FitParameters object which holds all parameters for the fit. This function does
+        not handle fallback options thus the fallback attribute is ignored.
 
     Returns
     -------
@@ -339,16 +360,19 @@ def calculate_left_boundary_trend(
         raise the StrategyUnableToProcess error.
 
     """
-    if min_trend_points < fit_degree:
-        min_trend_points = fit_degree
-
     point_to_modify = get_shifted_time_value(ts, original_value=boundary, shift=-1)
     ts_fit = ts.pr.loc[
-        {"time": pd.date_range(end=point_to_modify, periods=trend_length, freq=trend_length_unit)}
+        {
+            "time": pd.date_range(
+                end=point_to_modify,
+                periods=fit_params.trend_length,
+                freq=fit_params.trend_length_unit,
+            )
+        }
     ]
 
-    if len(ts_fit.where(ts_fit.notnull(), drop=True)) >= min_trend_points:
-        fit = ts_fit.polyfit(dim="time", deg=fit_degree, skipna=True)
+    if len(ts_fit.where(ts_fit.notnull(), drop=True)) >= fit_params.min_trend_points:
+        fit = ts_fit.polyfit(dim="time", deg=fit_params.fit_degree, skipna=True)
         value = xr.polyval(
             ts_fit.coords["time"].pr.loc[{"time": point_to_modify}],
             fit.polyfit_coefficients,
@@ -358,10 +382,7 @@ def calculate_left_boundary_trend(
         logger.info(
             f"Not enough values to calculate fit for left boundary at "
             f"{point_to_modify}.\n"
-            f"fit_degree: {fit_degree}, "
-            f"trend_length: {trend_length}, "
-            f"trend_length_unit: {trend_length_unit}, "
-            f"min_trend_points: {min_trend_points}.\n"
+            f"{fit_params.log_string(fallback=False)}"
             f"Timeseries info: {timeseries_coord_repr(ts)}"
         )
         return None
@@ -371,12 +392,8 @@ def calculate_scaling_factor(
     ts: xr.DataArray,
     fill_ts: xr.DataArray,
     gap: Gap,
-    fit_degree: int = 1,
-    fallback_degree: int = 0,
-    trend_length: int = 1,
-    trend_length_unit: str = "YS",
-    min_trend_points: int = 1,
-) -> float | tuple[float]:
+    fit_params: FitParameters,
+) -> np.array:
     """
     Calculate scaling factor(s) to fill gaps
 
@@ -392,21 +409,8 @@ def calculate_scaling_factor(
         Timeseries to fill gaps with
     gap :
         Definition of the gap
-    fit_degree :
-        degree of the polynomial to fit to calculate the trend value. 0 for mean value
-        and 1 for linear trend make most sense. The higher the order, the higher the
-        chance of unexpected results
-    fallback_degree :
-        Fallback degree to use if less than min_trend_points of not-nan data
-    trend_length :
-        length of the trend in time steps (usually years)
-    trend_length_unit :
-        Unit for the length of the trend. String passed to the `freq` argument of
-        `pd.date_range`. Default is 'YS' (yearly at start of year)
-    min_trend_points :
-        minimal number of points to calculate the trend. Default is 1, but if the degree
-        of the fit polynomial is higher than 1, the minimal number of data points equals
-        the degree of the fit polynomial
+    fit_params :
+        FitParameters object which holds all parameters for the fit.
 
     Returns
     -------
@@ -424,11 +428,7 @@ def calculate_scaling_factor(
     trend_ts = calculate_boundary_trend_with_fallback(
         ts,
         gap=gap,
-        fit_degree=fit_degree,
-        fallback_degree=fallback_degree,
-        trend_length=trend_length,
-        min_trend_points=min_trend_points,
-        trend_length_unit=trend_length_unit,
+        fit_params=fit_params,
     )
     if not all(trend_ts):
         # logging has been done already
@@ -438,14 +438,21 @@ def calculate_scaling_factor(
     trend_fill = calculate_boundary_trend_with_fallback(
         fill_ts,
         gap=gap,
-        fit_degree=fit_degree,
-        trend_length=trend_length,
-        min_trend_points=min_trend_points,
-        trend_length_unit=trend_length_unit,
+        fit_params=fit_params,
     )
     if not all(trend_fill):
         # logging has been done already
         return None
+
+    factor = np.divide(trend_ts, trend_fill)
+    if not all(factor):
+        # we have some nan values which have to come from division by zero
+        # we fill them with 0 in case the trend values are zero as well
+        nan_mask_factor = np.isnan(factor)
+        zero_mask_ts = trend_ts == 0
+        factor[nan_mask_factor and zero_mask_ts] = trend_ts[nan_mask_factor and zero_mask_ts]
+
+    return factor
 
     # TODO continue here with factor calculation and treatment of special cases
     #   (e.g. division by 0)
