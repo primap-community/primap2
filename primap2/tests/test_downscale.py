@@ -347,6 +347,3 @@ def test_downscale_gas_timeseries_da_partial_zero(gas_downscaling_ds):
     expected["CH4"].loc[{"time": "2010"}] = 0 * ureg("Gg CH4 / year")
 
     xr.testing.assert_identical(downscaled, expected)
-
-
-
