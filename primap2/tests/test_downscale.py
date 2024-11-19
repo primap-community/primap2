@@ -349,6 +349,4 @@ def test_downscale_gas_timeseries_da_partial_zero(gas_downscaling_ds):
     xr.testing.assert_identical(downscaled, expected)
 
 
-# TODO more tests:
 
-# * zero and non-zero data

@@ -39,10 +39,10 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         used to downscale the basket to its contents, which is used to fill gaps in the
         timeseries of the basket contents.
 
-        If the data to downscale contains only 0 an NaN the result will be all
+        If the data to downscale contains only 0 and NaN the result will be all
         zero timeseries. If the data is only for individual basket and basket_content
-        values the resulting downscaled data points are zero but the shares for other years
-        are not be influenced
+        values, the resulting downscaled data points are zero but the shares for other years
+        are not influenced
 
         Parameters
         ----------
@@ -125,6 +125,9 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
 
         # treat the case where all data is zero or NaN
         if (not basket_both_zero.isnull().all()) & (not any_nonzero):
+            # create fake basket_contents_da and basket_sum which contain
+            # 1 for all data points where NaNs are either in the sum or the basket
+            # this will later lead to equal shares for the NaNs.
             unit_content = str(basket_contents_da.pint.units)
             basket_da_squeeze = basket_da.drop(dim)
             basket_contents_da = basket_contents_da.where(
@@ -186,8 +189,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
 
         If the data to downscale contains only 0 an NaN the result will be all
         zero timeseries. If the data is only for individual basket and basket_content
-        values the resulting downscaled data points are zero but the shares for other years
-        are not be influenced
+        values, the resulting downscaled data points are zero but the shares for other years
+        are not influenced
 
         Parameters
         ----------
@@ -279,8 +282,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
 
         If the data to downscale contains only 0 an NaN the result will be all
         zero timeseries. If the data is only for individual basket and basket_content
-        values the resulting downscaled data points are zero but the shares for other years
-        are not be influenced
+        values, the resulting downscaled data points are zero but the shares for other years
+        are not influenced
 
         Parameters
         ----------
