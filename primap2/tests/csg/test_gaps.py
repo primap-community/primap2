@@ -13,10 +13,12 @@ from primap2.csg._strategies.gaps import (
     calculate_left_boundary_trend,
     calculate_right_boundary_trend,
     calculate_scaling_factor,
+    fill_gap,
     get_gaps,
     get_shifted_time_value,
     timeseries_coord_repr,
 )
+from primap2.tests.utils import assert_aligned_equal
 
 
 @pytest.fixture
@@ -51,9 +53,23 @@ def fill_ts(test_ts: xr.DataArray) -> xr.DataArray:
         7, 6, 4
     )
     fill_ts.pr.loc[{"time": pd.date_range("1967-01-01", "1972-01-01", freq="YS")}] = np.linspace(
-        11, 17, 6
+        35, 15, 6
     )
     return fill_ts
+
+
+@pytest.fixture
+def expected_ts(test_ts: xr.DataArray) -> xr.DataArray:
+    expected_ts = test_ts.copy()
+    expected_ts.pr.loc[{"time": pd.date_range("1952-01-01", "1955-01-01", freq="YS")}] = (
+        np.linspace(7 / 3, 2, 4)
+    )
+    factor_ts = np.linspace(1 / 3, 1, 6)
+    fill_ts_gap = np.linspace(35, 15, 6)
+    expected_ts.pr.loc[{"time": pd.date_range("1967-01-01", "1972-01-01", freq="YS")}] = (
+        factor_ts * fill_ts_gap
+    )
+    return expected_ts
 
 
 @pytest.fixture
@@ -178,7 +194,6 @@ def test_get_gaps_full(test_ts):
     assert gaps[3].type == "gap"
 
 
-# TODO: could use parametrize here
 def test_get_shifted_time_value(test_ts):
     original_value = np.datetime64("1955-01-01")
     shifted_value = get_shifted_time_value(test_ts, original_value=original_value, shift=1)
@@ -384,11 +399,30 @@ def test_calculate_boundary_trend_with_fallback(test_ts, fit_params_linear):
 
 def test_calculate_scaling_factor(test_ts, fill_ts, fit_params_linear):
     gaps = get_gaps(test_ts)
-
+    # TODO: special cases, fallback etc
     factor = calculate_scaling_factor(
         ts=test_ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gaps[2]
     )
     assert np.allclose([0.33333, 1], factor)
+
+
+def test_fill_gap(test_ts, fill_ts, expected_ts, fit_params_linear):
+    gaps = get_gaps(test_ts)
+
+    # to test
+    # fill gap at end or beginning
+    factor = calculate_scaling_factor(
+        ts=test_ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gaps[0]
+    )
+    filled_ts = fill_gap(ts=test_ts, fill_ts=fill_ts, gap=gaps[0], factor=factor)
+
+    # fill gap in the middle
+    factor = calculate_scaling_factor(
+        ts=test_ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gaps[2]
+    )
+    filled_ts = fill_gap(ts=filled_ts, fill_ts=fill_ts, gap=gaps[2], factor=factor)
+
+    assert_aligned_equal(expected_ts, filled_ts, rtol=1e-03, equal_nan=True)
 
 
 def test_timeseries_coords_repr(test_ts):

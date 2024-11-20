@@ -11,6 +11,7 @@ from ._models import (
     StrategyDefinition,
 )
 from ._strategies.exceptions import StrategyUnableToProcess
+from ._strategies.gaps import FitParameters
 from ._strategies.global_least_squares import GlobalLSStrategy
 
 # from ._strategies.local_least_squares import LocalLSStrategy
@@ -28,4 +29,5 @@ __all__ = [
     "GlobalLSStrategy",
     "create_composite_source",
     "set_priority_coords",
+    "FitParameters",
 ]

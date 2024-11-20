@@ -419,12 +419,6 @@ def calculate_scaling_factor(
 
     """
 
-    # TODO:
-    # calc trend, if None in it use fallback and fill None (for the same TS only)
-    # factor calc by division. (Need special treatment for 0)
-    # general thing to think about is negative values for trend. use flag if we allow that
-    # need to be passed on
-
     trend_ts = calculate_boundary_trend_with_fallback(
         ts,
         gap=gap,
@@ -454,8 +448,26 @@ def calculate_scaling_factor(
 
     return factor
 
-    # TODO continue here with factor calculation and treatment of special cases
-    #   (e.g. division by 0)
+
+def fill_gap(
+    ts: xr.DataArray,
+    fill_ts: xr.DataArray,
+    gap: Gap,
+    factor: np.array,
+) -> xr.DataArray:
+    if factor[0] == factor[1]:
+        fill_gap_ts = fill_ts.pr.loc[gap.get_date_slice()] * factor[0]
+    else:
+        delta_t = gap.right - gap.left
+        factor_ts = fill_ts.pr.loc[gap.get_date_slice()].copy()
+        factor_ts.data = [
+            factor[0] * (gap.right - t) / delta_t + factor[1] * (t - gap.left) / delta_t
+            for t in fill_ts.coords["time"].pr.loc[gap.get_date_slice()]
+        ]
+        fill_gap_ts = fill_ts.pr.loc[gap.get_date_slice()] * factor_ts
+
+    # fill nans (in the gap only)
+    return xr.core.ops.fillna(ts, fill_gap_ts, join="left")
 
 
 def get_shifted_time_value(
