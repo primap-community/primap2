@@ -13,6 +13,7 @@ from ._models import (
 from ._strategies.exceptions import StrategyUnableToProcess
 from ._strategies.global_least_squares import GlobalLSStrategy
 from ._strategies.substitution import SubstitutionStrategy
+from ._wrapper import create_composite_source, set_priority_coords
 
 __all__ = [
     "compose",
@@ -21,4 +22,6 @@ __all__ = [
     "SubstitutionStrategy",
     "StrategyUnableToProcess",
     "GlobalLSStrategy",
+    "create_composite_source",
+    "set_priority_coords",
 ]
