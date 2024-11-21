@@ -170,7 +170,7 @@ lower-priority timeseries was used to fill the holes.
 The {py:func}`primap2.csg.compose` function creates a composite time series according to
 the given priorities and strategies, but it does not take care of pre- and postprocessing
 of the data. It will carry along unnecessary data and the resulting dataset will miss the
-priority coordinates. The {py:func}`primap2.csg.create_composite_source` function takes acre
+priority coordinates. The {py:func}`primap2.csg.create_composite_source` function takes care
 of these steps and prepares the input data and completes the output data to a primap2 dataset
 with all desired dimensions and metadata.
 
@@ -178,7 +178,7 @@ The function takes the same inputs as {py:func}`primap2.csg.compose` with additi
 define pre- and postprocessing:
 
 * **result_prio_coords** Defines the vales for the priority coordinates in the output dataset. As the
-priority coordinates differ for all input sources there is no canonical vale
+priority coordinates differ for all input sources there is no canonical value
 for the result and it has to be explicitly defined
 * **metadata** Set metadata values such as title and references
 
