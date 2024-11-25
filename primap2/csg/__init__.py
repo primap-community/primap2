@@ -15,10 +15,10 @@ from ._strategies.global_least_squares import GlobalLSStrategy
 from ._strategies.substitution import SubstitutionStrategy
 
 __all__ = [
-    "compose",
+    "GlobalLSStrategy",
     "PriorityDefinition",
     "StrategyDefinition",
-    "SubstitutionStrategy",
     "StrategyUnableToProcess",
-    "GlobalLSStrategy",
+    "SubstitutionStrategy",
+    "compose",
 ]
