@@ -149,7 +149,7 @@ def test_localTrends_strategy():
         result_descriptions[0].description == "filled with local trend matched data from B. "
         "The following gaps have been filled: "
         "gap 1850-01-01T00 - 1850-01-01T00: filled for "
-        "times ['1850-01-01T00'] using factor 0.5;"
+        "times ['1850-01-01T00'] using factor 0.50;"
     )
 
     ts[20:22] = np.nan
@@ -165,12 +165,12 @@ def test_localTrends_strategy():
         result_descriptions[0].description == "filled with local trend matched data from B. "
         "The following gaps have been filled: "
         "gap 1850-01-01T00 - 1850-01-01T00: filled for "
-        "times ['1850-01-01T00'] using factor 0.5; "
+        "times ['1850-01-01T00'] using factor 0.50; "
         "gap 1870-01-01T00 - 1871-01-01T00: filled for "
-        "times ['1870-01-01T00' '1871-01-01T00'] using factor 0.5;"
+        "times ['1870-01-01T00' '1871-01-01T00'] using factor 0.50;"
     )
 
-    fill_ts[23:] = fill_ts[23:] * -1
+    fill_ts[22:] = fill_ts[22:] * -1
     result_ts, result_descriptions = primap2.csg.LocalTrendsStrategy(fit_params=fit_params).fill(
         ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
     )
@@ -182,22 +182,37 @@ def test_localTrends_strategy():
         result_descriptions[0].description == "filled with local trend matched data from B. "
         "The following gaps have been filled: "
         "gap 1850-01-01T00 - 1850-01-01T00: filled for "
-        "times ['1850-01-01T00'] using factor 0.5; "
+        "times ['1850-01-01T00'] using factor 0.50; "
         "gap 1870-01-01T00 - 1871-01-01T00: negative scaling factor - "
         "use fallback degree 0 negative scaling after fallback - "
         "failed to fill gap;"
     )
 
-    ts[1:5] = np.nan
+    #  gap description for differing scaling factors
+    fill_ts[22:] = fill_ts[22:] * -1
+    ts[0] = 1
+    ts[22:] = ts[22:] * 3
+    result_ts, result_descriptions = primap2.csg.LocalTrendsStrategy(fit_params=fit_params).fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+    )
+    expected_ts = ts.copy()
+    expected_ts[20] = 1
+    expected_ts[21] = 3
+    xr.testing.assert_allclose(expected_ts, result_ts)
+    assert all(result_descriptions[0].time == np.array(["1870", "1871"], dtype=np.datetime64))
+    assert (
+        result_descriptions[0].description == "filled with local trend matched data from B. "
+        "The following gaps have been filled: "
+        "gap 1870-01-01T00 - 1871-01-01T00: filled for "
+        "times ['1870-01-01T00' '1871-01-01T00'] using factors 0.50 and 1.50;"
+    )
+
+    ts[0:5] = np.nan
     fill_ts[5:] = np.nan
     with pytest.raises(StrategyUnableToProcess):
         primap2.csg.LocalTrendsStrategy(fit_params=fit_params).fill(
             ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
         )
-
-    # TODO: to test
-    #  all fails and fallbacks
-    #  fallback if negative
 
     # general
     assert "source" not in result_ts.coords.keys()

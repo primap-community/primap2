@@ -207,13 +207,18 @@ def calculate_boundary_trend_with_fallback(
             gap=gap,
             fit_params=fit_params.get_fallback(),
         )
-        if any(np.isnan(trend_ts)):
+        if all(np.isnan(trend_ts)):
             logger.info(
                 f"Not enough values to calculate fit for ts and gap:"
                 f"{gap.type}, [{gap.left}:{gap.right}].\n"
                 f"{fit_params.log_string(fallback=True)}"
                 f"Timeseries info: {timeseries_coord_repr(ts)}"
             )
+        # fill nan from other boundary
+        if np.isnan(trend_ts[0]):
+            trend_ts[0] = trend_ts[1]
+        elif np.isnan(trend_ts[1]):
+            trend_ts[1] = trend_ts[0]
 
     return trend_ts
 
@@ -224,7 +229,7 @@ def calculate_boundary_trend(
     fit_params: FitParameters,
 ) -> np.array:
     """
-    Calculate trend values for boundary points
+    Calculate trend values for boundary points.
 
     Parameters
     ----------
@@ -306,15 +311,13 @@ def calculate_right_boundary_trend(
 
     """
     point_to_modify = get_shifted_time_value(ts, original_value=boundary, shift=1)
-    ts_fit = ts.pr.loc[
-        {
-            "time": pd.date_range(
-                start=point_to_modify,
-                periods=fit_params.trend_length,
-                freq=fit_params.trend_length_unit,
-            )
-        }
-    ]
+    trend_index = pd.date_range(
+        start=point_to_modify,
+        periods=fit_params.trend_length,
+        freq=fit_params.trend_length_unit,
+    )
+    trend_index = trend_index.intersection(ts.coords["time"])
+    ts_fit = ts.pr.loc[{"time": trend_index}]
 
     if len(ts_fit.where(ts_fit.notnull(), drop=True)) >= fit_params.min_trend_points:
         fit = ts_fit.polyfit(dim="time", deg=fit_params.fit_degree, skipna=True)
@@ -361,15 +364,13 @@ def calculate_left_boundary_trend(
 
     """
     point_to_modify = get_shifted_time_value(ts, original_value=boundary, shift=-1)
-    ts_fit = ts.pr.loc[
-        {
-            "time": pd.date_range(
-                end=point_to_modify,
-                periods=fit_params.trend_length,
-                freq=fit_params.trend_length_unit,
-            )
-        }
-    ]
+    trend_index = pd.date_range(
+        end=point_to_modify,
+        periods=fit_params.trend_length,
+        freq=fit_params.trend_length_unit,
+    )
+    trend_index = trend_index.intersection(ts.coords["time"])
+    ts_fit = ts.pr.loc[{"time": trend_index}]
 
     if len(ts_fit.where(ts_fit.notnull(), drop=True)) >= fit_params.min_trend_points:
         fit = ts_fit.polyfit(dim="time", deg=fit_params.fit_degree, skipna=True)

@@ -396,6 +396,17 @@ def test_calculate_boundary_trend_with_fallback(test_ts, fit_params_linear):
     )
     assert np.allclose(trend_values, expected_constant, rtol=1e-04)
 
+    # test filling of missing boundary trends for a gap
+    # this can only occur when we use gap information for one time-series on another
+    # time-series, so we fake a gap here
+    fake_gap = Gap(left=np.datetime64("1953-01-01"), right=np.datetime64("1955-01-01"), type="gap")
+    trend_values = calculate_boundary_trend_with_fallback(
+        test_ts,
+        gap=fake_gap,
+        fit_params=fit_params_linear,
+    )
+    assert np.allclose(trend_values, expected_constant, rtol=1e-04)
+
 
 def test_calculate_scaling_factor(test_ts, fill_ts, fit_params_linear, caplog):
     gaps = get_gaps(test_ts)

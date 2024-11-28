@@ -218,13 +218,13 @@ class LocalTrendsStrategy:
                                 gap_description = (
                                     gap_description + f" filled for times "
                                     f"{np.datetime_as_string(time_filled_gap, unit='h')} "
-                                    f"using factor {factor[0]};"
+                                    f"using factor {factor[0]:.2f};"
                                 )
                             else:
                                 gap_description = (
                                     gap_description + f" filled for times "
                                     f"{np.datetime_as_string(time_filled_gap, unit='h')} "
-                                    f"using factors {factor[0]} and {factor[1]};"
+                                    f"using factors {factor[0]:.2f} and {factor[1]:.2f};"
                                 )
 
                     # update description
