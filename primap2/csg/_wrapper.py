@@ -18,10 +18,7 @@ def set_priority_coords(
 
     """
     for dim in dims.keys():
-        if "terminology" in dims[dim].keys():
-            terminology = dims[dim]["terminology"]
-        else:
-            terminology = None
+        terminology = dims[dim].get("terminology", None)
         ds = ds.pr.expand_dims(dim=dim, coord_value=dims[dim]["value"], terminology=terminology)
 
     return ds
