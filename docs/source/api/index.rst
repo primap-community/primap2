@@ -58,11 +58,14 @@ source priorities and matching algorithms.
     :toctree: generated_csg/
 
     csg.GlobalLSStrategy
+    csg.LocalTrendsStrategy
     csg.PriorityDefinition
     csg.StrategyDefinition
     csg.StrategyUnableToProcess
     csg.SubstitutionStrategy
     csg.compose
+    csg.create_composite_source
+    csg.set_priority_coords
 
 
 .. currentmodule:: xarray
@@ -96,6 +99,7 @@ Methods
     DataArray.pr.add_aggregates_coordinates
     DataArray.pr.any
     DataArray.pr.combine_first
+    DataArray.pr.convert
     DataArray.pr.convert_to_gwp
     DataArray.pr.convert_to_gwp_like
     DataArray.pr.convert_to_mass
