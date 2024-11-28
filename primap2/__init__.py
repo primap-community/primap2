@@ -26,11 +26,11 @@ logger.add(
 )
 
 __all__ = [
-    "accessors",
-    "open_dataset",
-    "ureg",
-    "pm2io",
+    "Not",
     "ProcessingStepDescription",
     "TimeseriesProcessingDescription",
-    "Not",
+    "accessors",
+    "open_dataset",
+    "pm2io",
+    "ureg",
 ]
