@@ -1,3 +1,4 @@
+import numpy as np
 import xarray as xr
 from attrs import frozen
 
@@ -143,24 +144,28 @@ class LocalTrendsStrategy:
                 filled how.
         """
         filled_mask = ts.isnull() & ~fill_ts.isnull()
-        time_filled = filled_mask["time"][filled_mask].to_numpy()
+        time_fillable = filled_mask["time"][filled_mask].to_numpy()
         # overlap = ts.notnull() & fill_ts.notnull() # commented for linting to pass
 
-        if time_filled.any():
-            # TODO implement boundary and gap filling
+        if time_fillable.any():
             any_filled = False
+            time_filled = np.array([], dtype=np.datetime64)
             description = (
                 f"filled with local trend matched data from {fill_ts_repr}. "
                 f"The following gaps have been filled:"
             )
             gaps = get_gaps(ts)
+            filled_ts = ts.copy()
             for gap in gaps:
+                gap_description = (
+                    f" gap {np.datetime_as_string(gap.left, unit='h')}"
+                    f" - {np.datetime_as_string(gap.right, unit='h')}:"
+                )
                 # check if we have information for the specific gap
                 filled_mask_gap = filled_mask.pr.loc[gap.get_date_slice()]
                 time_filled_gap = filled_mask_gap["time"][filled_mask_gap].to_numpy()
 
                 if time_filled_gap.any():
-                    any_filled = True
                     # get factor
                     factor = calculate_scaling_factor(
                         ts=ts,
@@ -168,40 +173,68 @@ class LocalTrendsStrategy:
                         gap=gap,
                         fit_params=self.fit_params,
                     )
+                    # check if positive or negative allowed. if true proceed, if false
+                    # use fallback
+
+                    # it would be more consistent to handle the negative value fallback in
+                    # calculate_scaling_factor as well. It comes with the drawback that
+                    # it can't be controlled from the filling function and that we have
+                    # to deal with different return values here
+
                     if any(factor < 0) and not self.allow_negative:
-                        print("not implemented")
-                        # TODO: fallback and log message if that fails as well
-                    # multiply fill_ts by factor
+                        factor = calculate_scaling_factor(
+                            ts=ts,
+                            fill_ts=fill_ts,
+                            gap=gap,
+                            fit_params=self.fit_params.get_fallback(),
+                        )
+                        gap_description = (
+                            gap_description + f" negative scaling factor - use fallback degree "
+                            f"{self.fit_params.fallback_degree}"
+                        )
 
-                    # fill nans (in the gap only)
-                    filled_ts = fill_gap(ts=ts, fill_ts=fill_ts, gap=gap, factor=factor)
-
-                    # update description
-                    if factor[0] == factor[1]:
-                        description = (
-                            description + f" gap {gap.left!s}-{gap.right!s} for times "
-                            f"{time_filled_gap} using factor {factor[0]};"
+                    if any(factor < 0) and not self.allow_negative:
+                        # negative with fallback. fail to fill gap
+                        gap_description = (
+                            gap_description
+                            + " negative scaling after fallback - failed to fill gap;"
                         )
                     else:
-                        description = (
-                            description + f" gap {gap.left!s}-{gap.right!s} for times "
-                            f"{time_filled_gap} using factors {factor[0]} "
-                            f"and {factor[1]};"
-                        )
+                        if any(np.isnan(factor)):
+                            # fail because no factor can be calculated
+                            gap_description = (
+                                gap_description + " scaling factor is nan - failed to fill gap;"
+                            )
+                        else:
+                            any_filled = True
+                            time_filled = np.concatenate((time_filled, time_filled_gap))
 
-                # e = fill_ts[overlap.data].data
-                # e_ref = ts[overlap.data].data
-                # a0 = [1]  #  start with 1 as scaling factor
-                # res = least_squares(self._factor_mult, a0, jac=self._jac, args=(e, e_ref))
-                #
-                # fill_ts_h = fill_ts * res["x"][0]
-                # filled_ts = xr.core.ops.fillna(ts, fill_ts_h, join="exact")
+                            # fill nans (in the gap only)
+                            filled_ts = fill_gap(
+                                ts=filled_ts, fill_ts=fill_ts, gap=gap, factor=factor
+                            )
+
+                            if factor[0] == factor[1]:
+                                gap_description = (
+                                    gap_description + f" filled for times "
+                                    f"{np.datetime_as_string(time_filled_gap, unit='h')} "
+                                    f"using factor {factor[0]};"
+                                )
+                            else:
+                                gap_description = (
+                                    gap_description + f" filled for times "
+                                    f"{np.datetime_as_string(time_filled_gap, unit='h')} "
+                                    f"using factors {factor[0]} and {factor[1]};"
+                                )
+
+                    # update description
+                    description = description + gap_description
+
             if any_filled:
                 descriptions = [
                     primap2.ProcessingStepDescription(
                         time=time_filled,
                         description=description,
-                        # Factor={res['x'][0]:0.3f}",
                         function=self.type,
                         source=fill_ts_repr,
                     )
@@ -216,7 +249,7 @@ class LocalTrendsStrategy:
             filled_ts = ts
             descriptions = [
                 primap2.ProcessingStepDescription(
-                    time=time_filled,
+                    time=np.array([], dtype=np.datetime64),
                     description=f"no additional data in {fill_ts_repr}",
                     function=self.type,
                     source=fill_ts_repr,

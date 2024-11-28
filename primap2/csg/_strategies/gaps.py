@@ -201,13 +201,13 @@ def calculate_boundary_trend_with_fallback(
         gap=gap,
         fit_params=fit_params,
     )
-    if not all(trend_ts):
+    if any(np.isnan(trend_ts)):
         trend_ts = calculate_boundary_trend(
             ts,
             gap=gap,
             fit_params=fit_params.get_fallback(),
         )
-        if not all(trend_ts):
+        if any(np.isnan(trend_ts)):
             logger.info(
                 f"Not enough values to calculate fit for ts and gap:"
                 f"{gap.type}, [{gap.left}:{gap.right}].\n"
@@ -276,14 +276,14 @@ def calculate_boundary_trend(
     else:
         raise ValueError(f"Unknown gap type: {gap.type}")
 
-    return [left, right]
+    return np.array([left, right])
 
 
 def calculate_right_boundary_trend(
     ts: xr.DataArray,
     boundary: np.datetime64,
     fit_params: FitParameters,
-) -> float | None:
+) -> float:
     """
     Replace right boundary point by trend value
 
@@ -330,14 +330,14 @@ def calculate_right_boundary_trend(
             f"{fit_params.log_string(fallback=False)}"
             f"Timeseries info: {timeseries_coord_repr(ts)}"
         )
-        return None
+        return np.nan
 
 
 def calculate_left_boundary_trend(
     ts: xr.DataArray,
     boundary: np.datetime64,
     fit_params: FitParameters,
-) -> float | None:
+) -> float:
     """
     Replace left boundary point by trend value
 
@@ -385,7 +385,7 @@ def calculate_left_boundary_trend(
             f"{fit_params.log_string(fallback=False)}"
             f"Timeseries info: {timeseries_coord_repr(ts)}"
         )
-        return None
+        return np.nan
 
 
 def calculate_scaling_factor(
@@ -424,9 +424,9 @@ def calculate_scaling_factor(
         gap=gap,
         fit_params=fit_params,
     )
-    if not all(trend_ts):
+    if any(np.isnan(trend_ts)):
         # logging has been done already
-        return None
+        return np.array([np.nan, np.nan])
 
     # trend values for fill_ts
     trend_fill = calculate_boundary_trend_with_fallback(
@@ -434,17 +434,17 @@ def calculate_scaling_factor(
         gap=gap,
         fit_params=fit_params,
     )
-    if not all(trend_fill):
+    if any(np.isnan(trend_fill)):
         # logging has been done already
-        return None
+        return np.array([np.nan, np.nan])
 
     factor = np.divide(trend_ts, trend_fill)
-    if not all(factor):
-        # we have some nan values which have to come from division by zero
+    if any(np.isnan(factor)) or any(np.isinf(factor)):
+        # we have some nan or inf values which have to come from division by zero
         # we fill them with 0 in case the trend values are zero as well
-        nan_mask_factor = np.isnan(factor)
+        nan_mask_factor = np.isnan(factor) | np.isinf(factor)
         zero_mask_ts = trend_ts == 0
-        factor[nan_mask_factor and zero_mask_ts] = trend_ts[nan_mask_factor and zero_mask_ts]
+        factor[nan_mask_factor & zero_mask_ts] = trend_ts[nan_mask_factor & zero_mask_ts]
 
     return factor
 

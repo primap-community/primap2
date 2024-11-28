@@ -237,7 +237,7 @@ def test_calculate_left_boundary_trend(test_ts, fit_params_linear, fit_params_co
     trend_value = calculate_left_boundary_trend(
         test_ts, boundary=gaps[1].left, fit_params=fit_params_linear
     )
-    assert trend_value is None
+    assert np.isnan(trend_value)
 
     log_str = (
         "Not enough values to calculate fit for left boundary at "
@@ -290,7 +290,7 @@ def test_calculate_right_boundary_trend(test_ts, fit_params_linear, fit_params_c
         boundary=gaps[0].right,
         fit_params=fit_params_linear,
     )
-    assert trend_value is None
+    assert np.isnan(trend_value)
 
     log_str = (
         "Not enough values to calculate fit for right boundary at "
@@ -397,13 +397,39 @@ def test_calculate_boundary_trend_with_fallback(test_ts, fit_params_linear):
     assert np.allclose(trend_values, expected_constant, rtol=1e-04)
 
 
-def test_calculate_scaling_factor(test_ts, fill_ts, fit_params_linear):
+def test_calculate_scaling_factor(test_ts, fill_ts, fit_params_linear, caplog):
     gaps = get_gaps(test_ts)
-    # TODO: special cases, fallback etc
+
     factor = calculate_scaling_factor(
         ts=test_ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gaps[2]
     )
     assert np.allclose([0.33333, 1], factor)
+    # as fallback will be used we also check for the log message (not strictly necessary
+    # to test his as it's raise by a different function)
+    assert (
+        "Not enough values to calculate fit for right boundary "
+        "at 1973-01-01T00:00:00.000000000.\nfit_degree: 1, trend_length: 10, "
+        "trend_length_unit: YS, min_trend_points: 5.\n"
+        "Timeseries info: {'category': 'test'}" in caplog.text
+    )
+
+    # zero for fill_ts only result should be nan
+    fill_ts.pr.loc[{"time": pd.date_range("1956-01-01", "1966-01-01", freq="YS")}] = (
+        fill_ts.pr.loc[{"time": pd.date_range("1956-01-01", "1966-01-01", freq="YS")}] * 0
+    )
+    factor = calculate_scaling_factor(
+        ts=test_ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gaps[0]
+    )
+    assert all(np.isinf(factor))
+
+    # zero for both ts: result should be 0
+    test_ts.pr.loc[{"time": pd.date_range("1956-01-01", "1966-01-01", freq="YS")}] = (
+        test_ts.pr.loc[{"time": pd.date_range("1956-01-01", "1966-01-01", freq="YS")}] * 0
+    )
+    factor = calculate_scaling_factor(
+        ts=test_ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gaps[0]
+    )
+    assert np.allclose(factor, [0, 0])
 
 
 def test_fill_gap(test_ts, fill_ts, expected_ts, fit_params_linear):
