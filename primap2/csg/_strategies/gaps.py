@@ -472,15 +472,13 @@ def get_shifted_time_value(
     Returns
     -------
         time coordinate value at desired relative position
-
     """
-    # TODO: the following is not very elegant. I struggle with tasks like getting the coordinate
-    #  value of the next item in xarray
-    mask = ts.copy()
-    mask.data = mask.data * np.nan
-    mask.pr.loc[{"time": original_value}] = 1
-    mask = mask.shift(time=shift, fill_value=np.nan)
-    return mask.coords["time"].where(mask == 1, drop=True).data[0]
+    # For actually getting the index of a value in an index, it is easiest to work with
+    # the underlying numpy arrays.
+    time_points = ts["time"].values
+    original_index = np.where(time_points == original_value)[0][0]
+    new_index = original_index + shift
+    return time_points[new_index]
 
 
 def timeseries_coord_repr(ts: xr.DataArray) -> str:
