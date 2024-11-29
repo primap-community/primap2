@@ -1,3 +1,5 @@
+import typing
+
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -236,29 +238,33 @@ def calculate_boundary_trend(
     """
     if gap.type == "gap":
         # right boundary
-        right = calculate_right_boundary_trend(
+        right = calculate_boundary_trend_inner(
             ts,
+            side="right",
             boundary=gap.right,
             fit_params=fit_params,
         )
         # left boundary
-        left = calculate_left_boundary_trend(
+        left = calculate_boundary_trend_inner(
             ts,
+            side="left",
             boundary=gap.left,
             fit_params=fit_params,
         )
     elif gap.type == "end":
         # left boundary
-        left = calculate_left_boundary_trend(
+        left = calculate_boundary_trend_inner(
             ts,
+            side="left",
             boundary=gap.left,
             fit_params=fit_params,
         )
         right = left
     elif gap.type == "start":
         # right boundary
-        right = calculate_right_boundary_trend(
+        right = calculate_boundary_trend_inner(
             ts,
+            side="right",
             boundary=gap.right,
             fit_params=fit_params,
         )
@@ -269,20 +275,23 @@ def calculate_boundary_trend(
     return np.array([left, right])
 
 
-def calculate_right_boundary_trend(
+def calculate_boundary_trend_inner(
     ts: xr.DataArray,
+    side: typing.Literal["left", "right"],
     boundary: np.datetime64,
     fit_params: FitParameters,
 ) -> float:
     """
-    Replace right boundary point by trend value
+    Calculate trend value for leftmost or rightmost boundary point.
 
     Parameters
     ----------
     ts :
         Time-series to calculate trend for
+    side : "left" or "right"
+        If the left or right boundary point should be processed.
     boundary :
-        boundary point (last NaN value)
+        time index boundary point (last NaN value)
     fit_params :
         FitParameters object which holds all parameters for the fit.
         This function does not handle fallback options thus the fallback
@@ -294,9 +303,12 @@ def calculate_right_boundary_trend(
         calculation is not possible, `None` is returned so the calling strategy can
         raise the StrategyUnableToProcess error.
     """
-    point_to_modify = get_shifted_time_value(ts, original_value=boundary, shift=1)
+    point_to_modify = get_shifted_time_value(
+        ts, original_value=boundary, shift=1 if side == "right" else -1
+    )
     trend_index = pd.date_range(
-        start=point_to_modify,
+        start=point_to_modify if side == "right" else None,
+        end=point_to_modify if side == "left" else None,
         periods=fit_params.trend_length,
         freq=fit_params.trend_length_unit,
     )
@@ -312,60 +324,7 @@ def calculate_right_boundary_trend(
         return float(value.data)
     else:
         logger.info(
-            f"Not enough values to calculate fit for right boundary at "
-            f"{point_to_modify}.\n"
-            f"{fit_params.log_string(fallback=False)}"
-            f"Timeseries info: {timeseries_coord_repr(ts)}"
-        )
-        return np.nan
-
-
-def calculate_left_boundary_trend(
-    ts: xr.DataArray,
-    boundary: np.datetime64,
-    fit_params: FitParameters,
-) -> float:
-    """
-    Replace left boundary point by trend value
-
-    The function assumes equally spaced
-
-    Parameters
-    ----------
-    ts :
-        Time-series to calculate trend for
-    boundary :
-        boundary point (last NaN value)
-    fit_params :
-        FitParameters object which holds all parameters for the fit. This function does
-        not handle fallback options thus the fallback attribute is ignored.
-
-    Returns
-    -------
-        Calculated trend value for boundary point. If trend
-        calculation is not possible, `None` is returned so the calling strategy can
-        raise the StrategyUnableToProcess error.
-
-    """
-    point_to_modify = get_shifted_time_value(ts, original_value=boundary, shift=-1)
-    trend_index = pd.date_range(
-        end=point_to_modify,
-        periods=fit_params.trend_length,
-        freq=fit_params.trend_length_unit,
-    )
-    trend_index = trend_index.intersection(ts.coords["time"])
-    ts_fit = ts.pr.loc[{"time": trend_index}]
-
-    if len(ts_fit.where(ts_fit.notnull(), drop=True)) >= fit_params.min_trend_points:
-        fit = ts_fit.polyfit(dim="time", deg=fit_params.fit_degree, skipna=True)
-        value = xr.polyval(
-            ts_fit.coords["time"].pr.loc[{"time": point_to_modify}],
-            fit.polyfit_coefficients,
-        )
-        return float(value.data)
-    else:
-        logger.info(
-            f"Not enough values to calculate fit for left boundary at "
+            f"Not enough values to calculate fit for {side} boundary at "
             f"{point_to_modify}.\n"
             f"{fit_params.log_string(fallback=False)}"
             f"Timeseries info: {timeseries_coord_repr(ts)}"
@@ -483,7 +442,7 @@ def get_shifted_time_value(
 
 def timeseries_coord_repr(ts: xr.DataArray) -> str:
     """Make short string representation for coordinate values for logging"""
-    dims = set(ts.coords._names) - {"time"}
+    dims = set(ts.coords.keys()) - {"time"}
     coords: dict[str, str] = {str(k): ts[k].item() for k in dims}
     coords = dict(sorted(coords.items()))
     return repr(coords)
