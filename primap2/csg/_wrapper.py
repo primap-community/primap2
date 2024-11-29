@@ -10,12 +10,19 @@ def set_priority_coords(
     ds: xr.Dataset,
     dims: dict[str, dict[str, str]],
 ) -> xr.Dataset:
-    """Set values for priority coordinates in output dataset
+    """Set values for priority coordinates.
 
-    coords: Dictionary
-        Format is 'name': {'value': value, 'terminology': terminology}
-        terminology is optional
-
+    Parameters
+    ----------
+    ds: cr.Dataset
+        Dataset to change
+    dims: dict
+        Dictionary containing coordinate names as keys and as values a dictionary
+        with the value to be set and optionally a terminology.
+        Examples:
+        {"source": {"value": "PRIMAP-hist"}} sets the "source" to "PRIMAP-hist".
+        {"area": {"value": "WORLD", "terminology": "ISO3_primap"}} adds the dimension
+        "area (ISO3_primap)" to "WORLD".
     """
     for dim in dims.keys():
         terminology = dims[dim].get("terminology", None)
@@ -26,6 +33,7 @@ def set_priority_coords(
 
 def create_composite_source(
     input_ds: xr.Dataset,
+    *,
     priority_definition: PriorityDefinition,
     strategy_definition: StrategyDefinition,
     result_prio_coords: dict[str, dict[str, str]],
@@ -38,7 +46,6 @@ def create_composite_source(
 
     This is a wrapper around `primap2.csg.compose` that prepares the input data and sets result
     values for the priority coordinates.
-
 
     Parameters
     ----------
@@ -90,9 +97,7 @@ def create_composite_source(
     -------
         xr.Dataset with composed data according to the given priority and strategy
         definitions
-
     """
-
     # limit input data to these values
     if limit_coords is not None:
         if "variable" in limit_coords.keys():

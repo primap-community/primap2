@@ -9,9 +9,8 @@ from primap2.csg._strategies.gaps import (
     FitParameters,
     Gap,
     calculate_boundary_trend,
+    calculate_boundary_trend_inner,
     calculate_boundary_trend_with_fallback,
-    calculate_left_boundary_trend,
-    calculate_right_boundary_trend,
     calculate_scaling_factor,
     fill_gap,
     get_gaps,
@@ -202,7 +201,9 @@ def test_get_shifted_time_value(test_ts):
     assert shifted_value == np.datetime64("1952-01-01")
 
 
-def test_calculate_left_boundary_trend(test_ts, fit_params_linear, fit_params_constant, caplog):
+def test_calculate_boundary_trend_inner_left(
+    test_ts, fit_params_linear, fit_params_constant, caplog
+):
     gaps = get_gaps(test_ts)
 
     # linear trend for a left boundary
@@ -211,8 +212,9 @@ def test_calculate_left_boundary_trend(test_ts, fit_params_linear, fit_params_co
     data_to_interpolate = test_ts.pr.loc[{"time": slice("1996", "2005")}].data
     coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
     expected_value = np.polyval(coeff, 9)
-    trend_value = calculate_left_boundary_trend(
+    trend_value = calculate_boundary_trend_inner(
         test_ts,
+        side="left",
         boundary=gaps[1].left,
         fit_params=fit_params_linear,
     )
@@ -223,8 +225,9 @@ def test_calculate_left_boundary_trend(test_ts, fit_params_linear, fit_params_co
     # expected result
     coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
     expected_value = np.polyval(coeff, 9)
-    trend_value = calculate_left_boundary_trend(
+    trend_value = calculate_boundary_trend_inner(
         test_ts,
+        side="left",
         boundary=gaps[1].left,
         fit_params=fit_params_constant,
     )
@@ -234,8 +237,8 @@ def test_calculate_left_boundary_trend(test_ts, fit_params_linear, fit_params_co
     test_ts.loc[{"time": slice("1997", "2002")}] = (
         test_ts.loc[{"time": slice("1997", "2002")}] * np.nan
     )
-    trend_value = calculate_left_boundary_trend(
-        test_ts, boundary=gaps[1].left, fit_params=fit_params_linear
+    trend_value = calculate_boundary_trend_inner(
+        test_ts, side="left", boundary=gaps[1].left, fit_params=fit_params_linear
     )
     assert np.isnan(trend_value)
 
@@ -249,7 +252,9 @@ def test_calculate_left_boundary_trend(test_ts, fit_params_linear, fit_params_co
     assert log_str in caplog.text
 
 
-def test_calculate_right_boundary_trend(test_ts, fit_params_linear, fit_params_constant, caplog):
+def test_calculate_boundary_trend_inner_right(
+    test_ts, fit_params_linear, fit_params_constant, caplog
+):
     gaps = get_gaps(test_ts)
 
     # linear trend for a right boundary
@@ -259,8 +264,9 @@ def test_calculate_right_boundary_trend(test_ts, fit_params_linear, fit_params_c
     coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
     expected_value = np.polyval(coeff, 0)
 
-    trend_value = calculate_right_boundary_trend(
+    trend_value = calculate_boundary_trend_inner(
         test_ts,
+        side="right",
         boundary=gaps[0].right,
         fit_params=fit_params_linear,
     )
@@ -273,8 +279,9 @@ def test_calculate_right_boundary_trend(test_ts, fit_params_linear, fit_params_c
     coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
     expected_value = np.polyval(coeff, 0)
 
-    trend_value = calculate_right_boundary_trend(
+    trend_value = calculate_boundary_trend_inner(
         test_ts,
+        side="right",
         boundary=gaps[0].right,
         fit_params=fit_params_constant,
     )
@@ -285,8 +292,9 @@ def test_calculate_right_boundary_trend(test_ts, fit_params_linear, fit_params_c
     test_ts.loc[{"time": slice("1958", "1964")}] = (test_ts.loc)[
         {"time": slice("1958", "1964")}
     ] * np.nan
-    trend_value = calculate_right_boundary_trend(
+    trend_value = calculate_boundary_trend_inner(
         test_ts,
+        side="right",
         boundary=gaps[0].right,
         fit_params=fit_params_linear,
     )

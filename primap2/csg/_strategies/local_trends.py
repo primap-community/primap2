@@ -37,14 +37,14 @@ class LocalTrendsStrategy:
     where :math:`\\textrm{fill_ts}_t(t_b)` is the trend value calculated for
     :math:`\\textrm{fill_ts}(t_b)` and equally for :math:`\\textrm{ts}_t(t_b)`.
     :math:`t_b` is the last (in case of a right boundary) or first (in case of a left
-    boundary) non-NaN data pint in :math:`\\textrm{ts}`. The trend value is calculated
+    boundary) non-NaN data point in :math:`\\textrm{ts}`. The trend value is calculated
     using a linear trend of length `trend_length` or less data points if a time-series
     does not cover the full period. By setting `min_trend_points` a minimal number of
     points necessary for the trend calculation can be set. If less points are available a
     :py:class:`StrategyUnableToProcess` error will be raised. This enables the user to
     define a fallback strategy, e.g. single point matching.
     TODO: for the case of gaps this leads to the situation that we can't use trends on
-     one side of the gap and single year matching as fallback on the other
+    one side of the gap and single year matching as fallback on the other
 
     By setting `trend_length` to 1 single year matching is used.
 
@@ -81,7 +81,7 @@ class LocalTrendsStrategy:
     Filling multiple gaps and boundaries with this function is scientifically questionable
     as they will all use different scaling factors and thus don't use a consistent model to
     harmonize one time-series :math:`\\textrm{fill_ts}(t)` to :math:`\\textrm{ts}(t)`.
-    Use with case.
+    Use with care.
 
     Attributes
     ----------
