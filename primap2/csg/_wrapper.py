@@ -10,12 +10,19 @@ def set_priority_coords(
     ds: xr.Dataset,
     dims: dict[str, dict[str, str]],
 ) -> xr.Dataset:
-    """Set values for priority coordinates in output dataset
+    """Set values for priority coordinates.
 
-    coords: Dictionary
-        Format is 'name': {'value': value, 'terminology': terminology}
-        terminology is optional
-
+    Parameters
+    ----------
+    ds: cr.Dataset
+        Dataset to change
+    dims: dict
+        Dictionary containing coordinate names as keys and as values a dictionary
+        with the value to be set and optionally a terminology.
+        Examples:
+        {"source": {"value": "PRIMAP-hist"}} sets the "source" to "PRIMAP-hist".
+        {"area": {"value": "WORLD", "terminology": "ISO3_primap"}} adds the dimension
+        "area (ISO3_primap)" to "WORLD".
     """
     for dim in dims.keys():
         terminology = dims[dim].get("terminology", None)
