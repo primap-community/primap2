@@ -12,23 +12,16 @@ class Gap:
 
     Attributes
     ----------
-    type :
+    type
         type of the gap
         possible types:
             'start': start of timeseries boundary (nan, nan, X, X)
             'end': end of timeseries boundary (X, X, nan, nan)
             'gap': gap (X, nan, nan, X)
-    left :
+    left
         left end of the gap
-    right :
+    right
         right end of the gap
-
-    Methods
-    _______
-    get_date_slice()
-        Return a xr.loc type filter for 'time' with a slice from left to right
-        end of the gap
-
     """
 
     type: str = None
@@ -37,6 +30,8 @@ class Gap:
     right: np.datetime64 = None  # right end of the gap
 
     def get_date_slice(self) -> dict[str, slice]:
+        """Return a xr.loc type filter for 'time' with a slice from left to right
+        end of the gap."""
         return {"time": slice(self.left, self.right)}
 
 
@@ -71,15 +66,6 @@ class FitParameters:
         minimal number of points to calculate the trend. Default is 1, but if the degree
         of the fit polynomial is higher than 1, the minimal number of data points
         the degree of the fit polynomial
-
-    Methods
-    -------
-    log_string(fallback=False):
-        Create a string with the classes parameters
-    get_fallback():
-        Return FitParameters object with the `fit_degree` set to the `fallback_degree`
-        of the original object.
-
     """
 
     fit_degree: int = 1
@@ -97,6 +83,7 @@ class FitParameters:
             )
 
     def log_string(self, fallback: bool = False) -> str:
+        """Create a string with the classes parameters."""
         log_str = (
             f"fit_degree: {self.fit_degree}, "
             f"trend_length: {self.trend_length}, "
@@ -110,6 +97,8 @@ class FitParameters:
         return log_str
 
     def get_fallback(self):
+        """Return FitParameters object with the `fit_degree` set to the `fallback_degree`
+        of the original object."""
         return FitParameters(
             fit_degree=self.fallback_degree,
             trend_length=self.trend_length,
@@ -130,7 +119,6 @@ def get_gaps(ts: xr.DataArray) -> list[Gap]:
     Returns
     -------
         list of Gaps
-
     """
     ts_roll = ts.rolling(time=3, min_periods=1, center=True).sum()
     gaps = []
@@ -194,7 +182,6 @@ def calculate_boundary_trend_with_fallback(
         Tuple with calculated trend values for left and right boundary of the gap. If trend
         calculation is not possible, `None` is returned so the calling strategy can
         raise the StrategyUnableToProcess error.
-
     """
     trend_ts = calculate_boundary_trend(
         ts,
@@ -246,9 +233,7 @@ def calculate_boundary_trend(
         Tuple with calculated trend values for left and right boundary of the gap. If trend
         calculation is not possible, `None` is returned so the calling strategy can
         raise the StrategyUnableToProcess error.
-
     """
-
     if gap.type == "gap":
         # right boundary
         right = calculate_right_boundary_trend(
@@ -308,7 +293,6 @@ def calculate_right_boundary_trend(
         Calculated trend value for boundary point. If trend
         calculation is not possible, `None` is returned so the calling strategy can
         raise the StrategyUnableToProcess error.
-
     """
     point_to_modify = get_shifted_time_value(ts, original_value=boundary, shift=1)
     trend_index = pd.date_range(
