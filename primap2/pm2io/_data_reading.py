@@ -917,8 +917,7 @@ def additional_coordinate_metadata(
 
         if add_coords_cols[coord][1] in coords_terminologies:
             additional_coordinates[coord] = (
-                f"{add_coords_cols[coord][1]} "
-                f"({coords_terminologies[add_coords_cols[coord][1]]})"
+                f"{add_coords_cols[coord][1]} ({coords_terminologies[add_coords_cols[coord][1]]})"
             )
         else:
             additional_coordinates[coord] = add_coords_cols[coord][1]

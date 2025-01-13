@@ -310,8 +310,7 @@ def initialize_empty_converted_da(
             # The additional coordinate has the old_dim as one dimension, but we
             # won't be able to convert it
             logger.info(
-                f"Additional coordinate {coord} can not be converted automatically"
-                f" and is skipped."
+                f"Additional coordinate {coord} can not be converted automatically and is skipped."
             )
             continue
         else:

@@ -50,7 +50,7 @@ class SubstitutionStrategy:
         time_filled = "all" if filled_mask.all() else filled_mask["time"][filled_mask].to_numpy()
         description = primap2.ProcessingStepDescription(
             time=time_filled,
-            description="substituted with corresponding values from" f" {fill_ts_repr}",
+            description=f"substituted with corresponding values from {fill_ts_repr}",
             function=self.type,
             source=fill_ts_repr,
         )

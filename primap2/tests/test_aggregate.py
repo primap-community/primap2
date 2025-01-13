@@ -396,7 +396,7 @@ class TestGasBasket:
         )
 
         assert (
-            "Not all variables present for FGASES (SARGWP100). Missing: " "['HFC32']"
+            "Not all variables present for FGASES (SARGWP100). Missing: ['HFC32']"
         ) in caplog.text
         assert "FGASES (SARGWP100)" in filled.data_vars
         xr.testing.assert_allclose(
@@ -412,7 +412,7 @@ class TestGasBasket:
         """
         with pytest.raises(
             xr.MergeError,
-            match="pr.merge error: found discrepancies " "larger than tolerance",
+            match="pr.merge error: found discrepancies larger than tolerance",
         ):
             partly_filled_ds.pr.add_aggregates_variables(
                 gas_baskets={
@@ -502,7 +502,7 @@ class TestAddAggregatesCoordinates:
 
         with pytest.raises(
             xr.MergeError,
-            match="pr.merge error: found discrepancies " "larger than tolerance",
+            match="pr.merge error: found discrepancies larger than tolerance",
         ):
             test_ds.pr.add_aggregates_coordinates(
                 agg_info={
@@ -647,9 +647,7 @@ class TestAddAggregatesCoordinates:
             }
         )
         assert (
-            "Not all source values present for 'all'"
-            " in coordinate 'area (ISO3)'. "
-            "Missing: {'DEU'}"
+            "Not all source values present for 'all' in coordinate 'area (ISO3)'. Missing: {'DEU'}"
         ) in caplog.text
 
         # test warning for fully missing input
@@ -663,7 +661,7 @@ class TestAddAggregatesCoordinates:
             }
         )
         assert (
-            "No source value present for 'all' in " "coordinate 'area (ISO3)'. Missing: {'DEU'}."
+            "No source value present for 'all' in coordinate 'area (ISO3)'. Missing: {'DEU'}."
         ) in caplog.text
 
         # test all nan warning
@@ -678,7 +676,7 @@ class TestAddAggregatesCoordinates:
                 }
             }
         )
-        assert ("All input data nan for 'all' in " "coordinate 'area (ISO3)'.") in caplog.text
+        assert ("All input data nan for 'all' in coordinate 'area (ISO3)'.") in caplog.text
 
     def test_add_aggregates_coordinates_errors(self, minimal_ds):
         """
@@ -687,7 +685,7 @@ class TestAddAggregatesCoordinates:
         # additional coordinate not present
         with pytest.raises(
             ValueError,
-            match="Additional coordinate 'area_name' specified but not " "present in data",
+            match="Additional coordinate 'area_name' specified but not present in data",
         ):
             minimal_ds.pr.add_aggregates_coordinates(
                 agg_info={
