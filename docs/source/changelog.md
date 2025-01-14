@@ -41,6 +41,7 @@ of rst and use slightly different categories.
     changes using this version or primap2. ([#268](https://github.com/pik-primap/primap2/pull/268))
 - Added tests on log content and format for the `pr.merge()` function ([#276](https://github.com/pik-primap/primap2/pull/276))
 - In the conversion function, disable splitting into multiple categories, instead create an aggregated category. ([#291](https://github.com/pik-primap/primap2/pull/291))
+- We now skip debug messages in the default logger. ([#279](https://github.com/pik-primap/primap2/pull/279))
 
 ### Bug Fixes
 
