@@ -7,7 +7,7 @@
 PRIMAP2 is the next generation of the PRIMAP climate policy analysis suite.
 PRIMAP2 is free software, you are welcome to use it in your own research.
 The documentation can be found at <https://primap2.readthedocs.io>.
-
+test
 ## Structure
 
 PRIMAP2 is:
