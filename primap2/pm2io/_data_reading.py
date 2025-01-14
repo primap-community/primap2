@@ -1292,6 +1292,7 @@ _special_codes = {
     "-": 0,
     "NE0": np.nan,
     "": np.nan,
+    "FX": np.nan,
 }
 
 
@@ -1339,7 +1340,7 @@ def parse_code(code: str) -> float:
 def create_str_replacement_dict(
     strs: list[str],
     user_str_conv: bool | dict[str, float],
-) -> dict[str, str]:
+) -> dict[str, float]:
     """Create a dict for replacement of strings by NaN and 0 based on
     general rules and user defined rules
     """
