@@ -51,7 +51,7 @@ def test_merge_fail_tolerance(opulent_ds):
 
     with pytest.raises(
         xr.MergeError,
-        match="pr.merge error: found discrepancies " "larger than tolerance",
+        match="pr.merge error: found discrepancies larger than tolerance",
     ):
         da_start.pr.merge(da_merge, tolerance=0.01)
 
@@ -64,9 +64,7 @@ def test_merge_fail_tolerance_warn(opulent_ds, caplog):
 
     da_result = da_start.pr.merge(da_merge, tolerance=0.01, error_on_discrepancy=False)
     assert_aligned_equal(da_result, da_start)
-    assert (
-        "pr.merge error: found discrepancies larger than tolerance " "(1.00%) for " in caplog.text
-    )
+    assert "pr.merge error: found discrepancies larger than tolerance (1.00%) for " in caplog.text
 
 
 def test_coords_not_matching_ds(opulent_ds):

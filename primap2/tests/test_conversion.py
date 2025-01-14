@@ -25,7 +25,7 @@ class TestIPCCCodePrimapToPrimap2:
     def test_too_short(self, caplog):
         assert pm2io._conversion.convert_ipcc_code_primap_to_primap2("IPC") == "error_IPC"
         assert "WARNING" in caplog.text
-        assert "Too short to be a PRIMAP IPCC code after " "removal of prefix." in caplog.text
+        assert "Too short to be a PRIMAP IPCC code after removal of prefix." in caplog.text
 
     def test_wrong_format(self, caplog):
         assert pm2io._conversion.convert_ipcc_code_primap_to_primap2("IPD1A") == "error_IPD1A"
