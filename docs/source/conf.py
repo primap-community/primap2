@@ -101,7 +101,7 @@ nb_execution_timeout = 120
 html_theme = "sphinx_book_theme"
 html_static_path = ["_static"]
 html_theme_options = {
-    "repository_url": "https://github.com/pik-primap/primap2/",
+    "repository_url": "https://github.com/primap-community/primap2/",
     "repository_branch": "main",
     "path_to_docs": "docs/source",
     "use_repository_button": True,
