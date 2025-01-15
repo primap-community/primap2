@@ -19,6 +19,17 @@ of rst and use slightly different categories.
 
 <!-- towncrier release notes start -->
 
+## primap2 0.12.1 (2025-01-15)
+
+### Bug Fixes
+
+- Change URLs and names from pik-primap to primap-community. ([#306](https://github.com/primap-community/primap2/pull/306))
+
+### Trivial/Internal Changes
+
+- [#304](https://github.com/primap-community/primap2/pull/304), [#305](https://github.com/primap-community/primap2/pull/305)
+
+
 ## primap2 0.12.0 (2025-01-14)
 
 ### Breaking Changes
