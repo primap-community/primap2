@@ -1322,7 +1322,7 @@ def find_str_values_in_data(
 
 def parse_code(code: str) -> float:
     """Parse a string code and return 0 or np.nan based on rules to interpret
-    the codes.
+    the codes. Also remove footnote markers "(X)"
     """
     code = code.strip()
     if code in _special_codes:
@@ -1334,6 +1334,13 @@ def parse_code(code: str) -> float:
         return 0
     if "NE" in parts or "NA" in parts:
         return np.nan
+
+    # footnote markers
+    re_foot = re.compile(r"[\-0-9/.,]+(\([0-9]+\))$")
+    match = re_foot.findall(code)
+    if match:
+        return float(code[0 : -len(match[0])])
+
     raise ValueError(f"Could not parse code: {code!r}.")
 
 
@@ -1342,7 +1349,7 @@ def create_str_replacement_dict(
     user_str_conv: bool | dict[str, float],
 ) -> dict[str, float]:
     """Create a dict for replacement of strings by NaN and 0 based on
-    general rules and user defined rules
+    general rules and user defined rules. Also remove footnote markers "(X)"
     """
     if isinstance(user_str_conv, bool):
         if user_str_conv:
