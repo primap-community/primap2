@@ -24,15 +24,16 @@ jobs:
         enable-cache: true
         cache-suffix: "${{ matrix.os }}-${{ matrix.python-version }}-upstream-dev"
         cache-dependency-glob: "setup.cfg"
-        version: "0.4.9"
+        version: "0.5.18"
 
     - name: Create venv
       run: |
         uv venv --seed --python ${{ matrix.python-version }}
 
-    - name: Install ${{ matrix.resolution }} dependencies
+    - name: Install highest dependencies
       run: |
-        uv pip install --resolution highest --prerelease allow .[test,upstream-dev]
+        uv pip install --resolution highest --prerelease allow .[test]
+        uv pip install --resolution highest --prerelease allow --requirements requirements_upstream_dev.txt
 
     - name: Test with pytest (linux)
       if: startsWith(matrix.os, 'ubuntu')

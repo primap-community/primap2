@@ -180,7 +180,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
         if skipna is not None and skipna_evaluation_dims is not None:
             raise ValueError(
-                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not" " both."
+                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both."
             )
 
         if skipna_evaluation_dims is not None:
@@ -326,11 +326,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                     sel = {}
                     rule_tolerance = tolerance
                 else:
-                    logger.error(
-                        "Unrecognized aggregation definition for " f"{value_to_aggregate!r}"
-                    )
+                    logger.error(f"Unrecognized aggregation definition for {value_to_aggregate!r}")
                     raise ValueError(
-                        "Unrecognized aggregation definition for " f"{value_to_aggregate!r}"
+                        f"Unrecognized aggregation definition for {value_to_aggregate!r}"
                     )
 
                 # check if all source values present
@@ -605,7 +603,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         if skipna is not None and skipna_evaluation_dims is not None:
             raise ValueError(
-                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not" " both."
+                "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both."
             )
 
         if skipna_evaluation_dims is not None:
@@ -961,9 +959,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             basket_contents_present = [gas for gas in basket_contents if gas in variables_present]
             missing_variables = list(set(basket_contents) - set(basket_contents_present))
             if len(missing_variables) > 0:
-                logger.info(
-                    f"Not all variables present for {basket}. " f"Missing: {missing_variables}"
-                )
+                logger.info(f"Not all variables present for {basket}. Missing: {missing_variables}")
             if basket_contents_present:
                 if sel is not None:
                     basket_da = ds_out.pr.loc[sel].pr.gas_basket_contents_sum(

@@ -353,7 +353,7 @@ def ensure_valid_coordinates(ds: xr.Dataset):
             # coordinate names which are not sortable with strings so the test never
             # gets here anyway
             logger.error(
-                f"Coordinate {coord!r} is of type {type(coord)}, but " f"only strings are allowed."
+                f"Coordinate {coord!r} is of type {type(coord)}, but only strings are allowed."
             )
             raise ValueError(f"Coord key {coord!r} is not a string")
         elif coord in additional_coords:
@@ -465,7 +465,7 @@ def ensure_entity_and_units_valid(key: Hashable, da: xr.DataArray):
             unit_entity * ureg.Gg / ureg.year
         ):
             logger.warning(
-                f"{key!r} has a unit of {units}, which is not " f"compatible with an emission rate."
+                f"{key!r} has a unit of {units}, which is not compatible with an emission rate."
             )
 
 
@@ -475,8 +475,7 @@ def ensure_gwp_context_valid(key: str, da: xr.DataArray):
 
     if units.dimensionality != {"[carbon]": 1, "[mass]": 1, "[time]": -1}:
         logger.error(
-            f"{key!r} is a global warming potential, but the dimension is not "
-            f"[CO2 * mass / time]."
+            f"{key!r} is a global warming potential, but the dimension is not [CO2 * mass / time]."
         )
         raise ValueError(f"{key} has wrong dimensionality for gwp_context.")
 
@@ -488,7 +487,7 @@ def ensure_gwp_context_valid(key: str, da: xr.DataArray):
         raise ValueError(f"Invalid gwp_context {gwp_context!r} for {key!r}") from None
 
     if "(" not in key or not key.endswith(")"):
-        logger.warning(f"{key!r} has a gwp_context in attrs, but not in its " f"name.")
+        logger.warning(f"{key!r} has a gwp_context in attrs, but not in its name.")
 
 
 def ensure_not_gwp(key: Hashable, da: xr.DataArray):
@@ -498,8 +497,7 @@ def ensure_not_gwp(key: Hashable, da: xr.DataArray):
         and da.attrs["entity"] != "CO2"
     ):
         logger.warning(
-            f"{key!r} has the dimension [CO2 * mass / time], but is "
-            f"not CO2. gwp_context missing?"
+            f"{key!r} has the dimension [CO2 * mass / time], but is not CO2. gwp_context missing?"
         )
 
 
@@ -548,14 +546,13 @@ def ensure_valid_dimensions(ds: xr.Dataset):
     for req_dim in required_indirect_dims:
         if req_dim not in ds.attrs:
             logger.error(
-                f"{req_dim!r} not found in attrs, required dimension is therefore" f" undefined."
+                f"{req_dim!r} not found in attrs, required dimension is therefore undefined."
             )
             raise ValueError(f"{req_dim!r} not in attrs")
 
         if ds.attrs[req_dim] not in ds.dims:
             logger.error(
-                f"{ds.attrs[req_dim]!r} defined as {req_dim!r} dimension, but not found"
-                f" in dims."
+                f"{ds.attrs[req_dim]!r} defined as {req_dim!r} dimension, but not found in dims."
             )
             raise ValueError(f"{req_dim!r} dimension not in dims")
 
@@ -601,7 +598,7 @@ class ProcessingStepDescription:
 
     def __str__(self) -> str:
         if self.source is None:
-            return f"Using function={self.function} for times={self.time}:" f" {self.description}"
+            return f"Using function={self.function} for times={self.time}: {self.description}"
         else:
             return (
                 f"Using function={self.function} with source={self.source} for "

@@ -17,12 +17,12 @@ you through the process.
 ## From sources
 
 The sources for PRIMAP2 can be downloaded from the
-[Github repo](https://github.com/pik-primap/primap2).
+[Github repo](https://github.com/primap-community/primap2).
 
 Simply clone the public repository using git:
 
 ```shell
-$ git clone git://github.com/pik-primap/primap2
+$ git clone git://github.com/primap-community/primap2
 ```
 
 Once you have a copy of the source, you can install it with:

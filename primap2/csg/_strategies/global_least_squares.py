@@ -106,7 +106,7 @@ class GlobalLSStrategy:
                     if any(fill_ts_harmo < 0):
                         # use filling without shift
                         raise StrategyUnableToProcess(
-                            reason="Negative data after harmonization excluded " "by configuration"
+                            reason="Negative data after harmonization excluded by configuration"
                         )
                     else:
                         filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")

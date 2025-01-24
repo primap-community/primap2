@@ -382,7 +382,7 @@ class TestDASetter:
     def test_new_wrong(self, da: xr.DataArray, ts, existing):
         with pytest.raises(
             ValueError,
-            match="If given, 'new' must specify one of 'error' or 'extend', not" " 'asdf'.",
+            match="If given, 'new' must specify one of 'error' or 'extend', not 'asdf'.",
         ):
             da.pr.set("area", ["CUB"], ts, new="asdf", **existing)
 
