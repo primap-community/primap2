@@ -1290,6 +1290,7 @@ _special_codes = {
     "NaN": np.nan,
     "-": 0,
     "NE0": np.nan,
+    "NE(1)": np.nan,
     "": np.nan,
     "FX": np.nan,
 }
