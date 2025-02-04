@@ -28,8 +28,8 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         value: xr.DataArray | np.ndarray,
         *,
         value_dims: list[typing.Hashable] | None = None,
-        existing: str = "fillna_empty",
-        new: str = "extend",
+        existing: typing.Literal["fillna_empty", "fillna", "overwrite", "error"] = "fillna_empty",
+        new: typing.Literal["extend", "error"] = "extend",
     ) -> xr.DataArray:
         """Set values, optionally expanding the given dimension as necessary.
 
