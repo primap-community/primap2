@@ -241,8 +241,8 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             key = [key]
         else:
             key = key
-        # convert to dtype of dim
-        key = np.array(key, dtype=self._da[dim].dtype)
+        # convert to numpy array
+        key = np.array(key)
 
         if pd.api.types.is_datetime64_any_dtype(self._da[dim]):
             key = pd.to_datetime(key)
