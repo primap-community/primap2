@@ -272,13 +272,11 @@ def test_nan_conversion(empty_ds):
     arr = da.data.copy()
     arr[:] = 1 * primap2.ureg("Gg CO2 / year")
     da.data = arr
-    da_copy = da.copy()
-    da_copy.loc[{"category (A)": "1", "area (ISO3)": "MEX"}] = np.nan * primap2.ureg(
-        "Gg CO2 / year"
-    )
+    # set some values to nan
+    da.loc[{"category (A)": "1", "area (ISO3)": "MEX"}] = np.nan * primap2.ureg("Gg CO2 / year")
 
     # convert to categorisation B
-    result = da_copy.pr.convert(
+    result = da.pr.convert(
         dim="category",
         conversion=conv,
     )
