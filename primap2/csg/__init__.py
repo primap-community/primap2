@@ -11,14 +11,23 @@ from ._models import (
     StrategyDefinition,
 )
 from ._strategies.exceptions import StrategyUnableToProcess
+from ._strategies.gaps import FitParameters
 from ._strategies.global_least_squares import GlobalLSStrategy
+
+# from ._strategies.local_least_squares import LocalLSStrategy
+from ._strategies.local_trends import LocalTrendsStrategy
 from ._strategies.substitution import SubstitutionStrategy
+from ._wrapper import create_composite_source, set_priority_coords
 
 __all__ = [
+    "FitParameters",
     "GlobalLSStrategy",
+    "LocalTrendsStrategy",
     "PriorityDefinition",
     "StrategyDefinition",
     "StrategyUnableToProcess",
     "SubstitutionStrategy",
     "compose",
+    "create_composite_source",
+    "set_priority_coords",
 ]
