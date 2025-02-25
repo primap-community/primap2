@@ -2,6 +2,7 @@ import datetime
 
 import numpy as np
 import pandas as pd
+import sparse
 import xarray as xr
 
 import primap2
@@ -227,6 +228,16 @@ def opulent_processing_ds() -> xr.Dataset:
     return opulent
 
 
+def opulent_sparse_ds() -> xr.Dataset:
+    """Like the opulent dataset, but with sparse duck arrays"""
+    opulent = opulent_ds()
+
+    for var in opulent.data_vars:
+        opulent[var].data = sparse.COO.from_numpy(opulent[var].data, fill_value=np.nan)
+
+    return opulent
+
+
 def empty_ds() -> xr.Dataset:
     """An empty hull of a dataset with missing data."""
     time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
@@ -269,3 +280,4 @@ _cached_opulent_ds = opulent_ds()
 _cached_opulent_str_ds = opulent_str_ds()
 _cached_opulent_processing_ds = opulent_processing_ds()
 _cached_empty_ds = empty_ds()
+_cached_opulent_sparse_ds = opulent_sparse_ds()
