@@ -64,11 +64,14 @@ def merge_with_tolerance_core(
 
     # calculate the deviation between da_start and da_merge
     da_comp = abs(da_start - da_merge) / da_start
-    da_error = da_comp.where(da_comp > tolerance, drop=True)
+    # da_error = da_comp.where(da_comp > tolerance, drop=False)
+    arr_error = da_comp.data > tolerance
 
-    if np.logical_not(da_error.isnull()).any():
+    if arr_error.any():
+        # if np.logical_not(da_error.isnull()).any():
         # there are differences larger than the tolerance
-        log_message = generate_log_message(da_error=da_error, tolerance=tolerance)
+        # log_message = generate_log_message(da_error=da_error, tolerance=tolerance)
+        log_message = "pr.merge error: found discrepancies larger than tolerance"
         if error_on_discrepancy:
             logger.error(log_message)
             raise xr.MergeError(log_message)
