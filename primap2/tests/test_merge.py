@@ -8,12 +8,24 @@ import xarray as xr
 from .utils import assert_aligned_equal, assert_ds_aligned_equal
 
 
-def test_merge_disjoint_vars(opulent_ds):
-    ds_start: xr.Dataset = opulent_ds[["CO2"]]
-    ds_merge: xr.Dataset = opulent_ds[["CH4"]]
+# Fails because coo arrays don't have allclose method
+# potential fix: https://stackoverflow.com/questions/45134837/numpy-allclose-on-scipy-sparse-matrix
+# rewriting utils.allclose to handle sparse arrays can solve the issue
+def test_merge_disjoint_vars_coo(opulent_sparse_coo_ds):
+    ds_start: xr.Dataset = opulent_sparse_coo_ds[["CO2"]]
+    ds_merge: xr.Dataset = opulent_sparse_coo_ds[["CH4"]]
     ds_result = ds_start.pr.merge(ds_merge)
 
-    assert_ds_aligned_equal(ds_result, opulent_ds[["CH4", "CO2"]])
+    assert_ds_aligned_equal(ds_result, opulent_sparse_coo_ds[["CH4", "CO2"]])
+
+
+# fails for gcxs as well
+def test_merge_disjoint_vars_gcxs(opulent_sparse_gcxs_ds):
+    ds_start: xr.Dataset = opulent_sparse_gcxs_ds[["CO2"]]
+    ds_merge: xr.Dataset = opulent_sparse_gcxs_ds[["CH4"]]
+    ds_result = ds_start.pr.merge(ds_merge)
+
+    assert_ds_aligned_equal(ds_result, opulent_sparse_gcxs_ds[["CH4", "CO2"]])
 
 
 def test_merge_ds_pass_tolerance(opulent_ds):

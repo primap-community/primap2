@@ -1,5 +1,6 @@
 import numpy as np
 import pint
+import sparse
 import xarray as xr
 
 
@@ -9,10 +10,30 @@ def allclose(a: xr.DataArray, b: xr.DataArray, *args, **kwargs) -> bool:
         a = a.pint.to(b.pint.units)
     except pint.DimensionalityError:
         return False
-    if a.dtype == float:  # need to use "allclose" to compare floats
-        return np.allclose(a.pint.magnitude, b.pint.magnitude, *args, **kwargs)
+    if isinstance(a.data, sparse.COO) and isinstance(b.data, sparse.COO):
+        diff = sparse.abs(a.data - b.data)
+        return sparse.all(
+            diff < kwargs.get("atol", 1e-8) + kwargs.get("rtol", 1e-5) * sparse.abs(b.data)
+        )
     else:
-        return (a.pint.magnitude == b.pint.magnitude).all()
+        a_data = a.pint.magnitude
+        b_data = b.pint.magnitude
+        if a.dtype == float:  # need to use "allclose" to compare floats
+            return np.all(np.isclose(a_data, b_data, *args, **kwargs))
+        else:
+            return (a_data == b_data).all()
+
+
+# def allclose(a: xr.DataArray, b: xr.DataArray, *args, **kwargs) -> bool:
+#     """Like np.allclose, but converts a to b's units before comparing."""
+#     try:
+#         a = a.pint.to(b.pint.units)
+#     except pint.DimensionalityError:
+#         return False
+#     if a.dtype == float:  # need to use "allclose" to compare floats
+#         return np.allclose(a.pint.magnitude, b.pint.magnitude, *args, **kwargs)
+#     else:
+#         return (a.pint.magnitude == b.pint.magnitude).all()
 
 
 def assert_equal(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
