@@ -8,9 +8,7 @@ import xarray as xr
 from .utils import assert_aligned_equal, assert_ds_aligned_equal
 
 
-# Fails because coo arrays don't have allclose method
-# potential fix: https://stackoverflow.com/questions/45134837/numpy-allclose-on-scipy-sparse-matrix
-# rewriting utils.allclose to handle sparse arrays can solve the issue
+# rewriting tests.utils.allclose to handle sparse arrays
 def test_merge_disjoint_vars_coo(opulent_sparse_coo_ds):
     ds_start: xr.Dataset = opulent_sparse_coo_ds[["CO2"]]
     ds_merge: xr.Dataset = opulent_sparse_coo_ds[["CH4"]]
@@ -19,7 +17,7 @@ def test_merge_disjoint_vars_coo(opulent_sparse_coo_ds):
     assert_ds_aligned_equal(ds_result, opulent_sparse_coo_ds[["CH4", "CO2"]])
 
 
-# fails for gcxs as well
+# fails for gcxs
 def test_merge_disjoint_vars_gcxs(opulent_sparse_gcxs_ds):
     ds_start: xr.Dataset = opulent_sparse_gcxs_ds[["CO2"]]
     ds_merge: xr.Dataset = opulent_sparse_gcxs_ds[["CH4"]]
@@ -28,9 +26,33 @@ def test_merge_disjoint_vars_gcxs(opulent_sparse_gcxs_ds):
     assert_ds_aligned_equal(ds_result, opulent_sparse_gcxs_ds[["CH4", "CO2"]])
 
 
-def test_merge_ds_pass_tolerance(opulent_ds):
+# fails with 'GCXS' object has no attribute 'broadcast_to' for pr.set
+def test_merge_ds_pass_tolerance_gcxs(opulent_sparse_gcxs_ds):
     sel = {"time": slice("2000", "2005"), "scenario": "highpop", "source": "RAND2020"}
-    ds = opulent_ds.pr.loc[sel]
+    ds = opulent_sparse_gcxs_ds.pr.loc[sel]
+    ds_start = ds.pr.loc[{"area": ["ARG", "COL"]}]
+    ds_merge = ds.pr.loc[{"area": ["ARG", "MEX"]}]
+
+    data_to_modify = ds["CO2"].pr.loc[{"area": ["ARG"]}].pr.sum("area")
+    data_to_modify.data *= 1.009
+
+    da_merge = ds["CO2"].pr.set("area", "ARG", data_to_modify, existing="overwrite")
+    ds_merge["CO2"] = da_merge
+    ds_result = ds_start.pr.merge(ds_merge, tolerance=0.01)
+
+    assert_ds_aligned_equal(ds_result, ds.pr.loc[{"area": ["ARG", "COL", "MEX"]}])
+
+
+# fails with module 'sparse' has no attribute 'transpose' in pr.set
+# Is it a bug in xarray? https://github.com/pydata/xarray/issues/9933
+# With pinned versions from the bug report sparse 15.4.0 and xarray 2024.11.0
+# it fails at a different point:
+# RuntimeError: Cannot convert a sparse array to dense automatically.
+
+
+def test_merge_ds_pass_tolerance_coo(opulent_sparse_coo_ds):
+    sel = {"time": slice("2000", "2005"), "scenario": "highpop", "source": "RAND2020"}
+    ds = opulent_sparse_coo_ds.pr.loc[sel]
     ds_start = ds.pr.loc[{"area": ["ARG", "COL"]}]
     ds_merge = ds.pr.loc[{"area": ["ARG", "MEX"]}]
 
@@ -55,11 +77,13 @@ def test_merge_pass_tolerance(opulent_ds):
     assert_aligned_equal(da_result, opulent_ds["CO2"])
 
 
-def test_merge_fail_tolerance(opulent_ds):
-    da_start = opulent_ds["CO2"]
-    data_to_modify = opulent_ds["CO2"].pr.loc[{"area": ["ARG"]}].pr.sum("area")
+def test_merge_fail_tolerance(opulent_sparse_coo_ds):
+    da_start = opulent_sparse_coo_ds["CO2"]
+    data_to_modify = opulent_sparse_coo_ds["CO2"].pr.loc[{"area": ["ARG"]}].pr.sum("area")
     data_to_modify.data = data_to_modify.data * 1.09
-    da_merge = opulent_ds["CO2"].pr.set("area", "ARG", data_to_modify, existing="overwrite")
+    da_merge = opulent_sparse_coo_ds["CO2"].pr.set(
+        "area", "ARG", data_to_modify, existing="overwrite"
+    )
 
     with pytest.raises(
         xr.MergeError,
@@ -68,44 +92,46 @@ def test_merge_fail_tolerance(opulent_ds):
         da_start.pr.merge(da_merge, tolerance=0.01)
 
 
-def test_merge_fail_tolerance_warn(opulent_ds, caplog):
-    da_start = opulent_ds["CO2"]
-    data_to_modify = opulent_ds["CO2"].pr.loc[{"area": ["ARG"]}].pr.sum("area")
+def test_merge_fail_tolerance_warn(opulent_sparse_coo_ds, caplog):
+    da_start = opulent_sparse_coo_ds["CO2"]
+    data_to_modify = opulent_sparse_coo_ds["CO2"].pr.loc[{"area": ["ARG"]}].pr.sum("area")
     data_to_modify.data = data_to_modify.data * 1.09
-    da_merge = opulent_ds["CO2"].pr.set("area", "ARG", data_to_modify, existing="overwrite")
+    da_merge = opulent_sparse_coo_ds["CO2"].pr.set(
+        "area", "ARG", data_to_modify, existing="overwrite"
+    )
 
     da_result = da_start.pr.merge(da_merge, tolerance=0.01, error_on_discrepancy=False)
     assert_aligned_equal(da_result, da_start)
     assert "pr.merge error: found discrepancies larger than tolerance (1.00%) for " in caplog.text
 
 
-def test_coords_not_matching_ds(opulent_ds):
-    ds_start = opulent_ds
-    ds_merge = opulent_ds.rename({"time": "year"})
+def test_coords_not_matching_ds(opulent_sparse_coo_ds):
+    ds_start = opulent_sparse_coo_ds
+    ds_merge = opulent_sparse_coo_ds.rename({"time": "year"})
 
     with pytest.raises(ValueError, match="pr.merge error: coords of objects to merge must agree"):
         ds_start.pr.merge(ds_merge)
 
 
-def test_coords_not_matching_da(opulent_ds):
-    da_start = opulent_ds["CH4"]
-    da_merge = opulent_ds["CH4"].rename({"time": "year"})
+def test_coords_not_matching_da(opulent_sparse_coo_ds):
+    da_start = opulent_sparse_coo_ds["CH4"]
+    da_merge = opulent_sparse_coo_ds["CH4"].rename({"time": "year"})
 
     with pytest.raises(ValueError, match="pr.merge error: coords of objects to merge must agree"):
         da_start.pr.merge(da_merge)
 
 
-def test_dims_not_matching_ds(opulent_ds):
-    ds_start = opulent_ds
-    ds_merge = opulent_ds.rename_dims({"time": "year"})
+def test_dims_not_matching_ds(opulent_sparse_coo_ds):
+    ds_start = opulent_sparse_coo_ds
+    ds_merge = opulent_sparse_coo_ds.rename_dims({"time": "year"})
 
     with pytest.raises(ValueError, match="pr.merge error: dims of objects to merge must agree"):
         ds_start.pr.merge(ds_merge)
 
 
-def test_dims_not_matching_da(opulent_ds):
-    da_start = opulent_ds["CH4"]
-    da_merge = opulent_ds["CH4"].swap_dims({"time": "year"})
+def test_dims_not_matching_da(opulent_sparse_coo_ds):
+    da_start = opulent_sparse_coo_ds["CH4"]
+    da_merge = opulent_sparse_coo_ds["CH4"].swap_dims({"time": "year"})
 
     with pytest.raises(ValueError, match="pr.merge error: dims of objects to merge must agree"):
         da_start.pr.merge(da_merge)
@@ -114,9 +140,9 @@ def test_dims_not_matching_da(opulent_ds):
 # tests to check if additional coords stay in place during merge. Different setups as pr.merge
 # uses different methods depending on the setup. as xr.merge is not affected by the coordinate
 # bug these tests could also be removed. But if kept they detect if the bug appears for xr.merge
-def test_merge_ds_add_coord(opulent_ds):
+def test_merge_ds_add_coord(opulent_sparse_coo_ds):
     country_names = ["Colombia", "Argentina", "Mexico", "Bolivia"]
-    ds_full = opulent_ds.assign_coords(country_name=("area (ISO3)", country_names))
+    ds_full = opulent_sparse_coo_ds.assign_coords(country_name=("area (ISO3)", country_names))
     sel = {"time": slice("2000", "2005"), "scenario": "highpop", "source": "RAND2020"}
     ds = ds_full.pr.loc[sel]
     ds_start = ds.pr.loc[{"area": ["ARG", "COL"]}]
@@ -136,9 +162,9 @@ def test_merge_ds_add_coord(opulent_ds):
         )
 
 
-def test_merge_ds_add_coord_tolerance(opulent_ds):
+def test_merge_ds_add_coord_tolerance(opulent_sparse_coo_ds):
     country_names = ["Colombia", "Argentina", "Mexico", "Bolivia"]
-    ds_full = opulent_ds.assign_coords(country_name=("area (ISO3)", country_names))
+    ds_full = opulent_sparse_coo_ds.assign_coords(country_name=("area (ISO3)", country_names))
     sel = {"time": slice("2000", "2005"), "scenario": "highpop", "source": "RAND2020"}
     ds = ds_full.pr.loc[sel]
     ds_start = ds.pr.loc[{"area": ["ARG", "COL"]}]
@@ -163,9 +189,9 @@ def test_merge_ds_add_coord_tolerance(opulent_ds):
         )
 
 
-def test_merge_ds_add_coord_disjoint_vars(opulent_ds):
+def test_merge_ds_add_coord_disjoint_vars(opulent_sparse_coo_ds):
     country_names = ["Colombia", "Argentina", "Mexico", "Bolivia"]
-    ds_full = opulent_ds.assign_coords(country_name=("area (ISO3)", country_names))
+    ds_full = opulent_sparse_coo_ds.assign_coords(country_name=("area (ISO3)", country_names))
 
     ds_start: xr.Dataset = ds_full[["CO2"]]
     ds_merge: xr.Dataset = ds_full[["CH4"]]
@@ -183,11 +209,11 @@ def test_merge_ds_add_coord_disjoint_vars(opulent_ds):
         )
 
 
-def test_merge_message_time_yearly(opulent_ds):
-    da_start: xr.DataArray = opulent_ds["CO2"]
-    npa = opulent_ds["CO2"].loc[{"time": "2000"}].to_numpy().copy()
+def test_merge_message_time_yearly(opulent_sparse_coo_ds):
+    da_start: xr.DataArray = opulent_sparse_coo_ds["CO2"]
+    npa = opulent_sparse_coo_ds["CO2"].loc[{"time": "2000"}].to_numpy().copy()
     npa[:] = 0.0
-    da_merge: xr.DataArray = opulent_ds["CO2"].pr.set(
+    da_merge: xr.DataArray = opulent_sparse_coo_ds["CO2"].pr.set(
         "time", "2000", npa.squeeze(), existing="overwrite"
     )
     with pytest.raises(
@@ -196,8 +222,8 @@ def test_merge_message_time_yearly(opulent_ds):
         da_start.pr.merge(da_merge)
 
 
-def test_merge_message_time_daily(opulent_ds):
-    da_start: xr.DataArray = opulent_ds["CO2"]
+def test_merge_message_time_daily(opulent_sparse_coo_ds):
+    da_start: xr.DataArray = opulent_sparse_coo_ds["CO2"]
     da_start = da_start.assign_coords(
         {"time": pd.date_range("2000-01-01", freq="D", periods=len(da_start["time"]))}
     )
@@ -213,13 +239,17 @@ def test_merge_message_time_daily(opulent_ds):
         da_start.pr.merge(da_merge)
 
 
-def test_log_formatting(minimal_ds, caplog):
-    da_start = minimal_ds["CO2"]
+def test_log_formatting(opulent_sparse_coo_ds, caplog):
+    da_start = opulent_sparse_coo_ds["CO2"]
     data_to_modify = (
-        minimal_ds["CO2"].pr.loc[{"area": ["ARG"], "time": ["2001", "2002"]}].pr.sum("area")
+        opulent_sparse_coo_ds["CO2"]
+        .pr.loc[{"area": ["ARG"], "time": ["2001", "2002"]}]
+        .pr.sum("area")
     )
     data_to_modify.data = data_to_modify.data * 1.09
-    da_merge = minimal_ds["CO2"].pr.set("area", "ARG", data_to_modify, existing="overwrite")
+    da_merge = opulent_sparse_coo_ds["CO2"].pr.set(
+        "area", "ARG", data_to_modify, existing="overwrite"
+    )
 
     da_result = da_start.pr.merge(da_merge, tolerance=0.01, error_on_discrepancy=False)
     assert_aligned_equal(da_result, da_start)
@@ -233,11 +263,15 @@ def test_log_formatting(minimal_ds, caplog):
     )
 
 
-def test_log_formatting_single_date(minimal_ds, caplog):
-    da_start = minimal_ds["CO2"]
-    data_to_modify = minimal_ds["CO2"].pr.loc[{"area": ["ARG"], "time": ["2000"]}].pr.sum("area")
+def test_log_formatting_single_date(opulent_sparse_coo_ds, caplog):
+    da_start = opulent_sparse_coo_ds["CO2"]
+    data_to_modify = (
+        opulent_sparse_coo_ds["CO2"].pr.loc[{"area": ["ARG"], "time": ["2000"]}].pr.sum("area")
+    )
     data_to_modify.data = data_to_modify.data * 1.09
-    da_merge = minimal_ds["CO2"].pr.set("area", "ARG", data_to_modify, existing="overwrite")
+    da_merge = opulent_sparse_coo_ds["CO2"].pr.set(
+        "area", "ARG", data_to_modify, existing="overwrite"
+    )
 
     da_result = da_start.pr.merge(da_merge, tolerance=0.01, error_on_discrepancy=False)
     assert_aligned_equal(da_result, da_start)
