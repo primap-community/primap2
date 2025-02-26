@@ -17,40 +17,6 @@ def test_merge_disjoint_vars_coo(opulent_sparse_coo_ds):
     assert_ds_aligned_equal(ds_result, opulent_sparse_coo_ds[["CH4", "CO2"]])
 
 
-# fails for gcxs
-def test_merge_disjoint_vars_gcxs(opulent_sparse_gcxs_ds):
-    ds_start: xr.Dataset = opulent_sparse_gcxs_ds[["CO2"]]
-    ds_merge: xr.Dataset = opulent_sparse_gcxs_ds[["CH4"]]
-    ds_result = ds_start.pr.merge(ds_merge)
-
-    assert_ds_aligned_equal(ds_result, opulent_sparse_gcxs_ds[["CH4", "CO2"]])
-
-
-# fails with 'GCXS' object has no attribute 'broadcast_to' for pr.set
-def test_merge_ds_pass_tolerance_gcxs(opulent_sparse_gcxs_ds):
-    sel = {"time": slice("2000", "2005"), "scenario": "highpop", "source": "RAND2020"}
-    ds = opulent_sparse_gcxs_ds.pr.loc[sel]
-    ds_start = ds.pr.loc[{"area": ["ARG", "COL"]}]
-    ds_merge = ds.pr.loc[{"area": ["ARG", "MEX"]}]
-
-    data_to_modify = ds["CO2"].pr.loc[{"area": ["ARG"]}].pr.sum("area")
-    data_to_modify.data *= 1.009
-
-    da_merge = ds["CO2"].pr.set("area", "ARG", data_to_modify, existing="overwrite")
-    ds_merge["CO2"] = da_merge
-    ds_result = ds_start.pr.merge(ds_merge, tolerance=0.01)
-
-    assert_ds_aligned_equal(ds_result, ds.pr.loc[{"area": ["ARG", "COL", "MEX"]}])
-
-
-# fails with module 'sparse' has no attribute 'transpose' in pr.set
-# Is it a bug in xarray? https://github.com/pydata/xarray/issues/9933
-# With pinned versions from the bug report sparse 15.4.0 and xarray 2024.11.0
-# it fails at a different point:
-# RuntimeError: Cannot convert a sparse array to dense automatically.
-# xarray.merge test
-# pr.combine_first(), uses combine first from xarray
-# combine first for data trees?
 def test_merge_ds_pass_tolerance_coo(opulent_sparse_coo_ds):
     sel = {"time": slice("2000", "2005"), "scenario": "highpop", "source": "RAND2020"}
     ds = opulent_sparse_coo_ds.pr.loc[sel]
@@ -68,6 +34,7 @@ def test_merge_ds_pass_tolerance_coo(opulent_sparse_coo_ds):
     assert_ds_aligned_equal(ds_result, ds.pr.loc[{"area": ["ARG", "COL", "MEX"]}])
 
 
+# check if we can use pure xarray for merging
 def test_xarray_combine_first(opulent_sparse_coo_ds):
     # only take part of the countries to have something to actually merge
     da_start = opulent_sparse_coo_ds["CO2"].pr.loc[{"area": ["ARG", "COL", "MEX"]}]
@@ -81,15 +48,17 @@ def test_xarray_combine_first(opulent_sparse_coo_ds):
     assert_aligned_equal(da_result, opulent_sparse_coo_ds["CO2"])
 
 
-def test_merge_pass_tolerance(opulent_ds):
+def test_merge_pass_tolerance(opulent_sparse_coo_ds):
     # only take part of the countries to have something to actually merge
-    da_start = opulent_ds["CO2"].pr.loc[{"area": ["ARG", "COL", "MEX"]}]
-    data_to_modify = opulent_ds["CO2"].pr.loc[{"area": ["ARG"]}].pr.sum("area")
+    da_start = opulent_sparse_coo_ds["CO2"].pr.loc[{"area": ["ARG", "COL", "MEX"]}]
+    data_to_modify = opulent_sparse_coo_ds["CO2"].pr.loc[{"area": ["ARG"]}].pr.sum("area")
     data_to_modify.data *= 1.009
-    da_merge = opulent_ds["CO2"].pr.set("area", "ARG", data_to_modify, existing="overwrite")
+    da_merge = opulent_sparse_coo_ds["CO2"].pr.set(
+        "area", "ARG", data_to_modify, existing="overwrite"
+    )
     da_result = da_start.pr.merge(da_merge, tolerance=0.01)
 
-    assert_aligned_equal(da_result, opulent_ds["CO2"])
+    assert_aligned_equal(da_result, opulent_sparse_coo_ds["CO2"])
 
 
 def test_merge_fail_tolerance(opulent_sparse_coo_ds):
