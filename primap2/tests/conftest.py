@@ -54,6 +54,18 @@ def opulent_processing_ds() -> xr.Dataset:
     return examples._cached_opulent_processing_ds.copy(deep=True)
 
 
+@pytest.fixture
+def opulent_sparse_coo_ds() -> xr.Dataset:
+    """Like the opulent dataset, but with sparse duck array."""
+    return examples._cached_opulent_sparse_coo_ds.copy(deep=True)
+
+
+@pytest.fixture
+def opulent_sparse_gcxs_ds() -> xr.Dataset:
+    """Like the opulent dataset, but with sparse duck array."""
+    return examples._cached_opulent_sparse_gcxs_ds.copy(deep=True)
+
+
 @pytest.fixture(params=["opulent", "opulent_str", "opulent_processing", "minimal", "empty"])
 def any_ds(request) -> xr.Dataset:
     """Test with all available valid example Datasets."""
@@ -67,3 +79,5 @@ def any_ds(request) -> xr.Dataset:
         return examples._cached_minimal_ds.copy(deep=True)
     elif request.param == "empty":
         return examples._cached_empty_ds.copy(deep=True)
+    elif request.param == "opulent_sparse_ds":
+        return examples._cached_sparse_coo_opulent_ds.copy(deep=True)
