@@ -1286,6 +1286,8 @@ def rename_columns(
 
 _special_codes = {
     "C": np.nan,
+    "CC": np.nan,
+    "CH4": np.nan,  # TODO: move to user passed codes in CRT reading
     "nan": np.nan,
     "NaN": np.nan,
     "-": 0,
@@ -1330,10 +1332,10 @@ def parse_code(code: str) -> float:
 
     parts = code.split(",")
     parts = [x.replace(".", "").strip().upper() for x in parts]
+    if "NE" in parts or "NA" in parts or "FX" in parts:
+        return np.nan
     if "IE" in parts or "NO" in parts:
         return 0
-    if "NE" in parts or "NA" in parts:
-        return np.nan
 
     # footnote markers
     re_foot = re.compile(r"[\-0-9/.,]+(\([0-9]+\))$")
