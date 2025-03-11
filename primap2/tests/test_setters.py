@@ -14,8 +14,8 @@ from .utils import allclose, assert_aligned_equal, assert_ds_aligned_equal
 
 
 @pytest.fixture
-def da(minimal_ds) -> xr.DataArray:
-    da = minimal_ds["CO2"]
+def da(minimal_sparse_coo_ds) -> xr.DataArray:
+    da = minimal_sparse_coo_ds["CO2"]
     # cast coord explicitly to object, because calling set() often casts to object
     # as a side effect of modifying the coords, and we are fine with that.
     da["area (ISO3)"] = da["area (ISO3)"].astype(object)
@@ -60,7 +60,9 @@ class TestDASetter:
             da.pr.set("area", "CUB", ts * co2, new="error", **existing)
 
     def test_new_works(self, da: xr.DataArray, ts, co2, existing):
-        actual = da.pr.set("area", ["CUB"], 2 * ts * co2, new="extend", **existing)
+        actual = da.pr.set(
+            "area", ["CUB"], 2 * ts * co2, new="extend", existing="fillna_empty"
+        )  # , **existing)
         expected = da.reindex({"area (ISO3)": [*da["area (ISO3)"].values, "CUB"]})
         expected.loc[{"area (ISO3)": "CUB"}] = ts[..., np.newaxis] * 2 * co2
         assert_aligned_equal(actual, expected)

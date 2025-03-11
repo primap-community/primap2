@@ -29,6 +29,12 @@ def minimal_ds() -> xr.Dataset:
 
 
 @pytest.fixture
+def minimal_sparse_coo_ds() -> xr.Dataset:
+    """A valid, minimal dataset."""
+    return examples._cached_minimal_sparse_coo_ds.copy(deep=True)
+
+
+@pytest.fixture
 def opulent_ds() -> xr.Dataset:
     """A valid dataset using lots of features."""
     return examples._cached_opulent_ds.copy(deep=True)

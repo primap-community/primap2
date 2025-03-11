@@ -2,6 +2,7 @@ import typing
 
 import numpy as np
 import pandas as pd
+import sparse
 import xarray as xr
 
 from . import _accessor_base
@@ -335,10 +336,16 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         elif existing == "overwrite":
             cond = xr.zeros_like(value).combine_first(xr.ones_like(expanded))
             expanded, value, cond = xr.align(expanded, value, cond, join="outer")
-            result = expanded.where(
-                cond=cond,
-                other=value.broadcast_like(expanded),
-            )
+            # result = expanded.where(
+            #     cond=cond,
+            #     other=value.broadcast_like(expanded),
+            # )
+            expanded_np = expanded.data
+            value_np = value.data
+            cond_np = cond.data
+            value_np = sparse.COO.from_numpy(value.data, fill_value=np.nan)
+            result_np = np.where(cond_np, expanded_np, value_np) * expanded_np.units
+            result = xr.DataArray(result_np, coords=expanded.coords, dims=expanded.dims)
         else:
             raise ValueError(
                 "If given, 'existing' must specify one of 'error', 'overwrite', "
