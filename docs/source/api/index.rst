@@ -96,6 +96,7 @@ Methods
     DataArray.pr.add_aggregates_coordinates
     DataArray.pr.any
     DataArray.pr.combine_first
+    DataArray.pr.convert
     DataArray.pr.convert_to_gwp
     DataArray.pr.convert_to_gwp_like
     DataArray.pr.convert_to_mass

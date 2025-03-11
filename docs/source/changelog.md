@@ -19,6 +19,15 @@ of rst and use slightly different categories.
 
 <!-- towncrier release notes start -->
 
+## primap2 0.12.2 (2025-02-07)
+
+### Bug Fixes
+
+- Fixed a bug where da.pr.set() would truncate new values in the dimension in some
+  scenarios. This bug was introduced in 0.11.2, if you use any version after that you
+  probably want to upgrade. ([#pr](https://github.com/primap-community/primap2/pull/pr))
+
+
 ## primap2 0.12.1 (2025-01-15)
 
 ### Bug Fixes
