@@ -315,7 +315,7 @@ def test_create_category_name():
     assert autocat == "A_(5-1)"
 
 
-def test_dataset_conversion(empty_ds):
+def test_datatree_conversion(empty_ds):
     # make categorisation A from yaml
     categorisation_a = cc.from_yaml(get_test_data_filepath("simple_categorisation_a.yaml"))
 
@@ -331,20 +331,34 @@ def test_dataset_conversion(empty_ds):
     # make conversion from csv
     conv = cc.Conversion.from_csv(get_test_data_filepath("simple_conversion.csv"), cats=cats)
 
-    # make a dummy data set based on A cats
-    ds_dict = {}
+    # make a dummy data set based on A cats for country MEX
+    ds_1_dict = {}
     for entity in ["CO2", "CH4"]:
-        da = empty_ds[entity]
+        da = empty_ds[entity].loc[{"area (ISO3)": "MEX"}]
         da = da.expand_dims({"category (A)": list(categorisation_a.keys())})
         arr = da.data.copy()
         arr[:] = 1 * primap2.ureg(f"Gg {entity} / year")
         da.data = arr
-        ds_dict[entity] = da
+        ds_1_dict[entity] = da
+    ds_1 = xr.Dataset(ds_1_dict)
 
-    ds = xr.Dataset(ds_dict)
+    # make another data set based on A cats for country BOL
+    ds_2_dict = {}
+    for entity in ["CO2", "CH4"]:
+        da = empty_ds[entity].pr.loc[{"area (ISO3)": "BOL"}]
+        da = da.expand_dims({"category (A)": list(categorisation_a.keys())})
+        arr = da.data.copy()
+        arr[:] = 2 * primap2.ureg(f"Gg {entity} / year")
+        da.data = arr
+        ds_2_dict[entity] = da
+    ds_2 = xr.Dataset(ds_2_dict)
+
+    # A data tree would hold several data sets for different countries
+    countries = xr.DataTree.from_dict({"MEX": ds_1, "BOL": ds_2})
+    dt = xr.DataTree(name="All", children=countries)
 
     # convert to categorisation B
-    result = ds.pr.convert(
+    result = dt.pr.convert(
         dim="category",
         conversion=conv,
     )

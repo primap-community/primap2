@@ -206,6 +206,18 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         return [], da
 
 
+class DataTreeConversionAccessor(_accessor_base.BaseDataTreeAccessor):
+    @alias_dims(["dim"])
+    def convert(
+        self,
+        dim: Hashable | str,
+        *,
+        conversion: climate_categories.Conversion,
+        auxiliary_dimensions: dict[str, str] | None = None,
+    ) -> xr.DataTree:
+        pass
+
+
 def extract_categorization_from_dim(dim: str) -> (str, str):
     """Extract the pure dimension and the categorization from a composite dim.
 
