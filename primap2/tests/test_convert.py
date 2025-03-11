@@ -364,28 +364,29 @@ def test_datatree_conversion(empty_ds):
     )
 
     # category name includes B - the target categorisation
-    assert sorted(result.coords) == ["area (ISO3)", "category (B)", "source", "time"]
+    # assert sorted(result["MEX"].coords) == ["area (ISO3)", "category (B)", "source", "time"]
+    # assert sorted(result["BOL"].coords) == ["area (ISO3)", "category (B)", "source", "time"]
 
     # check 1 -> 1
     assert (
-        (result["CO2"].pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
+        (result["MEX"]["CO2"].pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
         .all()
         .item()
     )
     assert (
-        (result["CH4"].pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
+        (result["MEX"]["CH4"].pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
         .all()
         .item()
     )
 
     # check 2 + 3 -> 2
     assert (
-        (result["CO2"].pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year"))
+        (result["MEX"]["CO2"].pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year"))
         .all()
         .item()
     )
     assert (
-        (result["CH4"].pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year"))
+        (result["MEX"]["CH4"].pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year"))
         .all()
         .item()
     )

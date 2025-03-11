@@ -207,7 +207,6 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
 
 
 class DataTreeConversionAccessor(_accessor_base.BaseDataTreeAccessor):
-    @alias_dims(["dim"])
     def convert(
         self,
         dim: Hashable | str,
@@ -215,7 +214,15 @@ class DataTreeConversionAccessor(_accessor_base.BaseDataTreeAccessor):
         conversion: climate_categories.Conversion,
         auxiliary_dimensions: dict[str, str] | None = None,
     ) -> xr.DataTree:
-        pass
+        """Convert the data along the given dimension into the new categorisation."""
+        # TODO: check type
+        dt: xr.DataTree = self._dt.copy()
+        for node in dt:
+            for var in dt[node]:
+                dt[node][var] = dt[node][var].pr.convert(
+                    dim=dim, conversion=conversion, auxiliary_dimensions=auxiliary_dimensions
+                )
+        return dt
 
 
 def extract_categorization_from_dim(dim: str) -> (str, str):
