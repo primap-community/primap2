@@ -1332,10 +1332,12 @@ def parse_code(code: str) -> float:
 
     parts = code.split(",")
     parts = [x.replace(".", "").strip().upper() for x in parts]
-    if "NE" in parts or "NA" in parts or "FX" in parts:
+    if "FX" in parts:
         return np.nan
     if "IE" in parts or "NO" in parts:
         return 0
+    if "NE" in parts or "NA" in parts or "FX" in parts:
+        return np.nan
 
     # footnote markers
     re_foot = re.compile(r"[\-0-9/.,]+(\([0-9]+\))$")
