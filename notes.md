@@ -146,9 +146,6 @@ Some more considerations for duck arrays:
 * Converting to sparse arrays only works for numpy arrays, not for xarray data sets -> we have to loop through all data sets and convert them to numpy arrays
 
 
-#### Conclusion
-
-
 <table>
   <tr>
    <td>pro
@@ -190,6 +187,39 @@ Some more considerations for duck arrays:
 * Xarray is better with unit support (we use pint arrays), the unit support in pandas is not ideal, but we can add extra columns at little costs
 * Using pandas would help us in some case. When merging datasets, pandas is quicker than other approaches, because we can simply stack tables. However, it is not equivalent to our primap2 merge function because data consistency is not checked. A function to combine interchange format datasets does not exist yet. When converting back to xarray, the data set would still be sparse and therefore difficult to handle.
 
+
+### Proposed solution
+
+#### Option 1: Data tree for pre-processing
+- Everything before the CSG is done with data tree
+- We save the data tree as netcfd
+- In the CSG we merge to a single data set. With only the primap-hist sectors, the sparsity is manageable
+
+<table>
+  <tr>
+   <td>pro
+   </td>
+   <td>con
+   </td>
+  </tr>
+  <tr>
+   <td>
+<ul>
+
+<li>No additional dependencies, it's all xarray</li>
+</ul>
+   </td>
+   <td>
+<ul>
+<li>Every function that deals with data sets needs to be adapted to data tree objects</li>
+<li>We add another data type to the primap2 ecosystem</li>
+<li>Looping through data sets may be necessary for some tasks</li>
+</ul>
+   </td>
+  </tr>
+</table>
+
+
 Other notes:
 
 - wie misst man memory gut? große Daten nehmen und schauen wie viel es im Betriebssystem in Anspruch nimmt,RES resident, wenn es primap-hist
@@ -227,3 +257,10 @@ CRT Datensatz was Johannes gesagt hat
 	- Ergebnis: wir können folgende use cases mit data tree lösen und andere mit sparse
 
 	- Der reine storage use case:, kann man einen DataTree machen? Mit data tree kann man auch nur die primap-hist sektoren wählen und das wäre dann nicht so sparse, wir können dieses Skript auch mal mit sparse array umschreiben
+
+#### To Dos:
+- pre prcoessing in data tree, zusammenführen vor CSG, der braucht nur primap-hist kategorien, dann geht es eh wieder bzgl memory
+- Vorschläge in Berlin diskutieren
+- oder nur pandas im preprocessing, dann ist es nicht mehr so sparse
+- wie aufwändig ist category conversion in pandas und data tree
+-
