@@ -313,3 +313,65 @@ def test_create_category_name():
 
     autocat = primap2._convert.create_category_name(conv.rules[2])
     assert autocat == "A_(5-1)"
+
+
+def test_dataset_conversion(empty_ds):
+    # make categorisation A from yaml
+    categorisation_a = cc.from_yaml(get_test_data_filepath("simple_categorisation_a.yaml"))
+
+    # make categorisation B from yaml
+    categorisation_b = cc.from_yaml(get_test_data_filepath("simple_categorisation_b.yaml"))
+
+    # categories not part of climate categories so we need to add them manually
+    cats = {
+        "A": categorisation_a,
+        "B": categorisation_b,
+    }
+
+    # make conversion from csv
+    conv = cc.Conversion.from_csv(get_test_data_filepath("simple_conversion.csv"), cats=cats)
+
+    # make a dummy data set based on A cats
+    ds_dict = {}
+    for entity in ["CO2", "CH4"]:
+        da = empty_ds[entity]
+        da = da.expand_dims({"category (A)": list(categorisation_a.keys())})
+        arr = da.data.copy()
+        arr[:] = 1 * primap2.ureg(f"Gg {entity} / year")
+        da.data = arr
+        ds_dict[entity] = da
+
+    ds = xr.Dataset(ds_dict)
+
+    # convert to categorisation B
+    result = ds.pr.convert(
+        dim="category",
+        conversion=conv,
+    )
+
+    # category name includes B - the target categorisation
+    assert sorted(result.coords) == ["area (ISO3)", "category (B)", "source", "time"]
+
+    # check 1 -> 1
+    assert (
+        (result["CO2"].pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
+        .all()
+        .item()
+    )
+    assert (
+        (result["CH4"].pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
+        .all()
+        .item()
+    )
+
+    # check 2 + 3 -> 2
+    assert (
+        (result["CO2"].pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year"))
+        .all()
+        .item()
+    )
+    assert (
+        (result["CH4"].pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year"))
+        .all()
+        .item()
+    )
