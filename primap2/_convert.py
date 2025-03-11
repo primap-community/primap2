@@ -215,13 +215,15 @@ class DataTreeConversionAccessor(_accessor_base.BaseDataTreeAccessor):
         auxiliary_dimensions: dict[str, str] | None = None,
     ) -> xr.DataTree:
         """Convert the data along the given dimension into the new categorisation."""
-        # TODO: check type
+        # TODO: check type, got TreeNode[TreeNode | Any]
         dt: xr.DataTree = self._dt.copy()
         for node in dt:
+            da_dict = {}
             for var in dt[node]:
-                dt[node][var] = dt[node][var].pr.convert(
+                da_dict[var] = dt[node][var].pr.convert(
                     dim=dim, conversion=conversion, auxiliary_dimensions=auxiliary_dimensions
                 )
+            dt[node] = xr.Dataset(da_dict)
         return dt
 
 

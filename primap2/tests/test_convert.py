@@ -348,7 +348,7 @@ def test_datatree_conversion(empty_ds):
         da = empty_ds[entity].pr.loc[{"area (ISO3)": "BOL"}]
         da = da.expand_dims({"category (A)": list(categorisation_a.keys())})
         arr = da.data.copy()
-        arr[:] = 2 * primap2.ureg(f"Gg {entity} / year")
+        arr[:] = 2 * primap2.ureg(f"Gg {entity} / year")  # note that values are different
         da.data = arr
         ds_2_dict[entity] = da
     ds_2 = xr.Dataset(ds_2_dict)
@@ -364,9 +364,10 @@ def test_datatree_conversion(empty_ds):
     )
 
     # category name includes B - the target categorisation
-    # assert sorted(result["MEX"].coords) == ["area (ISO3)", "category (B)", "source", "time"]
-    # assert sorted(result["BOL"].coords) == ["area (ISO3)", "category (B)", "source", "time"]
+    assert sorted(result["MEX"].coords) == ["area (ISO3)", "category (B)", "source", "time"]
+    assert sorted(result["BOL"].coords) == ["area (ISO3)", "category (B)", "source", "time"]
 
+    # Check results for MEX
     # check 1 -> 1
     assert (
         (result["MEX"]["CO2"].pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
@@ -374,11 +375,10 @@ def test_datatree_conversion(empty_ds):
         .item()
     )
     assert (
-        (result["MEX"]["CH4"].pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CO2 / year"))
+        (result["MEX"]["CH4"].pr.loc[{"category": "1"}] == 1.0 * primap2.ureg("Gg CH4 / year"))
         .all()
         .item()
     )
-
     # check 2 + 3 -> 2
     assert (
         (result["MEX"]["CO2"].pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year"))
@@ -386,7 +386,31 @@ def test_datatree_conversion(empty_ds):
         .item()
     )
     assert (
-        (result["MEX"]["CH4"].pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CO2 / year"))
+        (result["MEX"]["CH4"].pr.loc[{"category": "2"}] == 2.0 * primap2.ureg("Gg CH4 / year"))
+        .all()
+        .item()
+    )
+
+    # Check results for BOL
+    # check 1 -> 1
+    assert (
+        (result["BOL"]["CO2"].pr.loc[{"category": "1"}] == 2.0 * primap2.ureg("Gg CO2 / year"))
+        .all()
+        .item()
+    )
+    assert (
+        (result["BOL"]["CH4"].pr.loc[{"category": "1"}] == 2.0 * primap2.ureg("Gg CH4 / year"))
+        .all()
+        .item()
+    )
+    # check 2 + 3 -> 2
+    assert (
+        (result["BOL"]["CO2"].pr.loc[{"category": "2"}] == 4.0 * primap2.ureg("Gg CO2 / year"))
+        .all()
+        .item()
+    )
+    assert (
+        (result["BOL"]["CH4"].pr.loc[{"category": "2"}] == 4.0 * primap2.ureg("Gg CH4 / year"))
         .all()
         .item()
     )
