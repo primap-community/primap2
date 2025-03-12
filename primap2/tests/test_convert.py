@@ -359,7 +359,7 @@ def test_datatree_conversion(empty_ds):
 
     # convert to categorisation B
     result = dt.pr.convert(
-        dim="category",
+        dim="category (A)",
         conversion=conv,
     )
 
