@@ -15,3 +15,8 @@ class BaseDataArrayAccessor:
 class BaseDatasetAccessor:
     def __init__(self, ds: xr.Dataset):
         self._ds = ds
+
+
+class BaseDataTreeAccessor:
+    def __init__(self, dt: xr.DataTree):
+        self._dt = dt
