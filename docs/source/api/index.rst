@@ -57,12 +57,16 @@ source priorities and matching algorithms.
 .. autosummary::
     :toctree: generated_csg/
 
+    csg.FitParameters
     csg.GlobalLSStrategy
+    csg.LocalTrendsStrategy
     csg.PriorityDefinition
     csg.StrategyDefinition
     csg.StrategyUnableToProcess
     csg.SubstitutionStrategy
     csg.compose
+    csg.create_composite_source
+    csg.set_priority_coords
 
 
 .. currentmodule:: xarray
