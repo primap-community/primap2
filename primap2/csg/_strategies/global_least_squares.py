@@ -109,7 +109,9 @@ class GlobalLSStrategy:
                             reason="Negative data after harmonization excluded by configuration"
                         )
                     else:
-                        filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
+                        # filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
+                        with xr.set_options(arithmetic_join="exact"):
+                            filled_ts = ts.fillna(fill_ts_harmo)
                         descriptions = [
                             primap2.ProcessingStepDescription(
                                 time=time_filled,
@@ -127,7 +129,9 @@ class GlobalLSStrategy:
                     res = least_squares(self._factor_mult, a0, jac=self._jac, args=(e, e_ref))
 
                     fill_ts_h = fill_ts * res["x"][0]
-                    filled_ts = xr.core.ops.fillna(ts, fill_ts_h, join="exact")
+                    # filled_ts = xr.core.ops.fillna(ts, fill_ts_h, join="exact")
+                    with xr.set_options(arithmetic_join="exact"):
+                        filled_ts = ts.fillna(fill_ts_h)
 
                     descriptions = [
                         primap2.ProcessingStepDescription(

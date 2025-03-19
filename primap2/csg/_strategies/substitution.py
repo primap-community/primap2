@@ -45,7 +45,9 @@ class SubstitutionStrategy:
             descriptions contains information about which years were affected and
             filled how.
         """
-        filled_ts = xr.core.ops.fillna(ts, fill_ts, join="exact")
+        # filled_ts = xr.core.ops.fillna(ts, fill_ts, join="exact")
+        with xr.set_options(arithmetic_join="exact"):
+            filled_ts = ts.fillna(fill_ts)
         filled_mask = ts.isnull() & ~fill_ts.isnull()
         time_filled = "all" if filled_mask.all() else filled_mask["time"][filled_mask].to_numpy()
         description = primap2.ProcessingStepDescription(
