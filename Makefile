@@ -72,8 +72,8 @@ install: clean ## install the package to the active Python's site-packages
 virtual-environment: venv ## setup a virtual environment for development
 
 venv: requirements_dev.txt setup.cfg
-	[ -d venv ] || python3 .check_python_version.py
-	[ -d venv ] || python3 -m venv venv
+	[ -d venv ] || python3.12 .check_python_version.py
+	[ -d venv ] || python3.12 -m venv venv
 	venv/bin/python -m pip install --upgrade wheel uv
 	. venv/bin/activate ; venv/bin/uv pip install --upgrade -e .[dev]
 	touch venv
