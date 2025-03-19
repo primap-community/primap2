@@ -30,6 +30,7 @@ wheels/
 .installed.cfg
 *.egg
 html/
+sparse_data/
 .mutmut-cache
 
 # PyInstaller
