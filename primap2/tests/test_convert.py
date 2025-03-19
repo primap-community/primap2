@@ -6,6 +6,7 @@ import re
 
 import climate_categories as cc
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 
@@ -313,3 +314,91 @@ def test_create_category_name():
 
     autocat = primap2._convert.create_category_name(conv.rules[2])
     assert autocat == "A_(5-1)"
+
+
+def convert_dataframe(df, conv):
+    # Not implemented in this example:
+    # * deal with auxiliary dimensions
+    # * deal with factors
+
+    # make an empty dataframe for new data
+    df_converted = pd.DataFrame(columns=df.columns)
+
+    one_to_one_rules = []
+    one_to_n_rules = []
+    for rule in conv.rules:
+        # We would also need to check the factor is one
+        if rule.cardinality_a == "one" and rule.cardinality_b == "one":
+            one_to_one_rules.append(rule)
+        else:
+            one_to_n_rules.append(rule)
+
+    # fill one to one rules first (if there are any)
+    one_to_one_slices = []
+    for rule in one_to_one_rules:
+        category = next([cat.codes[0] for cat in rule.factors_categories_a.keys()])
+        df_filtered = df.loc[df["category (A)"] == category]
+        one_to_one_slices.append(df_filtered)
+
+    # we can simply add the rows for one to one conversion to the data frame
+    df_converted = pd.concat(one_to_one_slices, join="outer")
+
+    # now add all the one to n rules
+    one_to_n_slices = []
+    for rule in one_to_n_rules:
+        categories = [cat.codes[0] for cat in rule.factors_categories_a.keys()]
+        # filter all by the categories on the left side of the rule
+        df_filtered = df.loc[df["category (A)"].isin(categories)]
+        # group by all columns but the years and sum the values
+        df_filtered = (
+            df_filtered.groupby(["area (ISO3)", "source", "entity", "unit"]).sum().reset_index()
+        )
+        # assign new category value
+        df_filtered["category (A)"] = next(
+            [cat.codes[0] for cat in rule.factors_categories_b.keys()]
+        )
+        one_to_n_slices.append(df_filtered)
+
+    df_converted = pd.concat([df_converted, *one_to_n_slices], join="outer")
+
+    df_converted = df_converted.rename(columns={"category (A)": "category (B)"})
+
+    return df_converted
+
+
+def test_conversion_with_dataframes(empty_ds):
+    # make categorisation A from yaml
+    categorisation_a = cc.from_yaml(get_test_data_filepath("simple_categorisation_a.yaml"))
+
+    # make categorisation B from yaml
+    categorisation_b = cc.from_yaml(get_test_data_filepath("simple_categorisation_b.yaml"))
+
+    # categories not part of climate categories so we need to add them manually
+    cats = {
+        "A": categorisation_a,
+        "B": categorisation_b,
+    }
+
+    # make conversion from csv
+    conv = cc.Conversion.from_csv(get_test_data_filepath("simple_conversion.csv"), cats=cats)
+
+    # make a dummy dataset based on A cats
+    da = empty_ds["CO2"]
+    da = da.expand_dims({"category (A)": list(categorisation_a.keys())})
+    arr = da.data.copy()
+    arr[:] = 1 * primap2.ureg("Gg CO2 / year")
+    da.data = arr
+
+    ds = xr.Dataset({"CO2": da})
+
+    df = ds.pr.to_interchange_format()
+
+    result = convert_dataframe(df, conv)
+
+    years = list(np.datetime_as_string(empty_ds.time.to_numpy(), unit="Y"))
+
+    # check 1 -> 1
+    assert (result.loc[result["category (B)"] == "1", years].to_numpy() == 1).all()
+
+    # check 2 + 3 -> 2
+    assert (result.loc[result["category (B)"] == "2", years].to_numpy() == 2).all()
