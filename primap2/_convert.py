@@ -179,7 +179,9 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 continue
 
             # the left-hand side of the conversion formula summed up
-            lhs = (input_factors * self._da.loc[input_selection]).sum(dim=dim, min_count=1)
+            lhs = (input_factors * self._da.loc[input_selection]).sum(
+                dim=dim, min_count=1, skipna=True
+            )
             # the right-hand side of the conversion formula split up
             rhs = lhs / output_factors
 
@@ -190,7 +192,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 da = da.reindex({"category (IPCC2006)": new_categories}, fill_value=np.nan)
                 new_output_selection = output_selection.copy()
                 new_output_selection[new_dim] = new_category
-                da.loc[new_output_selection] = rhs.sum(dim=new_dim, min_count=1)
+                da.loc[new_output_selection] = rhs.sum(dim=new_dim, min_count=1, skipna=True)
                 return output_selection[new_dim], da
             else:
                 da.loc[output_selection] = rhs
