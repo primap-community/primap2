@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Tests for _merge.py"""
 
+import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
@@ -234,3 +235,14 @@ def test_log_formatting_single_date(minimal_ds, caplog):
         "for time=2000, area (ISO3)=ARG, source=RAND2020:" in caplog.text
     )
     assert "(CO2)\n0.09" in caplog.text
+
+
+def test_merge_str_encoding(minimal_ds):
+    other_ds = minimal_ds.copy(deep=True)
+    new_areas = np.array(["COL", "G20", "G7", "UMBRELLA"], dtype="<U8")
+    other_ds = other_ds.assign_coords(
+        {"area (ISO3)": xr.DataArray(new_areas, coords={"area (ISO3)": new_areas})}
+    )
+    minimal_ds["area (ISO3)"].encoding = {"dtype": np.dtype("<U3")}
+    merged_ds = minimal_ds.pr.merge(other_ds)
+    assert "dtype" not in merged_ds["area (ISO3)"].encoding

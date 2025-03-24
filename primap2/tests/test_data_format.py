@@ -28,6 +28,20 @@ class TestToNetCDF:
         assert attrs_before == ds.attrs
         assert attrs_before == nds.attrs
 
+    def test_io_roundtrip_after_merge(self, minimal_ds, tmp_path):
+        other_ds = minimal_ds.copy(deep=True)
+        new_areas = np.array(["COL", "G20", "G7", "UMBRELLA"], dtype="<U8")
+        other_ds = other_ds.assign_coords(
+            {"area (ISO3)": xr.DataArray(new_areas, coords={"area (ISO3)": new_areas})}
+        )
+        assert "UMBRELLA" in other_ds["area (ISO3)"]
+        minimal_ds["area (ISO3)"].encoding = {"dtype": np.dtype("<U3")}
+        merged_ds = minimal_ds.pr.merge(other_ds)
+        assert "UMBRELLA" in merged_ds["area (ISO3)"]
+        merged_ds.pr.to_netcdf(tmp_path / "temp.nc")
+        nds = primap2.open_dataset(tmp_path / "temp.nc")
+        assert "UMBRELLA" in nds["area (ISO3)"]
+
 
 class TestEnsureValid:
     def test_something_else_entirely(self, caplog):
