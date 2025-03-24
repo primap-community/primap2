@@ -240,6 +240,12 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             ones ``{"compression": "gzip", "compression_opts": 9}``.
             This allows using any compression plugin installed in the HDF5
             library, e.g. LZF.
+
+            Note that we drop encoding information that's already present beforehand
+            and only apply the encoding that is explicitly passed here. For example,
+            if your coordinate has a specified data type in the encoding attribute, it
+            will be dropped and the encoding specified will be applied. If you don't specify
+            encoding, xarray's default encoding will be used.
         """
         ds = self._ds.pint.dequantify()
         if "publication_date" in ds.attrs:
@@ -251,6 +257,8 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
                 and ds[entity].data.dtype == object
             ):
                 ds[entity].data = np.vectorize(lambda x: x.serialize())(ds[entity].data)
+
+        ds = ds.drop_encoding()
         return ds.to_netcdf(
             path=path,
             mode=mode,
