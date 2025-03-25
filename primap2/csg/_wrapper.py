@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import tqdm
 import xarray as xr
@@ -33,7 +34,7 @@ def create_composite_source(
     strategy_definition: StrategyDefinition,
     result_prio_coords: dict[str, dict[str, str]],
     limit_coords: dict[str, str | list[str]] | None = None,
-    time_range: tuple[str, str] | None = None,
+    time_range: tuple[str | np.datetime64, str | np.datetime64] | pd.DatetimeIndex | None = None,
     metadata: dict[str, str] | None = None,
     progress_bar: type[tqdm.tqdm] | None = tqdm.tqdm,
 ) -> xr.Dataset:
@@ -108,9 +109,14 @@ def create_composite_source(
 
     # set time range according to input
     if time_range is not None:
-        input_ds = input_ds.pr.loc[
-            {"time": pd.date_range(time_range[0], time_range[1], freq="YS", inclusive="both")}
-        ]
+        if isinstance(time_range, pd.DatetimeIndex):
+            time_index = time_range
+        elif isinstance(time_range, tuple):
+            time_index = pd.date_range(time_range[0], time_range[1], freq="YS", inclusive="both")
+            time_index = time_index.intersection(input_ds.coords["time"])
+        else:
+            raise ValueError("time_range must be a datetime index or a tuple")
+        input_ds = input_ds.pr.loc[{"time": time_index}]
 
     # run compose
     result_ds = compose(
