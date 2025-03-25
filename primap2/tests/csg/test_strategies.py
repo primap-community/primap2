@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 import pytest
 import xarray as xr
@@ -113,3 +115,36 @@ def test_globalLS_strategy():
 
     # general
     assert "source" not in result_ts.coords.keys()
+
+
+def test_raises_error_substitution_strategy_missing_years():
+    ts = get_single_ts(data=1.0)
+    # set the year 1850 to NaN
+    ts[0] = np.nan
+    fill_ts = get_single_ts(data=2.0)
+    # remove one year so the shapes are not aligned anymore
+    fill_ts = fill_ts.sel(time=slice("1870-01-01", "2020-01-01"))
+
+    expected_msg = (
+        "cannot align objects with join='exact' where index/labels/sizes are "
+        "not equal along these coordinates (dimensions): 'time' ('time',)"
+    )
+
+    with pytest.raises(ValueError, match=re.escape(expected_msg)):
+        result_ts, result_descriptions = primap2.csg.SubstitutionStrategy().fill(
+            ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+        )
+
+
+def test_raises_error_substitution_strategy_wrong_dimension():
+    ts = get_single_ts(data=1.0)
+    ts[0] = np.nan
+    fill_ts = get_single_ts(data=2.0)
+
+    # rename coordinate so the dimensions are not aligned anymore
+    fill_ts = fill_ts.rename({"time": "TIME"})
+
+    with pytest.raises(IndexError):
+        result_ts, result_descriptions = primap2.csg.SubstitutionStrategy().fill(
+            ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+        )
