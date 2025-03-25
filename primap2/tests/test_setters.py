@@ -382,9 +382,23 @@ class TestDASetter:
     def test_new_wrong(self, da: xr.DataArray, ts, existing):
         with pytest.raises(
             ValueError,
-            match="If given, 'new' must specify one of 'error' or 'extend', not" " 'asdf'.",
+            match="If given, 'new' must specify one of 'error' or 'extend', not 'asdf'.",
         ):
             da.pr.set("area", ["CUB"], ts, new="asdf", **existing)
+
+    def test_no_truncate(self, da: xr.DataArray):
+        """Test that longer values on coords are not truncated.
+
+        This can happen specifically if the existing datatype of the coord is a
+        fixed-length string and the new value is longer than this fixed length.
+
+        https://github.com/primap-community/primap2/issues/310
+        """
+        da["area (ISO3)"] = da["area (ISO3)"].astype("<U3")
+        assert set(da["area (ISO3)"].values) == {"COL", "ARG", "MEX", "BOL"}
+        result = da.pr.set("area", "WORLD", da.pr.loc[{"area": "COL"}])
+        assert "WORLD" in result["area (ISO3)"]
+        assert "WOR" not in result["area (ISO3)"]
 
 
 class TestDsSetter:

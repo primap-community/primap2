@@ -19,6 +19,65 @@ of rst and use slightly different categories.
 
 <!-- towncrier release notes start -->
 
+## primap2 0.12.2 (2025-02-07)
+
+### Bug Fixes
+
+- Fixed a bug where da.pr.set() would truncate new values in the dimension in some
+  scenarios. This bug was introduced in 0.11.2, if you use any version after that you
+  probably want to upgrade. ([#pr](https://github.com/primap-community/primap2/pull/pr))
+
+
+## primap2 0.12.1 (2025-01-15)
+
+### Bug Fixes
+
+- Change URLs and names from pik-primap to primap-community. ([#306](https://github.com/primap-community/primap2/pull/306))
+
+### Trivial/Internal Changes
+
+- [#304](https://github.com/primap-community/primap2/pull/304), [#305](https://github.com/primap-community/primap2/pull/305)
+
+
+## primap2 0.12.0 (2025-01-14)
+
+### Breaking Changes
+
+- Harmonize parameter names for different functions. The aggregation functions now use 'sel' instead of 'filter'. ([#272](https://github.com/pik-primap/primap2/pull/272))
+- We removed the `sec_cats` entry from the metadata in a dataset's `attrs` in the native format
+  as well as the interchange format. It did not add much value, but maintaining it was work, so on balance
+  we decided to remove it.
+  When reading datasets from disk (from the interchange format or netcdf files), `sec_cats` will be ignored
+  so that datasets written with earlier versions of primap2 can still be read and produce valid in-memory
+  datasets. ([#277](https://github.com/pik-primap/primap2/pull/277))
+
+### Improvements
+
+- * Added sorting of metadata keys and data values to the interchange format on-disk files.
+    This means interchange format files written with this version or higher of primap2 should
+    only change if the metadata or data values change, not due to random re-ordering of
+    keys. However, interchange format files written with older versions are of course
+    unsorted, so most likely they will all change if just read and re-written without
+    changes using this version or primap2. ([#268](https://github.com/pik-primap/primap2/pull/268))
+- Added tests on log content and format for the `pr.merge()` function ([#276](https://github.com/pik-primap/primap2/pull/276))
+- In the conversion function, disable splitting into multiple categories, instead create an aggregated category. ([#291](https://github.com/pik-primap/primap2/pull/291))
+- We now skip debug messages in the default logger. ([#279](https://github.com/pik-primap/primap2/pull/279))
+
+### Bug Fixes
+
+- The function `nir_convert_df_to_long` now retains NaN values instead of removing them. This is more consistent with the rest of our data reading where we keep NaN values to check that everything has been processed. ([#273](https://github.com/pik-primap/primap2/pull/273))
+- Fix problems with downscaling where data is zero for all basket contents. ([#278](https://github.com/pik-primap/primap2/pull/278))
+
+### Improved Documentation
+
+- Reintegrated and fixed the docs for {py:meth}`xarray.Dataset.pr.add_aggregates_coordinates`, {py:meth}`xarray.DataArray.pr.add_aggregates_coordinates`, and {py:meth}`xarray.Dataset.pr.add_aggregates_variables`. ([#271](https://github.com/pik-primap/primap2/pull/271))
+- Added a warning that `netcdf` files are not reproducible. ([#274](https://github.com/pik-primap/primap2/pull/274))
+
+### Trivial/Internal Changes
+
+- [#270](https://github.com/pik-primap/primap2/pull/270), [#275](https://github.com/pik-primap/primap2/pull/275), [#290](https://github.com/pik-primap/primap2/pull/290)
+
+
 ## primap2 0.11.2 (2024-10-07)
 
 ### Improvements

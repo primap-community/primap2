@@ -16,12 +16,12 @@ from ._strategies.substitution import SubstitutionStrategy
 from ._wrapper import create_composite_source, set_priority_coords
 
 __all__ = [
-    "compose",
+    "GlobalLSStrategy",
     "PriorityDefinition",
     "StrategyDefinition",
-    "SubstitutionStrategy",
     "StrategyUnableToProcess",
-    "GlobalLSStrategy",
+    "SubstitutionStrategy",
+    "compose",
     "create_composite_source",
     "set_priority_coords",
 ]

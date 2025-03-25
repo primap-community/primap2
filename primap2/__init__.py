@@ -2,7 +2,7 @@
 
 __author__ = """Mika Pflüger and Johannes Gütschow"""
 __email__ = "mika.pflueger@climate-resource.com"
-__version__ = "0.11.2"
+__version__ = "0.12.2"
 
 import sys
 
@@ -26,11 +26,11 @@ logger.add(
 )
 
 __all__ = [
-    "accessors",
-    "open_dataset",
-    "ureg",
-    "pm2io",
+    "Not",
     "ProcessingStepDescription",
     "TimeseriesProcessingDescription",
-    "Not",
+    "accessors",
+    "open_dataset",
+    "pm2io",
+    "ureg",
 ]
