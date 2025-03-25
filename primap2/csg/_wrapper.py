@@ -81,8 +81,11 @@ def create_composite_source(
         Optional parameter to remove data for coordinate vales not needed for the
         composition from the input data. The time coordinate is treated separately.
     time_range
-        Optional parameter to limit the time coverage of the input data. Currently
-        only (year_from, year_to) is supported
+        Optional parameter to limit the time coverage of the input data.
+        Can either be pandas `DatetimeIndex` or a tuple of `str` or `np.datetime64` in
+        the form (year_from, year_to) where both boundaries are included in the range.
+        Only the overlap of the supplied index or index created from the tuple with
+        the time coordinate of the input dataset will be used.
     metadata
         Set metadata values such as title and references
     progress_bar
