@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 """Tests for csg/_wrapper.py"""
 
+from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
+
 import primap2.csg
-from primap2.csg import create_composite_source, set_priority_coords
+from primap2.csg import create_composite_source, create_time_index, set_priority_coords
 from primap2.tests.utils import assert_ds_aligned_equal
 
 DATA_PATH = Path(__file__).parent.parent / "data"
@@ -17,6 +20,31 @@ def test_set_priority_coords(minimal_ds):
 
     assert "scenario (PRIMAP)" in prio_coord_ds.coords
     assert prio_coord_ds.coords["scenario (PRIMAP)"].values == ["HISTORY"]
+
+
+def test_create_time_index():
+    start = "1990"
+    end = "2000"
+    start_dt = datetime.strptime(start, "%Y")
+    end_dt = datetime.strptime(end, "%Y")
+    start_ts = pd.Timestamp(start)
+    end_ts = pd.Timestamp(end)
+    expected = pd.date_range(start=start, end=end, freq="YS")
+
+    # string tuple
+    pd.testing.assert_index_equal(create_time_index((start, end)), expected)
+
+    # datatime tuple
+    pd.testing.assert_index_equal(create_time_index((start_dt, end_dt)), expected)
+
+    # timestamp tuple
+    pd.testing.assert_index_equal(create_time_index((start_ts, end_ts)), expected)
+
+    # mixed tuple
+    pd.testing.assert_index_equal(create_time_index((start, end_dt)), expected)
+
+    # DatetimeIndex returned unchanged
+    pd.testing.assert_index_equal(create_time_index(expected), expected)
 
 
 def test_create_composite_source():

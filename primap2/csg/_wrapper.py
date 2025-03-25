@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import tqdm
@@ -112,13 +114,8 @@ def create_composite_source(
 
     # set time range according to input
     if time_range is not None:
-        if isinstance(time_range, pd.DatetimeIndex):
-            time_index = time_range
-        elif isinstance(time_range, tuple):
-            time_index = pd.date_range(time_range[0], time_range[1], freq="YS", inclusive="both")
-            time_index = time_index.intersection(input_ds.coords["time"])
-        else:
-            raise ValueError("time_range must be a datetime index or a tuple")
+        time_index = create_time_index(time_range)
+        time_index = time_index.intersection(input_ds.coords["time"])
         input_ds = input_ds.pr.loc[{"time": time_index}]
 
     # run compose
@@ -139,3 +136,36 @@ def create_composite_source(
     result_ds.pr.ensure_valid()
 
     return result_ds
+
+
+def create_time_index(
+    time_range: tuple[
+        str | np.datetime64 | datetime | pd.Timestamp, str | np.datetime64 | datetime | pd.Timestamp
+    ]
+    | pd.DatetimeIndex
+    | None = None,
+) -> pd.DatetimeIndex:
+    """
+    Unify different input options for a time range to a `pd.DatetimeIndex`.
+
+    Parameters
+    ----------
+    time_range :
+        Can either be pandas `DatetimeIndex` or a tuple of `str` or datetime-like in
+        the form (year_from, year_to) where both boundaries are included in the range.
+        Only the overlap of the supplied index or index created from the tuple with
+        the time coordinate of the input dataset will be used.
+
+    Returns
+    -------
+        Pandas DatetimeIndex according to the time range input
+    """
+
+    if isinstance(time_range, pd.DatetimeIndex):
+        time_index = time_range
+    elif isinstance(time_range, tuple):
+        time_index = pd.date_range(time_range[0], time_range[1], freq="YS", inclusive="both")
+    else:
+        raise ValueError("time_range must be a datetime index or a tuple")
+
+    return time_index
