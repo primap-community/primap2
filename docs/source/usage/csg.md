@@ -193,8 +193,7 @@ metadata = {"references": "test-data", "contact": "test@example.xx"}
 
 * **limit_coords** Optional parameter to remove data for coordinate vales not needed for the
 composition from the input data. The time coordinate is treated separately.
-* **time_range** Optional parameter to limit the time coverage of the input data. Currently
-only (year_from, year_to) is supported
+* **time_range** Optional parameter to limit the time coverage of the input data. The input can either be pandas `DatetimeIndex` or a tuple of `str` or datetime-like in the form (year_from, year_to) where both boundaries are included in the range. Only the overlap of the supplied index or index created from the tuple with the time coordinate of the input dataset will be used.
 
 
 ```{code-cell} ipython3

@@ -1,3 +1,6 @@
+from datetime import datetime
+
+import numpy as np
 import pandas as pd
 import tqdm
 import xarray as xr
@@ -38,7 +41,7 @@ def create_composite_source(
     strategy_definition: StrategyDefinition,
     result_prio_coords: dict[str, dict[str, str]],
     limit_coords: dict[str, str | list[str]] | None = None,
-    time_range: tuple[str, str] | None = None,
+    time_range: tuple[str | np.datetime64, str | np.datetime64] | pd.DatetimeIndex | None = None,
     metadata: dict[str, str] | None = None,
     progress_bar: type[tqdm.tqdm] | None = tqdm.tqdm,
 ) -> xr.Dataset:
@@ -84,8 +87,11 @@ def create_composite_source(
         Optional parameter to remove data for coordinate vales not needed for the
         composition from the input data. The time coordinate is treated separately.
     time_range
-        Optional parameter to limit the time coverage of the input data. Currently
-        only (year_from, year_to) is supported
+        Optional parameter to limit the time coverage of the input data.
+        Can either be pandas `DatetimeIndex` or a tuple of `str` or `np.datetime64` in
+        the form (year_from, year_to) where both boundaries are included in the range.
+        Only the overlap of the supplied index or index created from the tuple with
+        the time coordinate of the input dataset will be used.
     metadata
         Set metadata values such as title and references
     progress_bar
@@ -110,9 +116,9 @@ def create_composite_source(
 
     # set time range according to input
     if time_range is not None:
-        input_ds = input_ds.pr.loc[
-            {"time": pd.date_range(time_range[0], time_range[1], freq="YS", inclusive="both")}
-        ]
+        time_index = create_time_index(time_range)
+        time_index = time_index.intersection(input_ds.coords["time"])
+        input_ds = input_ds.pr.loc[{"time": time_index}]
 
     # run compose
     result_ds = compose(
@@ -132,3 +138,36 @@ def create_composite_source(
     result_ds.pr.ensure_valid()
 
     return result_ds
+
+
+def create_time_index(
+    time_range: tuple[
+        str | np.datetime64 | datetime | pd.Timestamp, str | np.datetime64 | datetime | pd.Timestamp
+    ]
+    | pd.DatetimeIndex
+    | None = None,
+) -> pd.DatetimeIndex:
+    """
+    Unify different input options for a time range to a `pd.DatetimeIndex`.
+
+    Parameters
+    ----------
+    time_range :
+        Can either be pandas `DatetimeIndex` or a tuple of `str` or datetime-like in
+        the form (year_from, year_to) where both boundaries are included in the range.
+        Only the overlap of the supplied index or index created from the tuple with
+        the time coordinate of the input dataset will be used.
+
+    Returns
+    -------
+        Pandas DatetimeIndex according to the time range input
+    """
+
+    if isinstance(time_range, pd.DatetimeIndex):
+        time_index = time_range
+    elif isinstance(time_range, tuple):
+        time_index = pd.date_range(time_range[0], time_range[1], freq="YS", inclusive="both")
+    else:
+        raise ValueError("time_range must be a datetime index or a tuple")
+
+    return time_index

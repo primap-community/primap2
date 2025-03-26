@@ -17,7 +17,7 @@ from ._strategies.global_least_squares import GlobalLSStrategy
 # from ._strategies.local_least_squares import LocalLSStrategy
 from ._strategies.local_trends import LocalTrendsStrategy
 from ._strategies.substitution import SubstitutionStrategy
-from ._wrapper import create_composite_source, set_priority_coords
+from ._wrapper import create_composite_source, create_time_index, set_priority_coords
 
 __all__ = [
     "FitParameters",
@@ -29,5 +29,6 @@ __all__ = [
     "SubstitutionStrategy",
     "compose",
     "create_composite_source",
+    "create_time_index",
     "set_priority_coords",
 ]
