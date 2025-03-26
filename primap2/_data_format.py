@@ -250,8 +250,9 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         ds = self._ds.pint.dequantify()
 
         if encoding is None:
-            # use the zlib compression algorithm and compression level,
-            # which can range from 0 (no compression) to 9 (maximum compression)
+            # use the zlib compression algorithm and compression level 9,
+            # 0 (no compression) - larger files, shorter processing
+            # 9 (maximum compression) - smaller files, longer processing
             compression = dict(zlib=True, complevel=9)
             encoding = {var: compression for var in ds.data_vars}
 
