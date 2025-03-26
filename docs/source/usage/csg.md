@@ -170,7 +170,7 @@ lower-priority timeseries was used to fill the holes.
 The {py:func}`primap2.csg.compose` function creates a composite time series according to
 the given priorities and strategies, but it does not take care of pre- and postprocessing
 of the data. It will carry along unnecessary data and the resulting dataset will miss the
-priority coordinates. The {py:func}`primap2.csg.create_composite_source` function takes acre
+priority coordinates. The {py:func}`primap2.csg.create_composite_source` function takes care
 of these steps and prepares the input data and completes the output data to a primap2 dataset
 with all desired dimensions and metadata.
 
@@ -178,7 +178,7 @@ The function takes the same inputs as {py:func}`primap2.csg.compose` with additi
 define pre- and postprocessing:
 
 * **result_prio_coords** Defines the vales for the priority coordinates in the output dataset. As the
-priority coordinates differ for all input sources there is no canonical vale
+priority coordinates differ for all input sources there is no canonical value
 for the result and it has to be explicitly defined
 * **metadata** Set metadata values such as title and references
 
@@ -191,9 +191,9 @@ metadata = {"references": "test-data", "contact": "test@example.xx"}
 
 ```
 
-* **limit_coords** Optional parameter to remove data for coordinate vales not needed for the
+* **limit_coords** Optional parameter to remove data for coordinate values not needed for the
 composition from the input data. The time coordinate is treated separately.
-* **time_range** Optional parameter to limit the time coverage of the input data. The input can either be pandas `DatetimeIndex` or a tuple of `str` or datetime-like in the form (year_from, year_to) where both boundaries are included in the range. Only the overlap of the supplied index or index created from the tuple with the time coordinate of the input dataset will be used.
+* **time_range** Optional parameter to limit the time coverage of the input data. The input can either be a pandas `DatetimeIndex` or a tuple of `str` or datetime-like in the form (year_from, year_to) where both boundaries are included in the range. Only the overlap of the supplied index or index created from the tuple with the time coordinate of the input dataset will be used.
 
 
 ```{code-cell} ipython3
