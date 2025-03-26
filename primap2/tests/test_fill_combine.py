@@ -131,10 +131,10 @@ def test_fillna_ds_xr_fail(minimal_ds):
     assert "country_name" not in list(result_ds.coords)
 
 
-def test_combine_first_ds_xr_fail(minimal_ds):
+def test_combine_first_ds_xr_fail(opulent_sparse_coo_ds):
     # add additional coordinate
     country_names = ["Colombia", "Argentina", "Mexico", "Bolivia"]
-    full_ds = minimal_ds.assign_coords(country_name=("area (ISO3)", country_names))
+    full_ds = opulent_sparse_coo_ds.assign_coords(country_name=("area (ISO3)", country_names))
 
     sel = {"area (ISO3)": ["COL", "MEX"]}
     sel_ds = full_ds.pr.loc[sel]

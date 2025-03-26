@@ -217,7 +217,7 @@ class DataArrayAliasLocIndexer:
     def __getitem__(self, item: typing.Mapping[typing.Hashable, typing.Any]) -> xr.DataArray:
         translated = translate(item, self._da.pr.dim_alias_translations)
         resolved = resolve_not(input_selector=translated, xarray_obj=self._da)
-        return self._da.loc[resolved]
+        return self._da.loFc[resolved]
 
     def __setitem__(self, key: typing.Mapping[typing.Hashable, typing.Any], value):
         translated = translate(key, self._da.pr.dim_alias_translations)
