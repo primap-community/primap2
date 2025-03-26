@@ -1051,7 +1051,7 @@ class TestLong:
 
         with pytest.raises(
             ValueError,
-            match="No data column in the CSV specified in coords_cols, so nothing to" " read.",
+            match="No data column in the CSV specified in coords_cols, so nothing to read.",
         ):
             pm2io.read_long_csv_file_if(
                 file_input_long,
@@ -1127,7 +1127,7 @@ class TestAdditionalCoordinateMetadata:
 
         with pytest.raises(
             ValueError,
-            match="Additional coordinate category_name refers to unknown " "coordinate category",
+            match="Additional coordinate category_name refers to unknown coordinate category",
         ):
             additional_coordinate_metadata(
                 coords_cols=coords_cols,

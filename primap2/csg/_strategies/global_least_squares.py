@@ -105,10 +105,12 @@ class GlobalLSStrategy:
                     if any(fill_ts_harmo < 0):
                         # use filling without shift
                         raise StrategyUnableToProcess(
-                            reason="Negative data after harmonization excluded " "by configuration"
+                            reason="Negative data after harmonization excluded by configuration"
                         )
                     else:
-                        filled_ts = xr.core.ops.fillna(ts, fill_ts_harmo, join="exact")
+                        ts_aligned, fill_ts_aligned = xr.align(ts, fill_ts_harmo, join="exact")
+                        filled_ts = ts_aligned.fillna(fill_ts_aligned)
+
                         descriptions = [
                             primap2.ProcessingStepDescription(
                                 time=time_filled,
@@ -126,7 +128,9 @@ class GlobalLSStrategy:
                     res = least_squares(self._factor_mult, a0, jac=self._jac, args=(e, e_ref))
 
                     fill_ts_h = fill_ts * res["x"][0]
-                    filled_ts = xr.core.ops.fillna(ts, fill_ts_h, join="exact")
+
+                    ts_aligned, fill_ts_aligned = xr.align(ts, fill_ts_h, join="exact")
+                    filled_ts = ts_aligned.fillna(fill_ts_aligned)
 
                     descriptions = [
                         primap2.ProcessingStepDescription(

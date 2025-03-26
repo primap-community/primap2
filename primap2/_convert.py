@@ -179,7 +179,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 continue
 
             # the left-hand side of the conversion formula summed up
-            lhs = (input_factors * self._da.loc[input_selection]).sum(dim=dim)
+            lhs = (input_factors * self._da.loc[input_selection]).sum(dim=dim, min_count=1)
             # the right-hand side of the conversion formula split up
             rhs = lhs / output_factors
 
@@ -190,7 +190,7 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
                 da = da.reindex({"category (IPCC2006)": new_categories}, fill_value=np.nan)
                 new_output_selection = output_selection.copy()
                 new_output_selection[new_dim] = new_category
-                da.loc[new_output_selection] = rhs.sum(dim=new_dim)
+                da.loc[new_output_selection] = rhs.sum(dim=new_dim, min_count=1)
                 return output_selection[new_dim], da
             else:
                 da.loc[output_selection] = rhs
@@ -310,8 +310,7 @@ def initialize_empty_converted_da(
             # The additional coordinate has the old_dim as one dimension, but we
             # won't be able to convert it
             logger.info(
-                f"Additional coordinate {coord} can not be converted automatically"
-                f" and is skipped."
+                f"Additional coordinate {coord} can not be converted automatically and is skipped."
             )
             continue
         else:

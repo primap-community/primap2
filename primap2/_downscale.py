@@ -87,8 +87,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         if skipna_evaluation_dims is not None:
             if skipna:
                 raise ValueError(
-                    "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
-                    " both."
+                    "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both."
                 )
             else:
                 skipna = None
@@ -107,7 +106,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
                 raise ValueError(
                     f"Sum of the basket_contents {basket_contents!r} deviates"
                     f" {devmax * 100} % from the basket"
-                    f" {basket!r}, which is more than the allowed {tolerance*100}%. "
+                    f" {basket!r}, which is more than the allowed {tolerance * 100}%. "
                     "To continue regardless, set check_consistency=False."
                 )
 
@@ -334,8 +333,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         if skipna_evaluation_dims is not None:
             if skipna:
                 raise ValueError(
-                    "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not"
-                    " both."
+                    "Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both."
                 )
             else:
                 skipna = None

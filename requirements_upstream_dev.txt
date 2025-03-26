@@ -1,0 +1,8 @@
+# install development versions of central upstream libraries
+pint@git+https://github.com/hgrecco/pint
+pint_xarray@git+https://github.com/xarray-contrib/pint-xarray
+xarray@git+https://github.com/pydata/xarray
+pandas@git+https://github.com/pandas-dev/pandas
+openscm_units@git+https://github.com/openscm/openscm-units
+# numpy dev currently not supported
+#numpy@git+https://github.com/numpy/numpy

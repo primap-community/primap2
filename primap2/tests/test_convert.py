@@ -250,6 +250,41 @@ def test_custom_conversion_and_two_custom_categorisations(empty_ds):
     assert result.shape == (5, 21, 4, 1)
 
 
+def test_nan_conversion(empty_ds):
+    # make categorisation A from yaml
+    categorisation_a = cc.from_yaml(get_test_data_filepath("simple_categorisation_a.yaml"))
+
+    # make categorisation B from yaml
+    categorisation_b = cc.from_yaml(get_test_data_filepath("simple_categorisation_b.yaml"))
+
+    # categories not part of climate categories so we need to add them manually
+    cats = {
+        "A": categorisation_a,
+        "B": categorisation_b,
+    }
+
+    # make conversion from csv
+    conv = cc.Conversion.from_csv(get_test_data_filepath("simple_conversion.csv"), cats=cats)
+
+    # make a dummy dataset based on A cats
+    da = empty_ds["CO2"]
+    da = da.expand_dims({"category (A)": list(categorisation_a.keys())})
+    arr = da.data.copy()
+    arr[:] = 1 * primap2.ureg("Gg CO2 / year")
+    da.data = arr
+    # set some values to nan
+    da.loc[{"category (A)": "1", "area (ISO3)": "MEX"}] = np.nan * primap2.ureg("Gg CO2 / year")
+
+    # convert to categorisation B
+    result = da.pr.convert(
+        dim="category",
+        conversion=conv,
+    )
+
+    # check that the nan value is still nan
+    assert all(np.isnan(result.loc[{"category (B)": "1", "area (ISO3)": "MEX"}].to_numpy()))
+
+
 def test_create_category_name():
     # make categorisation A from yaml
     categorisation_a = cc.from_yaml(get_test_data_filepath("simple_categorisation_a.yaml"))

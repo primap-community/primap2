@@ -18,7 +18,7 @@ in a nutshell.
    `VCS -> Check out from version control`. Alternatively, if you are not using an
    IDE, clone using the git command line:
    ```shell
-    $ git clone git@github.com:pik-primap/primap2.git
+    $ git clone git@github.com:primap-community/primap2.git
    ```
 
 2. **Create the virtual environment.**
@@ -98,11 +98,11 @@ That's it! For more details for each particular topic, keep reading.
 We use the [GitHub flow](https://guides.github.com/introduction/flow/) to integrate
 changes in PRIMAP2. The basic idea is that "packages" of changes are developed in
 branches, and integrated into the main PRIMAP2 branch using pull requests. Since only
-members of the pik-primap team on GitHub can create branches directly in the PRIMAP2
-repository, developers who are not members of the pik-primap team should create a fork
+members of the primap-community team on GitHub can create branches directly in the PRIMAP2
+repository, developers who are not members of the primap-community team should create a fork
 and then create branches in their own fork.
 
-Members of the pik-primap team can also push directly to the main PRIMAP2 branch, which
+Members of the primap-community team can also push directly to the main PRIMAP2 branch, which
 should only be used for small self-contained changes.
 If in doubt, use a branch and send a pull request.
 
@@ -348,7 +348,7 @@ pull request.
 The exact steps are defined in `.github/workflows/ci.yml`, which basically does
 what `make lint` and `make test` do, but for all supported python versions.
 You can check out the
-[results at github](https://github.com/pik-primap/primap2/actions).
+[results at github](https://github.com/primap-community/primap2/actions).
 
 Additionally, we also test if everything works using the development versions of central
 upstream libraries. This helps us identify problems with updates in libraries we depend
@@ -384,13 +384,13 @@ Developing PRIMAP2 with Pycharm works best if you:
 
    * [Makefile support](https://plugins.jetbrains.com/plugin/9333-makefile-language)
       to run Makefile targets directly from PyCharm
-   * [CSV Plugin] (https://plugins.jetbrains.com/plugin/10037-csv-plugin)
+   * [CSV Plugin](https://plugins.jetbrains.com/plugin/10037-csv-plugin)
       to view and edit CSV files
-   * [Matlab support] (https://plugins.jetbrains.com/plugin/10941-matlab-support)
+   * [Matlab support](https://plugins.jetbrains.com/plugin/10941-matlab-support)
       to quickly view .m files without starting matlab
-   * [Toml] (https://plugins.jetbrains.com/plugin/8195-toml)
+   * [Toml](https://plugins.jetbrains.com/plugin/8195-toml)
       for editing pyproject.toml
-   * [.ignore] (https://plugins.jetbrains.com/plugin/7495--ignore)
+   * [.ignore](https://plugins.jetbrains.com/plugin/7495--ignore)
       for better support of `.gitignore` files
 
 ## Deploying
