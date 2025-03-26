@@ -411,7 +411,10 @@ def fill_gap(
         fill_gap_ts = fill_ts.pr.loc[gap.get_date_slice()] * factor_ts
 
     # fill nans (in the gap only)
-    return xr.core.ops.fillna(ts, fill_gap_ts, join="left")
+    ts_aligned, fill_ts_aligned = xr.align(ts, fill_gap_ts, join="left")
+    filled_ts = ts_aligned.fillna(fill_ts_aligned)
+
+    return filled_ts
 
 
 def get_shifted_time_value(
