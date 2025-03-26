@@ -245,9 +245,16 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             and only apply the encoding that is explicitly passed here. For example,
             if your coordinate has a specified data type in the encoding attribute, it
             will be dropped and the encoding specified will be applied. If you don't specify
-            encoding, xarray's default encoding will be used.
+            encoding, a default will be defined.
         """
         ds = self._ds.pint.dequantify()
+
+        if encoding is None:
+            # use the zlib compression algorithm and compression level,
+            # which can range from 0 (no compression) to 9 (maximum compression)
+            compression = dict(zlib=True, complevel=9)
+            encoding = {var: compression for var in ds.data_vars}
+
         if "publication_date" in ds.attrs:
             ds.attrs["publication_date"] = ds.attrs["publication_date"].isoformat()
         for entity in ds:
