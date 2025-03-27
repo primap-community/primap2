@@ -63,6 +63,7 @@ source priorities and matching algorithms.
     csg.StrategyUnableToProcess
     csg.SubstitutionStrategy
     csg.compose
+    csg.create_composite_source
 
 
 .. currentmodule:: xarray

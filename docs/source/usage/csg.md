@@ -30,6 +30,8 @@ When no missing information is left in the result timeseries, the algorithm term
 It also terminates if all source timeseries are used, even if missing information is
 left.
 
+## The `compose` function
+
 The core function to use is the {py:func}`primap2.csg.compose` function.
 It needs the following input:
 
@@ -111,8 +113,7 @@ priority_definition = primap2.csg.PriorityDefinition(
 ```
 
 ```{code-cell} ipython3
-# Currently, there is only one strategy implemented, so we use
-# the empty selector {}, which matches everything, to configure
+# We use the empty selector {}, which matches everything, to configure
 # to use the substitution strategy for all timeseries.
 strategy_definition = primap2.csg.StrategyDefinition(
     strategies=[({}, primap2.csg.SubstitutionStrategy())]
@@ -125,6 +126,7 @@ result_ds = primap2.csg.compose(
     priority_definition=priority_definition,
     strategy_definition=strategy_definition,
     progress_bar=None,  # The animated progress bar is useless in the generated documentation
+
 )
 
 result_ds
@@ -162,3 +164,61 @@ category 1 "lowpop" was preferred.
 For category 0, the initial timeseries did not contain NaNs, so no filling was needed.
 For category 1, there was information missing in the initial timeseries, so the
 lower-priority timeseries was used to fill the holes.
+
+## The `create_composite_source` wrapper function
+
+The {py:func}`primap2.csg.compose` function creates a composite time series according to
+the given priorities and strategies, but it does not take care of pre- and postprocessing
+of the data. It will carry along unnecessary data and the resulting dataset will miss the
+priority coordinates. The {py:func}`primap2.csg.create_composite_source` function takes care
+of these steps and prepares the input data and completes the output data to a primap2 dataset
+with all desired dimensions and metadata.
+
+The function takes the same inputs as {py:func}`primap2.csg.compose` with additional input to
+define pre- and postprocessing:
+
+* **result_prio_coords** Defines the vales for the priority coordinates in the output dataset. As the
+priority coordinates differ for all input sources there is no canonical value
+for the result and it has to be explicitly defined
+* **metadata** Set metadata values such as title and references
+
+```{code-cell} ipython3
+result_prio_coords = result_prio_coords = {
+        "source": {"value": "PRIMAP-test"},
+        "scenario": {"value": "HISTORY", "terminology": "PRIMAP"},
+    }
+metadata = {"references": "test-data", "contact": "test@example.xx"}
+
+```
+
+* **limit_coords** Optional parameter to remove data for coordinate values not needed for the
+composition from the input data. The time coordinate is treated separately.
+* **time_range** Optional parameter to limit the time coverage of the input data. The input can either be a pandas `DatetimeIndex` or a tuple of `str` or datetime-like in the form (year_from, year_to) where both boundaries are included in the range. Only the overlap of the supplied index or index created from the tuple with the time coordinate of the input dataset will be used.
+
+
+```{code-cell} ipython3
+limit_coords = {'area (ISO3)': ['COL', 'ARG', 'MEX']}
+time_range = ("2000", "2010")
+
+```
+
+```{code-cell} ipython3
+complete_result_ds = primap2.csg.create_composite_source(
+    input_ds,
+    priority_definition=priority_definition,
+    strategy_definition=strategy_definition,
+    result_prio_coords=result_prio_coords,
+    limit_coords=limit_coords,
+    time_range=time_range,
+    metadata=metadata,
+    progress_bar=None,
+)
+
+complete_result_ds
+```
+
+
+## Filling strategies
+Currently the following filling strategies are implemented
+* Global least square matching: {py:func}`primap2.csg.GlobalLSStrategy`
+* Straight substitution: {py:func}`primap2.csg.SubstitutionStrategy`
