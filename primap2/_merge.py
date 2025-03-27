@@ -215,6 +215,11 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
 
         ds_start = self._ds
 
+        # Remove the encoding from the dataset
+        # Only the encoding of ds_start is considered in the merge,
+        # so we don't have to remove it from ds_merge
+        ds_start = ds_start.drop_encoding()
+
         with contextlib.suppress(xr.MergeError, ValueError):
             # if there are no conflicts just merge using xr.merge
             return xr.merge(

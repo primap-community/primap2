@@ -66,8 +66,6 @@ source priorities and matching algorithms.
     csg.SubstitutionStrategy
     csg.compose
     csg.create_composite_source
-    csg.create_time_index
-    csg.set_priority_coords
 
 
 .. currentmodule:: xarray

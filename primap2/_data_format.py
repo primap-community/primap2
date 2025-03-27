@@ -240,8 +240,22 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             ones ``{"compression": "gzip", "compression_opts": 9}``.
             This allows using any compression plugin installed in the HDF5
             library, e.g. LZF.
+
+            Note that we drop encoding information that's already present beforehand
+            and only apply the encoding that is explicitly passed here. For example,
+            if your coordinate has a specified data type in the encoding attribute, it
+            will be dropped and the encoding specified will be applied. If you don't specify
+            encoding, a default will be defined.
         """
         ds = self._ds.pint.dequantify()
+
+        if encoding is None:
+            # use the zlib compression algorithm and compression level 9,
+            # 0 (no compression) - larger files, shorter processing
+            # 9 (maximum compression) - smaller files, longer processing
+            compression = dict(zlib=True, complevel=9)
+            encoding = {var: compression for var in ds.data_vars}
+
         if "publication_date" in ds.attrs:
             ds.attrs["publication_date"] = ds.attrs["publication_date"].isoformat()
         for entity in ds:
@@ -251,6 +265,8 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
                 and ds[entity].data.dtype == object
             ):
                 ds[entity].data = np.vectorize(lambda x: x.serialize())(ds[entity].data)
+
+        ds = ds.drop_encoding()
         return ds.to_netcdf(
             path=path,
             mode=mode,

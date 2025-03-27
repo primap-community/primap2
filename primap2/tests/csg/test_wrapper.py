@@ -7,7 +7,8 @@ from pathlib import Path
 import pandas as pd
 
 import primap2.csg
-from primap2.csg import create_composite_source, create_time_index, set_priority_coords
+from primap2.csg import create_composite_source
+from primap2.csg._wrapper import create_time_index, set_priority_coords
 from primap2.tests.utils import assert_ds_aligned_equal
 
 DATA_PATH = Path(__file__).parent.parent / "data"
