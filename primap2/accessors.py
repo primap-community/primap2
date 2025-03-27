@@ -3,7 +3,7 @@
 import xarray as xr
 
 from ._aggregate import DataArrayAggregationAccessor, DatasetAggregationAccessor
-from ._convert import DataArrayConversionAccessor
+from ._convert import DataArrayConversionAccessor, DataTreeConversionAccessor
 from ._data_format import DatasetDataFormatAccessor
 from ._downscale import DataArrayDownscalingAccessor, DatasetDownscalingAccessor
 from ._fill_combine import DataArrayFillAccessor, DatasetFillAccessor
@@ -49,4 +49,9 @@ class PRIMAP2DataArrayAccessor(
     """Collection of methods useful for climate policy analysis."""
 
 
-__all__ = ["PRIMAP2DataArrayAccessor", "PRIMAP2DatasetAccessor"]
+@xr.register_datatree_accessor("pr")
+class PRIMAP2DataTreeAccessor(DataTreeConversionAccessor):
+    """Collection of methods useful for climate policy analysis."""
+
+
+__all__ = ["PRIMAP2DataArrayAccessor", "PRIMAP2DataTreeAccessor", "PRIMAP2DatasetAccessor"]

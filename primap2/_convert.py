@@ -208,6 +208,33 @@ class DataArrayConversionAccessor(_accessor_base.BaseDataArrayAccessor):
         return [], da
 
 
+class DataTreeConversionAccessor(_accessor_base.BaseDataTreeAccessor):
+    def convert(
+        self,
+        dim: Hashable | str,
+        *,
+        conversion: climate_categories.Conversion,
+        auxiliary_dimensions: dict[str, str] | None = None,
+    ) -> xr.DataTree:
+        """Convert the data along the given dimension into the new categorisation."""
+        # TODO: check type, got TreeNode[TreeNode | Any]
+        dt: xr.DataTree = self._dt.copy()
+
+        dt = dt.map_over_datasets(
+            lambda ds: xr.Dataset(
+                # convert every array in the dataset
+                {
+                    var: ds[var].pr.convert(
+                        dim=dim, conversion=conversion, auxiliary_dimensions=auxiliary_dimensions
+                    )
+                    for var in ds
+                }
+            )
+        )
+
+        return dt
+
+
 def extract_categorization_from_dim(dim: str) -> (str, str):
     """Extract the pure dimension and the categorization from a composite dim.
 
