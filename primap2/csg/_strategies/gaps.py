@@ -399,6 +399,27 @@ def fill_gap(
     gap: Gap,
     factor: np.array,
 ) -> xr.DataArray:
+    """Fill a gap in a timeseries using data from another timeseries and factors.
+    
+    Parameters
+    ----------
+    ts: xr.DataArray
+        Timeseries with a gap to be filled.
+    fill_ts: xr.DataArray
+        Timeseries from which to take the data to fill in the gap in ts.
+    gap: Gap
+        The gap that should be filled.
+    factor: np.array
+        Numpy array containing two floats, the scaling factor to use at the left side of the gap
+        and the scaling factor to use at the right side of the gap. The data from fill_ts will be
+        multiplied with the factor before filling the gap in ts. If the factors differ, a linear
+        interpolation of the scaling factor between both values will be performed.
+    
+    Returns
+    -----------
+        result
+            DataArray with the same size and shape as ts, but with the given gap filled from fill_ts.
+    """
     if factor[0] == factor[1]:
         fill_gap_ts = fill_ts.pr.loc[gap.get_date_slice()] * factor[0]
     else:
