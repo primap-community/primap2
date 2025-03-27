@@ -139,7 +139,7 @@ def test_fit_parameters():
     # check error message
     with pytest.raises(
         ValueError,
-        match=re.escape("min_trend_points (4) must not " "be smaller than fit_degree (5)."),
+        match=re.escape("min_trend_points (4) must not be smaller than fit_degree (5)."),
     ):
         FitParameters(
             fit_degree=5,

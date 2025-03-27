@@ -1,6 +1,6 @@
 import numpy as np
 import xarray as xr
-from attrs import frozen
+from attrs import field, frozen
 
 import primap2
 from primap2.csg._strategies.gaps import FitParameters, calculate_scaling_factor, fill_gap, get_gaps
@@ -101,15 +101,23 @@ class LocalTrendsStrategy:
     #  for all gaps
     # fallback_option
 
-    fit_params: FitParameters = FitParameters(
-        trend_length=10,
-        min_trend_points=5,
-        trend_length_unit="YS",
-        fit_degree=1,  # linear trend by default
-        fallback_degree=0,  # take average as fallback
-    )
-    allow_negative: bool = False  # not implemented yet
+    fit_params: FitParameters = field()
+    allow_negative: bool = field()  # not implemented yet
     type = "localTrends"
+
+    @fit_params.default
+    def _set_def_fit_params(self):
+        return FitParameters(
+            trend_length=10,
+            min_trend_points=5,
+            trend_length_unit="YS",
+            fit_degree=1,  # linear trend by default
+            fallback_degree=0,  # take average as fallback
+        )
+
+    @allow_negative.default
+    def _set_allow_negative(self):
+        return False
 
     def fill(
         self,
