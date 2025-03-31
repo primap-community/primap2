@@ -41,7 +41,7 @@ class Gap:
 class FitParameters:
     """
     Class to represent parameters for a polynomial fit.
-    
+
     While `min_data_points` refers
     to the actual number of data points `trend_length` does not. `trend_length` and
     `trend_length_unit` together define a time span which is independent of the actual
