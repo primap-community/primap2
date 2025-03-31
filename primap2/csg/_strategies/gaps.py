@@ -418,7 +418,8 @@ def fill_gap(
     Returns
     -----------
         result
-            DataArray with the same size and shape as ts, but with the given gap filled from fill_ts.
+            DataArray with the same size and shape as ts, but with the given gap filled
+            from fill_ts.
     """
     if factor[0] == factor[1]:
         fill_gap_ts = fill_ts.pr.loc[gap.get_date_slice()] * factor[0]

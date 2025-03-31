@@ -7,9 +7,6 @@ from primap2.csg._strategies.gaps import FitParameters, calculate_scaling_factor
 
 from .exceptions import StrategyUnableToProcess
 
-# TODO: deal with negative values? also trigger fallback? then we need to incorporate
-#  allow negative into FitParameters
-
 
 @frozen
 class LocalTrendsStrategy:
@@ -43,8 +40,10 @@ class LocalTrendsStrategy:
     points necessary for the trend calculation can be set. If less points are available a
     :py:class:`StrategyUnableToProcess` error will be raised. This enables the user to
     define a fallback strategy, e.g. single point matching.
-    TODO: for the case of gaps this leads to the situation that we can't use trends on
-    one side of the gap and single year matching as fallback on the other
+
+    For the case of gaps this leads to the situation that we can't use trends on
+    one side of the gap and single year matching as fallback on the other. Left and right
+    scaling factors are always calculated using the same method.
 
     By setting `trend_length` to 1 single year matching is used.
 
@@ -85,24 +84,20 @@ class LocalTrendsStrategy:
 
     Attributes
     ----------
-    trend_length: int, default 1
-        Define the number of data point used to calculate trend values for the matching
-        point
-    min_trend_points: int, default 1
-        Minimal number of data points needed for trend calculation. Can't be larger than
-        trend_length obviously
-    allow_negative: bool, default False
+    fit_params
+        Instance of the FitParameters class defining the parameters for the fits on the
+        boundaries of the time-series. The default values are
+            trend_length=10,  # ten years if default unit for trend length is used)
+            min_trend_points=5,   # minimal data points necessary for trend calculation
+            trend_length_unit="YS",  # year start datapoint
+            fit_degree=1,  # linear trend by default
+            fallback_degree=0,  # constant
+    allow_negative
         Allow the filling time series to contain negative data initially.
     """
 
-    # TODO: add fallback options so we can calculate a trend for one to also if the
-    #  other doesn't have sufficient information. similarly if we have several gaps to fill
-    #  we can use trends where possible, but not for all gaps if data is not sufficient
-    #  for all gaps
-    # fallback_option
-
     fit_params: FitParameters = field()
-    allow_negative: bool = field()  # not implemented yet
+    allow_negative: bool = field()
     type = "localTrends"
 
     @fit_params.default
