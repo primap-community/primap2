@@ -26,10 +26,10 @@ class Gap:
         right end of the gap
     """
 
-    type: str = None
+    type: str
 
-    left: np.datetime64 = None  # left end of the gap
-    right: np.datetime64 = None  # right end of the gap
+    left: np.datetime64  # left end of the gap
+    right: np.datetime64  # right end of the gap
 
     def get_date_slice(self) -> dict[str, slice]:
         """Return a xr.loc type filter for 'time' with a slice from left to right
@@ -40,7 +40,9 @@ class Gap:
 @frozen
 class FitParameters:
     """
-    Class to represent parameters for a polynomial fit. While `min_data_points` refers
+    Class to represent parameters for a polynomial fit.
+    
+    While `min_data_points` refers
     to the actual number of data points `trend_length` does not. `trend_length` and
     `trend_length_unit` together define a time span which is independent of the actual
     data points and their spacing.
@@ -52,7 +54,7 @@ class FitParameters:
         currently not relevant
 
     Attributes
-    __________
+    ----------
     fit_degree :
         degree of the polynomial to fit to calculate the trend value. 0 for mean value
         and 1 for linear trend make most sense. The higher the order, the higher the
@@ -360,9 +362,7 @@ def calculate_scaling_factor(
     -------
         tuple with left and right scaling factors. For a start and end boundary one of
         the elements is None
-
     """
-
     trend_ts = calculate_boundary_trend_with_fallback(
         ts,
         gap=gap,

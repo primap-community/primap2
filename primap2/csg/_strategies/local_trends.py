@@ -153,7 +153,6 @@ class LocalTrendsStrategy:
         """
         filled_mask = ts.isnull() & ~fill_ts.isnull()
         time_fillable = filled_mask["time"][filled_mask].to_numpy()
-        # overlap = ts.notnull() & fill_ts.notnull() # commented for linting to pass
 
         if time_fillable.any():
             any_filled = False
