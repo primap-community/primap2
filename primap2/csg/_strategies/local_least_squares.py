@@ -192,6 +192,7 @@ class LocalLSStrategy:
             freq=match_params.fit_length_unit,
         )
         trend_index = trend_index.intersection(ts.coords["time"])
+        trend_index = trend_index[~ts.pr.loc[{"time": trend_index}].isnull()]
         return trend_index
 
     def fill(
@@ -234,22 +235,9 @@ class LocalLSStrategy:
         if time_fillable.any():
             # any_filled = False
             time_filled = np.array([], dtype=np.datetime64)
-            description = (
-                f"filled with local least squares matched data from {fill_ts_repr}. "
-                f"The following gaps have been filled:"
-            )
             gaps = get_gaps(ts)
-            filled_ts = ts.copy()
 
-            # TODO: we can't treat the gaps independently because we want to avoid
-            #  using different scaling factors. We thus have to check if we have multiple
-            #  gaps and take a aggregate time frame to use for matching.
-
-            # loop over gaps and get their matching regions. combine them and fill gaps
-            # weights on the boundaries as defined. in between use 1? Or alternatively
-            # just use the union of the matching points and weights (removing points that
-            # occur more than once). This can exclude data between gaps if it's far
-            # enough from the gaps. Does this make sense?
+            # TODO: add area between matching regions to matching region?
 
             # boundary period finding code from trend fitting
             index = None
@@ -264,8 +252,7 @@ class LocalLSStrategy:
                 # check if we have information for the specific gap
                 filled_mask_gap = filled_mask.pr.loc[gap.get_date_slice()]
                 time_filled_gap = filled_mask_gap["time"][filled_mask_gap].to_numpy()
-                # TODO: we currently don't save the reason why a gap is not filled
-                #  Could be no data to fill or no overlap in the matching periods
+
                 if time_filled_gap.any():
                     if gap.type == "gap":
                         # left boundary
@@ -297,11 +284,12 @@ class LocalLSStrategy:
                         if index is None:
                             index = new_index
                         else:
-                            index = index.merge(new_index)
+                            index = index.union(new_index)
                         gaps_to_fill.append(gap)
-                        gap_description += f" filled for times {
-                            np.datetime_as_string(time_filled_gap, unit='h')
-                        }; "
+                        gap_description += (
+                            f"filled for times {np.datetime_as_string(time_filled_gap, unit='h')}; "
+                        )
+                        time_filled = np.concatenate((time_filled, time_filled_gap))
                     else:
                         gaps_not_filled.append(gap)
                         gap_description += (
@@ -358,7 +346,11 @@ class LocalLSStrategy:
                         ts=filled_ts, fill_ts=fill_ts_harmo, gap=gap, factor=(1, 1)
                     )
 
-                description = "".join(gap_messages) + fill_description
+                description = (
+                    "The following gaps have been filled:"
+                    + "".join(gap_messages)
+                    + fill_description
+                )
 
                 descriptions = [
                     primap2.ProcessingStepDescription(
