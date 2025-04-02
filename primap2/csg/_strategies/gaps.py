@@ -111,6 +111,53 @@ class FitParameters:
         )
 
 
+@frozen
+class MatchParameters:
+    """
+    Class to represent parameters for a least squares matching.
+
+    TODO: adapt docstring when code finalized
+    While `min_data_points` refers
+    to the actual number of data points `trend_length` does not. `trend_length` and
+    `trend_length_unit` together define a time span which is independent of the actual
+    data points and their spacing.
+
+    Note:
+        Very unevenly distributed data points can lead to fit problems,
+        e.g. if we use a 10 year period and have 5 data point all in one year. But as the
+        normal use case are evenly distributed data points, sometimes with gaps it's
+        currently not relevant
+
+    Attributes
+    ----------
+    fit_length :
+        length of the trend in time steps (usually years)
+    fit_length_unit :
+        Unit for the length of the trend. String passed to the `freq` argument of
+        `pd.date_range`. Default is 'YS' (yearly at start of year)
+    weighting :
+        Which weighting to use for the data points. 'constant' uses constant weights for
+        all points while 'linear' uses weights that decline linearly from 1 at the
+        boundary to 0 at the last point of the fit interval.
+    """
+
+    fit_length: int = 20
+    fit_length_unit: str = "YS"
+    weighting: str = "constant"  # other options: linear
+    # min_trend_points: int = 5
+
+    def log_string(self) -> str:
+        """Create a string with the classes parameters."""
+        log_str = (
+            f"fit_length: {self.fit_length}, "
+            f"fit_length_unit: {self.fit_length_unit}, "
+            f"weighting: {self.weighting}.\n"
+        )
+        return log_str
+
+    # def calculate_weights
+
+
 def get_gaps(ts: xr.DataArray) -> list[Gap]:
     """
     Find nans on the boundaries of the timeseries and gaps in the time-series
@@ -334,7 +381,7 @@ def calculate_boundary_trend_inner(
         return np.nan
 
 
-def calculate_scaling_factor(
+def calculate_scaling_factor_trend(
     ts: xr.DataArray,
     fill_ts: xr.DataArray,
     gap: Gap,

@@ -11,7 +11,7 @@ from primap2.csg._strategies.gaps import (
     calculate_boundary_trend,
     calculate_boundary_trend_inner,
     calculate_boundary_trend_with_fallback,
-    calculate_scaling_factor,
+    calculate_scaling_factor_trend,
     fill_gap,
     get_gaps,
     get_shifted_time_value,
@@ -419,7 +419,7 @@ def test_calculate_boundary_trend_with_fallback(test_ts, fit_params_linear):
 def test_calculate_scaling_factor(test_ts, fill_ts, fit_params_linear, caplog):
     gaps = get_gaps(test_ts)
 
-    factor = calculate_scaling_factor(
+    factor = calculate_scaling_factor_trend(
         ts=test_ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gaps[2]
     )
     assert np.allclose([0.33333, 1], factor)
@@ -436,7 +436,7 @@ def test_calculate_scaling_factor(test_ts, fill_ts, fit_params_linear, caplog):
     fill_ts.pr.loc[{"time": pd.date_range("1956-01-01", "1966-01-01", freq="YS")}] = (
         fill_ts.pr.loc[{"time": pd.date_range("1956-01-01", "1966-01-01", freq="YS")}] * 0
     )
-    factor = calculate_scaling_factor(
+    factor = calculate_scaling_factor_trend(
         ts=test_ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gaps[0]
     )
     assert all(np.isinf(factor))
@@ -445,7 +445,7 @@ def test_calculate_scaling_factor(test_ts, fill_ts, fit_params_linear, caplog):
     test_ts.pr.loc[{"time": pd.date_range("1956-01-01", "1966-01-01", freq="YS")}] = (
         test_ts.pr.loc[{"time": pd.date_range("1956-01-01", "1966-01-01", freq="YS")}] * 0
     )
-    factor = calculate_scaling_factor(
+    factor = calculate_scaling_factor_trend(
         ts=test_ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gaps[0]
     )
     assert np.allclose(factor, [0, 0])
@@ -456,13 +456,13 @@ def test_fill_gap(test_ts, fill_ts, expected_ts, fit_params_linear):
 
     # to test
     # fill gap at end or beginning
-    factor = calculate_scaling_factor(
+    factor = calculate_scaling_factor_trend(
         ts=test_ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gaps[0]
     )
     filled_ts = fill_gap(ts=test_ts, fill_ts=fill_ts, gap=gaps[0], factor=factor)
 
     # fill gap in the middle
-    factor = calculate_scaling_factor(
+    factor = calculate_scaling_factor_trend(
         ts=test_ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gaps[2]
     )
     filled_ts = fill_gap(ts=filled_ts, fill_ts=fill_ts, gap=gaps[2], factor=factor)

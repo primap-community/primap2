@@ -3,7 +3,12 @@ import xarray as xr
 from attrs import field, frozen
 
 import primap2
-from primap2.csg._strategies.gaps import FitParameters, calculate_scaling_factor, fill_gap, get_gaps
+from primap2.csg._strategies.gaps import (
+    FitParameters,
+    calculate_scaling_factor_trend,
+    fill_gap,
+    get_gaps,
+)
 
 from .exceptions import StrategyUnableToProcess
 
@@ -41,10 +46,6 @@ class LocalTrendsStrategy:
     :py:class:`StrategyUnableToProcess` error will be raised. This enables the user to
     define a fallback strategy, e.g. single point matching.
 
-    For the case of gaps this leads to the situation that we can't use trends on
-    one side of the gap and single year matching as fallback on the other. Left and right
-    scaling factors are always calculated using the same method.
-
     By setting `trend_length` to 1 single year matching is used.
 
     For gaps the left (:math:`t_{bl}`) and right (:math:`t_{br}`) end have to be considered.
@@ -76,6 +77,9 @@ class LocalTrendsStrategy:
 
     If ``allow_negative = False`` and the harmonized time-series :math:`\\textrm{fill_ts}_h(t)`
     contains negative data a :py:class:`StrategyUnableToProcess` error will be raised.
+
+    We can't use trends on one side of the gap and single year matching as fallback on
+    the other. Left and right scaling factors are always calculated using the same method.
 
     Filling multiple gaps and boundaries with this function is scientifically questionable
     as they will all use different scaling factors and thus don't use a consistent model to
@@ -169,7 +173,7 @@ class LocalTrendsStrategy:
 
                 if time_filled_gap.any():
                     # get factor
-                    factor = calculate_scaling_factor(
+                    factor = calculate_scaling_factor_trend(
                         ts=ts,
                         fill_ts=fill_ts,
                         gap=gap,
@@ -184,7 +188,7 @@ class LocalTrendsStrategy:
                     # to deal with different return values here
 
                     if any(factor < 0) and not self.allow_negative:
-                        factor = calculate_scaling_factor(
+                        factor = calculate_scaling_factor_trend(
                             ts=ts,
                             fill_ts=fill_ts,
                             gap=gap,

@@ -15,6 +15,7 @@ from primap2.tests.csg.utils import get_single_ts
     [
         primap2.csg.SubstitutionStrategy(),
         primap2.csg.GlobalLSStrategy(),
+        primap2.csg.LocalLSStrategy(),
         primap2.csg.LocalTrendsStrategy(),
     ],
     ids=lambda x: x.type,
