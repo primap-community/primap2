@@ -92,9 +92,8 @@ class GlobalLSStrategy:
         time_filled = filled_mask["time"][filled_mask].to_numpy()
 
         if time_filled.any():
-            # check if we have overlap. if not use substitution strategy
-            # this might not be necessary because we initialize the LS algorithm with 1,
-            # but better make it explicit
+            # check if we have overlap. If not raise error so users can define a fallback
+            # strategy
             overlap = ts.notnull() & fill_ts.notnull()
             if overlap.any():
                 if self.allow_shift:

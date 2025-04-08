@@ -23,6 +23,10 @@ def set_priority_coords(
         Values to be set for priority coordinates. The format is
         {"name": {"value": value, "terminology": terminology}}, where the
         terminology is optional.
+        Examples:
+        {"source": {"value": "PRIMAP-hist"}} sets the "source" to "PRIMAP-hist".
+        {"area": {"value": "WORLD", "terminology": "ISO3_primap"}} adds the dimension
+        "area (ISO3_primap)" to "WORLD".
     """
     for dim in dims:
         if "terminology" in dims[dim]:
@@ -30,6 +34,7 @@ def set_priority_coords(
         else:
             terminology = None
         ds = ds.pr.expand_dims(dim=dim, coord_value=dims[dim]["value"], terminology=terminology)
+
     return ds
 
 
