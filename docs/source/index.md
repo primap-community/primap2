@@ -19,4 +19,5 @@ development
 credits
 changelog
 api/index
+data_structures
 ```
