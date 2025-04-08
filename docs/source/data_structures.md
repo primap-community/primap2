@@ -32,9 +32,9 @@ We aim to retain as much of the current codebase as possible, though some parts 
 
 * We considered several approaches and chose [xarray datatree](https://docs.xarray.dev/en/stable/generated/xarray.DataTree.html).
 * Excluded approaches:
-  * [**Sparse array on top of numpy**](https://sparse.pydata.org/en/stable/): Memory-efficient but slow, with limited function optimization for our needs. Merge operations do not scale well.
+  * [**Sparse array on top of numpy**](https://sparse.pydata.org/en/stable/): Memory-efficient but slow, with limited function optimization for our needs. Merge operations do not scale well. Some experiments with sparse arrays [here](https://github.com/primap-community/primap2/pull/315/files).
   * **SQL database**: Could serve as a backend for data storage but is too slow for calculations and not suitable for our workflows.
-  * **Pandas**: Useful for pre-processing, where we already use it, but rewriting everything in pandas would be a significant effort. Mathematical operations are slow, and datasets remain sparse after converting back to xarray.
+  * **Pandas**: Useful for pre-processing, where we already use it, but rewriting everything in pandas would be a significant effort. Mathematical operations are slow, and datasets remain sparse after converting back to xarray. Basiv example of conversion in pandas [here](https://github.com/primap-community/primap2/pull/321/files).
 
 #### DataTree
 
@@ -43,6 +43,7 @@ We aim to retain as much of the current codebase as possible, though some parts 
 * DataTree replaces looping through datasets to perform operations by providing a hierarchical tree of datasets.
 * Regarding our sparsity issue: combining several datasets in one DataTree helps to some extent but does not eliminate the problem. For example, a unique category in dataset A would not create all NaNs for that dimension in dataset B but would still create many NaNs in dataset A.
 * It is relatively easy to convert multiple datasets into an xarray DataTree.
+* Watch this [video](https://www.youtube.com/watch?v=Iwcuy6Smbjs) for an introduction to datatree
 
 <table>
   <tr>
@@ -70,7 +71,7 @@ We aim to retain as much of the current codebase as possible, though some parts 
 
 #### Test case: aggregation of CRT data
 
-* In the `UNFCCC_non-AnnexI_data` repository we combine CRT datasets from several countries
+* In the `UNFCCC_non-AnnexI_data` repository we combine CRT datasets from several countries. We did some tests on how it could look like using datatree (PR [here](https://github.com/JGuetschow/UNFCCC_non-AnnexI_data/pull/120))
 * It is not possible to merge all the datasets into one, because this operation would be too memory-intensive
 * It is relaitively straight forward to read all CRT data into a single data tree object (crt_dt) with:
 
@@ -101,6 +102,11 @@ most of the processing happens at the dataset level. It seems that many of the m
 navigating the hierarchical structure (parent/child relationships), which isn’t a core requirement for our use case.
 We mainly need a structure with many sibling nodes and possibly one parent.
 
+#### Test case: conversion
+
+The conversion function can be adapted to datatree formats relatively easy, if we assume the categories
+are coordinates of the dataset and do not show up in the datatree. An example can be found in [this
+pull request](https://github.com/primap-community/primap2/pull/318).
 
 #### Possible use of datatree
 
