@@ -75,11 +75,12 @@ We aim to retain as much of the current codebase as possible, though some parts 
 * It is relaitively straight forward to read all CRT data into a single data tree object (crt_dt) with:
 
 ```python
+# dictionary with iso3 country codes as keys  and datasets as values
+ds_all_CRF = {"NGA" : ds_nga, "GEO" : ds_geo}
 countries = xr.DataTree.from_dict(ds_all_CRF)
+# We can create a main category that holds all datasets
 dt = xr.DataTree(name="All", children=countries)
 ```
-
-where `ds_all_CRF` is a dictionary with iso3 country codes as keys and the datasets per country as values.
 
 It is simple to apply a function on all data sets. The following code block would
 filter for the categories 1 to 5 for all data sets.
@@ -93,26 +94,20 @@ filter_info = {"category (CRT1)" : ["0", "1", "2", "4", "5"]}
 dt = dt.map_over_datasets(filter_coords, filter_info)
 ```
 
-However, it is more complicated to apply function on coordinates that are stored in the data tree, in this case
-iso3 codes or countries.
-
-
-Select a specific coordinate (e.g., category 1) across all datasets.
-I attempted to recreate coordinate aggregation for a data tree of country datasets. This works by combining nodes
-(datasets) using arithmetic operations (ds1 + ds2). However, I couldn't leverage many of the data tree methods, so
+However, it is more complicated to apply a function on coordinates of the datatree nodes, in this case
+iso3 codes or countries. If we want to perform a coordinate aggregation for a data tree of country datasets, we can combine nodes
+(datasets) using arithmetic operations (ds1 + ds2). However, we cannot leverage many of the data tree methods, so
 most of the processing happens at the dataset level. It seems that many of the methods and attributes focus on
 navigating the hierarchical structure (parent/child relationships), which isn’t a core requirement for our use case.
-We mainly need a structure with many sibling nodes and possibly a single parent.
+We mainly need a structure with many sibling nodes and possibly one parent.
 
-In any case, data tree would be a clean option to store data sets. So instead of saving individual data sets to disc,
-we could save the whole data tree as a netcdf file
 
 #### Possible use of datatree
 
-Ultimately we can say that datatree can serve us in two ways:
+We can set up a data structure based on datatree in two different ways:
 
 * **Option 1**: We use a **data tree as a storage for data sets**. For example, instead of saving data sets per country to disc, we store
-them in a data tree and save the whole tree to disc, if needed.
+them in a datatree and save the whole tree to disc (with `dt.to_netcfd()`), if needed.
 * **Option 2**: We use **data tree as our standard data format**. All our functions for data sets should work
 for data trees as well.
 
@@ -123,14 +118,15 @@ apply functions to all data sets in the tree by looping through the tree. Datatr
 offers syntactic sugar for that with `map_over_datasets()`. We would not be able to perform
 any operation on the dimension in the tree, in our example country, or `area_iso3`. We can
 still filter for specific countries, but it would be a lot harder to, for example, get
-the sum of several values. That's something we need when we aggregate regions, e.g. WORLD
+the sum of several values. However,that's something we need when we aggregate regions, e.g. WORLD
 or EU. In general, it is possible using arithmetic operations - `dt["NGA"] + dt["GEO"]` - but needs
 some thinking how it can be done correctly. Option 1 can be implemented without too much development effort,
-but it is not really offering a comprehensive solution. It is a workaround we already use.
+but it is not really offering a comprehensive solution.
 
 **Option 2** means we rewrite all relevant primap2 function to accept datatree as an input object. So besides
 `ds.pr.loc[]` we can also run `dt.pr.loc[]`. If we assume again that the data tree is a group of country data sets,
 there are two cases we will encounter. Filter for countries (over the datasets in the datatree), or filter for any
 other coordinate (within in the individual dataset). A function would need to identify which case we're dealing
-with and then filter accordingly. Besides, the considerable development work, we would add more complexity to the primap2
- library, because datatrees can come in all forms.
+with and then filter accordingly. Besides the considerable development work, we would add more complexity to the primap2
+ library, because datatrees can come in all shapes, i.e. we don't know which dimensions are stored within the datasets
+and which in the datatree.
