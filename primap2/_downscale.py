@@ -158,6 +158,20 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
 
         return self._da.fillna(downscaled)
 
+    def downscale_timeseries_by_shares(
+        self,
+        *,
+        dim: Hashable,
+        basket: Hashable,
+        basket_contents: Sequence[Hashable],
+        basket_contents_shares: Sequence[float],
+        sel: dict[Hashable, Sequence] | None = None,
+    ) -> xr.Dataset:
+        da_sel = select_no_scalar_dimension(self._da, sel)
+        basket_da = da_sel.loc[{dim: basket}]
+        downscaled: xr.DataArray = basket_da * basket_contents_shares
+        return downscaled
+
 
 class DatasetDownscalingAccessor(BaseDatasetAccessor):
     def downscale_timeseries(
@@ -409,6 +423,35 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                 )
 
         return self._ds.pr.fillna(downscaled_converted)
+
+    def downscale_timeseries_by_shares(
+        self,
+        *,
+        dim: Hashable,
+        basket: Hashable,
+        basket_contents: Sequence[Hashable],
+        basket_contents_shares: Sequence[float],
+        sel: dict[Hashable, Sequence] | None = None,
+    ) -> xr.Dataset:
+        """Downscale timeseries along a dimension using defined shares for each timestep.
+
+        This is useful if you have data points for a total and you don't have any
+        data for the higher resolution, but you do have the shares for the higher
+        resolution from another source. For example, you have the total energy and
+        you know the shares of the sub-sectors 1.A and 1.B for each year from another
+        source.
+        """
+        downscaled = self._ds.copy()
+        for var in self._ds.data_vars:
+            downscaled[var] = downscaled[var].pr.downscale_timeseries_by_shares(
+                dim=dim,
+                basket=basket,
+                basket_contents=basket_contents,
+                basket_contents_shares=basket_contents_shares,
+                sel=sel,
+            )
+
+        return downscaled
 
 
 def generate_error_message(da_error: xr.DataArray) -> str:
