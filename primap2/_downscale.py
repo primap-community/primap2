@@ -164,13 +164,19 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         dim: Hashable,
         basket: Hashable,
         basket_contents: Sequence[Hashable],
-        basket_contents_shares: Sequence[float],
-        sel: dict[Hashable, Sequence] | None = None,
-    ) -> xr.Dataset:
-        da_sel = select_no_scalar_dimension(self._da, sel)
-        basket_da = da_sel.loc[{dim: basket}]
-        downscaled: xr.DataArray = basket_da * basket_contents_shares
-        return downscaled
+        basket_contents_shares: xr.DataArray,
+    ) -> xr.DataArray:
+        # TODO do we need this?
+        da = self._da.copy()
+
+        # normalise shares
+        basket_contents_shares = basket_contents_shares / basket_contents_shares.sum(dim=dim)
+
+        downscaled = (
+            da.pr.loc[{dim: basket}] * basket_contents_shares.pr.loc[{dim: basket_contents}]
+        )
+
+        return da.pr.set(dim=dim, key=basket_contents, value=downscaled)
 
 
 class DatasetDownscalingAccessor(BaseDatasetAccessor):
@@ -431,7 +437,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         basket: Hashable,
         basket_contents: Sequence[Hashable],
         basket_contents_shares: Sequence[float],
-        sel: dict[Hashable, Sequence] | None = None,
+        # sel: dict[Hashable, Sequence] | None = None,
     ) -> xr.Dataset:
         """Downscale timeseries along a dimension using defined shares for each timestep.
 
@@ -441,17 +447,18 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         you know the shares of the sub-sectors 1.A and 1.B for each year from another
         source.
         """
-        downscaled = self._ds.copy()
+        ds = self._ds.copy()
+        downscaled_dict = {}
         for var in self._ds.data_vars:
-            downscaled[var] = downscaled[var].pr.downscale_timeseries_by_shares(
+            # TODO if basket_contents_shares is a data set, filter var, if not use data array
+            downscaled_dict[var] = ds[var].pr.downscale_timeseries_by_shares(
                 dim=dim,
                 basket=basket,
                 basket_contents=basket_contents,
                 basket_contents_shares=basket_contents_shares,
-                sel=sel,
             )
 
-        return downscaled
+        return xr.Dataset(downscaled_dict).assign_attrs(ds.attrs)
 
 
 def generate_error_message(da_error: xr.DataArray) -> str:

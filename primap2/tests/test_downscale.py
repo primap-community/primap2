@@ -2,6 +2,7 @@
 """Tests for _downscale.py"""
 
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 
@@ -347,3 +348,65 @@ def test_downscale_gas_timeseries_da_partial_zero(gas_downscaling_ds):
     expected["CH4"].loc[{"time": "2010"}] = 0 * ureg("Gg CH4 / year")
 
     xr.testing.assert_identical(downscaled, expected)
+
+
+def test_downscale_timeseries_by_shares(opulent_ds):
+    # build a reference data array with the shares of the basket contents
+    # (this will be generated from the IMF data set)
+    time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
+    area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
+    category = [
+        "1A1a",
+        "1A2",
+        "1A3",
+        "1A4",
+        "1A1bc",
+        "1A5",
+    ]
+    rng = np.random.default_rng(1)
+    # TODO should we use units?
+    da_reference = xr.DataArray(
+        data=rng.random((len(time), len(area_iso3), len(category))),
+        coords={
+            "time": time,
+            "area (ISO3)": area_iso3,
+            "category (IPCC 2006)": category,
+        },
+        dims=["time", "area (ISO3)", "category (IPCC 2006)"],
+        # attrs={"units" : f"{ent} Gg / year", "entity" : ent},
+    )
+
+    # This simulates prmap-hist
+    ds = opulent_ds.pr.loc[
+        {
+            "provenance": "projected",
+            "scenario": "highpop",
+            "product": "milk",
+            "animal": "cow",
+            "model": "FANCYFAO",
+            # TODO primap-hist will have TP and CR
+            "source": "RAND2020",
+        }
+    ]
+    ds = ds.drop_vars("population")
+
+    downscaled = ds.pr.downscale_timeseries_by_shares(
+        dim="category (IPCC 2006)",
+        basket="1.A",
+        basket_contents=[
+            "1A1a",
+            "1A2",
+            "1A3",
+            "1A4",
+            "1A1bc",
+            "1A5",
+        ],
+        basket_contents_shares=da_reference,
+    )
+
+    # check if basket contents add up to basket
+    # TODO this isn't enough to make sure it's correct
+    assert (
+        ds.pr.loc[{"category (IPCC 2006)": "1.A"}].sum()
+        == downscaled.pr.loc[{"category (IPCC 2006)": category}].sum()
+    )
