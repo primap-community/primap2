@@ -166,7 +166,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket_contents: Sequence[Hashable],
         basket_contents_shares: xr.DataArray,
     ) -> xr.DataArray:
-        # TODO do we need this?
+        # TODO do we need this? No
         da = self._da.copy()
 
         # normalise shares

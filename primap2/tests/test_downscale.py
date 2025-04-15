@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
+import primap2 as pm
 from primap2 import ureg
 
 from .utils import allclose, assert_equal
@@ -409,3 +410,45 @@ def test_downscale_timeseries_by_shares(opulent_ds):
     )
 
     # check a specific year manually
+
+
+# delete the following test when the downscaling function is implemented
+def test_downscale_with_real_data():
+    imf = pm.open_dataset("../scripts/IMF_out.nc")
+    imf = imf.rename({"category (IMF)": "category (IPCC2006_PRIMAP)"})
+    imf = imf.pr.loc[{"scenario (IMF)": "2025"}]
+
+    primap_25 = pm.open_dataset(
+        "../scripts/Guetschow_et_al_2025-PRIMAP-hist_v2.6.1_final_13-Mar-2025.nc"
+    )
+    # at the moment downscaling works for one time series only
+    primap_25 = primap_25.pr.loc[
+        {
+            "provenance": "derived",
+            # "scenario (PRIMAP-hist)": "HISTCR",
+            "source": "PRIMAP-hist_v2.6.1_final",
+        }
+    ]
+
+    basket = "1.A"
+    basket_contents = ["1.A.1", "1.A.2", "1.A.3", "1.A.4", "1.A.5"]
+
+    downscaled_per_scenario = {}
+    for scenario in ["HISTCR", "HISTTP"]:
+        primap_25_scenario = primap_25.pr.loc[
+            {
+                "scenario (PRIMAP-hist)": scenario,
+            }
+        ]
+        downscaled_per_scenario[scenario] = primap_25_scenario.pr.downscale_timeseries_by_shares(
+            dim="category (IPCC2006_PRIMAP)",
+            basket=basket,
+            basket_contents=basket_contents,
+            basket_contents_shares=imf,
+        )
+
+    downscaled = downscaled_per_scenario["HISTTP"].pr.merge(downscaled_per_scenario["HISTCR"])
+    downscaled = downscaled.drop_vars(["provenance", "scenario (IMF)"])
+    downscaled.pr.to_netcdf(
+        "../scripts/Guetschow_et_al_2025-PRIMAP-hist_v2.6.1_final_13-Mar-2025_downscaled.nc"
+    )

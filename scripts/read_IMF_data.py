@@ -78,6 +78,8 @@ df["Industry"] = df["Industry"].replace(
 # TODO there is a smarter way to do this, but works for now
 df = df.rename(columns={f"F{i}": f"{i}" for i in range(1970, 2030 + 1)})
 
+df["Source"] = "IMF"
+
 coords_cols = {
     "area": "ISO3",
     "unit": "Unit",
