@@ -355,28 +355,33 @@ def test_downscale_timeseries_by_shares(opulent_ds):
     # (this will be generated from the IMF data set)
     time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
     area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
-    category = [
-        "1A1a",
-        "1A2",
-        "1A3",
-        "1A4",
-        "1A1bc",
-        "1A5",
+    category_higher_resolution = [
+        "1.A.1.a",
+        "1.A.2",
+        "1.A.3",
+        "1.A.4",
+        "1.A.1.bc",
+        "1.A.5",
     ]
     rng = np.random.default_rng(1)
-    # TODO should we use units?
-    da_reference = xr.DataArray(
-        data=rng.random((len(time), len(area_iso3), len(category))),
-        coords={
-            "time": time,
-            "area (ISO3)": area_iso3,
-            "category (IPCC 2006)": category,
-        },
-        dims=["time", "area (ISO3)", "category (IPCC 2006)"],
-        # attrs={"units" : f"{ent} Gg / year", "entity" : ent},
-    )
 
-    # This simulates prmap-hist
+    reference = xr.Dataset(
+        {
+            ent: xr.DataArray(
+                data=rng.random((len(time), len(area_iso3), len(category_higher_resolution))),
+                coords={
+                    "time": time,
+                    "area (ISO3)": area_iso3,
+                    "category (IPCC 2006)": category_higher_resolution,
+                },
+                dims=["time", "area (ISO3)", "category (IPCC 2006)"],
+                attrs={"units": f"{ent} Gg / year", "entity": ent},
+            )
+            for ent in ("CO2", "N2O", "CH4")
+        }
+    ).pr.quantify()
+
+    # This simulates primap-hist
     ds = opulent_ds.pr.loc[
         {
             "provenance": "projected",
@@ -393,20 +398,14 @@ def test_downscale_timeseries_by_shares(opulent_ds):
     downscaled = ds.pr.downscale_timeseries_by_shares(
         dim="category (IPCC 2006)",
         basket="1.A",
-        basket_contents=[
-            "1A1a",
-            "1A2",
-            "1A3",
-            "1A4",
-            "1A1bc",
-            "1A5",
-        ],
-        basket_contents_shares=da_reference,
+        basket_contents=category_higher_resolution,
+        basket_contents_shares=reference,
     )
 
-    # check if basket contents add up to basket
-    # TODO this isn't enough to make sure it's correct
+    # check if basket contents add up to basket (sum over all years and countries)
     assert (
         ds.pr.loc[{"category (IPCC 2006)": "1.A"}].sum()
-        == downscaled.pr.loc[{"category (IPCC 2006)": category}].sum()
+        == downscaled.pr.loc[{"category (IPCC 2006)": category_higher_resolution}].sum()
     )
+
+    # check a specific year manually

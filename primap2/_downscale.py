@@ -436,8 +436,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         dim: Hashable,
         basket: Hashable,
         basket_contents: Sequence[Hashable],
-        basket_contents_shares: Sequence[float],
-        # sel: dict[Hashable, Sequence] | None = None,
+        basket_contents_shares: xr.DataArray | xr.Dataset,
     ) -> xr.Dataset:
         """Downscale timeseries along a dimension using defined shares for each timestep.
 
@@ -450,12 +449,20 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         ds = self._ds.copy()
         downscaled_dict = {}
         for var in self._ds.data_vars:
-            # TODO if basket_contents_shares is a data set, filter var, if not use data array
+            # TODO we don't need to check for all variables, pull out of the loop
+            if isinstance(basket_contents_shares, xr.Dataset):
+                # if the reference does not specify shares for this variable, skip it
+                if var not in basket_contents_shares.data_vars:
+                    continue
+                    # warning
+                basket_contents_shares_arr = basket_contents_shares[var]
+            else:
+                basket_contents_shares_arr = basket_contents_shares
             downscaled_dict[var] = ds[var].pr.downscale_timeseries_by_shares(
                 dim=dim,
                 basket=basket,
                 basket_contents=basket_contents,
-                basket_contents_shares=basket_contents_shares,
+                basket_contents_shares=basket_contents_shares_arr,
             )
 
         return xr.Dataset(downscaled_dict).assign_attrs(ds.attrs)
