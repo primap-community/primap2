@@ -172,6 +172,10 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         # normalise shares
         basket_contents_shares = basket_contents_shares / basket_contents_shares.sum(dim=dim)
 
+        # xarray will try to match every indexed coordinate (coordinates with *)
+        # if they don't match the result will be empty, we need to make sure only
+        # the relevant coordinates are present - category, iso3, time -  or warn
+        # the user if the result will be empty
         downscaled = (
             da.pr.loc[{dim: basket}] * basket_contents_shares.pr.loc[{dim: basket_contents}]
         )
