@@ -2,9 +2,11 @@
 """Tests for _downscale.py"""
 
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 
+import primap2 as pm
 from primap2 import ureg
 
 from .utils import allclose, assert_equal
@@ -347,3 +349,156 @@ def test_downscale_gas_timeseries_da_partial_zero(gas_downscaling_ds):
     expected["CH4"].loc[{"time": "2010"}] = 0 * ureg("Gg CH4 / year")
 
     xr.testing.assert_identical(downscaled, expected)
+
+
+def test_downscale_timeseries_by_shares(opulent_ds):
+    # build a reference data array with the shares of the basket contents
+    time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
+    area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
+    category_higher_resolution = [
+        "1.A.1",
+        "1.A.2",
+        "1.A.3",
+    ]
+    rng = np.random.default_rng(42)
+
+    reference = xr.Dataset(
+        {
+            ent: xr.DataArray(
+                data=rng.integers(
+                    10, size=(len(time), len(area_iso3), len(category_higher_resolution))
+                ),
+                coords={
+                    "time": time,
+                    "area (ISO3)": area_iso3,
+                    "category (IPCC 2006)": category_higher_resolution,
+                },
+                dims=["time", "area (ISO3)", "category (IPCC 2006)"],
+                attrs={"units": f"{ent} Gg / year", "entity": ent},
+            )
+            for ent in ("CO2", "N2O", "CH4")
+        }
+    ).pr.quantify()
+
+    assert (
+        reference["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A.1", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        .item()
+        == 1
+    )
+
+    assert (
+        reference["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A.2", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        .item()
+        == 5
+    )
+
+    assert (
+        reference["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A.3", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        .item()
+        == 0
+    )
+
+    # The dataset to be downscaled
+    ds = opulent_ds.pr.loc[
+        {
+            "provenance": "projected",
+            "scenario": "highpop",
+            "product": "milk",
+            "animal": "cow",
+            "model": "FANCYFAO",
+            "source": "RAND2020",
+        }
+    ]
+    ds = ds.drop_vars("population")
+
+    # look at one specific value
+    assert (
+        ds["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        .item()
+        == 0.8660848254275575
+    )
+
+    downscaled = ds.pr.downscale_timeseries_by_shares(
+        dim="category (IPCC 2006)",
+        basket="1.A",
+        basket_contents=category_higher_resolution,
+        basket_contents_shares=reference,
+    )
+
+    # check if basket contents add up to basket (sum over all years and countries)
+    assert (
+        ds.pr.loc[{"category (IPCC 2006)": "1.A"}].sum()
+        == downscaled.pr.loc[{"category (IPCC 2006)": category_higher_resolution}].sum()
+    )
+
+    # check a specific year manually
+    assert (
+        downscaled["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A.1", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        .item()
+        == (1 / 6) * 0.8660848254275575
+    )
+
+    assert (
+        downscaled["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A.2", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        .item()
+        == (5 / 6) * 0.8660848254275575
+    )
+
+    assert (
+        downscaled["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A.3", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        .item()
+        == 0.0
+    )
+
+
+# delete the following test when the downscaling function is implemented
+def test_downscale_with_real_data():
+    imf = pm.open_dataset("../scripts/IMF_out.nc")
+    imf = imf.rename({"category (IMF)": "category (IPCC2006_PRIMAP)"})
+    imf = imf.pr.loc[{"scenario (IMF)": "2025"}]
+    imf = imf.pr.loc[{"category (IPCC2006_PRIMAP)": ["1.A.1", "1.A.2", "1.A.3", "1.A.4", "1.A.5"]}]
+
+    primap_25 = pm.open_dataset(
+        "../scripts/Guetschow_et_al_2025-PRIMAP-hist_v2.6.1_final_13-Mar-2025.nc"
+    )
+    # TODO This could go into the function as well
+    primap_25 = primap_25.pr.loc[
+        {
+            "provenance": "derived",
+            "scenario (PRIMAP-hist)": "HISTCR",
+            "source": "PRIMAP-hist_v2.6.1_final",
+        }
+    ]
+
+    basket = "1.A"
+    basket_contents = ["1.A.1", "1.A.2", "1.A.3", "1.A.4", "1.A.5"]
+
+    downscaled = primap_25.pr.downscale_timeseries_by_shares(
+        dim="category (IPCC2006_PRIMAP)",
+        basket=basket,
+        basket_contents=basket_contents,
+        basket_contents_shares=imf,
+    )
+
+    # all variables without labels will be saved to data variables in netcdf which we don't want
+    downscaled = downscaled.drop_vars(
+        ["provenance", "scenario (IMF)", "scenario (PRIMAP-hist)", "source"]
+    )
+    downscaled = downscaled.assign_coords({"scenario (PRIMAP-hist)": ["PRIMAP_downscaled"]})
+    downscaled.pr.to_netcdf(
+        "../scripts/Guetschow_et_al_2025-PRIMAP-hist_v2.6.1_final_13-Mar-2025_downscaled.nc"
+    )
