@@ -1,5 +1,6 @@
 ### Data structures for primap2
 
+Here, we document an unfinished proposal for more advanced data structures for sparse data within primap2.
 #### Background
 * From [pydata sparse documentation](https://sparse.pydata.org/en/stable/introduction/): Sparse arrays, or arrays that are mostly empty or filled with zeros, are common in many scientific applications. To save space we often avoid storing these arrays in traditional dense formats, and instead choose different data structures. Our choice of data structure can significantly affect our storage and computational costs when working with these arrays.
 * The PRIMAP-hist dataset is relatively sparse. In the March 2025 release, the share of filled values (non-NaNs) was 20% for CO2 and 1% for NF3.
@@ -18,7 +19,7 @@ To handle very sparse arrays effectively, primap2 data handling functions should
   Example: A script like `src/unfccc_ghg_data/unfccc_crf_reader/crf_raw_for_year.py` compiles all CRF (or CRT) datasets for a submission year into one dataset. Since countries report at different levels of detail, categories unique to one dataset result in NaNs in others, making datasets sparse and memory-intensive. We aim to significantly reduce memory usage.
 
 * **Select**
-  Filtering datasets by dimensions such as country, sector, or gas is essential. The `primap2` `.loc` function already supports this.
+  Filtering datasets by dimensions such as country, sector, or gas is essential. The {py:meth}`xarray.Dataset.pr.set` function already supports this, but not for DataTrees.
 
 * **Set**
   Assigning values to datasets across dimensions is another critical task.
@@ -45,29 +46,12 @@ We aim to retain as much of the current codebase as possible, though some parts 
 * It is relatively easy to convert multiple datasets into an xarray DataTree.
 * Watch this [video](https://www.youtube.com/watch?v=Iwcuy6Smbjs) for an introduction to datatree
 
-<table>
-  <tr>
-    <th>Pro</th>
-    <th>Con</th>
-  </tr>
-  <tr>
-    <td>
-      <ul>
-        <li>Supports conversion from/to NetCDF and Zarr.</li>
-        <li>Allows us to stay within the xarray ecosystem (as opposed to SQL or pandas).</li>
-        <li>All pre-processing steps can be covered in DataTree.</li>
-      </ul>
-    </td>
-    <td>
-      <ul>
-        <li>Limited examples and documentation available (as of April 2025).</li>
-        <li>Requires making our primap2 functions compatible with DataTree.</li>
-        <li>Processing DataTrees may involve looping through sub-datasets. Is it faster than merging once?</li>
-        <li>The hierarchical concept does not align well with our use case. All country datasets would be "siblings," but this is not necessarily a problem.</li>
-      </ul>
-    </td>
-  </tr>
-</table>
+| Pro | Con |
+|---|---|
+| Supports conversion from/to NetCDF and Zarr. | Limited examples and documentation available (as of April 2025). |
+| Allows us to stay within the xarray ecosystem (as opposed to SQL or pandas). | Requires making our primap2 functions compatible with DataTree. |
+| All pre-processing steps can be covered in DataTree.  | Processing DataTrees may involve looping through sub-datasets. Is it faster than merging once? |
+| | The hierarchical concept does not align well with out use case. All country datasets would "siblings," but this is not necessarily a problem. |
 
 #### Test case: aggregation of CRT data
 
