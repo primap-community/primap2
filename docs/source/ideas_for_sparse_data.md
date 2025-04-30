@@ -1,4 +1,4 @@
-### Data structures for primap2
+### Sparse data ideas
 
 Here, we document an unfinished proposal for more advanced data structures for sparse data within primap2.
 #### Background

@@ -19,5 +19,5 @@ development
 credits
 changelog
 api/index
-data_structures
+ideas_for_sparse_data
 ```
