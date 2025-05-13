@@ -158,6 +158,30 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
 
         return self._da.fillna(downscaled)
 
+    def downscale_timeseries_by_shares(
+        self,
+        *,
+        dim: Hashable,
+        basket: Hashable,
+        basket_contents: Sequence[Hashable],
+        basket_contents_shares: xr.DataArray,
+    ) -> xr.DataArray:
+        # TODO do we need this? No
+        da = self._da.copy()
+
+        # normalise shares
+        basket_contents_shares = basket_contents_shares / basket_contents_shares.sum(dim=dim)
+
+        # xarray will try to match every indexed coordinate (coordinates with *)
+        # if they don't match the result will be empty, we need to make sure only
+        # the relevant coordinates are present - category, iso3, time -  or warn
+        # the user if the result will be empty
+        downscaled = (
+            da.pr.loc[{dim: basket}] * basket_contents_shares.pr.loc[{dim: basket_contents}]
+        )
+
+        return da.pr.set(dim=dim, key=basket_contents, value=downscaled)
+
 
 class DatasetDownscalingAccessor(BaseDatasetAccessor):
     def downscale_timeseries(
@@ -409,6 +433,43 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                 )
 
         return self._ds.pr.fillna(downscaled_converted)
+
+    def downscale_timeseries_by_shares(
+        self,
+        *,
+        dim: Hashable,
+        basket: Hashable,
+        basket_contents: Sequence[Hashable],
+        basket_contents_shares: xr.DataArray | xr.Dataset,
+    ) -> xr.Dataset:
+        """Downscale timeseries along a dimension using defined shares for each timestep.
+
+        This is useful if you have data points for a total and you don't have any
+        data for the higher resolution, but you do have the shares for the higher
+        resolution from another source. For example, you have the total energy and
+        you know the shares of the sub-sectors 1.A and 1.B for each year from another
+        source.
+        """
+        ds = self._ds.copy()
+        downscaled_dict = {}
+        for var in self._ds.data_vars:
+            # TODO we don't need to check for all variables, pull out of the loop
+            if isinstance(basket_contents_shares, xr.Dataset):
+                # if the reference does not specify shares for this variable, skip it
+                if var not in basket_contents_shares.data_vars:
+                    continue
+                    # warning
+                basket_contents_shares_arr = basket_contents_shares[var]
+            else:
+                basket_contents_shares_arr = basket_contents_shares
+            downscaled_dict[var] = ds[var].pr.downscale_timeseries_by_shares(
+                dim=dim,
+                basket=basket,
+                basket_contents=basket_contents,
+                basket_contents_shares=basket_contents_shares_arr,
+            )
+
+        return xr.Dataset(downscaled_dict).assign_attrs(ds.attrs)
 
 
 def generate_error_message(da_error: xr.DataArray) -> str:
