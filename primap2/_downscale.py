@@ -3,6 +3,7 @@ from collections.abc import Hashable, Sequence
 import numpy as np
 import pandas as pd
 import xarray as xr
+from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._aggregate import select_no_scalar_dimension
@@ -166,8 +167,32 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket_contents: Sequence[Hashable],
         basket_contents_shares: xr.DataArray,
     ) -> xr.DataArray:
-        # TODO do we need this? No
-        da = self._da.copy()
+        """Downscale timeseries along a dimension using defined shares for each timestep.
+
+        This is useful if you have data points for a total, and you don't have any
+        data for the higher resolution, but you do have the shares for the higher
+        resolution from another source. For example, you have the total energy, and
+        you know the shares of the sub-sectors 1.A and 1.B for each year from another
+        source.
+
+        Parameters
+        ----------
+        dim : Hashable
+            The dimension along which to perform the downscaling (e.g., "category" or "area").
+        basket : Hashable
+            The label of the aggregate group (e.g., "1.A" for a category) whose value will be
+            redistributed.
+        basket_contents : Sequence of Hashable
+            The labels of the subgroups (e.g., ["1.A.1", "1.A.2", "1.A.3"])
+            that make up the `basket`.
+        basket_contents_shares : xr.DataArray
+            The shares to use for downscaling.
+
+        Returns
+        -------
+        xr.DataArray
+            A new datarray with variables downscaled along `dim` using the provided shares.
+        """
 
         # normalise shares
         basket_contents_shares = basket_contents_shares / basket_contents_shares.sum(dim=dim)
@@ -177,10 +202,10 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         # the relevant coordinates are present - category, iso3, time -  or warn
         # the user if the result will be empty
         downscaled = (
-            da.pr.loc[{dim: basket}] * basket_contents_shares.pr.loc[{dim: basket_contents}]
+            self._da.pr.loc[{dim: basket}] * basket_contents_shares.pr.loc[{dim: basket_contents}]
         )
 
-        return da.pr.set(dim=dim, key=basket_contents, value=downscaled)
+        return self._da.pr.set(dim=dim, key=basket_contents, value=downscaled)
 
 
 class DatasetDownscalingAccessor(BaseDatasetAccessor):
@@ -453,16 +478,15 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         Parameters
         ----------
         dim : Hashable
-            The dimension along which to perform the downscaling (e.g., "region" or "sector").
+            The dimension along which to perform the downscaling (e.g., "category" or "area").
         basket : Hashable
-            The label of the aggregate group (e.g., "Total Energy") whose value will be
+            The label of the aggregate group (e.g., "1.A" for a category) whose value will be
             redistributed.
         basket_contents : Sequence of Hashable
-            The labels of the subgroups (e.g., ["1.A", "1.B"]) that make up the `basket`.
+            The labels of the subgroups (e.g., ["1.A.1", "1.A.2", "1.A.3"])
+            that make up the `basket`.
         basket_contents_shares : xr.DataArray or xr.Dataset
-            The shares to use for downscaling. If a Dataset, must contain variables
-            corresponding to those in `self._ds`. If a DataArray, the same share
-            array is applied to all variables.
+            The shares to use for downscaling.
 
         Returns
         -------
@@ -476,8 +500,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
             if isinstance(basket_contents_shares, xr.Dataset):
                 # if the reference does not specify shares for this variable, skip it
                 if var not in basket_contents_shares.data_vars:
+                    logger.warning(f"{var} is not in reference data. Skipping it")
                     continue
-                    # warning
                 basket_contents_shares_arr = basket_contents_shares[var]
             else:
                 basket_contents_shares_arr = basket_contents_shares
