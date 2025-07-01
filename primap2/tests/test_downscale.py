@@ -462,3 +462,8 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         .item()
         == 0.0
     )
+
+
+# TODO more complex test with bigger reference ds
+# TODO check if warnings are printed
+# TODO test what happens if there are additional unused variables
