@@ -116,7 +116,5 @@ ENV/
 # Johannes' development scripts
 JG_test_scripts
 
-# Daniel downscale by shares scripts (we can remove this later)
-scripts/*.csv
-scripts/*.nc
-scripts/*.yaml
+# mac stuff
+.DS_Store

@@ -444,11 +444,30 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
     ) -> xr.Dataset:
         """Downscale timeseries along a dimension using defined shares for each timestep.
 
-        This is useful if you have data points for a total and you don't have any
+        This is useful if you have data points for a total, and you don't have any
         data for the higher resolution, but you do have the shares for the higher
-        resolution from another source. For example, you have the total energy and
+        resolution from another source. For example, you have the total energy, and
         you know the shares of the sub-sectors 1.A and 1.B for each year from another
         source.
+
+        Parameters
+        ----------
+        dim : Hashable
+            The dimension along which to perform the downscaling (e.g., "region" or "sector").
+        basket : Hashable
+            The label of the aggregate group (e.g., "Total Energy") whose value will be
+            redistributed.
+        basket_contents : Sequence of Hashable
+            The labels of the subgroups (e.g., ["1.A", "1.B"]) that make up the `basket`.
+        basket_contents_shares : xr.DataArray or xr.Dataset
+            The shares to use for downscaling. If a Dataset, must contain variables
+            corresponding to those in `self._ds`. If a DataArray, the same share
+            array is applied to all variables.
+
+        Returns
+        -------
+        xr.Dataset
+            A new dataset with variables downscaled along `dim` using the provided shares.
         """
         ds = self._ds.copy()
         downscaled_dict = {}

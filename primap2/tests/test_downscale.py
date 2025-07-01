@@ -6,7 +6,6 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-import primap2 as pm
 from primap2 import ureg
 
 from .utils import allclose, assert_equal
@@ -462,43 +461,4 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         .to_numpy()
         .item()
         == 0.0
-    )
-
-
-# delete the following test when the downscaling function is implemented
-def test_downscale_with_real_data():
-    imf = pm.open_dataset("../scripts/IMF_out.nc")
-    imf = imf.rename({"category (IMF)": "category (IPCC2006_PRIMAP)"})
-    imf = imf.pr.loc[{"scenario (IMF)": "2025"}]
-    imf = imf.pr.loc[{"category (IPCC2006_PRIMAP)": ["1.A.1", "1.A.2", "1.A.3", "1.A.4", "1.A.5"]}]
-
-    primap_25 = pm.open_dataset(
-        "../scripts/Guetschow_et_al_2025-PRIMAP-hist_v2.6.1_final_13-Mar-2025.nc"
-    )
-    # TODO This could go into the function as well
-    primap_25 = primap_25.pr.loc[
-        {
-            "provenance": "derived",
-            "scenario (PRIMAP-hist)": "HISTCR",
-            "source": "PRIMAP-hist_v2.6.1_final",
-        }
-    ]
-
-    basket = "1.A"
-    basket_contents = ["1.A.1", "1.A.2", "1.A.3", "1.A.4", "1.A.5"]
-
-    downscaled = primap_25.pr.downscale_timeseries_by_shares(
-        dim="category (IPCC2006_PRIMAP)",
-        basket=basket,
-        basket_contents=basket_contents,
-        basket_contents_shares=imf,
-    )
-
-    # all variables without labels will be saved to data variables in netcdf which we don't want
-    downscaled = downscaled.drop_vars(
-        ["provenance", "scenario (IMF)", "scenario (PRIMAP-hist)", "source"]
-    )
-    downscaled = downscaled.assign_coords({"scenario (PRIMAP-hist)": ["PRIMAP_downscaled"]})
-    downscaled.pr.to_netcdf(
-        "../scripts/Guetschow_et_al_2025-PRIMAP-hist_v2.6.1_final_13-Mar-2025_downscaled.nc"
     )
