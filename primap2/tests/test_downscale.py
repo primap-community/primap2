@@ -1,14 +1,20 @@
 #!/usr/bin/env python
 """Tests for _downscale.py"""
 
+import logging
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
 
+import primap2
 from primap2 import ureg
 
 from .utils import allclose, assert_equal
+
+DATA_PATH = Path(__file__).parent / "data"
 
 
 @pytest.fixture
@@ -464,6 +470,116 @@ def test_downscale_timeseries_by_shares(opulent_ds):
     )
 
 
-# TODO more complex test with bigger reference ds
-# TODO check if warnings are printed
-# TODO test what happens if there are additional unused variables
+def test_with_realistic_dataset(caplog):
+    entity_example = "CO2"
+    country_example = "CYP"
+    time_example = slice("2001", "2001")
+
+    # load dataset to downscale
+    original = primap2.open_dataset(DATA_PATH / "downscale_test_original.nc")
+
+    assert sorted(original.coords["category (IPCC2006_PRIMAP)"].to_numpy()) == ["1", "1.A", "2"]
+    assert list(original.coords["area (ISO3)"].to_numpy()) == ["CYP", "CZE", "DEU", "DJI"]
+
+    # look at one value for parent category
+    assert (
+        original[entity_example]
+        .pr.loc[
+            {
+                "category (IPCC2006_PRIMAP)": "1.A",
+                "area (ISO3)": country_example,
+                "time": time_example,
+            }
+        ]
+        .to_numpy()
+        == 6190.0
+    )
+
+    # load reference dataset
+    reference = primap2.open_dataset(DATA_PATH / "test_downscale_reference.nc")
+
+    assert list(reference.coords["category (IPCC2006_PRIMAP)"].to_numpy()) == [
+        "1.A.1",
+        "1.A.2",
+        "1.A.3",
+        "1.A.4",
+        "1.A.5",
+    ]
+    assert list(reference.coords["area (ISO3)"].to_numpy()) == ["CYP", "CZE", "DEU", "DJI"]
+
+    # value for sub-category 1.A.1
+    assert (
+        reference[entity_example]
+        .pr.loc[
+            {
+                "category (IPCC2006_PRIMAP)": "1.A.1",
+                "area (ISO3)": country_example,
+                "time": time_example,
+            }
+        ]
+        .to_numpy()
+        == 2.8372828
+    )
+
+    # total value for all sub-categories
+    assert (
+        reference[entity_example]
+        .pr.loc[
+            {
+                "category (IPCC2006_PRIMAP)": ["1.A.1", "1.A.2", "1.A.3", "1.A.4", "1.A.5"],
+                "area (ISO3)": country_example,
+                "time": time_example,
+            }
+        ]
+        .to_numpy()
+        .sum()
+        == 6.187519093
+    )
+
+    basket = "1.A"
+    basket_contents = ["1.A.1", "1.A.2", "1.A.3", "1.A.4", "1.A.5"]
+
+    with pytest.raises(ValueError, match="No overlap found"):
+        downscaled = original.pr.downscale_timeseries_by_shares(
+            dim="category (IPCC2006_PRIMAP)",
+            basket=basket,
+            basket_contents=basket_contents,
+            basket_contents_shares=reference,
+        )
+
+    # need to select source explicitly so it won't be used
+    # for the comparison
+    original = original.pr.loc[{"source": "PRIMAP-hist_v2.6.1_final"}]
+
+    # check if warnings are shown
+    with caplog.at_level(logging.WARNING):
+        downscaled = original.pr.downscale_timeseries_by_shares(
+            dim="category (IPCC2006_PRIMAP)",
+            basket=basket,
+            basket_contents=basket_contents,
+            basket_contents_shares=reference,
+        )
+    # FGASES, HFCS etc. are not in original
+    assert any("is not in reference data. Skipping it" in message for message in caplog.messages)
+
+    # only what's available in reference
+    # can be converted
+    assert sorted([i for i in downscaled.data_vars]) == [
+        "CH4",
+        "CO2",
+        "KYOTOGHG (AR6GWP100)",
+        "N2O",
+    ]
+
+    assert (
+        downscaled[entity_example]
+        .pr.loc[
+            {
+                "category (IPCC2006_PRIMAP)": "1.A.1",
+                "area (ISO3)": country_example,
+                "time": time_example,
+            }
+        ]
+        .to_numpy()
+        == (2.8372828 / 6.187519093) * 6190.0
+    )

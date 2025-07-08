@@ -197,13 +197,18 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         # normalise shares
         basket_contents_shares = basket_contents_shares / basket_contents_shares.sum(dim=dim)
 
-        # xarray will try to match every indexed coordinate (coordinates with *)
-        # if they don't match the result will be empty, we need to make sure only
-        # the relevant coordinates are present - category, iso3, time -  or warn
-        # the user if the result will be empty
         downscaled = (
             self._da.pr.loc[{dim: basket}] * basket_contents_shares.pr.loc[{dim: basket_contents}]
         )
+
+        # xarray will try to match every indexed coordinate (coordinates with *)
+        # if they don't match the result will be empty, we need to make sure only
+        # the relevant coordinates are present
+        if downscaled.size == 0 or downscaled.isnull().all():
+            raise ValueError(
+                "No overlap found between the input data and the provided shares."
+                "Check coordinate alignment"
+            )
 
         return self._da.pr.set(dim=dim, key=basket_contents, value=downscaled)
 
@@ -496,7 +501,6 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         ds = self._ds.copy()
         downscaled_dict = {}
         for var in self._ds.data_vars:
-            # TODO we don't need to check for all variables, pull out of the loop
             if isinstance(basket_contents_shares, xr.Dataset):
                 # if the reference does not specify shares for this variable, skip it
                 if var not in basket_contents_shares.data_vars:
