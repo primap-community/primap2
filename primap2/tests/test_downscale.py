@@ -559,6 +559,7 @@ def test_with_realistic_dataset(caplog):
             basket_contents=basket_contents,
             basket_contents_shares=reference,
         )
+
     # FGASES, HFCS etc. are not in original
     assert any("is not in reference data. Skipping it" in message for message in caplog.messages)
 
