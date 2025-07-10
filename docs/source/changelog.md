@@ -19,6 +19,26 @@ of rst and use slightly different categories.
 
 <!-- towncrier release notes start -->
 
+## primap2 0.12.3 (2025-07-10)
+
+### Improvements
+
+- Added a wrapper for the csg `compose` function to handle input data preparation (remove data which is not needed in the process) and output data handling (set coords and metadata) ([#286](https://github.com/primap-community/primap2/pull/286))
+- Added a csg filling strategy using local gap filling with polynomial trends to calculate scaling factors (similar to the method used in primap1). ([#288](https://github.com/primap-community/primap2/pull/288))
+- Added additional non-numerical codes in data reading functions. ([#323](https://github.com/primap-community/primap2/pull/323))
+- Add function to downscale based on shares of a reference dataset. ([#330](https://github.com/primap-community/primap2/pull/330))
+
+### Bug Fixes
+
+- Fixed conversion of nan values. ([#313](https://github.com/primap-community/primap2/pull/313))
+- Replaced xr.core.ops.fillna with fillna from public xarray API for compatibility with upcoming xarray releases. ([#322](https://github.com/primap-community/primap2/pull/322))
+- * Fix a pandas stack issue in GHG_inventory_reading
+  * Fix `skipna` in conversions
+
+  ([#323](https://github.com/primap-community/primap2/pull/323))
+- Drop encoding of data sets when merging or saving to netcfd to avoid truncation of coordinate values ([#324](https://github.com/primap-community/primap2/pull/324))
+
+
 ## primap2 0.12.2 (2025-02-07)
 
 ### Bug Fixes
