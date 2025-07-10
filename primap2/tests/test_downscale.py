@@ -389,7 +389,6 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         reference["CO2"]
         .pr.loc[{"category (IPCC 2006)": "1.A.1", "area (ISO3)": "COL", "time": "2020"}]
         .to_numpy()
-        .item()
         == 1
     )
 
@@ -397,7 +396,6 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         reference["CO2"]
         .pr.loc[{"category (IPCC 2006)": "1.A.2", "area (ISO3)": "COL", "time": "2020"}]
         .to_numpy()
-        .item()
         == 5
     )
 
@@ -405,7 +403,6 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         reference["CO2"]
         .pr.loc[{"category (IPCC 2006)": "1.A.3", "area (ISO3)": "COL", "time": "2020"}]
         .to_numpy()
-        .item()
         == 0
     )
 
@@ -427,7 +424,6 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         ds["CO2"]
         .pr.loc[{"category (IPCC 2006)": "1.A", "area (ISO3)": "COL", "time": "2020"}]
         .to_numpy()
-        .item()
         == 0.8660848254275575
     )
 
@@ -449,7 +445,6 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         downscaled["CO2"]
         .pr.loc[{"category (IPCC 2006)": "1.A.1", "area (ISO3)": "COL", "time": "2020"}]
         .to_numpy()
-        .item()
         == (1 / 6) * 0.8660848254275575
     )
 
@@ -457,7 +452,6 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         downscaled["CO2"]
         .pr.loc[{"category (IPCC 2006)": "1.A.2", "area (ISO3)": "COL", "time": "2020"}]
         .to_numpy()
-        .item()
         == (5 / 6) * 0.8660848254275575
     )
 
@@ -465,7 +459,6 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         downscaled["CO2"]
         .pr.loc[{"category (IPCC 2006)": "1.A.3", "area (ISO3)": "COL", "time": "2020"}]
         .to_numpy()
-        .item()
         == 0.0
     )
 
@@ -548,8 +541,8 @@ def test_with_realistic_dataset(caplog):
         )
 
     # need to select source explicitly so it won't be used
-    # for the comparison
-    original = original.pr.loc[{"source": "PRIMAP-hist_v2.6.1_final"}]
+    # for the alignment which would return an empty array
+    reference = reference.pr.loc[{"source": "IMF"}]
 
     # check if warnings are shown
     with caplog.at_level(logging.WARNING):

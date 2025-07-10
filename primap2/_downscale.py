@@ -194,21 +194,25 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
             A new datarray with variables downscaled along `dim` using the provided shares.
         """
 
+        basket_contents_shares = basket_contents_shares.pr.loc[{dim: basket_contents}]
+
         # normalise shares
         basket_contents_shares = basket_contents_shares / basket_contents_shares.sum(dim=dim)
 
-        downscaled = (
-            self._da.pr.loc[{dim: basket}] * basket_contents_shares.pr.loc[{dim: basket_contents}]
-        )
-
+        # Make sure the result won't be empty.
         # xarray will try to match every indexed coordinate (coordinates with *)
-        # if they don't match the result will be empty, we need to make sure only
-        # the relevant coordinates are present
-        if downscaled.size == 0 or downscaled.isnull().all():
+        # if they don't match the result will be empty
+        array_to_downscale = self._da.pr.loc[{dim: basket}]
+
+        # aligned is a tuple of datarray with aligned coordinates
+        aligned = xr.align(array_to_downscale, basket_contents_shares, join="inner")
+        if all([i.size == 0 for i in aligned]):
             raise ValueError(
                 "No overlap found between the input data and the provided shares."
                 "Check coordinate alignment"
             )
+
+        downscaled = array_to_downscale * basket_contents_shares
 
         return self._da.pr.set(dim=dim, key=basket_contents, value=downscaled)
 
