@@ -3,6 +3,7 @@ from collections.abc import Hashable, Sequence
 import numpy as np
 import pandas as pd
 import xarray as xr
+from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._aggregate import select_no_scalar_dimension
@@ -157,6 +158,63 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         downscaled: xr.DataArray = basket_da * shares
 
         return self._da.fillna(downscaled)
+
+    def downscale_timeseries_by_shares(
+        self,
+        *,
+        dim: Hashable,
+        basket: Hashable,
+        basket_contents: Sequence[Hashable],
+        basket_contents_shares: xr.DataArray,
+    ) -> xr.DataArray:
+        """Downscale timeseries along a dimension using defined shares for each timestep.
+
+        This is useful if you have data points for a total, and you don't have any
+        data for the higher resolution, but you do have the shares for the higher
+        resolution from another source. For example, you have the total energy, and
+        you know the shares of the sub-sectors 1.A and 1.B for each year from another
+        source.
+
+        Parameters
+        ----------
+        dim : Hashable
+            The dimension along which to perform the downscaling (e.g., "category" or "area").
+        basket : Hashable
+            The label of the aggregate group (e.g., "1.A" for a category) whose value will be
+            redistributed.
+        basket_contents : Sequence of Hashable
+            The labels of the subgroups (e.g., ["1.A.1", "1.A.2", "1.A.3"])
+            that make up the `basket`.
+        basket_contents_shares : xr.DataArray
+            The shares to use for downscaling.
+
+        Returns
+        -------
+        xr.DataArray
+            A new datarray with variables downscaled along `dim` using the provided shares.
+        """
+
+        basket_contents_shares = basket_contents_shares.pr.loc[{dim: basket_contents}]
+
+        # normalise shares
+        basket_contents_shares = basket_contents_shares / basket_contents_shares.sum(dim=dim)
+
+        # Make sure the result won't be empty.
+        # xarray will try to match every indexed coordinate (coordinates with *)
+        # if they don't match the result will be empty
+        array_to_downscale = self._da.pr.loc[{dim: basket}]
+
+        # aligned is a tuple of datarray with aligned coordinates
+        aligned = xr.align(array_to_downscale, basket_contents_shares, join="inner")
+        if all([i.size == 0 for i in aligned]):
+            raise ValueError(
+                "No overlap found between the input data and the provided shares."
+                "Check coordinate alignment"
+            )
+
+        downscaled = array_to_downscale * basket_contents_shares
+
+        return self._da.pr.set(dim=dim, key=basket_contents, value=downscaled)
 
 
 class DatasetDownscalingAccessor(BaseDatasetAccessor):
@@ -409,6 +467,60 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                 )
 
         return self._ds.pr.fillna(downscaled_converted)
+
+    def downscale_timeseries_by_shares(
+        self,
+        *,
+        dim: Hashable,
+        basket: Hashable,
+        basket_contents: Sequence[Hashable],
+        basket_contents_shares: xr.DataArray | xr.Dataset,
+    ) -> xr.Dataset:
+        """Downscale timeseries along a dimension using defined shares for each timestep.
+
+        This is useful if you have data points for a total, and you don't have any
+        data for the higher resolution, but you do have the shares for the higher
+        resolution from another source. For example, you have the total energy, and
+        you know the shares of the sub-sectors 1.A and 1.B for each year from another
+        source.
+
+        Parameters
+        ----------
+        dim : Hashable
+            The dimension along which to perform the downscaling (e.g., "category" or "area").
+        basket : Hashable
+            The label of the aggregate group (e.g., "1.A" for a category) whose value will be
+            redistributed.
+        basket_contents : Sequence of Hashable
+            The labels of the subgroups (e.g., ["1.A.1", "1.A.2", "1.A.3"])
+            that make up the `basket`.
+        basket_contents_shares : xr.DataArray or xr.Dataset
+            The shares to use for downscaling.
+
+        Returns
+        -------
+        xr.Dataset
+            A new dataset with variables downscaled along `dim` using the provided shares.
+        """
+        ds = self._ds.copy()
+        downscaled_dict = {}
+        for var in self._ds.data_vars:
+            if isinstance(basket_contents_shares, xr.Dataset):
+                # if the reference does not specify shares for this variable, skip it
+                if var not in basket_contents_shares.data_vars:
+                    logger.warning(f"{var} is not in reference data. Skipping it")
+                    continue
+                basket_contents_shares_arr = basket_contents_shares[var]
+            else:
+                basket_contents_shares_arr = basket_contents_shares
+            downscaled_dict[var] = ds[var].pr.downscale_timeseries_by_shares(
+                dim=dim,
+                basket=basket,
+                basket_contents=basket_contents,
+                basket_contents_shares=basket_contents_shares_arr,
+            )
+
+        return xr.Dataset(downscaled_dict).assign_attrs(ds.attrs)
 
 
 def generate_error_message(da_error: xr.DataArray) -> str:

@@ -1,13 +1,20 @@
 #!/usr/bin/env python
 """Tests for _downscale.py"""
 
+import logging
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 
+import primap2
 from primap2 import ureg
 
 from .utils import allclose, assert_equal
+
+DATA_PATH = Path(__file__).parent / "data"
 
 
 @pytest.fixture
@@ -347,3 +354,226 @@ def test_downscale_gas_timeseries_da_partial_zero(gas_downscaling_ds):
     expected["CH4"].loc[{"time": "2010"}] = 0 * ureg("Gg CH4 / year")
 
     xr.testing.assert_identical(downscaled, expected)
+
+
+def test_downscale_timeseries_by_shares(opulent_ds):
+    # build a reference data array with the shares of the basket contents
+    time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
+    area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
+    category_higher_resolution = [
+        "1.A.1",
+        "1.A.2",
+        "1.A.3",
+    ]
+    rng = np.random.default_rng(42)
+
+    reference = xr.Dataset(
+        {
+            ent: xr.DataArray(
+                data=rng.integers(
+                    10, size=(len(time), len(area_iso3), len(category_higher_resolution))
+                ),
+                coords={
+                    "time": time,
+                    "area (ISO3)": area_iso3,
+                    "category (IPCC 2006)": category_higher_resolution,
+                },
+                dims=["time", "area (ISO3)", "category (IPCC 2006)"],
+                attrs={"units": f"{ent} Gg / year", "entity": ent},
+            )
+            for ent in ("CO2", "N2O", "CH4")
+        }
+    ).pr.quantify()
+
+    assert (
+        reference["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A.1", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        == 1
+    )
+
+    assert (
+        reference["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A.2", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        == 5
+    )
+
+    assert (
+        reference["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A.3", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        == 0
+    )
+
+    # The dataset to be downscaled
+    ds = opulent_ds.pr.loc[
+        {
+            "provenance": "projected",
+            "scenario": "highpop",
+            "product": "milk",
+            "animal": "cow",
+            "model": "FANCYFAO",
+            "source": "RAND2020",
+        }
+    ]
+    ds = ds.drop_vars("population")
+
+    # look at one specific value
+    assert (
+        ds["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        == 0.8660848254275575
+    )
+
+    downscaled = ds.pr.downscale_timeseries_by_shares(
+        dim="category (IPCC 2006)",
+        basket="1.A",
+        basket_contents=category_higher_resolution,
+        basket_contents_shares=reference,
+    )
+
+    # check if basket contents add up to basket (sum over all years and countries)
+    assert (
+        ds.pr.loc[{"category (IPCC 2006)": "1.A"}].sum()
+        == downscaled.pr.loc[{"category (IPCC 2006)": category_higher_resolution}].sum()
+    )
+
+    # check a specific year manually
+    assert (
+        downscaled["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A.1", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        == (1 / 6) * 0.8660848254275575
+    )
+
+    assert (
+        downscaled["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A.2", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        == (5 / 6) * 0.8660848254275575
+    )
+
+    assert (
+        downscaled["CO2"]
+        .pr.loc[{"category (IPCC 2006)": "1.A.3", "area (ISO3)": "COL", "time": "2020"}]
+        .to_numpy()
+        == 0.0
+    )
+
+
+def test_with_realistic_dataset(caplog):
+    entity_example = "CO2"
+    country_example = "CYP"
+    time_example = slice("2001", "2001")
+
+    # load dataset to downscale
+    original = primap2.open_dataset(DATA_PATH / "downscale_test_original.nc")
+
+    assert sorted(original.coords["category (IPCC2006_PRIMAP)"].to_numpy()) == ["1", "1.A", "2"]
+    assert list(original.coords["area (ISO3)"].to_numpy()) == ["CYP", "CZE", "DEU", "DJI"]
+
+    # look at one value for parent category
+    assert (
+        original[entity_example]
+        .pr.loc[
+            {
+                "category (IPCC2006_PRIMAP)": "1.A",
+                "area (ISO3)": country_example,
+                "time": time_example,
+            }
+        ]
+        .to_numpy()
+        == 6190.0
+    )
+
+    # load reference dataset
+    reference = primap2.open_dataset(DATA_PATH / "test_downscale_reference.nc")
+
+    assert list(reference.coords["category (IPCC2006_PRIMAP)"].to_numpy()) == [
+        "1.A.1",
+        "1.A.2",
+        "1.A.3",
+        "1.A.4",
+        "1.A.5",
+    ]
+    assert list(reference.coords["area (ISO3)"].to_numpy()) == ["CYP", "CZE", "DEU", "DJI"]
+
+    # value for sub-category 1.A.1
+    assert (
+        reference[entity_example]
+        .pr.loc[
+            {
+                "category (IPCC2006_PRIMAP)": "1.A.1",
+                "area (ISO3)": country_example,
+                "time": time_example,
+            }
+        ]
+        .to_numpy()
+        == 2.8372828
+    )
+
+    # total value for all sub-categories
+    assert (
+        reference[entity_example]
+        .pr.loc[
+            {
+                "category (IPCC2006_PRIMAP)": ["1.A.1", "1.A.2", "1.A.3", "1.A.4", "1.A.5"],
+                "area (ISO3)": country_example,
+                "time": time_example,
+            }
+        ]
+        .to_numpy()
+        .sum()
+        == 6.187519093
+    )
+
+    basket = "1.A"
+    basket_contents = ["1.A.1", "1.A.2", "1.A.3", "1.A.4", "1.A.5"]
+
+    with pytest.raises(ValueError, match="No overlap found"):
+        downscaled = original.pr.downscale_timeseries_by_shares(
+            dim="category (IPCC2006_PRIMAP)",
+            basket=basket,
+            basket_contents=basket_contents,
+            basket_contents_shares=reference,
+        )
+
+    # need to select source explicitly so it won't be used
+    # for the alignment which would return an empty array
+    reference = reference.pr.loc[{"source": "IMF"}]
+
+    # check if warnings are shown
+    with caplog.at_level(logging.WARNING):
+        downscaled = original.pr.downscale_timeseries_by_shares(
+            dim="category (IPCC2006_PRIMAP)",
+            basket=basket,
+            basket_contents=basket_contents,
+            basket_contents_shares=reference,
+        )
+
+    # FGASES, HFCS etc. are not in original
+    assert any("is not in reference data. Skipping it" in message for message in caplog.messages)
+
+    # only what's available in reference
+    # can be converted
+    assert sorted([i for i in downscaled.data_vars]) == [
+        "CH4",
+        "CO2",
+        "KYOTOGHG (AR6GWP100)",
+        "N2O",
+    ]
+
+    assert (
+        downscaled[entity_example]
+        .pr.loc[
+            {
+                "category (IPCC2006_PRIMAP)": "1.A.1",
+                "area (ISO3)": country_example,
+                "time": time_example,
+            }
+        ]
+        .to_numpy()
+        == (2.8372828 / 6.187519093) * 6190.0
+    )
