@@ -2,7 +2,7 @@
 
 __author__ = """Mika Pflüger and Johannes Gütschow"""
 __email__ = "mika.pflueger@climate-resource.com"
-__version__ = "0.12.3"
+__version__ = "0.13.0"
 
 import sys
 

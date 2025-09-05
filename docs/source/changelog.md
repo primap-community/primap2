@@ -19,6 +19,19 @@ of rst and use slightly different categories.
 
 <!-- towncrier release notes start -->
 
+## primap2 0.13.0 (2025-09-05)
+
+### Breaking Changes
+
+- Removed Python 3.10 support in line with NEP 29 timeline. ([#350](https://github.com/primap-community/primap2/pull/350))
+
+### Bug Fixes
+
+- Pinned xarray and pint-xarray versions due to behaviour changes in xarray and pint-xarray which lead to failures in primap2.
+
+  This is only an interim measure, we will update primap2 to work with the latest xarray and pint-xarray versions soon. ([#350](https://github.com/primap-community/primap2/pull/350))
+
+
 ## primap2 0.12.3 (2025-07-10)
 
 ### Improvements

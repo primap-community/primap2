@@ -46,6 +46,6 @@ included in the licenses directory.
 
 If you use this library and want to cite it, please cite it as:
 
-Mika Pflüger and Johannes Gütschow. (2025-07-10).
-primap-community/primap2: PRIMAP2 Version 0.12.3.
-Zenodo. https://doi.org/10.5281/zenodo.15855577
+Mika Pflüger and Johannes Gütschow. (2025-09-05).
+primap-community/primap2: PRIMAP2 Version 0.13.0.
+Zenodo. https://doi.org/10.5281/zenodo.17061768
