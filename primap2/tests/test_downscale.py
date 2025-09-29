@@ -101,7 +101,7 @@ def test_downscale_gas_timeseries(gas_downscaling_ds):
 
     with pytest.raises(
         ValueError,
-        match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both.",
+        match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both",
     ):
         gas_downscaling_ds.pr.downscale_gas_timeseries(
             basket="KYOTOGHG (AR4GWP100)",
@@ -139,7 +139,7 @@ def test_downscale_timeseries(dim_downscaling_ds, dim_downscaling_da, dim_downsc
 
     with pytest.raises(
         ValueError,
-        match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both.",
+        match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both",
     ):
         dim_downscaling_ds.pr.downscale_timeseries(
             dim="area (ISO3)",

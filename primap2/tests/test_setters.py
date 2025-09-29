@@ -268,7 +268,7 @@ class TestDASetter:
     def test_multidimensional_ndarray_underspecified(self, mda: xr.DataArray, new, shape):
         match = (
             "Could not automatically determine value dimensions, please use the"
-            " value_dims parameter."
+            " value_dims parameter"
         )
         with pytest.raises(ValueError, match=match):
             mda.pr.set("a", "a3", np.ones(shape), existing="overwrite", **new)
@@ -347,7 +347,7 @@ class TestDASetter:
         assert_aligned_equal(actual, expected)
 
     def test_over_specific(self, da: xr.DataArray, ts: np.ndarray, new):
-        with pytest.raises(ValueError, match="value_dims given, but value is already a DataArray."):
+        with pytest.raises(ValueError, match="value_dims given, but value is already a DataArray"):
             da.pr.set(
                 "area",
                 "COL",
@@ -368,21 +368,21 @@ class TestDASetter:
         assert_aligned_equal(actual, expected)
 
     def test_dim_does_not_exist(self, da: xr.DataArray, ts, existing, new):
-        with pytest.raises(ValueError, match="Dimension 'asdf' does not exist."):
+        with pytest.raises(ValueError, match="Dimension 'asdf' does not exist"):
             da.pr.set("asdf", ["COL"], ts, **existing, **new)
 
     def test_existing_wrong(self, da: xr.DataArray, ts, new):
         with pytest.raises(
             ValueError,
             match="If given, 'existing' must specify one of 'error', 'overwrite', "
-            "'fillna_empty', or 'fillna', not 'asdf'.",
+            "'fillna_empty', or 'fillna', not 'asdf'",
         ):
             da.pr.set("area", ["COL"], ts, existing="asdf", **new)
 
     def test_new_wrong(self, da: xr.DataArray, ts, existing):
         with pytest.raises(
             ValueError,
-            match="If given, 'new' must specify one of 'error' or 'extend', not 'asdf'.",
+            match="If given, 'new' must specify one of 'error' or 'extend', not 'asdf'",
         ):
             da.pr.set("area", ["CUB"], ts, new="asdf", **existing)
 
@@ -471,7 +471,7 @@ class TestDsSetter:
             minimal_ds.pr.set("area", "COL", np.zeros((3, 4)), **new)
 
     def test_wrong_dim(self, minimal_ds: xr.Dataset, existing, new):
-        with pytest.raises(ValueError, match="Dimension 'asdf' does not exist."):
+        with pytest.raises(ValueError, match="Dimension 'asdf' does not exist"):
             minimal_ds.pr.set("asdf", "COL", minimal_ds.pr.loc[{"area": "COL"}], **existing, **new)
 
     def test_inhomogeneous(self, minimal_ds: xr.Dataset):

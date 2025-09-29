@@ -1,6 +1,7 @@
 """Tests for _data_reading.py"""
 
 import datetime
+import re
 from pathlib import Path
 
 import numpy as np
@@ -633,7 +634,7 @@ class TestReadWideCSVFile:
 
         coords_cols["sec_cats__Class"] = "class"
 
-        with pytest.raises(ValueError, match="Columns {'class'} not found in CSV."):
+        with pytest.raises(ValueError, match=re.escape("Columns {'class'} not found in CSV.")):
             pm2io.read_wide_csv_file_if(
                 file_input,
                 coords_cols=coords_cols,
@@ -653,7 +654,7 @@ class TestReadWideCSVFile:
 
         with pytest.raises(
             ValueError,
-            match="Unknown metadata mapping 'non-existing' for column 'category'.",
+            match="Unknown metadata mapping 'non-existing' for column 'category'",
         ):
             pm2io.read_wide_csv_file_if(
                 file_input,
@@ -671,7 +672,7 @@ class TestReadWideCSVFile:
         coords_defaults["entity"] = "CO2"
 
         with pytest.raises(
-            ValueError, match="{'entity'} given in coords_cols and coords_defaults."
+            ValueError, match=re.escape("{'entity'} given in coords_cols and coords_defaults.")
         ):
             pm2io.read_wide_csv_file_if(
                 file_input,
@@ -688,7 +689,9 @@ class TestReadWideCSVFile:
 
         add_coords_cols = {"test": ["gas", "category"]}
 
-        with pytest.raises(ValueError, match="{'gas'} given in coords_cols and add_coords_cols."):
+        with pytest.raises(
+            ValueError, match=re.escape("{'gas'} given in coords_cols and add_coords_cols.")
+        ):
             pm2io.read_wide_csv_file_if(
                 file_input,
                 coords_cols=coords_cols,
@@ -705,7 +708,7 @@ class TestReadWideCSVFile:
 
         del coords_cols["unit"]
 
-        with pytest.raises(ValueError, match="Mandatory dimension 'unit' not defined."):
+        with pytest.raises(ValueError, match="Mandatory dimension 'unit' not defined"):
             pm2io.read_wide_csv_file_if(
                 file_input,
                 coords_cols=coords_cols,
@@ -721,7 +724,7 @@ class TestReadWideCSVFile:
 
         del coords_cols["entity"]
 
-        with pytest.raises(ValueError, match="Mandatory dimension 'entity' not defined."):
+        with pytest.raises(ValueError, match="Mandatory dimension 'entity' not defined"):
             pm2io.read_wide_csv_file_if(
                 file_input,
                 coords_cols=coords_cols,
@@ -739,7 +742,7 @@ class TestReadWideCSVFile:
 
         with pytest.raises(
             ValueError,
-            match="Unknown metadata mapping 'TESTTEST' for column 'category'.",
+            match="Unknown metadata mapping 'TESTTEST' for column 'category'",
         ):
             pm2io.read_wide_csv_file_if(
                 file_input,
@@ -757,7 +760,7 @@ class TestReadWideCSVFile:
         coords_value_mapping["entity"] = "TESTTEST"
 
         with pytest.raises(
-            ValueError, match="Unknown metadata mapping 'TESTTEST' for column 'entity'."
+            ValueError, match="Unknown metadata mapping 'TESTTEST' for column 'entity'"
         ):
             pm2io.read_wide_csv_file_if(
                 file_input,
@@ -777,7 +780,7 @@ class TestReadWideCSVFile:
         with pytest.raises(
             ValueError,
             match="'citation' given in coords_defaults is unknown - prefix with "
-            "'sec_cats__' to add a secondary category.",
+            "'sec_cats__' to add a secondary category",
         ):
             pm2io.read_wide_csv_file_if(
                 file_input,
@@ -886,7 +889,7 @@ class TestInterchangeFormat:
             ValueError,
             match="Different secondary coordinate values "
             "for given first coordinate value for "
-            "entity_name.",
+            "entity_name",
         ):
             pm2io.from_interchange_format(df)
 
@@ -1051,7 +1054,7 @@ class TestLong:
 
         with pytest.raises(
             ValueError,
-            match="No data column in the CSV specified in coords_cols, so nothing to read.",
+            match="No data column in the CSV specified in coords_cols, so nothing to read",
         ):
             pm2io.read_long_csv_file_if(
                 file_input_long,
@@ -1111,8 +1114,10 @@ class TestAdditionalCoordinateMetadata:
 
         with pytest.raises(
             ValueError,
-            match="Additional coordinate category_name has terminology definition. "
-            "This is currently not supported by PRIMAP2.",
+            match=re.escape(
+                "Additional coordinate category_name has terminology definition. "
+                "This is currently not supported by PRIMAP2."
+            ),
         ):
             additional_coordinate_metadata(
                 coords_cols=coords_cols,

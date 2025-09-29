@@ -170,7 +170,7 @@ class TestSum:
     def test_errors(self, opulent_ds_or_da):
         with pytest.raises(
             ValueError,
-            match="Only one of 'dim' and 'reduce_to_dim' may be supplied, not both.",
+            match="Only one of 'dim' and 'reduce_to_dim' may be supplied, not both",
         ):
             opulent_ds_or_da.pr.sum("area", reduce_to_dim="category")
 
@@ -412,7 +412,7 @@ class TestGasBasket:
         """
         with pytest.raises(
             xr.MergeError,
-            match="pr.merge error: found discrepancies larger than tolerance",
+            match="pr\\.merge error: found discrepancies larger than tolerance",
         ):
             partly_filled_ds.pr.add_aggregates_variables(
                 gas_baskets={
@@ -502,7 +502,7 @@ class TestAddAggregatesCoordinates:
 
         with pytest.raises(
             xr.MergeError,
-            match="pr.merge error: found discrepancies larger than tolerance",
+            match=re.escape("pr.merge error: found discrepancies larger than tolerance"),
         ):
             test_ds.pr.add_aggregates_coordinates(
                 agg_info={

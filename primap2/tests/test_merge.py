@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Tests for _merge.py"""
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -52,7 +54,7 @@ def test_merge_fail_tolerance(opulent_ds):
 
     with pytest.raises(
         xr.MergeError,
-        match="pr.merge error: found discrepancies larger than tolerance",
+        match=re.escape("pr.merge error: found discrepancies larger than tolerance"),
     ):
         da_start.pr.merge(da_merge, tolerance=0.01)
 
@@ -72,7 +74,9 @@ def test_coords_not_matching_ds(opulent_ds):
     ds_start = opulent_ds
     ds_merge = opulent_ds.rename({"time": "year"})
 
-    with pytest.raises(ValueError, match="pr.merge error: coords of objects to merge must agree"):
+    with pytest.raises(
+        ValueError, match=re.escape("pr.merge error: coords of objects to merge must agree")
+    ):
         ds_start.pr.merge(ds_merge)
 
 
@@ -80,7 +84,9 @@ def test_coords_not_matching_da(opulent_ds):
     da_start = opulent_ds["CH4"]
     da_merge = opulent_ds["CH4"].rename({"time": "year"})
 
-    with pytest.raises(ValueError, match="pr.merge error: coords of objects to merge must agree"):
+    with pytest.raises(
+        ValueError, match=re.escape("pr.merge error: coords of objects to merge must agree")
+    ):
         da_start.pr.merge(da_merge)
 
 
@@ -88,7 +94,9 @@ def test_dims_not_matching_ds(opulent_ds):
     ds_start = opulent_ds
     ds_merge = opulent_ds.rename_dims({"time": "year"})
 
-    with pytest.raises(ValueError, match="pr.merge error: dims of objects to merge must agree"):
+    with pytest.raises(
+        ValueError, match=re.escape("pr.merge error: dims of objects to merge must agree")
+    ):
         ds_start.pr.merge(ds_merge)
 
 
@@ -96,7 +104,9 @@ def test_dims_not_matching_da(opulent_ds):
     da_start = opulent_ds["CH4"]
     da_merge = opulent_ds["CH4"].swap_dims({"time": "year"})
 
-    with pytest.raises(ValueError, match="pr.merge error: dims of objects to merge must agree"):
+    with pytest.raises(
+        ValueError, match=re.escape("pr.merge error: dims of objects to merge must agree")
+    ):
         da_start.pr.merge(da_merge)
 
 
