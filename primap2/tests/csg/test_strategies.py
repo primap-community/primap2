@@ -234,9 +234,7 @@ def test_raises_error_substitution_strategy_missing_years():
     )
 
     with pytest.raises(ValueError, match=re.escape(expected_msg)):
-        result_ts, result_descriptions = primap2.csg.SubstitutionStrategy().fill(
-            ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
-        )
+        primap2.csg.SubstitutionStrategy().fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")
 
 
 def test_raises_error_substitution_strategy_wrong_dimension():
@@ -248,6 +246,4 @@ def test_raises_error_substitution_strategy_wrong_dimension():
     fill_ts = fill_ts.rename({"time": "TIME"})
 
     with pytest.raises(IndexError):
-        result_ts, result_descriptions = primap2.csg.SubstitutionStrategy().fill(
-            ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
-        )
+        primap2.csg.SubstitutionStrategy().fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")

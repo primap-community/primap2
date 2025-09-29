@@ -100,7 +100,7 @@ class GlobalLSStrategy:
                     e = fill_ts[overlap.data].data
                     A = np.vstack((e, np.ones_like(e))).transpose()
                     e_ref = ts[overlap.data].data
-                    x, res, rank, s = lstsq(A, e_ref)
+                    x, res, _rank, _s = lstsq(A, e_ref)
                     fill_ts_harmo = fill_ts * x[0] + x[1]
                     if any(fill_ts_harmo < 0):
                         # use filling without shift

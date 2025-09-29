@@ -680,7 +680,7 @@ def test_compose_timeseries_all_null():
     )
     input_data = xr.concat((da_a, da_b), dim="source", join="exact")
 
-    result, result_description = primap2.csg._compose.compose_timeseries(
+    _, result_description = primap2.csg._compose.compose_timeseries(
         input_data=input_data,
         priority_definition=priority_definition,
         strategy_definition=strategy_definition,
