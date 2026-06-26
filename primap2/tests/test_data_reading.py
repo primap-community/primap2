@@ -1150,6 +1150,18 @@ class TestRegression:
         assert_ds_aligned_equal(actual, expected, equal_nan=True)
 
 
+def test_convert_unit_to_primap2():
+    unit = "ktCO2eq"
+    entity = "CO2"
+    expected = "kt CO2 / yr"
+    assert pm2io._conversion.convert_unit_to_primap2(unit, entity) == expected
+
+    unit = "GgCO2e"
+    entity = "CH4"
+    expected = "Gg CO2 / yr"
+    assert pm2io._conversion.convert_unit_to_primap2(unit, entity) == expected
+
+
 # functions that still need individual testing
 # dates_to_dimension(ds: xr.Dataset, time_format: str = "%Y") -> xr.DataArray:
 # harmonize_units
