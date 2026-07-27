@@ -292,7 +292,7 @@ def compose_timeseries(
         strategies=strategy_definition.strategies,
     )
 
-    result_ts: None | xr.DataArray = None
+    result_ts: xr.DataArray | None = None
     processing_steps_descriptions = []
     for selector in priority_definition.priorities:
         try:

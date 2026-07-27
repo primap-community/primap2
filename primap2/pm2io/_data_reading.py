@@ -1442,12 +1442,10 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
             # we have a gas basket or something unknown, so no conversion to native unit
             # print(f"Exception occurred for entity {entity}")
             native_conv.append(False)
-            pass
 
         # check if conversion to fallback unit is possible
         if units[unit] != context_fallback:
             fb_conv.append(False)
-            pass
         else:
             try:
                 # print(f"Testing conversion from {ureg[unit_fallback].units} to "
@@ -1461,7 +1459,6 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
                 # unit
                 # print(f"Exception occurred for entity {entity}")
                 fb_conv.append(False)
-                pass
 
     if all(native_conv):
         # print(f"converting {entity} to native unit {native_unit}")
@@ -1651,9 +1648,9 @@ def sort_columns_and_rows(
                 other_cols.remove(ocol)
                 break
 
-    cols_sorted += list(sorted(other_cols))
+    cols_sorted += sorted(other_cols)
 
-    data: pd.DataFrame = data[cols_sorted + list(sorted(time_cols))]
+    data: pd.DataFrame = data[cols_sorted + sorted(time_cols)]
 
     data.sort_values(by=cols_sorted, inplace=True)
     data.reset_index(inplace=True, drop=True)

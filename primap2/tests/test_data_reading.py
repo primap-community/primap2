@@ -9,8 +9,8 @@ import pandas as pd
 import pytest
 
 import primap2
-import primap2.pm2io as pm2io
 import primap2.pm2io._conversion
+from primap2 import pm2io
 from primap2.pm2io._data_reading import additional_coordinate_metadata
 
 from .utils import assert_ds_aligned_equal

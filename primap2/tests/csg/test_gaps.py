@@ -210,7 +210,7 @@ def test_calculate_boundary_trend_inner_left(
     fit_degree = 1
     # expected result
     data_to_interpolate = test_ts.pr.loc[{"time": slice("1996", "2005")}].data
-    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
+    coeff = np.polyfit(range(10), data_to_interpolate, deg=fit_degree)
     expected_value = np.polyval(coeff, 9)
     trend_value = calculate_boundary_trend_inner(
         test_ts,
@@ -223,7 +223,7 @@ def test_calculate_boundary_trend_inner_left(
     # constant trend for a right boundary
     fit_degree = 0
     # expected result
-    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
+    coeff = np.polyfit(range(10), data_to_interpolate, deg=fit_degree)
     expected_value = np.polyval(coeff, 9)
     trend_value = calculate_boundary_trend_inner(
         test_ts,
@@ -261,7 +261,7 @@ def test_calculate_boundary_trend_inner_right(
     fit_degree = 1
     # expected result
     data_to_interpolate = test_ts.pr.loc[{"time": slice("1956", "1965")}].data
-    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
+    coeff = np.polyfit(range(10), data_to_interpolate, deg=fit_degree)
     expected_value = np.polyval(coeff, 0)
 
     trend_value = calculate_boundary_trend_inner(
@@ -276,7 +276,7 @@ def test_calculate_boundary_trend_inner_right(
     # constant trend for a right boundary
     fit_degree = 0
     # expected result
-    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
+    coeff = np.polyfit(range(10), data_to_interpolate, deg=fit_degree)
     expected_value = np.polyval(coeff, 0)
 
     trend_value = calculate_boundary_trend_inner(
@@ -323,19 +323,19 @@ def test_calculate_boundary_trend(test_ts, fit_params_linear):
     # expected results
     # beginning
     data_to_interpolate = test_ts.pr.loc[{"time": slice("1956", "1965")}].data
-    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
+    coeff = np.polyfit(range(10), data_to_interpolate, deg=fit_degree)
     expected_start = np.polyval(coeff, 0)
     # end
     data_to_interpolate = test_ts.pr.loc[{"time": slice("1996", "2005")}].data
-    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
+    coeff = np.polyfit(range(10), data_to_interpolate, deg=fit_degree)
     expected_end = np.polyval(coeff, 9)
     # gap left
     data_to_interpolate = test_ts.pr.loc[{"time": slice("1957", "1966")}].data
-    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
+    coeff = np.polyfit(range(10), data_to_interpolate, deg=fit_degree)
     expected_gap_left = np.polyval(coeff, 9)
     # gap right
     data_to_interpolate = test_ts.pr.loc[{"time": slice("1991", "2000")}].data
-    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=fit_degree)
+    coeff = np.polyfit(range(10), data_to_interpolate, deg=fit_degree)
     expected_gap_right = np.polyval(coeff, 0)
 
     # calculate trend values
@@ -374,7 +374,7 @@ def test_calculate_boundary_trend_with_fallback(test_ts, fit_params_linear):
 
     # expected result linear
     data_to_interpolate = test_ts.pr.loc[{"time": slice("1956", "1965")}].data
-    coeff = np.polyfit(range(0, 10), data_to_interpolate, deg=1)
+    coeff = np.polyfit(range(10), data_to_interpolate, deg=1)
     value = np.polyval(coeff, 0)
     expected_linear = [value, value]
 
@@ -392,7 +392,7 @@ def test_calculate_boundary_trend_with_fallback(test_ts, fit_params_linear):
     # expected result constant
     data_to_interpolate = test_ts.pr.loc[{"time": slice("1956", "1965")}].data
     idx_notna = np.isfinite(data_to_interpolate)
-    x_vals = np.array(range(0, 10))
+    x_vals = np.array(range(10))
     coeff = np.polyfit(x_vals[idx_notna], data_to_interpolate[idx_notna], deg=0)
     value = np.polyval(coeff, 0)
     expected_constant = [value, value]

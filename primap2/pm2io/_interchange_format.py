@@ -174,7 +174,7 @@ def write_interchange_format(
     # we need to sort the metadata for stable output
     attrs_sorted = dict(sorted(attrs.items()))
     for entry in attrs_sorted["dimensions"]:
-        attrs_sorted["dimensions"][entry] = list(sorted(attrs_sorted["dimensions"][entry]))
+        attrs_sorted["dimensions"][entry] = sorted(attrs_sorted["dimensions"][entry])
     attrs_sorted["dimensions"] = dict(sorted(attrs_sorted["dimensions"].items()))
     attrs_sorted["attrs"] = dict(sorted(attrs_sorted["attrs"].items()))
 
