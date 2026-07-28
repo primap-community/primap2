@@ -548,7 +548,7 @@ def convert_wide_dataframe_if(
         and "history". Documentation about the format and meaning of the meta data can
         be found in the
         `data format documentation <https://primap2.readthedocs.io/en/stable/\
-data_format_details.html#dataset-attributes>`_.
+        data_format_details.html#dataset-attributes>`_.
 
     time_format : str
         str with strftime style format used to parse the time information for
@@ -1287,7 +1287,6 @@ def rename_columns(
 _special_codes = {
     "C": np.nan,
     "CC": np.nan,
-    "CH4": np.nan,  # TODO: move to user passed codes in CRT reading
     "nan": np.nan,
     "NaN": np.nan,
     "-": 0,
@@ -1334,10 +1333,10 @@ def parse_code(code: str) -> float:
     parts = [x.replace(".", "").strip().upper() for x in parts]
     if "FX" in parts:
         return np.nan
+    if "NE" in parts or "NA" in parts or "N/A" in parts:
+        return np.nan
     if "IE" in parts or "NO" in parts:
         return 0
-    if "NE" in parts or "NA" in parts or "FX" in parts:
-        return np.nan
 
     # footnote markers
     re_foot = re.compile(r"[\-0-9/.,]+(\([0-9]+\))$")
