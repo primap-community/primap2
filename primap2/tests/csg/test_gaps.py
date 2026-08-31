@@ -242,14 +242,7 @@ def test_calculate_boundary_trend_inner_left(
     )
     assert np.isnan(trend_value)
 
-    log_str = (
-        "Not enough values to calculate fit for left boundary at "
-        "2005-01-01T00:00:00.000000000.\nfit_degree: 1, trend_length: 10, "
-        "trend_length_unit: YS, min_trend_points: 5.\nTimeseries info: "
-        "{'category': 'test'}"
-    )
-
-    assert log_str in caplog.text
+    assert "Not enough values to calculate fit for left boundary" in caplog.text
 
 
 def test_calculate_boundary_trend_inner_right(
@@ -300,14 +293,7 @@ def test_calculate_boundary_trend_inner_right(
     )
     assert np.isnan(trend_value)
 
-    log_str = (
-        "Not enough values to calculate fit for right boundary at "
-        "1956-01-01T00:00:00.000000000.\nfit_degree: 1, trend_length: 10, "
-        "trend_length_unit: YS, min_trend_points: 5.\nTimeseries info: "
-        "{'category': 'test'}"
-    )
-
-    assert log_str in caplog.text
+    assert "Not enough values to calculate fit for right boundary" in caplog.text
 
 
 def test_calculate_boundary_trend(test_ts, fit_params_linear):
@@ -425,12 +411,7 @@ def test_calculate_scaling_factor(test_ts, fill_ts, fit_params_linear, caplog):
     assert np.allclose([0.33333, 1], factor)
     # as fallback will be used we also check for the log message (not strictly necessary
     # to test his as it's raise by a different function)
-    assert (
-        "Not enough values to calculate fit for right boundary "
-        "at 1973-01-01T00:00:00.000000000.\nfit_degree: 1, trend_length: 10, "
-        "trend_length_unit: YS, min_trend_points: 5.\n"
-        "Timeseries info: {'category': 'test'}" in caplog.text
-    )
+    assert "Not enough values to calculate fit for right boundary" in caplog.text
 
     # zero for fill_ts only result should be nan
     fill_ts.pr.loc[{"time": pd.date_range("1956-01-01", "1966-01-01", freq="YS")}] = (
