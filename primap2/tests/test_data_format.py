@@ -63,7 +63,9 @@ class TestEnsureValid:
         with pytest.raises(ValueError, match=r"contains metadata, but carries 'time' dimension"):
             opulent_processing_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
-        assert "'Processing of CO2' is a metadata variable, but 'time' is a dimension."
+        assert (
+            "'Processing of CO2' is a metadata variable, but 'time' is a dimension." in caplog.text
+        )
 
     def test_metadata_missing_attr(self, opulent_processing_ds, caplog):
         del opulent_processing_ds["Processing of CO2"].attrs["described_variable"]
