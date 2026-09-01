@@ -129,7 +129,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
             # 1 for all data points where NaNs are either in the sum or the basket
             # this will later lead to equal shares for the NaNs.
             units = basket_contents_da.pint.units
-            basket_da_squeeze = basket_da.drop(dim)
+            basket_da_squeeze = basket_da.drop_vars(dim)
             basket_contents_da = basket_contents_da.where(
                 (basket_da_squeeze != 0) | (basket_sum != 0), 1 * units
             )

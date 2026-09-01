@@ -1312,7 +1312,11 @@ def find_str_values_in_data(
     """Find all string values occurring in given columns of a DataFrame"""
     # limit our analysis to columns that contain strings
     # (or other object types)
-    cols_with_strs = data[columns].select_dtypes(include=[object]).columns.values.tolist()
+    cols_with_strs = [
+        col
+        for col in columns
+        if data[col].dtype == object or pd.api.types.is_string_dtype(data[col])
+    ]
     temp = []
     for col in cols_with_strs:
         temp += list(data[col].unique())
@@ -1380,7 +1384,7 @@ def replace_values(data: pd.DataFrame, columns: list[str], na_repl_dict):
     for col in columns:
         data[col] = data[col].replace(na_repl_dict)
         data[col] = pd.to_numeric(data[col], errors="coerce")
-        data[col] = data[col].astype("float64", copy=False, errors="ignore")
+        data[col] = data[col].astype("float64", errors="ignore")
 
 
 def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
@@ -1433,7 +1437,7 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
         try:
             # print(f"Testing conversion from {ureg[unit_fallback].units} to "
             #       f"{ureg[native_unit].units} for {entity}.")
-            if ureg(unit).is_compatible_with(ureg[native_unit], *conversion_contexts):
+            if ureg(unit).is_compatible_with(ureg(native_unit), *conversion_contexts):
                 native_conv.append(True)
             else:
                 native_conv.append(False)
@@ -1449,7 +1453,7 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
             try:
                 # print(f"Testing conversion from {ureg[unit_fallback].units} to "
                 #       f"{ureg[native_unit].units} for {entity}.")
-                if ureg(unit).is_compatible_with(ureg[unit_fallback], *conversion_contexts):
+                if ureg(unit).is_compatible_with(ureg(unit_fallback), *conversion_contexts):
                     fb_conv.append(True)
                 else:
                     fb_conv.append(False)
@@ -1570,7 +1574,7 @@ def harmonize_units(
                         for unit in units_this_entity:
                             if unit != unit_to:
                                 # print(f"Working on unit {unit}")
-                                unit_pint = ureg[unit]
+                                unit_pint = ureg(unit)
                                 # could add a try except block here to throw and log an
                                 # error or add error info in DF instead of crashing
                                 gwp_this_entity = gwp
@@ -1604,7 +1608,7 @@ def harmonize_units(
                         # if entity differs from basic entity and the units are not
                         # compatible we had GWP conversion and have to adapt the entity
                         if (entity != basic_entity) and not ureg(unit).is_compatible_with(
-                            ureg[unit_to]
+                            ureg(unit_to)
                         ):
                             # entity was converted
                             entity_mask = data[entity_col] == entity
