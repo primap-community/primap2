@@ -95,6 +95,11 @@ namespaces = false
 [tool.setuptools.package-data]
 "*" = ["*.csv", "*.nc"]
 
+[tool.uv]
+# only consider packages which have been on PyPI for at least a week, so that we don't
+# pick up freshly published broken or compromised releases
+exclude-newer = "7 days"
+
 [tool.ruff]
 extend-include = ["*.ipynb"]
 extend-exclude = [

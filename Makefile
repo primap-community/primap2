@@ -37,10 +37,10 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr .pytest_cache
 
 lint: .venv ## check style with pre-commit hooks
-	uv run pre-commit run --all-files
+	uv run --no-sync pre-commit run --all-files
 
 test: .venv ## run tests quickly with the default Python
-	uv run pytest --xdoc -rx
+	uv run --no-sync pytest --xdoc -rx
 
 test-all: ## run tests on every supported Python version and dependency resolution
 	@for python in 3.11 3.12; do \
@@ -53,20 +53,20 @@ test-all: ## run tests on every supported Python version and dependency resoluti
 	done
 
 coverage: .venv ## check code coverage quickly with the default Python
-	uv run coverage run --source primap2 -m pytest
-	uv run coverage report -m
-	uv run coverage html
+	uv run --no-sync coverage run --source primap2 -m pytest
+	uv run --no-sync coverage report -m
+	uv run --no-sync coverage html
 	ls htmlcov/index.html
 
 clean-docs: .venv ## Remove generated parts of documentation, then build docs
-	uv run $(MAKE) -C docs clean
-	uv run $(MAKE) -C docs html
+	uv run --no-sync $(MAKE) -C docs clean
+	uv run --no-sync $(MAKE) -C docs html
 
 docs: .venv ## generate Sphinx HTML documentation, including API docs
-	uv run $(MAKE) -C docs html
+	uv run --no-sync $(MAKE) -C docs html
 
 release: .venv dist ## package and upload a release
-	uv run twine upload --repository primap dist/*
+	uv run --no-sync twine upload --repository primap dist/*
 
 dist: clean .venv ## builds source and wheel package
 	uv build
@@ -82,13 +82,13 @@ update-venv: ## update all packages in the development environment
 	@touch .venv
 
 install-pre-commit: .venv ## install the pre-commit hooks
-	uv run pre-commit install
+	uv run --no-sync pre-commit install
 
 stubs: .venv ## generate directory with xarray stubs with inserted primap2 stubs
 	rm -rf stubs
 	mkdir -p stubs
-	uv run stubgen -p xarray -o stubs
+	uv run --no-sync stubgen -p xarray -o stubs
 	(cd stubs; patch -s -p0 < ../primap-stubs.patch)
 
-README.md: ## Update the citation information from zenodo
-	uv run python update_citation_info.py
+README.md: .venv ## Update the citation information from zenodo
+	uv run --no-sync python update_citation_info.py
