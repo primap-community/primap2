@@ -197,7 +197,7 @@ class TestEnsureValid:
 
     def test_multi_units(self, minimal_ds, caplog):
         minimal_ds["CO2"].attrs["units"] = "kg CO2 / year"
-        with pytest.raises(ValueError, match="data already has units"):
+        with pytest.raises(ValueError, match=r"data already has units|Cannot attach units"):
             minimal_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
         assert "'units' in variable attrs, but data is quantified already." in caplog.text

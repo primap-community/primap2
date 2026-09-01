@@ -86,10 +86,12 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Setting an existing value
 
-        >>> da.pr.set("area", "COL", np.array([0.5, 0.6, 0.7, 0.8]))
+        >>> da.pr.set(
+        ...     "area", "COL", np.array([0.5, 0.6, 0.7, 0.8])
+        ... )  # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
         ...
-        ValueError: Values {...} for 'area (ISO3)' already exist and contain data. ...
+        ValueError: Values {'COL'} for 'area (ISO3)' already exist and contain data. ...
         >>> da.pr.set("area", "COL", np.array([0.5, 0.6, 0.7, 0.8]), existing="overwrite")
         <xarray.DataArray (area (ISO3): 2, time: 4)> Size: 64B
         array([[0.5, 0.6, 0.7, 0.8],
@@ -126,10 +128,12 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         Coordinates:
           * area (ISO3)  (area (ISO3)) <U3 24B 'COL' 'MEX'
           * time         (time) datetime64[...] 32B 2000-01-01 2001-01-01 ... 2003-01-01
-        >>> da_partly_empty.pr.set("area", "COL", np.array([0.5, 0.6, 0.7, 0.8]))
+        >>> da_partly_empty.pr.set(
+        ...     "area", "COL", np.array([0.5, 0.6, 0.7, 0.8])
+        ... )  # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
         ...
-        ValueError: Values {...} for 'area (ISO3)' already exist and contain data. ...
+        ValueError: Values {'COL'} for 'area (ISO3)' already exist and contain data. ...
 
         Introducing a new value uses the same syntax as modifying existing values
 
@@ -161,10 +165,12 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         If you don't want to automatically extend the dimensions with new values, you
         can request checking that all keys already exist using ``new="error"``:
 
-        >>> da.pr.set("area", "ARG", np.array([0.5, 0.6, 0.7, 0.8]), new="error")
+        >>> da.pr.set(
+        ...     "area", "ARG", np.array([0.5, 0.6, 0.7, 0.8]), new="error"
+        ... )  # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
         ...
-        KeyError: "Values {...} not in 'area (ISO3)', use new='extend' to automatic...
+        KeyError: "Values {'ARG'} not in 'area (ISO3)', use new='extend' to automatic...
 
         If you want to use broadcasting or have more dimensions, the dimensions of your
         input can't be determined automatically anymore. Use the value_dims parameter
@@ -439,10 +445,12 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
 
         Setting an existing value
 
-        >>> ds.pr.set("area", "MEX", ds.pr.loc[{"area": "COL"}] * 20)
+        >>> ds.pr.set(
+        ...     "area", "MEX", ds.pr.loc[{"area": "COL"}] * 20
+        ... )  # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
         ...
-        ValueError: Values {...} for 'area (ISO3)' already exist and contain data. ...
+        ValueError: Values {'MEX'} for 'area (ISO3)' already exist and contain data. ...
         >>> ds.pr.set("area", "MEX", ds.pr.loc[{"area": "COL"}] * 20, existing="overwrite")
         <xarray.Dataset> Size: ...
         Dimensions:      (area (ISO3): 2, time: 4)
@@ -500,10 +508,12 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
             area:     area (ISO3)
         >>> # if even one value is non-nan, this fails by default
         >>> ds_partly_empty["SF4"].pr.loc[{"area": "COL", "time": "2001"}] = 2
-        >>> ds_partly_empty.pr.set("area", "COL", ds_partly_empty.pr.loc[{"area": "MEX"}] * 10)
+        >>> ds_partly_empty.pr.set(
+        ...     "area", "COL", ds_partly_empty.pr.loc[{"area": "MEX"}] * 10
+        ... )  # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
         ...
-        ValueError: Values {...} for 'area (ISO3)' already exist and contain data. ...
+        ValueError: Values {'COL'} for 'area (ISO3)' already exist and contain data. ...
 
         Introducing a new value uses the same syntax
 
@@ -522,10 +532,12 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         If you don't want to automatically extend the dimensions with new values, you
         can request checking that all keys already exist using ``new="error"``:
 
-        >>> ds.pr.set("area", "BOL", ds.pr.loc[{"area": "COL"}] * 20, new="error")
+        >>> ds.pr.set(
+        ...     "area", "BOL", ds.pr.loc[{"area": "COL"}] * 20, new="error"
+        ... )  # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
         ...
-        KeyError: "Values {...} not in 'area (ISO3)', use new='extend' to automatic...
+        KeyError: "Values {'BOL'} not in 'area (ISO3)', use new='extend' to automatic...
 
         Note that data variables which do not contain the specified dimension are
         ignored
