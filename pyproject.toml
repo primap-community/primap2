@@ -9,7 +9,7 @@ description = "The next generation of the PRIMAP climate policy analysis suite."
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-requires-python = ">=3.11, <3.13"
+requires-python = ">=3.12"
 authors = [
     { name = "Mika Pflüger", email = "mika.pflueger@climate-resource.com" },
 ]
@@ -19,8 +19,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Atmospheric Science",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "attrs>=23",
@@ -28,14 +29,14 @@ dependencies = [
     "numbagg>=0.8.1",
     "pint>=0.24.4",
     "pint_xarray>=0.4, <0.6",
-    "numpy>=1.26,<2",
-    "pandas>=2.2.2",
+    "numpy>=2.2.0",
+    "pandas>=2.3.0",
     "openscm_units>=0.6",
     "loguru>=0.7",
-    "scipy>=1.13.0",
+    "scipy>=1.14.0",
     "h5netcdf>=1",
-    "h5py>=3.10.0",
-    "matplotlib>=3.7",
+    "h5py>=3.12.0",
+    "matplotlib>=3.9",
     "ruamel.yaml>=0.18",
     "strictyaml>=1.7.3",
     "openpyxl>=3.1",
@@ -110,7 +111,7 @@ extend-exclude = [
 ]
 line-length = 100
 lint.extend-select = [ "E", "W", "I", "UP", "B", "YTT", "A", "NPY", "RUF", "FURB", "FLY", "PYI" ]
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.format]
 docstring-code-format = true

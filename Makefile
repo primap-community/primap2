@@ -42,9 +42,12 @@ lint: .venv ## check style with pre-commit hooks
 test: .venv ## run tests quickly with the default Python
 	uv run --no-sync pytest --xdoc -rx
 
+# note that the lowest dependency versions we support predate python 3.13 and can't be
+# installed there, so like the CI we only test them on python 3.12
 test-all: ## run tests on every supported Python version and dependency resolution
-	@for python in 3.11 3.12; do \
+	@for python in 3.12 3.13 3.14; do \
 	  for resolution in highest lowest-direct; do \
+	    if [ "$$resolution" = "lowest-direct" ] && [ "$$python" != "3.12" ]; then continue; fi; \
 	    echo "=== Python $$python, $$resolution dependency resolution ==="; \
 	    uv venv --python $$python .venv-test-$$python-$$resolution || exit 1; \
 	    VIRTUAL_ENV=.venv-test-$$python-$$resolution uv pip install --resolution $$resolution ".[test]" || exit 1; \

@@ -12,8 +12,16 @@ jobs:
     strategy:
       matrix:
         os: [ ubuntu-latest, windows-latest ]
-        python-version: [ "3.11", "3.12" ]
+        python-version: [ "3.12", "3.13", "3.14" ]
         resolution: [ "highest", "lowest-direct" ]
+        exclude:
+          # the oldest dependency versions we support predate python 3.13, so there are
+          # neither wheels nor buildable source distributions for them on newer pythons.
+          # Testing the lowest versions on the lowest supported pythons is enough.
+          - python-version: "3.13"
+            resolution: "lowest-direct"
+          - python-version: "3.14"
+            resolution: "lowest-direct"
     steps:
     - uses: actions/checkout@v4
 
