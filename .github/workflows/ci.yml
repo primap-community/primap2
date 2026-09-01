@@ -18,32 +18,26 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Set up uv and caching
-      uses: astral-sh/setup-uv@v2
+      uses: astral-sh/setup-uv@v6
       with:
         enable-cache: true
         cache-suffix: "${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.resolution }}"
-        cache-dependency-glob: "setup.cfg"
-        version: "0.4.9"
+        cache-dependency-glob: "pyproject.toml"
+        version: "0.12.7"
 
     - name: Create venv
       run: |
-        uv venv --seed --python ${{ matrix.python-version }}
+        uv venv --python ${{ matrix.python-version }}
 
+    # deliberately resolved without the lockfile: as a library, we want to know that we
+    # work with the whole range of dependency versions we allow
     - name: Install ${{ matrix.resolution }} dependencies
       run: |
         uv pip install --resolution ${{ matrix.resolution }} .[test]
 
-    - name: Test with pytest (linux)
-      if: startsWith(matrix.os, 'ubuntu')
+    - name: Test with pytest
       run: |
-        source .venv/bin/activate
-        pytest --xdoc --cov=primap2 --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
-
-    - name: Test with pytest (windows)
-      if: startsWith(matrix.os, 'windows')
-      run: |
-        .venv\Scripts\activate
-        pytest --xdoc --cov=primap2 --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
+        uv run --no-sync pytest --xdoc --cov=primap2 --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4

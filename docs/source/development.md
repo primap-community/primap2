@@ -22,14 +22,20 @@ in a nutshell.
    ```
 
 2. **Create the virtual environment.**
+   We use [`uv`](https://docs.astral.sh/uv/) to manage the development environment and
+   the dependencies of PRIMAP2, so first
+   [install `uv`](https://docs.astral.sh/uv/getting-started/installation/) if you don't
+   have it yet.
    To separate your environment used for developing PRIMAP2 from your system python,
-   create a virtual environment. After cloning, pycharm will automatically offer
-   creating a virtual environment, just accept. Alternatively, you can use the command
-   line:
+   create a virtual environment in `.venv/` with all development dependencies installed
+   using the command line:
     ```shell
    $ cd primap2/
    $ make virtual-environment
     ```
+   This is a thin wrapper around `uv sync`, which you can also call directly.
+   `uv` downloads a suitable python version for you if necessary, so you don't have to
+   install python yourself.
 
 3. **Install pre-commit hooks.**
    For static analysis tools and for enforcing a common code style, we use git hooks
@@ -123,7 +129,7 @@ dubiously building ASCII art in Python or whatever), use
 [the fmt on/off directive](https://github.com/psf/black#the-black-code-style) so ruff
 will ignore that part.
 
-We target Python version 3.10 and later, so using
+We target Python version 3.11 and later, so using
 [f-strings](https://docs.python.org/3/tutorial/inputoutput.html#tut-f-strings) is fine
 and generally preferable to old-style format strings.
 
@@ -157,6 +163,36 @@ commit and see if everything is fixed automatically already.
 
 If you find additional pre-commit hooks that might be worth to include, simply add them
 to `.pre-commit-config.yaml` and submit a pull request.
+
+## Dependencies and packaging
+
+All packaging metadata and all dependencies of PRIMAP2 live in `pyproject.toml`, and
+[`uv`](https://docs.astral.sh/uv/) is used to turn them into an environment. There are
+four groups of dependencies:
+
+- `[project] dependencies` are the actual runtime dependencies of PRIMAP2. Everything
+  imported by the code in `primap2/` (outside of the tests) belongs here. Add lower
+  bounds for the oldest version you know works, and only add upper bounds if a newer
+  version is known to be broken.
+- The `test` extra contains what is needed to run the test suite. It is an extra and not
+  a dependency group so that downstream users can install it, too.
+- The `dev` and `docs` dependency groups contain the development tooling and the
+  dependencies for building the documentation. Dependency groups are never published to
+  PyPI, and `uv sync` installs them by default, so a plain `make virtual-environment`
+  gives you everything you need for development.
+
+The exact versions used in the development environment are pinned in `uv.lock`, which is
+committed to the repository so that everyone develops against the same versions. After
+changing dependencies in `pyproject.toml`, run `uv lock` (or just `make
+virtual-environment`) and commit the changed `uv.lock` along with your change - the
+`uv-lock` pre-commit hook will remind you if you forget.
+
+Because PRIMAP2 is a library, our users do *not* use our lockfile, they resolve our
+dependencies themselves. Therefore, the CI test runs deliberately ignore `uv.lock` and
+install both the `highest` and the `lowest-direct` versions allowed by the version
+bounds in `pyproject.toml`. You can run the same matrix locally using `make test-all`.
+If a `lowest-direct` run fails, the fix is usually to raise a lower bound in
+`pyproject.toml`.
 
 ## Repo structure
 
@@ -361,7 +397,7 @@ Developing PRIMAP2 with Pycharm works best if you:
 
 1. Set the development virtual environment as the python
    project interpreter in `File | Settings | Project | Python interpreter` by
-   selecting `venv/bin/python` as the Python interpreter.
+   selecting `.venv/bin/python` as the Python interpreter.
    This ensures that you use the same python version and packages in Pycharm and e.g.
    when running tests.
 2. Generate stub files for xarray which include the PRIMAP2 accessors to get code

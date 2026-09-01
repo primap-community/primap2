@@ -1,0 +1,13 @@
+# the python package itself (including the tests and their data files) is included
+# automatically, here we add the documentation and other files which are useful to have
+# in the source distribution
+include changelog.md
+include CONTRIBUTING.md
+include Makefile
+include mypy.ini
+include uv.lock
+recursive-include licenses *
+recursive-include changelog *.md
+recursive-include docs *
+prune docs/build
+prune docs/generated
