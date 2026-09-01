@@ -28,12 +28,12 @@ def set_priority_coords(
         {"area": {"value": "WORLD", "terminology": "ISO3_primap"}} adds the dimension
         "area (ISO3_primap)" to "WORLD".
     """
-    for dim in dims:
-        if "terminology" in dims[dim]:
-            terminology = dims[dim]["terminology"]
+    for dim, description in dims.items():
+        if "terminology" in description:
+            terminology = description["terminology"]
         else:
             terminology = None
-        ds = ds.pr.expand_dims(dim=dim, coord_value=dims[dim]["value"], terminology=terminology)
+        ds = ds.pr.expand_dims(dim=dim, coord_value=description["value"], terminology=terminology)
 
     return ds
 
@@ -133,7 +133,7 @@ def create_composite_source(
     result_ds = set_priority_coords(result_ds, result_prio_coords)
 
     if metadata is not None:
-        for key in metadata.keys():
+        for key in metadata:
             result_ds.attrs[key] = metadata[key]
 
     result_ds.pr.ensure_valid()
@@ -168,6 +168,6 @@ def create_time_index(
     elif isinstance(time_range, tuple):
         time_index = pd.date_range(time_range[0], time_range[1], freq="YS", inclusive="both")
     else:
-        raise ValueError("time_range must be a datetime index or a tuple")
+        raise TypeError("time_range must be a datetime index or a tuple")
 
     return time_index

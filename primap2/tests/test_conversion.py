@@ -1,7 +1,7 @@
 import pytest
 
-import primap2.pm2io as pm2io
 import primap2.pm2io._conversion  # noqa: F401
+from primap2 import pm2io
 
 
 class TestIPCCCodePrimapToPrimap2:

@@ -245,8 +245,6 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
         """
         if np.ndim(key) == 0:  # scalar
             key = [key]
-        else:
-            key = key
         # convert to numpy array
         key = np.array(key)
 

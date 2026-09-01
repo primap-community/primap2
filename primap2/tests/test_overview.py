@@ -166,7 +166,7 @@ def test_set_coverage_entity_other_dim_not_existing(opulent_ds):
 
     ds["CO2"].pr.loc[{"product": "milk"}].pint.magnitude[:] = np.nan
 
-    entites_expected = [x for x in ds.keys() if x != "population"]
+    entites_expected = [x for x in ds if x != "population"]
 
     expected = pd.DataFrame(
         index=ds.pr["product"].values,

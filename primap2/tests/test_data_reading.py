@@ -9,8 +9,8 @@ import pandas as pd
 import pytest
 
 import primap2
-import primap2.pm2io as pm2io
 import primap2.pm2io._conversion
+from primap2 import pm2io
 from primap2.pm2io._data_reading import additional_coordinate_metadata
 
 from .utils import assert_ds_aligned_equal
@@ -1076,7 +1076,7 @@ class TestLong:
         del coords_terminologies["sec_cats__Type"]
 
         coords_cols["data"] = "emissions"
-        coords_defaults["time"] = datetime.datetime(2020, 1, 1)
+        coords_defaults["time"] = datetime.datetime(2020, 1, 1, tzinfo=datetime.UTC)
 
         df = pm2io.read_long_csv_file_if(
             file_input_long,

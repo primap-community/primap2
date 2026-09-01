@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Tests for _aggregate.py"""
 
 import pathlib
@@ -469,7 +468,7 @@ class TestGasBasket:
         test error on unrecognized aggregation definition
         """
         with pytest.raises(
-            ValueError,
+            TypeError,
             match=re.escape("Unrecognized basket type for 'test (SARGWP100)'"),
         ):
             partly_filled_ds.pr.add_aggregates_variables(
@@ -699,7 +698,7 @@ class TestAddAggregatesCoordinates:
             )
 
         # unrecognized aggregation definition
-        with pytest.raises(ValueError, match="Unrecognized aggregation definition for 'all'"):
+        with pytest.raises(TypeError, match="Unrecognized aggregation definition for 'all'"):
             minimal_ds.pr.add_aggregates_coordinates(agg_info={"area (ISO3)": {"all": "COL"}})
 
     def test_add_aggregates_coordinates_add_coord(self, minimal_ds):

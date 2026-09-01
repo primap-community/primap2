@@ -22,7 +22,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket_contents: Sequence[Hashable],
         check_consistency: bool = True,
         sel: dict[Hashable, Sequence] | None = None,
-        skipna_evaluation_dims: None | Sequence[Hashable] = None,
+        skipna_evaluation_dims: Sequence[Hashable] | None = None,
         skipna: bool = True,
         tolerance: float = 0.01,
     ) -> xr.DataArray:
@@ -206,7 +206,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
 
         # aligned is a tuple of datarray with aligned coordinates
         aligned = xr.align(array_to_downscale, basket_contents_shares, join="inner")
-        if all([i.size == 0 for i in aligned]):
+        if all(i.size == 0 for i in aligned):
             raise ValueError(
                 "No overlap found between the input data and the provided shares."
                 "Check coordinate alignment"
@@ -444,7 +444,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         # inter- and extrapolate
         shares = (
             (basket_contents_converted / basket_sum)
-            .pint.to({x: "" for x in basket_contents_converted.keys()})
+            .pint.to({x: "" for x in basket_contents_converted})
             .pint.dequantify()
             .interpolate_na(dim="time", method="linear")
             .ffill(dim="time")
