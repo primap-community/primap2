@@ -25,7 +25,7 @@ classifiers = [
 ]
 dependencies = [
     "attrs>=23",
-    "xarray==2025.8.0",
+    "xarray>=2025.8.0",
     "numbagg>=0.8.1",
     "pint>=0.24.4",
     "pint_xarray>=0.4, <0.6",
