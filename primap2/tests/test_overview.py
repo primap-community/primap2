@@ -73,12 +73,18 @@ def test_array_coverage(empty_ds):
     expected.index.name = "area (ISO3)"
     expected.columns.name = "time"
 
+    # in xarray 2025.9, to_dataframe() (used by coverage()) drops the inferred freq of
+    # the time index, while to_index() (used to build expected) still keeps it. The freq
+    # is metadata we don't care about here, so don't compare it.
     pd.testing.assert_frame_equal(
-        expected.astype(np.int32), da.pr.coverage("area", "time").astype(np.int32)
+        expected.astype(np.int32),
+        da.pr.coverage("area", "time").astype(np.int32),
+        check_freq=False,
     )
     pd.testing.assert_frame_equal(
         expected.T.astype(np.int32),
         da.pr.coverage("time", "area (ISO3)").astype(np.int32),
+        check_freq=False,
     )
 
 
@@ -166,7 +172,7 @@ def test_set_coverage_entity_other_dim_not_existing(opulent_ds):
 
     ds["CO2"].pr.loc[{"product": "milk"}].pint.magnitude[:] = np.nan
 
-    entites_expected = [x for x in ds.keys() if x != "population"]
+    entites_expected = [x for x in ds if x != "population"]
 
     expected = pd.DataFrame(
         index=ds.pr["product"].values,

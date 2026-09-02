@@ -104,7 +104,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         """
         if not isinstance(self._ds, xr.Dataset):
             logger.error("object is not an xarray Dataset.")
-            raise ValueError("ds is not an xr.Dataset")
+            raise TypeError("ds is not an xr.Dataset")
 
         ensure_valid_dimensions(self._ds)
         ensure_no_dimension_without_coordinates(self._ds)
@@ -253,7 +253,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             # use the zlib compression algorithm and compression level 9,
             # 0 (no compression) - larger files, shorter processing
             # 9 (maximum compression) - smaller files, longer processing
-            compression = dict(zlib=True, complevel=9)
+            compression = {"zlib": True, "complevel": 9}
             encoding = {var: compression for var in ds.data_vars}
 
         if "publication_date" in ds.attrs:
@@ -371,7 +371,7 @@ def ensure_valid_coordinates(ds: xr.Dataset):
             logger.error(
                 f"Coordinate {coord!r} is of type {type(coord)}, but only strings are allowed."
             )
-            raise ValueError(f"Coord key {coord!r} is not a string")
+            raise TypeError(f"Coord key {coord!r} is not a string")
         elif coord in additional_coords:
             if " " in coord:
                 logger.error(
@@ -394,7 +394,7 @@ def ensure_valid_attributes(ds: xr.Dataset):
         publication_date = ds.attrs["publication_date"]
         if not isinstance(publication_date, datetime.date):
             logger.error(f"Publication date is not a datetime.date object: {publication_date!r}.")
-            raise ValueError("Publication date is not a date object.")
+            raise TypeError("Publication date is not a date object.")
     valid_attr_keys = {
         "references",
         "rights",

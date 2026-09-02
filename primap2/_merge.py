@@ -242,6 +242,7 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
         ds_result = xr.merge(
             [ds_start[vars_only_start], ds_merge[vars_only_merge]],
             combine_attrs=combine_attrs,
+            compat="no_conflicts",
         )
 
         # merge potentially problematic variables which are in both datasets
@@ -253,5 +254,9 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
                 tolerance=tolerance,
                 error_on_discrepancy=error_on_discrepancy,
             )
-            ds_result = xr.merge([ds_result, ds_result_new], combine_attrs="override")
+            ds_result = xr.merge(
+                [ds_result, ds_result_new],
+                combine_attrs="override",
+                compat="no_conflicts",
+            )
         return ds_result

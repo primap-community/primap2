@@ -382,13 +382,18 @@ def calculate_scaling_factor(
         # logging has been done already
         return np.array([np.nan, np.nan])
 
-    factor = np.divide(trend_ts, trend_fill)
-    if any(np.isnan(factor)) or any(np.isinf(factor)):
-        # we have some nan or inf values which have to come from division by zero
-        # we fill them with 0 in case the trend values are zero as well
-        nan_mask_factor = np.isnan(factor) | np.isinf(factor)
-        zero_mask_ts = trend_ts == 0
-        factor[nan_mask_factor & zero_mask_ts] = trend_ts[nan_mask_factor & zero_mask_ts]
+    # avoid dividing by zero: where the trend of the timeseries to fill with is zero,
+    # the factor is zero if the trend of the timeseries to fill is zero as well and
+    # infinite otherwise
+    zero_mask_fill = trend_fill == 0
+    factor = np.divide(
+        trend_ts,
+        trend_fill,
+        out=np.zeros_like(trend_ts, dtype=float),
+        where=~zero_mask_fill,
+    )
+    inf_mask = zero_mask_fill & (trend_ts != 0)
+    factor[inf_mask] = np.inf * np.sign(trend_ts[inf_mask])
 
     return factor
 

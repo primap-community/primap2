@@ -52,9 +52,13 @@ class TestDASetter:
     def test_new_error(self, da: xr.DataArray, ts, co2, existing):
         with pytest.raises(
             KeyError,
-            match=re.escape(
-                "Values {'CUB'} not in 'area (ISO3)', use new='extend' to automatically"
-                " insert new values into dim."
+            match=(
+                re.escape("Values {")
+                + r"'CUB'|np\.str_\('CUB'\)"
+                + re.escape(
+                    "} not in 'area (ISO3)', use new='extend' to automatically"
+                    " insert new values into dim."
+                )
             ),
         ):
             da.pr.set("area", "CUB", ts * co2, new="error", **existing)
@@ -68,9 +72,13 @@ class TestDASetter:
     def test_exists_default_error(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit, new):
         with pytest.raises(
             ValueError,
-            match=re.escape(
-                "Values {'COL'} for 'area (ISO3)' already exist and contain data."
-                " Use existing='overwrite' or 'fillna' to avoid this error."
+            match=(
+                re.escape("Values {")
+                + r"'COL'|np\.str_\('COL'\)"
+                + re.escape(
+                    "} for 'area (ISO3)' already exist and contain data."
+                    " Use existing='overwrite' or 'fillna' to avoid this error."
+                )
             ),
         ):
             da.pr.set("area", "COL", ts * co2, **new)
@@ -87,9 +95,13 @@ class TestDASetter:
         da.loc[{"area (ISO3)": "COL", "time": "2001"}] = 2 * co2
         with pytest.raises(
             ValueError,
-            match=re.escape(
-                "Values {'COL'} for 'area (ISO3)' already exist and contain data."
-                " Use existing='overwrite' or 'fillna' to avoid this error."
+            match=(
+                re.escape("Values {")
+                + r"'COL'|np\.str_\('COL'\)"
+                + re.escape(
+                    "} for 'area (ISO3)' already exist and contain data."
+                    " Use existing='overwrite' or 'fillna' to avoid this error."
+                )
             ),
         ):
             da.pr.set("area", "COL", ts * co2, **new)
@@ -97,9 +109,13 @@ class TestDASetter:
     def test_exists_error(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit, new):
         with pytest.raises(
             ValueError,
-            match=re.escape(
-                "Values {'COL'} for 'area (ISO3)' already exist."
-                " Use existing='overwrite' or 'fillna' to avoid this error."
+            match=(
+                re.escape("Values {")
+                + r"'COL'|np\.str_\('COL'\)"
+                + re.escape(
+                    "} for 'area (ISO3)' already exist."
+                    " Use existing='overwrite' or 'fillna' to avoid this error."
+                )
             ),
         ):
             da.pr.set("area", "COL", ts * co2, existing="error", **new)
@@ -151,9 +167,13 @@ class TestDASetter:
     def test_mixed_error(self, da: xr.DataArray, ts: np.ndarray, co2: pint.Unit):
         with pytest.raises(
             ValueError,
-            match=re.escape(
-                "Values {'COL'} for 'area (ISO3)' already exist."
-                " Use existing='overwrite' or 'fillna' to avoid this error."
+            match=(
+                re.escape("Values {")
+                + r"'COL'|np\.str_\('COL'\)"
+                + re.escape(
+                    "} for 'area (ISO3)' already exist."
+                    " Use existing='overwrite' or 'fillna' to avoid this error."
+                )
             ),
         ):
             da.pr.set(
@@ -407,16 +427,20 @@ class TestDsSetter:
             "area", "CUB", minimal_ds.pr.loc[{"area": "COL"}] * 2, **existing
         )
         expected = minimal_ds.reindex({"area (ISO3)": [*minimal_ds["area (ISO3)"].values, "CUB"]})
-        for key in expected.keys():
+        for key in expected:
             expected[key] = expected[key].fillna(expected[key].pr.loc[{"area": "COL"}] * 2)
         assert_ds_aligned_equal(actual, expected)
 
     def test_new_error(self, minimal_ds: xr.Dataset, existing):
         with pytest.raises(
             KeyError,
-            match=re.escape(
-                "Values {'CUB'} not in 'area (ISO3)', use new='extend' to automatically"
-                " insert new values into dim."
+            match=(
+                re.escape("Values {")
+                + r"'CUB'|np\.str_\('CUB'\)"
+                + re.escape(
+                    "} not in 'area (ISO3)', use new='extend' to automatically"
+                    " insert new values into dim."
+                )
             ),
         ):
             minimal_ds.pr.set(
@@ -478,7 +502,7 @@ class TestDsSetter:
         minimal_ds["population"] = minimal_ds["CO2"].pr.dequantify().sum("area (ISO3)")
         actual = minimal_ds.pr.set("area", "CUB", minimal_ds.pr.loc[{"area": "COL"}] * 2)
         expected = minimal_ds.reindex({"area (ISO3)": [*minimal_ds["area (ISO3)"].values, "CUB"]})
-        for key in expected.keys():
+        for key in expected:
             if key == "population":
                 continue
             expected[key] = expected[key].fillna(expected[key].pr.loc[{"area": "COL"}] * 2)

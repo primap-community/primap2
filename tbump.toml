@@ -23,8 +23,8 @@ tag_template = "v{new_version}"
 # section containing the path of the file, relative to the
 # tbump.toml location.
 [[file]]
-src = "setup.cfg"
-search = 'version = {current_version}'
+src = "pyproject.toml"
+search = 'version = "{current_version}"'
 
 [[file]]
 src = "primap2/__init__.py"
@@ -33,10 +33,6 @@ search = '__version__ = "{current_version}"'
 [[file]]
 src = "README.md"
 search = 'primap-community/primap2: PRIMAP2 Version {current_version}.'
-
-[[file]]
-src = "Makefile"
-search = '\tSETUPTOOLS_SCM_PRETEND_VERSION={current_version}'
 
 # You can specify a list of commands to
 # run after the files have been patched
@@ -48,11 +44,11 @@ cmd = "make lint"
 
 [[before_commit]]
 name = "update github release notes"
-cmd = "rm .github_release_notes_file.md; venv/bin/towncrier build --version {new_version} --draft --config towncrier_github_release_notes.toml > .github_release_notes_file.md"
+cmd = "rm .github_release_notes_file.md; uv run towncrier build --version {new_version} --draft --config towncrier_github_release_notes.toml > .github_release_notes_file.md"
 
 [[before_commit]]
 name = "update changelog"
-cmd = "venv/bin/towncrier build --version {new_version} --yes"
+cmd = "uv run towncrier build --version {new_version} --yes"
 
 # Or run some commands after the git tag and the branch
 # have been pushed:

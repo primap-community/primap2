@@ -20,11 +20,11 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
     def quantify(self, **kwargs):
         """Attaches units to the DataArray.
 
-        Units can be specified as a :py:class`pint.Unit` or as a string. If no units are specified
-        then the
+        Units can be specified as a :py:class`pint.Unit` or as a string.
+        If no units are specified then the
         units will be parsed from the `'units'` entry of the DataArray's
-        `.attrs`. Will raise a ValueError if the DataArray already contains a
-        unit-aware array.
+        `.attrs`. Will raise a ValueError if the DataArray already contains
+        a unit-aware array.
 
         This function is a wrapper for pint_xarrays function with the
         same name, which uses the primap2 unit registry.
@@ -56,16 +56,18 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
 
         Examples
         --------
+        >>> import xarray as xr
+        >>> import primap2
         >>> da = xr.DataArray(
         ...     data=[0.4, 0.9, 1.7, 4.8, 3.2, 9.1],
         ...     dims=["wavelength"],
         ...     coords={"wavelength": [1e-4, 2e-4, 4e-4, 6e-4, 1e-3, 2e-3]},
         ... )
-        >>> da.pint.quantify(units="Hz")
-        <xarray.DataArray (wavelength: 6)> Size: 48B
-        <Quantity([0.4 0.9 1.7 4.8 3.2 9.1], 'hertz')>
-        Coordinates:
-          * wavelength  (wavelength) float64 48B 0.0001 0.0002 0.0004 0.0006 0.001 0.002
+        >>> print(da.pint.units)
+        None
+        >>> quantified = da.pr.quantify(units="Hz")
+        >>> print(quantified.pint.units)
+        hertz
 
         Returns
         -------

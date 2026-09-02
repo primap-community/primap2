@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Tests for _data_format.py"""
 
 import logging
@@ -45,7 +44,7 @@ class TestToNetCDF:
 
 class TestEnsureValid:
     def test_something_else_entirely(self, caplog):
-        with pytest.raises(ValueError, match=r"ds is not an xr.Dataset"):
+        with pytest.raises(TypeError, match=r"ds is not an xr.Dataset"):
             something_else = primap2._data_format.DatasetDataFormatAccessor(ds="asdf")
             something_else.ensure_valid()
         assert "ERROR" in caplog.text
@@ -63,7 +62,9 @@ class TestEnsureValid:
         with pytest.raises(ValueError, match=r"contains metadata, but carries 'time' dimension"):
             opulent_processing_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
-        assert "'Processing of CO2' is a metadata variable, but 'time' is a dimension."
+        assert (
+            "'Processing of CO2' is a metadata variable, but 'time' is a dimension." in caplog.text
+        )
 
     def test_metadata_missing_attr(self, opulent_processing_ds, caplog):
         del opulent_processing_ds["Processing of CO2"].attrs["described_variable"]
@@ -195,7 +196,7 @@ class TestEnsureValid:
 
     def test_multi_units(self, minimal_ds, caplog):
         minimal_ds["CO2"].attrs["units"] = "kg CO2 / year"
-        with pytest.raises(ValueError, match="data already has units"):
+        with pytest.raises(ValueError, match=r"data already has units|Cannot attach units"):
             minimal_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
         assert "'units' in variable attrs, but data is quantified already." in caplog.text
@@ -273,7 +274,7 @@ class TestEnsureValid:
 
     def test_publication_date_not_date(self, minimal_ds, caplog):
         minimal_ds.attrs["publication_date"] = "2020-12-31"
-        with pytest.raises(ValueError, match="not a date"):
+        with pytest.raises(TypeError, match="not a date"):
             minimal_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
         assert "not a datetime.date object" in caplog.text

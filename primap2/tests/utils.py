@@ -43,6 +43,6 @@ def assert_aligned_equal(a: xr.DataArray, b: xr.DataArray, *args, **kwargs):
 def assert_ds_aligned_equal(a: xr.Dataset, b: xr.Dataset, *args, **kwargs):
     """Assert that a and b are equal after alignment of their dimensions."""
     assert set(a.keys()) == set(b.keys())
-    for key in a.keys():
+    for key in a:
         assert_aligned_equal(a[key], b[key], *args, **kwargs)
     assert a.attrs == b.attrs, (a.attrs, b.attrs)

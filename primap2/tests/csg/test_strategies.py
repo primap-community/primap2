@@ -51,7 +51,7 @@ def test_substitution_strategy():
     assert len(result_descriptions) == 1
     assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
     assert result_descriptions[0].description == "substituted with corresponding values from B"
-    assert "source" not in result_ts.coords.keys()
+    assert "source" not in result_ts.coords
 
 
 def test_globalLS_strategy():
@@ -115,7 +115,7 @@ def test_globalLS_strategy():
         ).fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")
 
     # general
-    assert "source" not in result_ts.coords.keys()
+    assert "source" not in result_ts.coords
 
 
 def test_localTrends_strategy():
@@ -217,7 +217,7 @@ def test_localTrends_strategy():
         )
 
     # general
-    assert "source" not in result_ts.coords.keys()
+    assert "source" not in result_ts.coords
 
 
 def test_raises_error_substitution_strategy_missing_years():

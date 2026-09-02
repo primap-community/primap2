@@ -188,9 +188,8 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
             da = self.fill_all_na(dim=skipna_evaluation_dims, value=0)
         else:
             da = self._da
-            if skipna:
-                if min_count is None:
-                    min_count = 1
+            if skipna and min_count is None:
+                min_count = 1
 
         return da.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count)
 
@@ -296,25 +295,24 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         # timeseries that are aggregated
         da_out = self._da.pr.dequantify()
 
-        for coordinate in agg_info:
-            aggregation_rules = agg_info[coordinate]
+        for coordinate, aggregation_rules in agg_info.items():
             full_coord_name = da_out.pr.dim_alias_translations.get(coordinate, coordinate)
-            for value_to_aggregate in aggregation_rules.keys():
+            for value_to_aggregate in aggregation_rules:
                 rule = deepcopy(aggregation_rules[value_to_aggregate])
                 if isinstance(rule, dict):
                     source_values = rule.pop("sources")
-                    if "tolerance" in rule.keys():
+                    if "tolerance" in rule:
                         rule_tolerance = rule.pop("tolerance")
                     else:
                         rule_tolerance = tolerance
-                    if "sel" in rule.keys():
+                    if "sel" in rule:
                         sel = rule.pop("sel")
-                        if "variable" in sel.keys():
+                        if "variable" in sel:
                             if da_out.name in sel["variable"]:
                                 sel.pop("variable")
                             else:
                                 continue
-                        if "entity" in sel.keys():
+                        if "entity" in sel:
                             if da_out.attrs["entity"] in sel["entity"]:
                                 sel.pop("entity")
                             else:
@@ -327,7 +325,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                     rule_tolerance = tolerance
                 else:
                     logger.error(f"Unrecognized aggregation definition for {value_to_aggregate!r}")
-                    raise ValueError(
+                    raise TypeError(
                         f"Unrecognized aggregation definition for {value_to_aggregate!r}"
                     )
 
@@ -352,7 +350,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                             coords={full_coord_name: (full_coord_name, [value_to_aggregate])}
                         )
                         if isinstance(rule, dict):
-                            for add_coord in rule.keys():
+                            for add_coord in rule:
                                 if add_coord in da_out.coords:
                                     add_coord_value = rule[add_coord]
                                     data_agg = data_agg.assign_coords(
@@ -439,13 +437,12 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         if dim is not None and reduce_to_dim is not None:
             raise ValueError("Only one of 'dim' and 'reduce_to_dim' may be supplied, not both.")
 
-        if dim is None:
-            if reduce_to_dim is not None:
-                if isinstance(reduce_to_dim, str):
-                    reduce_to_dim = [reduce_to_dim]
-                dims = set(self._ds.dims)
-                dims.add("entity")
-                dim = dims - set(reduce_to_dim)
+        if dim is None and reduce_to_dim is not None:
+            if isinstance(reduce_to_dim, str):
+                reduce_to_dim = [reduce_to_dim]
+            dims = set(self._ds.dims)
+            dims.add("entity")
+            dim = dims - set(reduce_to_dim)
 
         if isinstance(dim, str):
             dim = [dim]
@@ -611,9 +608,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             ds = self.fill_all_na(dim=skipna_evaluation_dims, value=0)
         else:
             ds = self._ds
-            if skipna:
-                if min_count is None:
-                    min_count = 1
+            if skipna and min_count is None:
+                min_count = 1
 
         if dim is not None and "entity" in dim:
             ndim = set(dim) - {"entity"}
@@ -935,16 +931,15 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         """
         ds_out = self._ds.copy(deep=True)
         variables_present = set(ds_out.data_vars)
-        for basket in gas_baskets:
-            current_basket_config = gas_baskets[basket]
+        for basket, current_basket_config in gas_baskets.items():
             if isinstance(current_basket_config, dict):
                 # new format, which allows filtering
                 basket_contents = current_basket_config["sources"]
-                if "sel" in current_basket_config.keys():
+                if "sel" in current_basket_config:
                     sel = current_basket_config["sel"]
                 else:
                     sel = None
-                if "tolerance" in current_basket_config.keys():
+                if "tolerance" in current_basket_config:
                     tolerance_basket = current_basket_config["tolerance"]
                 else:
                     tolerance_basket = tolerance
@@ -955,7 +950,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 tolerance_basket = tolerance
             else:
                 logger.error(f"Unrecognized basket type for {basket!r}")
-                raise ValueError(f"Unrecognized basket type for {basket!r}")
+                raise TypeError(f"Unrecognized basket type for {basket!r}")
             basket_contents_present = [gas for gas in basket_contents if gas in variables_present]
             missing_variables = list(set(basket_contents) - set(basket_contents_present))
             if len(missing_variables) > 0:

@@ -35,14 +35,14 @@ def convert_long_dataframe_if(
     data_long: pd.DataFrame,
     *,
     coords_cols: dict[str, str],
-    add_coords_cols: None | dict[str, list[str]] = None,
-    coords_defaults: None | dict[str, Any] = None,
+    add_coords_cols: dict[str, list[str]] | None = None,
+    coords_defaults: dict[str, Any] | None = None,
     coords_terminologies: dict[str, str],
-    coords_value_mapping: None | dict[str, Any] = None,
-    coords_value_filling: None | dict[str, dict[str, dict]] = None,
-    filter_keep: None | dict[str, dict[str, Any]] = None,
-    filter_remove: None | dict[str, dict[str, Any]] = None,
-    meta_data: None | dict[str, Any] = None,
+    coords_value_mapping: dict[str, Any] | None = None,
+    coords_value_filling: dict[str, dict[str, dict]] | None = None,
+    filter_keep: dict[str, dict[str, Any]] | None = None,
+    filter_remove: dict[str, dict[str, Any]] | None = None,
+    meta_data: dict[str, Any] | None = None,
     time_format: str = "%Y-%m-%d",
     convert_str: bool | dict[str, float] = True,
     copy_df: bool = True,
@@ -242,7 +242,7 @@ data_format_details.html#dataset-attributes>`_.
 
     data, coords = sort_columns_and_rows(data, dimensions=coords)
     dims = coords.copy()
-    for add_coord in add_coords_cols.keys():
+    for add_coord in add_coords_cols:
         dims.remove(add_coord)
 
     data.attrs = interchange_format_attrs_dict(
@@ -259,14 +259,14 @@ def read_long_csv_file_if(
     filepath_or_buffer: str | Path | IO,
     *,
     coords_cols: dict[str, str],
-    add_coords_cols: None | dict[str, list[str]] = None,
-    coords_defaults: None | dict[str, Any] = None,
+    add_coords_cols: dict[str, list[str]] | None = None,
+    coords_defaults: dict[str, Any] | None = None,
     coords_terminologies: dict[str, str],
-    coords_value_mapping: None | dict[str, Any] = None,
-    coords_value_filling: None | dict[str, dict[str, dict]] = None,
-    filter_keep: None | dict[str, dict[str, Any]] = None,
-    filter_remove: None | dict[str, dict[str, Any]] = None,
-    meta_data: None | dict[str, Any] = None,
+    coords_value_mapping: dict[str, Any] | None = None,
+    coords_value_filling: dict[str, dict[str, dict]] | None = None,
+    filter_keep: dict[str, dict[str, Any]] | None = None,
+    filter_remove: dict[str, dict[str, Any]] | None = None,
+    meta_data: dict[str, Any] | None = None,
     time_format: str = "%Y-%m-%d",
     convert_str: bool | dict[str, float] = True,
 ) -> pd.DataFrame:
@@ -449,16 +449,16 @@ def convert_wide_dataframe_if(
     data_wide: pd.DataFrame,
     *,
     coords_cols: dict[str, str],
-    add_coords_cols: None | dict[str, list[str]] = None,
-    coords_defaults: None | dict[str, Any] = None,
+    add_coords_cols: dict[str, list[str]] | None = None,
+    coords_defaults: dict[str, Any] | None = None,
     coords_terminologies: dict[str, str],
-    coords_value_mapping: None | dict[str, Any] = None,
-    coords_value_filling: None | dict[str, dict[str, dict]] = None,
-    filter_keep: None | dict[str, dict[str, Any]] = None,
-    filter_remove: None | dict[str, dict[str, Any]] = None,
-    meta_data: None | dict[str, Any] = None,
+    coords_value_mapping: dict[str, Any] | None = None,
+    coords_value_filling: dict[str, dict[str, dict]] | None = None,
+    filter_keep: dict[str, dict[str, Any]] | None = None,
+    filter_remove: dict[str, dict[str, Any]] | None = None,
+    meta_data: dict[str, Any] | None = None,
     time_format: str = "%Y",
-    time_cols: None | list = None,
+    time_cols: list | None = None,
     convert_str: bool | dict[str, float] = True,
     copy_df: bool = False,
 ) -> pd.DataFrame:
@@ -671,7 +671,7 @@ data_format_details.html#dataset-attributes>`_.
 
     data_if, coords = sort_columns_and_rows(data_if, dimensions=coords)
     dims = coords.copy()
-    for add_coord in add_coords_cols.keys():
+    for add_coord in add_coords_cols:
         dims.remove(add_coord)
 
     data_if.attrs = interchange_format_attrs_dict(
@@ -688,14 +688,14 @@ def read_wide_csv_file_if(
     filepath_or_buffer: str | Path | IO,
     *,
     coords_cols: dict[str, str],
-    add_coords_cols: None | dict[str, list[str]] = None,
-    coords_defaults: None | dict[str, Any] = None,
+    add_coords_cols: dict[str, list[str]] | None = None,
+    coords_defaults: dict[str, Any] | None = None,
     coords_terminologies: dict[str, str],
-    coords_value_mapping: None | dict[str, Any] = None,
-    coords_value_filling: None | dict[str, dict[str, dict]] = None,
-    filter_keep: None | dict[str, dict[str, Any]] = None,
-    filter_remove: None | dict[str, dict[str, Any]] = None,
-    meta_data: None | dict[str, Any] = None,
+    coords_value_mapping: dict[str, Any] | None = None,
+    coords_value_filling: dict[str, dict[str, dict]] | None = None,
+    filter_keep: dict[str, dict[str, Any]] | None = None,
+    filter_remove: dict[str, dict[str, Any]] | None = None,
+    meta_data: dict[str, Any] | None = None,
     time_format: str = "%Y",
     convert_str: bool | dict[str, float] = True,
 ) -> pd.DataFrame:
@@ -873,7 +873,7 @@ def interchange_format_attrs_dict(
     xr_attrs: dict,
     time_format: str,
     dimensions,
-    additional_coordinates: None | dict = None,
+    additional_coordinates: dict | None = None,
 ) -> dict:
     metadata = {
         "attrs": xr_attrs,
@@ -968,7 +968,7 @@ def check_overlapping_specifications_add_cols(
 
 def matches_time_format(value: str, time_format: str) -> bool:
     try:
-        datetime.datetime.strptime(value, time_format)
+        datetime.datetime.strptime(value, time_format)  # noqa: DTZ007
         return True
     except ValueError:
         return False
@@ -977,7 +977,7 @@ def matches_time_format(value: str, time_format: str) -> bool:
 def read_wide_csv(
     filepath_or_buffer,
     coords_cols: dict[str, str],
-    add_coords_cols: None | dict[str, list[str]] = None,
+    add_coords_cols: dict[str, list[str]] | None = None,
     time_format: str = "%Y",
 ) -> tuple[pd.DataFrame, list[str]]:
     data = pd.read_csv(
@@ -1016,7 +1016,7 @@ def read_wide_csv(
 def read_long_csv(
     filepath_or_buffer,
     coords_cols: dict[str, str],
-    add_coords_cols: None | dict[str, list[str]] = None,
+    add_coords_cols: dict[str, list[str]] | None = None,
 ) -> pd.DataFrame:
     if "data" not in coords_cols:
         raise ValueError("No data column in the CSV specified in coords_cols, so nothing to read.")
@@ -1048,12 +1048,12 @@ def spec_to_query_string(filter_spec: dict[str, Any]) -> str:
     All column conditions in the filter are combined with &.
     """
     queries = []
-    for col in filter_spec:
-        if isinstance(filter_spec[col], list):
-            itemlist = ", ".join(repr(x) for x in filter_spec[col])
+    for col, values in filter_spec.items():
+        if isinstance(values, list):
+            itemlist = ", ".join(repr(x) for x in values)
             filter_query = f"`{col}` in [{itemlist}]"
         else:
-            filter_query = f"`{col}` == {filter_spec[col]!r}"
+            filter_query = f"`{col}` == {values!r}"
         queries.append(filter_query)
 
     return " & ".join(queries)
@@ -1061,8 +1061,8 @@ def spec_to_query_string(filter_spec: dict[str, Any]) -> str:
 
 def filter_data(
     data: pd.DataFrame,
-    filter_keep: None | dict[str, dict[str, Any]] = None,
-    filter_remove: None | dict[str, dict[str, Any]] = None,
+    filter_keep: dict[str, dict[str, Any]] | None = None,
+    filter_remove: dict[str, dict[str, Any]] | None = None,
 ):
     # Filters for keeping data are combined with "or" so that
     # everything matching at least one rule is kept.
@@ -1124,8 +1124,7 @@ def fill_from_other_col(
     dim_aliases = _selection.translations_from_dims(df.columns)
 
     # loop over target columns in value mapping
-    for target_col in coords_value_filling:
-        target_info = coords_value_filling[target_col]
+    for target_col, target_info in coords_value_filling.items():
         # loop over source columns
         for source_col in target_info:
             mapping_info = target_info[source_col]
@@ -1149,10 +1148,10 @@ def add_dimensions_from_defaults(
         + INTERCHANGE_FORMAT_MANDATORY_COLUMNS
         + list(additional_allowed_coords)
     )
-    for coord in coords_defaults:
+    for coord, default in coords_defaults.items():
         if coord in if_columns or coord.startswith(SEC_CATS_PREFIX):
             # add column to dataframe with default value
-            data[coord] = coords_defaults[coord]
+            data[coord] = default
         else:
             raise ValueError(
                 f"{coord!r} given in coords_defaults is unknown - prefix with "
@@ -1171,7 +1170,7 @@ def map_metadata(
     """
     meta_mapping_copy = meta_mapping.copy()
     if "entity" in meta_mapping:
-        meta_mapping_entity = dict(entity=meta_mapping_copy["entity"])
+        meta_mapping_entity = {"entity": meta_mapping_copy["entity"]}
         meta_mapping_copy.pop("entity")
         map_metadata_unordered(data, meta_mapping=meta_mapping_entity, attrs=attrs)
 
@@ -1313,7 +1312,11 @@ def find_str_values_in_data(
     """Find all string values occurring in given columns of a DataFrame"""
     # limit our analysis to columns that contain strings
     # (or other object types)
-    cols_with_strs = data[columns].select_dtypes(include=[object]).columns.values.tolist()
+    cols_with_strs = [
+        col
+        for col in columns
+        if data[col].dtype == object or pd.api.types.is_string_dtype(data[col])
+    ]
     temp = []
     for col in cols_with_strs:
         temp += list(data[col].unique())
@@ -1361,7 +1364,7 @@ def create_str_replacement_dict(
     elif isinstance(user_str_conv, dict):
         pass
     else:
-        raise ValueError(
+        raise TypeError(
             f"Input for user_str_conv to create_str_replacement_dict"
             f" has to be a bool or a dict. {user_str_conv} is neither."
         )
@@ -1381,7 +1384,7 @@ def replace_values(data: pd.DataFrame, columns: list[str], na_repl_dict):
     for col in columns:
         data[col] = data[col].replace(na_repl_dict)
         data[col] = pd.to_numeric(data[col], errors="coerce")
-        data[col] = data[col].astype("float64", copy=False, errors="ignore")
+        data[col] = data[col].astype("float64", errors="ignore")
 
 
 def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
@@ -1425,16 +1428,16 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
     native_conv = []
     fb_conv = []
     native_unit = "Gg " + entity + " / yr"
-    for unit in units:
+    for unit, gwp_context in units.items():
         conversion_contexts = []
-        if units[unit] is not None:
-            conversion_contexts.append(units[unit])
+        if gwp_context is not None:
+            conversion_contexts.append(gwp_context)
 
         # check if conversion to native unit is possible
         try:
             # print(f"Testing conversion from {ureg[unit_fallback].units} to "
             #       f"{ureg[native_unit].units} for {entity}.")
-            if ureg(unit).is_compatible_with(ureg[native_unit], *conversion_contexts):
+            if ureg(unit).is_compatible_with(ureg(native_unit), *conversion_contexts):
                 native_conv.append(True)
             else:
                 native_conv.append(False)
@@ -1442,17 +1445,15 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
             # we have a gas basket or something unknown, so no conversion to native unit
             # print(f"Exception occurred for entity {entity}")
             native_conv.append(False)
-            pass
 
         # check if conversion to fallback unit is possible
-        if units[unit] != context_fallback:
+        if gwp_context != context_fallback:
             fb_conv.append(False)
-            pass
         else:
             try:
                 # print(f"Testing conversion from {ureg[unit_fallback].units} to "
                 #       f"{ureg[native_unit].units} for {entity}.")
-                if ureg(unit).is_compatible_with(ureg[unit_fallback], *conversion_contexts):
+                if ureg(unit).is_compatible_with(ureg(unit_fallback), *conversion_contexts):
                     fb_conv.append(True)
                 else:
                     fb_conv.append(False)
@@ -1461,7 +1462,6 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
                 # unit
                 # print(f"Exception occurred for entity {entity}")
                 fb_conv.append(False)
-                pass
 
     if all(native_conv):
         # print(f"converting {entity} to native unit {native_unit}")
@@ -1476,8 +1476,8 @@ def preferred_unit(entity: str, units: dict[str, str]) -> str | None:
 def harmonize_units(
     data: pd.DataFrame,
     *,
-    unit_col: None | str = None,
-    attrs: None | dict = None,
+    unit_col: str | None = None,
+    attrs: dict | None = None,
     dimensions: Iterable[str],
 ) -> None:
     """Harmonize the units of the input data.
@@ -1542,20 +1542,20 @@ def harmonize_units(
         else:
             basic_entities[basic_entity] = {entity: gwp_to_use}
 
-    for basic_entity in basic_entities:
+    for basic_entity, sub_entitites in basic_entities.items():
         # print(f"basic_entity: {basic_entity}")
-        # print(f"entities: {basic_entities[basic_entity]}")
+        # print(f"entities: {sub_entitites}")
         # get all units for this entity
-        data_this_basic_entity = data.loc[data[entity_col].isin(basic_entities[basic_entity])]
+        data_this_basic_entity = data.loc[data[entity_col].isin(sub_entitites)]
         units_this_basic_entity = data_this_basic_entity[unit_col].unique()
         unit_gwp_this_basic_entity = {}
         gwp_conversion_this_basic_entity = False
-        for entity in basic_entities[basic_entity].keys():
+        for entity in sub_entitites:
             data_this_entity = data_this_basic_entity.loc[data[entity_col] == entity]
             units_this_entity = data_this_entity[unit_col].unique()
             for unit in units_this_entity:
-                unit_gwp_this_basic_entity[unit] = basic_entities[basic_entity][entity]
-            if basic_entities[basic_entity][entity] is not None:
+                unit_gwp_this_basic_entity[unit] = sub_entitites[entity]
+            if sub_entitites[entity] is not None:
                 gwp_conversion_this_basic_entity = True
 
             if len(units_this_basic_entity) > 1 or gwp_conversion_this_basic_entity:
@@ -1566,18 +1566,18 @@ def harmonize_units(
                 # print(f"basic_entity: {basic_entity}, unit_to: {unit_to}")
                 if unit_to is not None:
                     # print(f"unit conversion for {basic_entity}, "
-                    #      f"{basic_entities[basic_entity]}")
-                    for entity in basic_entities[basic_entity]:
+                    #      f"{sub_entitites}")
+                    for entity, gwp in sub_entitites.items():
                         data_this_entity = data.loc[data[entity_col] == entity]
                         units_this_entity = data_this_entity[unit_col].unique()
 
                         for unit in units_this_entity:
                             if unit != unit_to:
                                 # print(f"Working on unit {unit}")
-                                unit_pint = ureg[unit]
+                                unit_pint = ureg(unit)
                                 # could add a try except block here to throw and log an
                                 # error or add error info in DF instead of crashing
-                                gwp_this_entity = basic_entities[basic_entity][entity]
+                                gwp_this_entity = gwp
                                 if gwp_this_entity:
                                     with ureg.context(gwp_this_entity):
                                         unit_pint = unit_pint.to(unit_to)
@@ -1608,7 +1608,7 @@ def harmonize_units(
                         # if entity differs from basic entity and the units are not
                         # compatible we had GWP conversion and have to adapt the entity
                         if (entity != basic_entity) and not ureg(unit).is_compatible_with(
-                            ureg[unit_to]
+                            ureg(unit_to)
                         ):
                             # entity was converted
                             entity_mask = data[entity_col] == entity
@@ -1651,9 +1651,9 @@ def sort_columns_and_rows(
                 other_cols.remove(ocol)
                 break
 
-    cols_sorted += list(sorted(other_cols))
+    cols_sorted += sorted(other_cols)
 
-    data: pd.DataFrame = data[cols_sorted + list(sorted(time_cols))]
+    data: pd.DataFrame = data[cols_sorted + sorted(time_cols)]
 
     data.sort_values(by=cols_sorted, inplace=True)
     data.reset_index(inplace=True, drop=True)

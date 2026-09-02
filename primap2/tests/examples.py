@@ -198,7 +198,7 @@ def opulent_processing_ds() -> xr.Dataset:
     opulent = opulent_ds()
 
     new_vars = {}
-    for var in opulent.keys():
+    for var in opulent:
         dims = [dim for dim in dim_names(opulent) if dim != "time"]
         shape = tuple(len(opulent[x]) for x in dims)
         new_vars[f"Processing of {var}"] = xr.DataArray(

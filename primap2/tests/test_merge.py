@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Tests for _merge.py"""
 
 import re
