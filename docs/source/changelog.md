@@ -19,6 +19,31 @@ of rst and use slightly different categories.
 
 <!-- towncrier release notes start -->
 
+## primap2 0.14.0 (2026-09-02)
+
+### Breaking Changes
+
+- * Dropped support for Python 3.11 and raised the minimum supported versions of numpy to
+    2.2, pandas to 2.3, scipy to 1.14, h5py to 3.12 and matplotlib to 3.9, following
+    [SPEC 0](https://scientific-python.org/specs/spec-0000/). ([#386](https://github.com/primap-community/primap2/pull/386))
+
+### Improvements
+
+- * Added support for Python 3.13 and 3.14. ([#386](https://github.com/primap-community/primap2/pull/386))
+
+### Bug Fixes
+
+- * Fixed unit tests that were to strict about the serialization of timestamps.
+  * Allowed differing datetime precisions in doctests for the `_setters` docstring examples.
+  * Allowed output of `np.str_` types in some tests instead of `str`.
+
+  ([#382](https://github.com/primap-community/primap2/pull/382))
+
+### Trivial/Internal Changes
+
+- [#383](https://github.com/primap-community/primap2/pull/383), [#385](https://github.com/primap-community/primap2/pull/385)
+
+
 ## primap2 0.13.0 (2025-09-05)
 
 ### Breaking Changes
