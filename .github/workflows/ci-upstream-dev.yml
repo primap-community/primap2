@@ -13,7 +13,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest ]
+        # os: [ ubuntu-latest, windows-latest ]
+        # 2026-09-02 windows-latest with prereleases seems to have a broken pandas version at the moment
+        # -> temporarily disableing windows here (~fh)
+        os: [ ubuntu-latest ]
         python-version: [ "3.12" ]
     steps:
     - uses: actions/checkout@v4
