@@ -10,6 +10,7 @@ import xarray as xr
 from loguru import logger
 
 import primap2._data_format
+from primap2._processing_info import processing_variable_name
 
 from . import _models
 from ._strategies.exceptions import StrategyUnableToProcess
@@ -117,7 +118,7 @@ def compose(
 
         (
             result_das[variable],
-            result_das[f"Processing of {variable}"],
+            result_das[processing_variable_name(variable)],
         ) = preallocate_result_arrays(
             input_da=input_da,
             group_by_dimensions=group_by_dimensions,
@@ -141,7 +142,7 @@ def compose(
             ),
             group_by_dimensions=group_by_dimensions,
             result_da=result_das[variable],
-            result_processing_da=result_das[f"Processing of {variable}"],
+            result_processing_da=result_das[processing_variable_name(variable)],
             progress_bar=pbar,
         )
         if pbar is not None:
@@ -186,7 +187,7 @@ def preallocate_result_arrays(
         dims=group_by_dimensions,
         coords=[input_da.coords[dim] for dim in group_by_dimensions],
         attrs={
-            "entity": f"Processing of {input_da.name}",
+            "entity": processing_variable_name(input_da.name),
             "described_variable": input_da.name,
         },
     )

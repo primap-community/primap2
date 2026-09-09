@@ -174,6 +174,42 @@ ch4_sar = ds["CH4"].pr.convert_to_gwp_like(ds["CH4 (SARGWP100)"])
 ch4_sar.attrs
 ```
 
+The same three functions are available for whole datasets. Real-world data usually contains
+the single gases as masses and the gas baskets as global warming potentials, often in
+several metrics:
+
+```{code-cell} ipython3
+realistic = primap2.tests.examples.realistic_ds()
+
+list(realistic.data_vars)
+```
+
+{py:meth}`xarray.Dataset.pr.convert_to_gwp` can be used to convert all single gases to a
+specific GWP context:
+
+```{code-cell} ipython3
+converted = realistic.pr.convert_to_gwp(gwp_context="AR6GWP100", units="Gg CO2 / year")
+
+list(converted.data_vars)
+```
+
+If the dataset contains gas baskets only in metrics you did not ask for, a warning is logged.
+
+For a *single gas* which is already given in a different global warming potential the
+conversion is possible by converting back to mass first. As this might indicate a logic error,
+it raises an error unless you specifically ask for it with `round_trip=True`.
+
+Variables which contain no emissions at all, like population data, are always returned
+unchanged.
+
+The corresponding inverse is {py:meth}`xarray.Dataset.pr.convert_to_mass`. In the given example,
+it gives the shape the dataset started in, with the single gases as masses and the gas baskets
+left as global warming potentials:
+
+```{code-cell} ipython3
+list(converted.pr.convert_to_mass().data_vars)
+```
+
 ### Dropping units
 
 Sometimes, it is necessary or convenient to drop the units, for example to use

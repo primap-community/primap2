@@ -8,6 +8,7 @@ import pytest
 import xarray as xr
 
 import primap2
+from primap2._processing_info import is_processing_variable
 from primap2._selection import translations_from_dims
 
 from .utils import assert_ds_aligned_equal
@@ -354,7 +355,7 @@ class TestToInterchangeFormat:
 
 def test_remove_processing_info(opulent_processing_ds):
     result = opulent_processing_ds.pr.remove_processing_info()
-    assert all(not x.startswith("Processing of") for x in result)
+    assert all(not is_processing_variable(x) for x in result)
 
 
 def test_remove_processing_info_nothing_to_do(opulent_ds):
