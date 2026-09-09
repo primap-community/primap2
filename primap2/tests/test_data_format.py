@@ -91,6 +91,17 @@ class TestEnsureValid:
         any_ds.pr.ensure_valid()
         assert not caplog.records
 
+    def test_interchange_format_roundtrip_pass(self, any_ds, caplog):
+        """Datasets which primap2 creates itself have to be valid primap2 datasets.
+
+        ``ensure_valid`` only logs most problems instead of raising, so it is not
+        enough to check that it doesn't raise - nothing may be logged either.
+        """
+        caplog.set_level(logging.INFO)
+        ds = primap2.pm2io.from_interchange_format(any_ds.pr.to_interchange_format())
+        ds.pr.ensure_valid()
+        assert not caplog.records
+
     def test_time_dimension_for_metadata(self, opulent_processing_ds, caplog):
         opulent_processing_ds["Processing of CO2"] = opulent_processing_ds[
             "Processing of CO2"
