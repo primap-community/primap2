@@ -14,6 +14,7 @@ from attr import define
 from loguru import logger
 
 from . import _accessor_base, pm2io
+from ._processing_info import is_processing_variable, processing_variable_name
 from ._selection import translations_from_dims
 from ._units import ureg
 
@@ -83,7 +84,7 @@ def open_dataset(
     if "publication_date" in ds.attrs:
         ds.attrs["publication_date"] = datetime.date.fromisoformat(ds.attrs["publication_date"])
     for entity in ds:
-        if entity.startswith("Processing of "):
+        if is_processing_variable(entity):
             ds[entity].data = np.vectorize(
                 TimeseriesProcessingDescription.deserialize, otypes=[object]
             )(ds[entity].data)
@@ -141,7 +142,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         dfs = []
         entities = []
         for x in dsd:
-            if isinstance(x, str) and x.startswith("Processing of "):
+            if is_processing_variable(x):
                 continue
             entities.append(x)
             df = (
@@ -259,11 +260,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         if "publication_date" in ds.attrs:
             ds.attrs["publication_date"] = ds.attrs["publication_date"].isoformat()
         for entity in ds:
-            if (
-                isinstance(entity, str)
-                and entity.startswith("Processing of ")
-                and ds[entity].data.dtype == object
-            ):
+            if is_processing_variable(entity) and ds[entity].data.dtype == object:
                 ds[entity].data = np.vectorize(TimeseriesProcessingDescription.serialize_optional)(
                     ds[entity].data
                 )
@@ -280,13 +277,11 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
 
     def remove_processing_info(self) -> xr.Dataset:
         """Return dataset with all variables with processing information removed."""
-        return self._ds.drop_vars(
-            [var for var in self._ds if isinstance(var, str) and var.startswith("Processing of ")]
-        )
+        return self._ds.drop_vars([var for var in self._ds if is_processing_variable(var)])
 
     def has_processing_info(self) -> bool:
         """True if the dataset has processing information for at least one entity."""
-        return any(isinstance(var, str) and var.startswith("Processing of ") for var in self._ds)
+        return any(is_processing_variable(var) for var in self._ds)
 
     def expand_dims(
         self,
@@ -429,9 +424,7 @@ def ensure_valid_data_variables(ds: xr.Dataset):
         else:
             ensure_not_gwp(key, da)
 
-        if "described_variable" in da.attrs or (
-            isinstance(key, str) and key.startswith("Processing of ")
-        ):
+        if "described_variable" in da.attrs or is_processing_variable(key):
             ensure_processing_variable_name(str(key), da)
 
 
@@ -442,7 +435,7 @@ def ensure_processing_variable_name(name: str, da: xr.DataArray) -> None:
             f" is not defined in attrs."
         )
         raise ValueError(f"'described_variable' attr missing for {name!r}")
-    if name != f"Processing of {da.attrs['described_variable']}":
+    if name != processing_variable_name(da.attrs["described_variable"]):
         logger.error(
             f"variable name {name!r} is inconsistent with described_variable "
             f"{da.attrs['described_variable']!r}"
@@ -549,7 +542,7 @@ def ensure_valid_dimensions(ds: xr.Dataset):
             raise ValueError(f"{req_dim!r} not in dims")
 
         for var in ds:
-            if isinstance(var, str) and var.startswith("Processing of ") and req_dim == "time":
+            if is_processing_variable(var) and req_dim == "time":
                 if req_dim in ds[var].dims:
                     logger.error(f"{var!r} is a metadata variable, but 'time' is a dimension.")
                     raise ValueError(f"{var!r} contains metadata, but carries 'time' dimension")

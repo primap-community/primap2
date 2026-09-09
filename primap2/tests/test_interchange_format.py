@@ -10,6 +10,7 @@ import xarray as xr
 
 import primap2
 from primap2 import pm2io
+from primap2._processing_info import is_processing_variable
 
 from . import utils
 
@@ -24,11 +25,7 @@ def test_round_trip(any_ds: xr.Dataset, tmp_path):
     expected = any_ds
     to_remove = []
     for var in expected:
-        if (
-            isinstance(var, str)
-            and var.startswith("Processing of ")
-            and "described_variable" in expected[var].attrs
-        ):
+        if is_processing_variable(var) and "described_variable" in expected[var].attrs:
             to_remove.append(var)
     for var in to_remove:
         del expected[var]
