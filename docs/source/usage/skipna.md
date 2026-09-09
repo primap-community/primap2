@@ -64,6 +64,21 @@ da.pr.sum(dim="area", skipna=True).pr.to_df()
 da.sum(dim="area (ISO3)").pr.to_df()
 ```
 
+Note that whenever NA values are skipped, {py:meth}`xarray.DataArray.pr.sum` uses
+`min_count=1`, so summing values which are *all* NA gives NA instead of zero. This is the
+case for `skipna=True` as well as for the default, where NA values are skipped for float
+data:
+
+```{code-cell} ipython3
+da.pr.sum(dim="time").pr.to_df()
+```
+
+If you want all-NA sums to be zero instead, pass `min_count=0` explicitly:
+
+```{code-cell} ipython3
+da.pr.sum(dim="time", min_count=0).pr.to_df()
+```
+
 ## Infilling
 
 The same functionality is available for filling in missing information using the

@@ -141,6 +141,43 @@ class TestSum:
         dssdef = ds.pr.sum(dim="b", skipna=True)
         xr.testing.assert_identical(dssdef, dss1_expected)
 
+    def test_skipna_default(self):
+        """Without an explicit ``skipna``, summing only NA values has to give NA, not 0.
+
+        ``min_count=1`` is the default whenever NA values are skipped, which includes
+        the default ``skipna=None`` (which skips NA values for float dtypes).
+        """
+        coords = [("a", [1, 2]), ("b", [1, 2]), ("c", [1, 2, 3])]
+        da = xr.DataArray(
+            data=[
+                [[np.nan, np.nan, np.nan], [np.nan, 1, 2]],
+                [[np.nan, np.nan, np.nan], [np.nan, 1, 2]],
+            ],
+            coords=coords,
+        )
+        expected = xr.DataArray(
+            data=[[np.nan, 1, 2], [np.nan, 1, 2]], coords=[coords[0], coords[2]]
+        )
+
+        assert np.allclose(da.pr.sum(dim="b"), expected, equal_nan=True)
+        assert np.allclose(da.pr.sum(reduce_to_dim=["a", "c"]), expected, equal_nan=True)
+
+        ds = xr.Dataset({"1": da, "2": da.copy()})
+        ds_expected = xr.Dataset({"1": expected, "2": expected})
+        xr.testing.assert_identical(ds.pr.sum(dim="b"), ds_expected)
+
+        # summing along the entity dimension has to preserve NA as well
+        entity_expected = expected + expected
+        assert np.allclose(ds.pr.sum(dim=["b", "entity"]), entity_expected, equal_nan=True)
+
+        # the old behaviour of treating all-NA sums as 0 is still available explicitly
+        zero_expected = xr.DataArray(data=[[0, 1, 2], [0, 1, 2]], coords=[coords[0], coords[2]])
+        assert np.allclose(da.pr.sum(dim="b", min_count=0), zero_expected, equal_nan=True)
+        xr.testing.assert_identical(
+            ds.pr.sum(dim="b", min_count=0),
+            xr.Dataset({"1": zero_expected, "2": zero_expected}),
+        )
+
     def test_inhomogeneous_regression(self, opulent_ds: xr.Dataset):
         ds = opulent_ds
         dss = ds.pr.loc[{"category": ["1", "2", "3", "4", "5"]}].pr.sum("category")
@@ -269,6 +306,36 @@ class TestGasBasket:
         expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6) * ureg("Gg CO2 / year")
         assert_equal(summed, expected)
 
+    @pytest.fixture
+    def all_nan_ds(self, partly_nan_ds):
+        """Like ``partly_nan_ds``, but for MEX all basket contents are NaN."""
+        for gas in ("CO2", "SF6", "CH4"):
+            partly_nan_ds[gas].loc[{"area (ISO3)": "MEX"}] = np.nan * ureg(f"Gg {gas} / year")
+        return partly_nan_ds
+
+    def test_contents_sum_default_all_na(self, all_nan_ds):
+        """Without an explicit ``skipna``, a basket with only NA contents has to be NA."""
+        summed = all_nan_ds.pr.gas_basket_contents_sum(
+            basket="KYOTOGHG (AR4GWP100)",
+            basket_contents=["CO2", "SF6", "CH4"],
+        )
+        expected = all_nan_ds["KYOTOGHG (AR4GWP100)"].copy()
+        expected[:] = (1 + self.sf6 + self.ch4) * ureg("Gg CO2 / year")
+        # single NaN counted as 0
+        expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6) * ureg("Gg CO2 / year")
+        # all contents NaN, so the sum is NaN and not 0
+        expected.loc[{"area (ISO3)": "MEX"}] = np.nan * ureg("Gg CO2 / year")
+        assert_equal(summed, expected, equal_nan=True)
+
+        # the old behaviour of treating all-NA sums as 0 is still available explicitly
+        summed_zero = all_nan_ds.pr.gas_basket_contents_sum(
+            basket="KYOTOGHG (AR4GWP100)",
+            basket_contents=["CO2", "SF6", "CH4"],
+            min_count=0,
+        )
+        expected.loc[{"area (ISO3)": "MEX"}] = 0 * ureg("Gg CO2 / year")
+        assert_equal(summed_zero, expected, equal_nan=True)
+
     def test_contents_sum_skipna_evaluation_dims(self, partly_nan_ds):
         partly_nan_ds["CH4"].loc[{"area (ISO3)": "ARG", "time": "2012"}] = np.nan * ureg(
             "Gg CH4 / year"
@@ -357,6 +424,33 @@ class TestGasBasket:
                 sel={"area (ISO3)": "BOL"},
                 skipna_evaluation_dims=("time",),
             )
+
+    def test_fill_na_from_contents_default_all_na(self, all_nan_ds):
+        """Without an explicit ``skipna``, NA baskets with only NA contents stay NA."""
+        all_nan_ds["KYOTOGHG (AR4GWP100)"][:] = np.nan * ureg("Gg CO2 / year")
+        filled = all_nan_ds.pr.fill_na_gas_basket_from_contents(
+            basket="KYOTOGHG (AR4GWP100)",
+            basket_contents=["CO2", "SF6", "CH4"],
+        )
+        expected = all_nan_ds["KYOTOGHG (AR4GWP100)"].copy()
+        expected[:] = (1 + self.sf6 + self.ch4) * ureg("Gg CO2 / year")
+        expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6) * ureg("Gg CO2 / year")
+        # all contents NaN, so nothing to fill with
+        expected.loc[{"area (ISO3)": "MEX"}] = np.nan * ureg("Gg CO2 / year")
+        assert_equal(filled, expected, equal_nan=True)
+
+    def test_add_aggregates_variables_default_all_na(self, all_nan_ds):
+        """A basket aggregated from only NA contents has to be NA, not 0."""
+        aggregated = all_nan_ds.pr.add_aggregates_variables(
+            gas_baskets={"KYOTOGHG (AR6GWP100)": ["CO2", "SF6", "CH4"]},
+        )
+        expected = all_nan_ds["KYOTOGHG (AR4GWP100)"].copy()
+        expected[:] = (1 + self.sf6_ar6 + self.ch4_ar6) * ureg("Gg CO2 / year")
+        expected.loc[{"area (ISO3)": "COL"}] = (1 + self.sf6_ar6) * ureg("Gg CO2 / year")
+        expected.loc[{"area (ISO3)": "MEX"}] = np.nan * ureg("Gg CO2 / year")
+        expected.name = "KYOTOGHG (AR6GWP100)"
+        expected.attrs = {"gwp_context": "AR6GWP100", "entity": "KYOTOGHG"}
+        assert_equal(aggregated["KYOTOGHG (AR6GWP100)"], expected, equal_nan=True)
 
     def test_fill_na_from_contents_skipna(self, partly_filled_ds):
         filled = partly_filled_ds.pr.fill_na_gas_basket_from_contents(

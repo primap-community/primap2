@@ -131,9 +131,11 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
            evaluation dimension ``position`` will skip only those values where all
            values with the same ``position`` are NA.
 
-        ``skipna`` and ``min_count`` work like in the :py:meth:`xarray.DataArray.sum` function.
-        The behaviour
-        of primap1 is reproduced by ``skipna=True, min_count=1``.
+        ``skipna`` and ``min_count`` work like in the :py:meth:`xarray.DataArray.sum`
+        function, with one exception: unless ``skipna=False`` is given, ``min_count``
+        defaults to 1, so that summing only NA values gives NA instead of zero. This
+        reproduces the behaviour of primap1. Pass ``min_count=0`` explicitly to get
+        xarray's behaviour of summing only NA values to zero.
 
         Parameters
         ----------
@@ -146,7 +148,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
           arguments can be supplied. Supplying ``reduce_to_dim="dim_1"`` is therefore
           equivalent to giving ``dim=set(da.dims) - {"dim_1"}``, but more legible.
         skipna: bool, optional
-          If ``True``, skip missing values (as marked by NaN). By default, only
+          If ``True`` (default), skip missing values (as marked by NaN). By default, only
           skips missing values for float dtypes; other dtypes either do not
           have a sentinel missing value (int) or ``skipna=True`` has not been
           implemented (``object``, ``datetime64`` or ``timedelta64``).
@@ -158,9 +160,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
           result.
         keep_attrs: bool, optional
           Keep the attr metadata (default True).
-        min_count: int (default None, but set to 1 if skipna=True)
+        min_count: int (default None, but set to 1 unless skipna=False)
           The minimal number of non-NA values in a sum that is necessary for a non-NA
-          result. This only has an effect if ``skipna=True``. As an example: you sum data
+          result. This only has an effect if NA values are skipped. As an example: you sum data
           for a region for a certain sector, gas and year. If ``skipna=False``,
           all countries in the region need to have non-NA data for that sector, gas,
           year combination. If ``skipna=True`` and ``min_count=1`` then one country with
@@ -188,7 +190,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
             da = self.fill_all_na(dim=skipna_evaluation_dims, value=0)
         else:
             da = self._da
-            if skipna and min_count is None:
+            if skipna is not False and min_count is None:
                 min_count = 1
 
         return da.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count)
@@ -273,9 +275,9 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
             skips missing values for ``float`` dtypes; other dtypes either do not
             have a sentinel missing value (int) or ``skipna=True`` has not been
             implemented (``object``, ``datetime64`` or ``timedelta64``).
-        min_count: int (default None, but set to 1 if skipna=True)
+        min_count: int (default None, but set to 1 unless skipna=False)
             The minimal number of non-NA values in a sum that is necessary for a non-NA
-            result. This only has an effect if ``skipna=True``. As an example: you sum data
+            result. This only has an effect if NA values are skipped. As an example: you sum data
             for a region for a certain sector, gas and year. If ``skipna=False``,
             all countries in the region need to have non-NA data for that sector, gas,
             year combination. If ``skipna=True`` and ``min_count=1`` then one country with
@@ -543,9 +545,11 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
            and summed along the data variables (which will only work if the units of
            the DataArrays are compatible).
 
-        ``skipna`` and ``min_count`` work like in the :py:meth:`xarray.Dataset.sum` function.
-        The behaviour
-        of primap1 is reproduced by ``skipna=True, min_count=1``.
+        ``skipna`` and ``min_count`` work like in the :py:meth:`xarray.Dataset.sum`
+        function, with one exception: unless ``skipna=False`` is given, ``min_count``
+        defaults to 1, so that summing only NA values gives NA instead of zero. This
+        reproduces the behaviour of primap1. Pass ``min_count=0`` explicitly to get
+        xarray's behaviour of summing only NA values to zero.
 
         Parameters
         ----------
@@ -572,9 +576,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           result.
         keep_attrs: bool, optional
           Keep the attr metadata (default True).
-        min_count: int (default None, but set to 1 if skipna=True)
+        min_count: int (default None, but set to 1 unless skipna=False)
           The minimal number of non-NA values in a sum that is necessary for a non-NA
-          result. This only has an effect if ``skipna=True``. As an example: you sum data
+          result. This only has an effect if NA values are skipped. As an example: you sum data
           for a region for a certain sector, gas and year. If ``skipna=False``,
           all countries in the region need to have non-NA data for that sector, gas,
           year combination. If ``skipna=True`` and ``min_count=1`` then one country with
@@ -608,7 +612,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             ds = self.fill_all_na(dim=skipna_evaluation_dims, value=0)
         else:
             ds = self._ds
-            if skipna and min_count is None:
+            if skipna is not False and min_count is None:
                 min_count = 1
 
         if dim is not None and "entity" in dim:
@@ -663,9 +667,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           If all values along the specified dimensions are NA, the values are skipped,
           other NA values are not skipped and will lead to NA in the corresponding
           result.
-        min_count: int (default None, but set to 1 if skipna=True)
+        min_count: int (default None, but set to 1 unless skipna=False)
           The minimal number of non-NA values in a sum that is necessary for a non-NA
-          result. This only has an effect if ``skipna=True``. As an example: you sum data
+          result. This only has an effect if NA values are skipped. As an example: you sum data
           for a region for a certain sector, gas and year. If ``skipna=False``,
           all countries in the region need to have non-NA data for that sector, gas,
           year combination. If ``skipna=True`` and ``min_count=1`` then one country with
@@ -751,9 +755,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
           If all values along the specified dimensions are NA, the values are skipped,
           other NA values are not skipped and will lead to NA in the corresponding
           result.
-        min_count: int (default None, but set to 1 if skipna=True)
+        min_count: int (default None, but set to 1 unless skipna=False)
           The minimal number of non-NA values in a sum that is necessary for a non-NA
-          result. This only has an effect if ``skipna=True``. As an example: you sum data
+          result. This only has an effect if NA values are skipped. As an example: you sum data
           for a region for a certain sector, gas and year. If ``skipna=False``,
           all countries in the region need to have non-NA data for that sector, gas,
           year combination. If ``skipna=True`` and ``min_count=1`` then one country with
@@ -836,9 +840,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             skips missing values for float dtypes; other dtypes either do not
             have a sentinel missing value (int) or ``skipna=True`` has not been
             implemented (``object``, ``datetime64`` or ``timedelta64``).
-        min_count: int (default None, but set to 1 if skipna=True)
+        min_count: int (default None, but set to 1 unless skipna=False)
             The minimal number of non-NA values in a sum that is necessary for a non-NA
-            result. This only has an effect if ``skipna=True``. As an example: you sum data
+            result. This only has an effect if NA values are skipped. As an example: you sum data
             for a region for a certain sector, gas and year. If ``skipna=False``,
             all countries in the region need to have non-NA data for that sector, gas,
             year combination. If ``skipna=True`` and ``min_count=1`` then one country with
@@ -914,9 +918,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             skips missing values for float dtypes; other dtypes either do not
             have a sentinel missing value (int) or ``skipna=True`` has not been
             implemented (``object``, ``datetime64`` or ``timedelta64``).
-        min_count: int (default None, but set to 1 if skipna=True)
+        min_count: int (default None, but set to 1 unless skipna=False)
             The minimal number of non-NA values in a sum that is necessary for a non-NA
-            result. This only has an effect if ``skipna=True``. As an example: you sum data
+            result. This only has an effect if NA values are skipped. As an example: you sum data
             for a region for a certain sector, gas and year. If ``skipna=False``,
             all countries in the region need to have non-NA data for that sector, gas,
             year combination. If ``skipna=True`` and ``min_count=1`` then one country with
