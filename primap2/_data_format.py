@@ -85,7 +85,7 @@ def open_dataset(
     for entity in ds:
         if entity.startswith("Processing of "):
             ds[entity].data = np.vectorize(
-                lambda x: TimeseriesProcessingDescription.deserialize(x)
+                TimeseriesProcessingDescription.deserialize, otypes=[object]
             )(ds[entity].data)
     return ds
 
@@ -264,7 +264,9 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
                 and entity.startswith("Processing of ")
                 and ds[entity].data.dtype == object
             ):
-                ds[entity].data = np.vectorize(lambda x: x.serialize())(ds[entity].data)
+                ds[entity].data = np.vectorize(TimeseriesProcessingDescription.serialize_optional)(
+                    ds[entity].data
+                )
 
         ds = ds.drop_encoding()
         return ds.to_netcdf(
@@ -663,14 +665,42 @@ class TimeseriesProcessingDescription:
         """Convert into binary data, e.g. for saving to disk."""
         return msgpack.packb({"steps": [x.unstructure() for x in self.steps]}, use_bin_type=True)
 
+    @staticmethod
+    def serialize_optional(
+        processing: "TimeseriesProcessingDescription | None",
+    ) -> bytes:
+        """Convert into binary data, also for missing processing information.
+
+        Processing information can be missing for individual timeseries, for example
+        if a dataset uses different categories for different variables. Missing
+        processing information is represented by empty binary data.
+
+        Parameters
+        ----------
+        processing
+            A TimeseriesProcessingDescription, or a null value (``None`` or NaN) if
+            no processing information is available for the timeseries.
+        """
+        if pd.isnull(processing):
+            return b""
+        return processing.serialize()
+
     @classmethod
-    def deserialize(cls, b: bytes) -> "TimeseriesProcessingDescription":
-        """Parse from binary data as produced by "serialize".
+    def deserialize(cls, b: bytes) -> "TimeseriesProcessingDescription | None":
+        """Parse from binary data as produced by "serialize" or "serialize_optional".
 
         Parameters
         ----------
         b
-            Binary data representing a TimeseriesProcessingDescription.
+            Binary data representing a TimeseriesProcessingDescription, or empty
+            binary data if no processing information is available for the timeseries.
+
+        Returns
+        -------
+        processing : TimeseriesProcessingDescription or None
+            ``None`` is returned for empty binary data.
         """
+        if not b:
+            return None
         ust = msgpack.unpackb(b, raw=False, use_list=False)
         return cls(steps=[ProcessingStepDescription.structure(x) for x in ust["steps"]])
