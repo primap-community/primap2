@@ -7,6 +7,7 @@ import xarray as xr
 import primap2
 from primap2 import ureg
 from primap2._dim_names import dim_names
+from primap2._processing_info import processing_variable_name
 
 
 def minimal_ds() -> xr.Dataset:
@@ -201,7 +202,7 @@ def opulent_processing_ds() -> xr.Dataset:
     for var in opulent:
         dims = [dim for dim in dim_names(opulent) if dim != "time"]
         shape = tuple(len(opulent[x]) for x in dims)
-        new_vars[f"Processing of {var}"] = xr.DataArray(
+        new_vars[processing_variable_name(var)] = xr.DataArray(
             data=np.full(
                 shape=shape,
                 fill_value=primap2.TimeseriesProcessingDescription(
@@ -217,7 +218,7 @@ def opulent_processing_ds() -> xr.Dataset:
             coords=opulent[dims],
             dims=dims,
             attrs={
-                "entity": f"Processing of {var}",
+                "entity": processing_variable_name(var),
                 "described_variable": var,
             },
         )
@@ -264,8 +265,58 @@ def empty_ds() -> xr.Dataset:
     return empty
 
 
+def realistic_ds() -> xr.Dataset:
+    """A dataset shaped like the data published by PRIMAP.
+
+    In contrast to the other examples, single gases are only given as masses and
+    global warming potentials are only given for gas baskets, with the same gas
+    basket given in more than one global warming potential metric. No gas is
+    present both as a mass and as a global warming potential.
+    """
+    time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
+    area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
+    coords = {
+        "time": time,
+        "area (ISO3)": area_iso3,
+        "source": ["RAND2020"],
+    }
+    dims = ["time", "area (ISO3)", "source"]
+    shape = (len(time), len(area_iso3), 1)
+
+    # seed the rng with a constant to achieve predictable "randomness"
+    rng = np.random.default_rng(1)
+
+    realistic = xr.Dataset(
+        {
+            ent: xr.DataArray(
+                data=rng.random(shape),
+                coords=coords,
+                dims=dims,
+                attrs={"units": f"{ent} Gg / year", "entity": ent},
+            )
+            for ent in ("CO2", "CH4", "N2O", "SF6")
+        },
+        attrs={"area": "area (ISO3)"},
+    ).pr.quantify()
+
+    for gwp_context in ("AR5GWP100", "AR6GWP100"):
+        realistic[f"HFCS ({gwp_context})"] = xr.DataArray(
+            data=rng.random(shape),
+            coords=coords,
+            dims=dims,
+            attrs={
+                "units": "CO2 Gg / year",
+                "entity": "HFCS",
+                "gwp_context": gwp_context,
+            },
+        ).pr.quantify()
+
+    return realistic
+
+
 _cached_minimal_ds = minimal_ds()
 _cached_opulent_ds = opulent_ds()
 _cached_opulent_str_ds = opulent_str_ds()
 _cached_opulent_processing_ds = opulent_processing_ds()
 _cached_empty_ds = empty_ds()
+_cached_realistic_ds = realistic_ds()

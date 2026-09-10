@@ -4,14 +4,49 @@ Portions of this file are copied from pint_xarray and are
 Copyright 2020, pint-xarray developers.
 """
 
+from collections.abc import Hashable
+
 import pint
 import pint_xarray
 import xarray as xr
+from loguru import logger
 from openscm_units import unit_registry as ureg
 
 from . import _accessor_base
+from ._processing_info import is_processing_variable, processing_variable_name
 
 pint_xarray.setup_registry(ureg)
+
+
+def _entity_unit(da: xr.DataArray) -> pint.Quantity | None:
+    """The entity of the array as a unit, or None if the entity is not a single gas.
+
+    Gas baskets like ``KYOTOGHG`` are not known to the unit registry, so they have no
+    mass and can neither be converted to nor from a global warming potential.
+    """
+    try:
+        return ureg(da.attrs["entity"])
+    except (KeyError, pint.UndefinedUnitError):
+        return None
+
+
+def _is_gas_emissions(da: xr.DataArray) -> bool:
+    """True if the array contains emissions of a single gas.
+
+    Only emissions of a single gas can be converted to a global warming potential.
+    Variables like population, string-valued variables, and gas baskets - whose entity
+    is not a gas known to the unit registry - can not be converted.
+    """
+    if "gwp_context" in da.attrs:
+        # already converted to a global warming potential
+        return False
+    units = da.pint.units
+    if units is None:
+        return False
+    entity_unit = _entity_unit(da)
+    if entity_unit is None:
+        return False
+    return units.is_compatible_with(entity_unit * ureg.Gg / ureg.year)
 
 
 class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
@@ -92,7 +127,10 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         return self._da.pint.dequantify()
 
     def convert_to_gwp(self, gwp_context: str, units: str | pint.Unit) -> xr.DataArray:
-        """Convert to a global warming potential
+        """Convert to a global warming potential and given unit.
+
+        Gas baskets cannot be converted because their composition is unknown, so trying
+        to convert them raises an error.
 
         Parameters
         ----------
@@ -107,14 +145,20 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         -------
             converted : xr.DataArray
         """
-        if "gwp_context" in self._da.attrs and self._da.attrs["gwp_context"] != gwp_context:
-            raise ValueError(
-                f"Incompatible gwp conversions: {self._da.attrs['gwp_context']!r}"
-                f" != {gwp_context!r}."
-            )
+        da = self._da
+        existing_gwp_context = da.attrs.get("gwp_context")
+        if existing_gwp_context is not None and existing_gwp_context != gwp_context:
+            if _entity_unit(da) is None:
+                raise ValueError(
+                    f"Incompatible GWP conversions: {existing_gwp_context!r}"
+                    f" != {gwp_context!r}. {da.attrs['entity']!r} is not a single gas,"
+                    f" so it cannot be converted to another GWP context."
+                )
+            # a single gas can be converted by going back to mass first
+            da = da.pr.convert_to_mass()
 
         with ureg.context(gwp_context):
-            da = self._da.pint.to(units)
+            da = da.pint.to(units)
         da.attrs["gwp_context"] = gwp_context
         da.name = f"{da.attrs['entity']} ({da.attrs['gwp_context']})"
         return da
@@ -302,3 +346,242 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
                 that was previously wrapped by :py:class:`pint.Quantity`.
         """
         return self._ds.pint.dequantify()
+
+    def _gwp_contexts_by_entity(self) -> dict[str, set[str]]:
+        """The global warming potentials in which each entity is available.
+
+        Entities which are not given as a global warming potential at all are mapped
+        to an empty set.
+        """
+        contexts: dict[str, set[str]] = {}
+        for name, da in self._ds.data_vars.items():
+            entity = da.attrs.get("entity")
+            if is_processing_variable(name) or entity is None:
+                continue
+            entity_contexts = contexts.setdefault(entity, set())
+            gwp_context = da.attrs.get("gwp_context")
+            if gwp_context is not None:
+                entity_contexts.add(gwp_context)
+        return contexts
+
+    def _build_converted_dataset(self, converted: dict[Hashable, xr.DataArray]) -> xr.Dataset:
+        """Assemble the result of a conversion of all data variables.
+
+        Variables are stored under their new names, processing information variables
+        are renamed to follow the variables they describe, and name clashes introduced
+        by the conversion are reported.
+
+        Parameters
+        ----------
+        converted
+            The converted data variables, keyed by their name before the conversion.
+            Variables which were not converted have to be included unchanged, and
+            processing information variables have to be left out.
+        """
+        renames = {name: da.name for name, da in converted.items() if da.name != name}
+
+        result: dict[Hashable, xr.DataArray] = {}
+        for name, da in converted.items():
+            if da.name in result:
+                raise ValueError(
+                    f"Converting {name!r} would overwrite {da.name!r}, which is also "
+                    f"contained in the dataset."
+                )
+            result[da.name] = da
+
+        for name, da in self._ds.data_vars.items():
+            if not is_processing_variable(name):
+                continue
+            described_variable = da.attrs["described_variable"]
+            if described_variable not in renames:
+                result[name] = da
+                continue
+            described_variable = renames[described_variable]
+            new_name = processing_variable_name(described_variable)
+            da = da.copy()
+            da.attrs["described_variable"] = described_variable
+            da.attrs["entity"] = new_name
+            da.name = new_name
+            result[new_name] = da
+
+        return xr.Dataset(result, attrs=self._ds.attrs.copy())
+
+    def convert_to_gwp(self, gwp_context: str, units: str | pint.Unit) -> xr.Dataset:
+        """Convert all greenhouse gas emissions to a global warming potential.
+
+        Converted variables are renamed to ``"{entity} ({gwp_context})"``, and
+        processing information variables are renamed along with the variables they
+        describe.
+
+        Variables which do not contain emissions of a single gas - like population,
+        string-valued variables, or gas baskets given in mass units - are not
+        converted and are returned unchanged.
+
+        Gas baskets which are already given in a *different* global warming potential
+        can not be converted at all, because their composition is unknown, so they are
+        returned unchanged. If the dataset contains the same gas basket in the
+        requested global warming potential as well, nothing is missing from the result.
+        Otherwise, a warning is logged, because the result then mixes global warming
+        potentials; to get a consistent result, re-derive the gas basket from its
+        contents using :py:meth:`xarray.Dataset.pr.gas_basket_contents_sum`.
+
+        Parameters
+        ----------
+        gwp_context: str
+            The global warming potential context to use for the conversion, as
+            understood by ``openscm_units``.
+        units: str or pint unit
+            The units in which the global warming potential is given after the
+            conversion.
+
+        See Also
+        --------
+        xarray.DataArray.pr.convert_to_gwp
+
+        Returns
+        -------
+        converted : xr.Dataset
+        """
+        available_gwp_contexts = self._gwp_contexts_by_entity()
+
+        converted: dict[Hashable, xr.DataArray] = {}
+        not_converted: list[Hashable] = []
+        superseded_baskets: list[Hashable] = []
+        missing_baskets: list[Hashable] = []
+        for name, da in self._ds.data_vars.items():
+            if is_processing_variable(name):
+                continue
+
+            existing_gwp_context = da.attrs.get("gwp_context")
+            if (
+                existing_gwp_context is not None
+                and existing_gwp_context != gwp_context
+                and _entity_unit(da) is None
+            ):
+                # a gas basket in a different global warming potential, which can not be
+                # converted because its composition is unknown
+                if gwp_context in available_gwp_contexts.get(da.attrs.get("entity"), set()):
+                    # the same basket is available in the requested global warming
+                    # potential, so nothing is missing from the result
+                    superseded_baskets.append(name)
+                else:
+                    missing_baskets.append(name)
+                converted[name] = da
+                continue
+
+            if existing_gwp_context is None and not _is_gas_emissions(da):
+                # non-gas without gwp context: nothing to be done
+                not_converted.append(name)
+                converted[name] = da
+                continue
+
+            converted[name] = da.pr.convert_to_gwp(gwp_context=gwp_context, units=units)
+
+        if not_converted:
+            logger.info(
+                f"Not converting {not_converted!r}, which do not contain emissions of a "
+                f"single greenhouse gas."
+            )
+        if superseded_baskets:
+            logger.info(
+                f"Not converting the gas baskets {superseded_baskets!r}, which are given "
+                f"in a different global warming potential and can not be converted "
+                f"because their composition is unknown. The dataset contains the same "
+                f"gas baskets in {gwp_context!r}, so nothing is missing from the result."
+            )
+        if missing_baskets:
+            logger.warning(
+                f"Not converting the gas baskets {missing_baskets!r}, which are given in a "
+                f"different global warming potential and can not be converted because their "
+                f"composition is unknown. The result therefore mixes global warming potentials "
+                f"instead of being given in {gwp_context!r} throughout."
+            )
+
+        return self._build_converted_dataset(converted)
+
+    def convert_to_gwp_like(self, like: xr.DataArray) -> xr.Dataset:
+        """Convert all greenhouse gas emissions to a global warming potential in the
+        units of a reference array.
+
+        Uses the ``gwp_context`` of the reference array.
+
+        Parameters
+        ----------
+        like: xr.DataArray
+            Other DataArray containing a global warming potential.
+
+        See Also
+        --------
+        xarray.Dataset.pr.convert_to_gwp
+
+        Returns
+        -------
+        converted : xr.Dataset
+        """
+        if "gwp_context" not in like.attrs or like.attrs["gwp_context"] is None:
+            raise ValueError("reference array has no gwp_context.")
+        if like.pint.units is None:
+            raise ValueError("reference array has no units attached.")
+        return self.convert_to_gwp(gwp_context=like.attrs["gwp_context"], units=like.pint.units)
+
+    def convert_to_mass(self, gwp_context: str | None = None) -> xr.Dataset:
+        """Convert all global warming potentials of greenhouse gases to masses.
+
+        Converted variables are renamed to their entity, and processing information
+        variables are renamed along with the variables they describe.
+
+        Variables which are not given as a global warming potential are returned
+        unchanged.
+
+        Gas baskets have no mass to be converted to, because their composition is
+        unknown, so they are returned unchanged as well. The result then has the shape
+        of a typical published dataset, with the single gases given as masses and the
+        gas baskets given as global warming potentials.
+
+        Parameters
+        ----------
+        gwp_context: str, optional
+            The global warming potential context to be used for the conversion.
+            It must be one of the global warming potential contexts understood by
+            ``openscm_units``. If omitted, the global warming potential context used to
+            calculate the global warming potential originally is used for each variable,
+            so you should only need to provide an explicit gwp_context in exceptional
+            cases.
+
+        See Also
+        --------
+        xarray.DataArray.pr.convert_to_mass
+
+        Returns
+        -------
+        converted : xr.Dataset
+        """
+        converted: dict[Hashable, xr.DataArray] = {}
+        not_converted: list[Hashable] = []
+        gas_baskets: list[Hashable] = []
+        for name, da in self._ds.data_vars.items():
+            if is_processing_variable(name):
+                continue
+
+            if "gwp_context" not in da.attrs:
+                not_converted.append(name)
+                converted[name] = da
+            elif _entity_unit(da) is None:
+                # a gas basket, which has no mass to convert to
+                gas_baskets.append(name)
+                converted[name] = da
+            else:
+                converted[name] = da.pr.convert_to_mass(gwp_context=gwp_context)
+
+        if not_converted:
+            logger.info(
+                f"Not converting {not_converted!r}, which are not given as a global "
+                f"warming potential."
+            )
+        if gas_baskets:
+            logger.info(
+                f"Not converting the gas baskets {gas_baskets!r}, which have no mass "
+                f"because their composition is unknown."
+            )
+
+        return self._build_converted_dataset(converted)

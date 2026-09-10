@@ -107,6 +107,7 @@ Methods
     DataArray.pr.coverage
     DataArray.pr.dequantify
     DataArray.pr.downscale_timeseries
+    DataArray.pr.downscale_timeseries_by_shares
     DataArray.pr.fill_all_na
     DataArray.pr.fillna
     DataArray.pr.merge
@@ -153,11 +154,15 @@ Methods
     Dataset.pr.add_aggregates_variables
     Dataset.pr.any
     Dataset.pr.combine_first
+    Dataset.pr.convert_to_gwp
+    Dataset.pr.convert_to_gwp_like
+    Dataset.pr.convert_to_mass
     Dataset.pr.count
     Dataset.pr.coverage
     Dataset.pr.dequantify
     Dataset.pr.downscale_gas_timeseries
     Dataset.pr.downscale_timeseries
+    Dataset.pr.downscale_timeseries_by_shares
     Dataset.pr.ensure_valid
     Dataset.pr.expand_dims
     Dataset.pr.fill_all_na
