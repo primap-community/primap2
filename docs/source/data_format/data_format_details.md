@@ -83,6 +83,13 @@ If there is no `gwp_context`, the name is the entity.
 If there is a `gwp_context`, the name is the entity, followed by the `gwp_context`
 in parentheses, separated from the entity by a space.
 
+Each single gas is contained in a data set only once, either as a mass or as a global
+warming potential, and in only one global warming potential metric.
+Gas baskets, whose entity is not a single gas known to
+[openscm-units](https://openscm-units.readthedocs.io), are exempt: their composition is
+unknown, so they can not be converted between global warming potentials and are
+commonly given in several of them.
+
 Units are required for all data variables with a `dtype` of `float`, while
 for data with other data types, the units are required only where they make sense.
 For example, data with an integer data type representing (human or animal) population

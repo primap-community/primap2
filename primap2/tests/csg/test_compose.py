@@ -35,9 +35,7 @@ def test_compose_simple(opulent_ds):
     every entity, we use the simple SubstitutionStrategy for all sources.
     """
     input_data = opulent_ds
-    input_data = input_data.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
-        {"category": ["0", "1"]}
-    ]
+    input_data = input_data.drop_vars(["population"]).pr.loc[{"category": ["0", "1"]}]
     input_data["CO2"].loc[{"source": "RAND2020", "time": ["2000", "2001"]}] = np.nan * primap2.ureg(
         "Mt CO2 / year"
     )
@@ -132,7 +130,7 @@ def test_compose_simple(opulent_ds):
 
 def test_compose_exclude_result(opulent_ds):
     """In this test, we exclude parts of the result from processing."""
-    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
+    input_data = opulent_ds.drop_vars(["population"]).pr.loc[
         {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
     ]
 
@@ -146,7 +144,7 @@ def test_compose_exclude_result(opulent_ds):
         ],
         exclude_result=[
             {"entity": "CH4", "category (IPCC 2006)": "1"},
-            {"entity": ["SF6", "SF6 (SARGWP100)"]},
+            {"entity": "SF6"},
         ],
     )
     strategy_definition = primap2.csg.StrategyDefinition(
@@ -188,7 +186,7 @@ def test_compose_exclude_result(opulent_ds):
 
 def test_compose_invalid_strategy_definition(opulent_ds):
     """We use an invalid strategy definition and verify it raises an error."""
-    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
+    input_data = opulent_ds.drop_vars(["population"]).pr.loc[
         {
             "animal": ["cow"],
             "product": ["milk"],
@@ -225,7 +223,7 @@ def test_compose_strategy_skipping(opulent_ds):
     """In this test, we use a strategy which raises an error and assert that it is
     skipped properly.
     """
-    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
+    input_data = opulent_ds.drop_vars(["population"]).pr.loc[
         {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
     ]
 
@@ -282,7 +280,7 @@ def test_compose_strategy_skipping(opulent_ds):
 
 
 def test_compose_strategy_all_error(opulent_ds):
-    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
+    input_data = opulent_ds.drop_vars(["population"]).pr.loc[
         {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
     ]
 
@@ -325,7 +323,7 @@ def test_compose_strategy_all_error(opulent_ds):
 
 def test_compose_skip_source(opulent_ds):
     """We do not use a specific source for CH4 category 0."""
-    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)", "SF6"]).pr.loc[
+    input_data = opulent_ds.drop_vars(["population", "SF6"]).pr.loc[
         {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
     ]
 
@@ -399,15 +397,22 @@ def test_compose_skip_source(opulent_ds):
 
 
 def test_compose_skip_variable(opulent_ds):
-    """We do skip processing SF6 (SARGWP100) altogether."""
-    input_data = opulent_ds.drop_vars(["population"]).pr.loc[
-        {
-            "animal": ["cow"],
-            "product": ["milk"],
-            "category": ["0", "1"],
-            "area": ["COL"],
-        }
-    ]
+    """We do skip processing SF6 (SARGWP100) altogether.
+
+    Excluding by variable matches only the variable of that exact name.
+    """
+    input_data = (
+        opulent_ds.drop_vars(["population"])
+        .pr.loc[
+            {
+                "animal": ["cow"],
+                "product": ["milk"],
+                "category": ["0", "1"],
+                "area": ["COL"],
+            }
+        ]
+        .pr.convert_to_gwp(gwp_context="SARGWP100", units="CO2 Gg / year")
+    )
 
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source"],
@@ -434,19 +439,26 @@ def test_compose_skip_variable(opulent_ds):
     result.pr.ensure_valid()
 
     assert result["SF6 (SARGWP100)"].isnull().all()
-    assert not result["SF6"].isnull().all()
+    assert not result["CO2 (SARGWP100)"].isnull().all()
 
 
 def test_compose_skip_entity(opulent_ds):
-    """We do skip processing SF6, even with gwp_context."""
-    input_data = opulent_ds.drop_vars(["population"]).pr.loc[
-        {
-            "animal": ["cow"],
-            "product": ["milk"],
-            "category": ["0", "1"],
-            "area": ["COL"],
-        }
-    ]
+    """We do skip processing SF6, even though the variable is named differently.
+
+    Excluding by entity matches the variable of that entity, whatever its name is.
+    """
+    input_data = (
+        opulent_ds.drop_vars(["population"])
+        .pr.loc[
+            {
+                "animal": ["cow"],
+                "product": ["milk"],
+                "category": ["0", "1"],
+                "area": ["COL"],
+            }
+        ]
+        .pr.convert_to_gwp(gwp_context="SARGWP100", units="CO2 Gg / year")
+    )
 
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source"],
@@ -473,19 +485,23 @@ def test_compose_skip_entity(opulent_ds):
     result.pr.ensure_valid()
 
     assert result["SF6 (SARGWP100)"].isnull().all()
-    assert result["SF6"].isnull().all()
+    assert not result["CO2 (SARGWP100)"].isnull().all()
 
 
 def test_compose_variable_entity(opulent_ds):
     """Test that no strategy is found when specifying variable names for entity"""
-    input_data = opulent_ds[["SF6 (SARGWP100)"]].pr.loc[
-        {
-            "animal": ["cow"],
-            "product": ["milk"],
-            "category": ["0", "1"],
-            "area": ["COL"],
-        }
-    ]
+    input_data = (
+        opulent_ds[["SF6"]]
+        .pr.convert_to_gwp(gwp_context="SARGWP100", units="CO2 Gg / year")
+        .pr.loc[
+            {
+                "animal": ["cow"],
+                "product": ["milk"],
+                "category": ["0", "1"],
+                "area": ["COL"],
+            }
+        ]
+    )
 
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source"],
@@ -509,7 +525,7 @@ def test_compose_variable_entity(opulent_ds):
 
 
 def test_compose_pbar(opulent_ds):
-    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
+    input_data = opulent_ds.drop_vars(["population"]).pr.loc[
         {"animal": ["cow"], "product": ["milk"], "category": ["0", "1"]}
     ]
     priority_definition = primap2.csg.PriorityDefinition(
@@ -539,7 +555,7 @@ def test_compose_pbar(opulent_ds):
 
 def test_compose_sec_cats_missing(opulent_ds):
     """Compose should also work when a secondary category dimension is missing."""
-    input_data = opulent_ds.drop_vars(["population", "SF6 (SARGWP100)"]).pr.loc[
+    input_data = opulent_ds.drop_vars(["population"]).pr.loc[
         {"animal": ["cow"], "category": ["0", "1"]}
     ]
     priority_definition = primap2.csg.PriorityDefinition(

@@ -99,12 +99,12 @@ ds.attrs
 ```
 
 ```{code-cell} ipython3
-ds["CH4 (SARGWP100)"].attrs
+ds["CH4"].attrs
 ```
 
 In our toy example there are only some technical metadata values which are mostly
-convenient for e.g. accessing the global warming potential metric without resorting
-to string processing. However, you can also add more information, for example a
+convenient for e.g. accessing the entity of a variable, or the global warming
+potential metric of a converted variable, without resorting to string processing. However, you can also add more information, for example a
 short description of your dataset in the attribute `title`:
 
 ```{code-cell} ipython3
@@ -158,6 +158,9 @@ ch4_ar4 = ds["CH4"].pr.convert_to_gwp(gwp_context="AR4GWP100", units="Gg CO2 / y
 ch4_ar4.attrs
 ```
 
+Note that a data set contains each single gas only once, either as a mass or as a
+global warming potential, so the converted array is not simply added to `ds`.
+
 Because the GWP context used for conversion is stored, it is easy to convert back to
 mass units:
 
@@ -170,8 +173,8 @@ The stored GWP context can also be used to convert another array using the
 same context:
 
 ```{code-cell} ipython3
-ch4_sar = ds["CH4"].pr.convert_to_gwp_like(ds["CH4 (SARGWP100)"])
-ch4_sar.attrs
+co2_ar4 = ds["CO2"].pr.convert_to_gwp_like(ch4_ar4)
+co2_ar4.attrs
 ```
 
 The same three functions are available for whole datasets. Real-world data usually contains

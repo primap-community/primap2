@@ -126,7 +126,7 @@ filtered_ds = ds_min.pr.add_aggregates_variables(
 )
 filtered_ds["test (SARGWP100)"]
 ```
-When filtering it is important to note that entities and variables are not the same thing. The difference between the `entity` and `variable` filters / selectors is that `'entity': ['SF6']` will match both variables `'SF6'` and `'SF6 (SARGWP100)'` (as both variables are for the entity `'SF6'`) while `'variable': ['SF6']` will match only the variable `'SF6'`.
+When filtering it is important to note that entities and variables are not the same thing. The difference between the `entity` and `variable` filters / selectors is that `'entity': ['SF6']` will match the variable for the entity `'SF6'` whatever its name is - for a data set given in global warming potentials that is the variable `'SF6 (SARGWP100)'` - while `'variable': ['SF6']` will match only a variable which is literally named `'SF6'`.
 
 If we recompute an existing timeseries it has to be consistent with the existing data. Here we use the simple mode to specify the aggregation rules. The example below fails because the result is inconsistent with existing data.
 
