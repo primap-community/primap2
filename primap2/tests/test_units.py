@@ -7,6 +7,8 @@ import pytest
 import xarray as xr
 import xarray.testing
 
+from primap2 import ureg
+
 from .utils import allclose, assert_equal
 
 
@@ -50,10 +52,22 @@ def test_convert_to_gwp_like_missing(opulent_ds: xr.Dataset):
         da.pr.convert_to_gwp_like(da_gwp)
 
 
-def test_convert_to_gwp_incompatible(opulent_ds: xr.Dataset):
+def test_convert_to_gwp_other_context(opulent_ds: xr.Dataset):
+    """A single gas in another metric is converted back to mass automatically."""
     da: xr.DataArray = opulent_ds["SF6 (SARGWP100)"]
-    with pytest.raises(ValueError, match="Incompatible gwp conversions"):
-        da.pr.convert_to_gwp("AR5GWP", "CO2 Gg / year")
+    da_converted = da.pr.convert_to_gwp("AR4GWP100", "CO2 Gg / year")
+
+    da_expected = opulent_ds["SF6"].pr.convert_to_gwp("AR4GWP100", "CO2 Gg / year")
+    assert_equal(da_converted, da_expected)
+    # the input is not modified by the detour via the mass
+    assert da.attrs["gwp_context"] == "SARGWP100"
+
+
+def test_convert_to_gwp_incompatible(empty_ds: xr.Dataset):
+    """A gas basket has no mass, so it can not be converted to another metric."""
+    da: xr.DataArray = empty_ds["KYOTOGHG (AR4GWP100)"]
+    with pytest.raises(ValueError, match="Incompatible GWP conversions"):
+        da.pr.convert_to_gwp("AR6GWP100", "CO2 Gg / year")
 
 
 def test_convert_to_mass(opulent_ds: xr.Dataset):
@@ -140,20 +154,15 @@ class TestDatasetConvertToGWP:
             converted["KYOTOGHG (AR4GWP100)"],
             empty_ds["KYOTOGHG (AR4GWP100)"].pint.to("Mt CO2 / year"),
         )
+        # assert_equal converts the units before comparing, so check them explicitly:
+        # all variables of the result have to be given in the requested units
+        for variable in converted.data_vars:
+            assert converted[variable].pint.units == ureg.Unit("Mt CO2 / year")
 
-    def test_other_context_raises(self, opulent_ds: xr.Dataset):
-        """A single gas in another metric could be converted, but only via mass."""
+    def test_other_context_converted(self, opulent_ds: xr.Dataset):
+        """A single gas in another metric is converted back to mass automatically."""
         ds = opulent_ds.drop_vars(["SF6"])
-        with pytest.raises(
-            ValueError,
-            match=r"'SF6 \(SARGWP100\)' is given in the global warming potential "
-            r"'SARGWP100', converting it to 'AR4GWP100' is only possible",
-        ):
-            ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
-
-    def test_other_context_round_trip(self, opulent_ds: xr.Dataset):
-        ds = opulent_ds.drop_vars(["SF6"])
-        converted = ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year", round_trip=True)
+        converted = ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
 
         assert "SF6 (AR4GWP100)" in converted
         converted.pr.ensure_valid()
@@ -162,14 +171,13 @@ class TestDatasetConvertToGWP:
             opulent_ds["SF6"].pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year"),
         )
 
-    @pytest.mark.parametrize("round_trip", [False, True])
-    def test_gas_basket_other_context_warns(self, empty_ds: xr.Dataset, caplog, round_trip):
+    def test_gas_basket_other_context_warns(self, empty_ds: xr.Dataset, caplog):
         """A gas basket in another metric can not be converted at all, so it is kept.
 
         This is not an error, but as the dataset does not contain the gas basket in
         the requested metric either, the result mixes global warming potentials.
         """
-        converted = empty_ds.pr.convert_to_gwp("AR6GWP100", "Gg CO2 / year", round_trip=round_trip)
+        converted = empty_ds.pr.convert_to_gwp("AR6GWP100", "Gg CO2 / year")
 
         assert_equal(converted["KYOTOGHG (AR4GWP100)"], empty_ds["KYOTOGHG (AR4GWP100)"])
         assert "CO2 (AR6GWP100)" in converted
@@ -214,7 +222,7 @@ class TestDatasetConvertToGWP:
             ValueError,
             match=r"Converting 'SF6 \(SARGWP100\)' would overwrite 'SF6 \(AR4GWP100\)'",
         ):
-            opulent_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year", round_trip=True)
+            opulent_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
 
     def test_convert_like(self, opulent_ds: xr.Dataset):
         ds = opulent_ds.drop_vars(["SF6"])

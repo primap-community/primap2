@@ -90,6 +90,8 @@ def compose(
             additional variables of the form "Processing of $variable" are added which
             describe the processing steps done for each timeseries.
     """
+    # input_data.pr.ensure_valid() # TODO add this line and fix the failing test case
+
     result_das = {}
     input_data = input_data.pr.dequantify()
 

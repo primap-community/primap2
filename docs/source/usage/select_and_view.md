@@ -195,10 +195,6 @@ list(converted.data_vars)
 
 If the dataset contains gas baskets only in metrics you did not ask for, a warning is logged.
 
-For a *single gas* which is already given in a different global warming potential the
-conversion is possible by converting back to mass first. As this might indicate a logic error,
-it raises an error unless you specifically ask for it with `round_trip=True`.
-
 Variables which contain no emissions at all, like population data, are always returned
 unchanged.
 

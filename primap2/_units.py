@@ -127,7 +127,10 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         return self._da.pint.dequantify()
 
     def convert_to_gwp(self, gwp_context: str, units: str | pint.Unit) -> xr.DataArray:
-        """Convert to a global warming potential
+        """Convert to a global warming potential and given unit.
+
+        Gas baskets cannot be converted because their composition is unknown, so trying
+        to convert them raises an error.
 
         Parameters
         ----------
@@ -142,14 +145,20 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         -------
             converted : xr.DataArray
         """
-        if "gwp_context" in self._da.attrs and self._da.attrs["gwp_context"] != gwp_context:
-            raise ValueError(
-                f"Incompatible gwp conversions: {self._da.attrs['gwp_context']!r}"
-                f" != {gwp_context!r}."
-            )
+        da = self._da
+        existing_gwp_context = da.attrs.get("gwp_context")
+        if existing_gwp_context is not None and existing_gwp_context != gwp_context:
+            if _entity_unit(da) is None:
+                raise ValueError(
+                    f"Incompatible GWP conversions: {existing_gwp_context!r}"
+                    f" != {gwp_context!r}. {da.attrs['entity']!r} is not a single gas,"
+                    f" so it cannot be converted to another GWP context."
+                )
+            # a single gas can be converted by going back to mass first
+            da = da.pr.convert_to_mass()
 
         with ureg.context(gwp_context):
-            da = self._da.pint.to(units)
+            da = da.pint.to(units)
         da.attrs["gwp_context"] = gwp_context
         da.name = f"{da.attrs['entity']} ({da.attrs['gwp_context']})"
         return da
@@ -397,13 +406,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
 
         return xr.Dataset(result, attrs=self._ds.attrs.copy())
 
-    def convert_to_gwp(
-        self,
-        gwp_context: str,
-        units: str | pint.Unit,
-        *,
-        round_trip: bool = False,
-    ) -> xr.Dataset:
+    def convert_to_gwp(self, gwp_context: str, units: str | pint.Unit) -> xr.Dataset:
         """Convert all greenhouse gas emissions to a global warming potential.
 
         Converted variables are renamed to ``"{entity} ({gwp_context})"``, and
@@ -430,12 +433,6 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
         units: str or pint unit
             The units in which the global warming potential is given after the
             conversion.
-        round_trip: bool, default False
-            How to treat single gases which are already given in a *different* global
-            warming potential. By default, an error is raised, because the conversion
-            can only be done by converting back to mass first. If ``True``, such
-            variables are converted back to mass and then to the requested global
-            warming potential.
 
         See Also
         --------
@@ -456,32 +453,29 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
                 continue
 
             existing_gwp_context = da.attrs.get("gwp_context")
-            if existing_gwp_context is not None and existing_gwp_context != gwp_context:
-                if _entity_unit(da) is None:
-                    # a gas basket, which has no mass to convert back to
-                    if gwp_context in available_gwp_contexts.get(da.attrs.get("entity"), set()):
-                        # the same basket is available in the requested global warming
-                        # potential, so nothing is missing from the result
-                        superseded_baskets.append(name)
-                    else:
-                        missing_baskets.append(name)
-                    converted[name] = da
-                    continue
-                if not round_trip:
-                    raise ValueError(
-                        f"{name!r} is given in the global warming potential "
-                        f"{existing_gwp_context!r}, converting it to {gwp_context!r} is "
-                        f"only possible by converting back to mass first. Use "
-                        f"round_trip=True if that is what you want."
-                    )
-                converted[name] = da.pr.convert_to_mass().pr.convert_to_gwp(
-                    gwp_context=gwp_context, units=units
-                )
-            elif _is_gas_emissions(da):
-                converted[name] = da.pr.convert_to_gwp(gwp_context=gwp_context, units=units)
-            else:
+            if (
+                existing_gwp_context is not None
+                and existing_gwp_context != gwp_context
+                and _entity_unit(da) is None
+            ):
+                # a gas basket in a different global warming potential, which can not be
+                # converted because its composition is unknown
+                if gwp_context in available_gwp_contexts.get(da.attrs.get("entity"), set()):
+                    # the same basket is available in the requested global warming
+                    # potential, so nothing is missing from the result
+                    superseded_baskets.append(name)
+                else:
+                    missing_baskets.append(name)
+                converted[name] = da
+                continue
+
+            if existing_gwp_context is None and not _is_gas_emissions(da):
+                # non-gas without gwp context: nothing to be done
                 not_converted.append(name)
                 converted[name] = da
+                continue
+
+            converted[name] = da.pr.convert_to_gwp(gwp_context=gwp_context, units=units)
 
         if not_converted:
             logger.info(
@@ -505,7 +499,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
 
         return self._build_converted_dataset(converted)
 
-    def convert_to_gwp_like(self, like: xr.DataArray, *, round_trip: bool = False) -> xr.Dataset:
+    def convert_to_gwp_like(self, like: xr.DataArray) -> xr.Dataset:
         """Convert all greenhouse gas emissions to a global warming potential in the
         units of a reference array.
 
@@ -515,9 +509,6 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
         ----------
         like: xr.DataArray
             Other DataArray containing a global warming potential.
-        round_trip: bool, default False
-            How to treat variables which are already given in a different global
-            warming potential, see :py:meth:`xarray.Dataset.pr.convert_to_gwp`.
 
         See Also
         --------
@@ -531,11 +522,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
             raise ValueError("reference array has no gwp_context.")
         if like.pint.units is None:
             raise ValueError("reference array has no units attached.")
-        return self.convert_to_gwp(
-            gwp_context=like.attrs["gwp_context"],
-            units=like.pint.units,
-            round_trip=round_trip,
-        )
+        return self.convert_to_gwp(gwp_context=like.attrs["gwp_context"], units=like.pint.units)
 
     def convert_to_mass(self, gwp_context: str | None = None) -> xr.Dataset:
         """Convert all global warming potentials of greenhouse gases to masses.
