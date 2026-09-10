@@ -200,9 +200,9 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         --------
         >>> import primap2
         >>> import primap2.tests
-        >>> ds = primap2.tests.minimal_ds()
+        >>> ds = primap2.tests.minimal_ds_in_gwp()
         >>> with ds["SF6 (SARGWP100)"].pr.gwp_context:
-        ...     ds["CH4"].pint.to("Gg CO2 / year")
+        ...     ...
 
         Returns
         -------
