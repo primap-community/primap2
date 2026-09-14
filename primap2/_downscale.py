@@ -7,6 +7,7 @@ from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._aggregate import select_no_scalar_dimension
+from ._processing_info import ensure_no_processing_info
 from ._units import ureg
 
 # Needed for downscaling operations
@@ -290,11 +291,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         -------
         downscaled: xr.Dataset
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
+        ensure_no_processing_info(self._ds)
 
         downscaled = self._ds.copy()
         for var in self._ds.data_vars:
@@ -374,11 +371,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         -------
         downscaled: xr.Dataset
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
+        ensure_no_processing_info(self._ds)
 
         ds_sel = select_no_scalar_dimension(self._ds, sel)
 
@@ -502,6 +495,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         xr.Dataset
             A new dataset with variables downscaled along `dim` using the provided shares.
         """
+        ensure_no_processing_info(self._ds)
+
         ds = self._ds.copy()
         downscaled_dict = {}
         for var in self._ds.data_vars:

@@ -8,8 +8,8 @@ import xarray as xr
 from attr import define
 
 import primap2
-from primap2._data_format import ProcessingStepDescription
 from primap2._dim_names import dim_names
+from primap2._processing_info import ProcessingStepDescription
 
 
 def equal_or_in(a, b):

@@ -9,10 +9,10 @@ import sys
 from loguru import logger
 
 from . import accessors, pm2io
-from ._data_format import (
+from ._data_format import open_dataset
+from ._processing_info import (
     ProcessingStepDescription,
     TimeseriesProcessingDescription,
-    open_dataset,
 )
 from ._selection import Not
 from ._units import ureg

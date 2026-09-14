@@ -8,6 +8,7 @@ import xarray as xr
 from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+from ._processing_info import ensure_no_processing_info
 
 
 def merge_with_tolerance_core(
@@ -207,11 +208,7 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
             merged
                 Dataset with data from da_merge merged into the calling object
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
+        ensure_no_processing_info(self._ds)
 
         ds_start = self._ds
 
