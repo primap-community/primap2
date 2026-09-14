@@ -31,7 +31,6 @@ import pandas as pd
 import xarray as xr
 
 import primap2
-from primap2 import ureg
 ```
 
 ## Minimal example
@@ -68,10 +67,6 @@ minimal = xr.Dataset(
     attrs={"area": "area (ISO3)"},
 ).pr.quantify()
 
-with ureg.context("SARGWP100"):
-    minimal["SF6 (SARGWP100)"] = minimal["SF6"].pint.to("CO2 Gg / year")
-minimal["SF6 (SARGWP100)"].attrs["gwp_context"] = "SARGWP100"
-
 minimal
 ```
 
@@ -92,14 +87,35 @@ Notice:
 * The variables all carry an associated `openscm_units` unit. It is the same unit
   for all data points in a variable, but differs between variables because it
   includes the gas.
-* The `attrs` of each variable specify the `entity` of the variable. For simple
-  gases like the CO2 emissions, this is the same as the variable name, but for
-  example for the global warming potential associated with the SF6 emissions,
-  it is different.
-* When a global warming potential is given, the used conversion factors have to be
-  specified explicitly using openscm_units context names, for example
-  `SARGWP100` for the global warming potential equivalent factors for a 100-year
-  time horizon specified in the second assessment report.
+* The `attrs` of each variable specify the `entity` of the variable. For emissions
+  given as a mass, like here, this is the same as the variable name.
+
++++
+
+## Minimal example in global warming potentials
+
+The same data can also be given as global warming potentials instead of masses:
+
+```{code-cell} ipython3
+minimal_in_gwp = minimal.pr.convert_to_gwp(
+    gwp_context="SARGWP100", units="CO2 Gg / year"
+)
+
+minimal_in_gwp
+```
+
+Notice:
+
+* The variables are now named `{entity} ({gwp_context})`, so the variable name
+  differs from the `entity`.
+* The used conversion factors have to be specified explicitly using openscm_units
+  context names in the `gwp_context` attribute, here `SARGWP100` for the global
+  warming potential equivalent factors for a 100-year time horizon specified in the
+  second assessment report.
+* Each single gas is contained only once in a data set, either as a mass or as a
+  global warming potential. Gas baskets are exempt from this rule,
+  because their composition is unknown so they cannot be converted between global
+  warming potentials, and are commonly given in several of them.
 
 +++
 
@@ -188,10 +204,6 @@ opulent = opulent.assign_coords(
 )
 
 opulent = opulent.pr.quantify()
-
-with ureg.context("SARGWP100"):
-    opulent["SF6 (SARGWP100)"] = opulent["SF6"].pint.to("CO2 Gg / year")
-opulent["SF6 (SARGWP100)"].attrs["gwp_context"] = "SARGWP100"
 
 opulent
 ```

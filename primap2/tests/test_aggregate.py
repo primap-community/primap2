@@ -224,9 +224,13 @@ class TestSum:
             opulent_ds.pr.sum("entity")
 
     def test_reduce_to_dim_scalar(self, opulent_ds):
+        # two variables with the same dimensions and compatible units
+        shared_ds = opulent_ds[["CO2", "SF6"]].pr.convert_to_gwp(
+            gwp_context="SARGWP100", units="CO2 Gg / year"
+        )
         xr.testing.assert_identical(
-            opulent_ds[["CO2", "SF6 (SARGWP100)"]].pr.sum(reduce_to_dim="category"),
-            opulent_ds[["CO2", "SF6 (SARGWP100)"]].pr.sum(reduce_to_dim=["category"]),
+            shared_ds.pr.sum(reduce_to_dim="category"),
+            shared_ds.pr.sum(reduce_to_dim=["category"]),
         )
 
         xr.testing.assert_identical(
@@ -240,7 +244,10 @@ class TestSum:
             opulent_ds.sum(set(opulent_ds.dims) - {"area (ISO3)"}, keep_attrs=True),
         )
 
-        shared_ds = opulent_ds[["CO2", "SF6 (SARGWP100)"]]
+        # two variables with the same dimensions and compatible units
+        shared_ds = opulent_ds[["CO2", "SF6"]].pr.convert_to_gwp(
+            gwp_context="SARGWP100", units="CO2 Gg / year"
+        )
         xr.testing.assert_allclose(
             shared_ds.pr.sum(reduce_to_dim=["area"]),
             shared_ds.sum(set(shared_ds.dims) - {"area (ISO3)"}, keep_attrs=True)
@@ -644,13 +651,17 @@ class TestAddAggregatesCoordinates:
         actual_result = test_ds["CO2"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
         xr.testing.assert_allclose(expected_result, actual_result)
 
-    def test_add_aggregates_coordinates_result_sel(self, minimal_ds):
+    def test_add_aggregates_coordinates_result_sel(self, minimal_ds_in_gwp):
         """
         test if selection works and only the selected time series are actually
         computed and correct
+
+        All gases are given as a global warming potential here, so the variables are
+        named differently from their entities and selecting by entity and by variable
+        can be told apart.
         """
-        # select entity
-        test_ds = minimal_ds.pr.add_aggregates_coordinates(
+        # select entity: matches the variable of that entity, whatever its name is
+        test_ds = minimal_ds_in_gwp.pr.add_aggregates_coordinates(
             agg_info={
                 "area (ISO3)": {
                     "all": {
@@ -661,31 +672,48 @@ class TestAddAggregatesCoordinates:
             }
         )
 
-        # as we select entities we expect the variables SF6 and SF6 (SARGWP100)
-        # to be aggregated but for CO2 we expect np.nan
-        expected_result_SF6 = minimal_ds["SF6"].pr.sum(dim="area (ISO3)")
+        expected_result_SF6 = minimal_ds_in_gwp["SF6 (SARGWP100)"].pr.sum(dim="area (ISO3)")
         actual_result_SF6 = (
-            test_ds["SF6"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
-        )
-        xr.testing.assert_allclose(expected_result_SF6, actual_result_SF6)
-        expected_result_SF6GWP = minimal_ds["SF6 (SARGWP100)"].pr.sum(dim="area (ISO3)")
-        actual_result_SF6GWP = (
             test_ds["SF6 (SARGWP100)"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
         )
-        xr.testing.assert_allclose(expected_result_SF6GWP, actual_result_SF6GWP)
+        xr.testing.assert_allclose(expected_result_SF6, actual_result_SF6)
 
         expected_result_CO2 = xr.full_like(expected_result_SF6, np.nan).pr.quantify(
             units="Gg CO2 / year"
         )
         actual_result_CO2 = (
-            test_ds["CO2"]
+            test_ds["CO2 (SARGWP100)"]
             .pr.loc[{"area (ISO3)": ["all"]}]
             .pr.sum(dim="area (ISO3)", skipna=True, min_count=1)
         )
         xr.testing.assert_allclose(expected_result_CO2, actual_result_CO2)
 
-        # select variable
-        test_ds = minimal_ds.pr.add_aggregates_coordinates(
+        # select variable: matches only the variable of that exact name
+        test_ds = minimal_ds_in_gwp.pr.add_aggregates_coordinates(
+            agg_info={
+                "area (ISO3)": {
+                    "all": {
+                        "sources": ["COL", "ARG", "MEX", "BOL"],
+                        "sel": {"variable": ["SF6 (SARGWP100)"]},
+                    }
+                }
+            }
+        )
+
+        actual_result_SF6 = (
+            test_ds["SF6 (SARGWP100)"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
+        )
+        xr.testing.assert_allclose(expected_result_SF6, actual_result_SF6)
+
+        actual_result_CO2 = (
+            test_ds["CO2 (SARGWP100)"]
+            .pr.loc[{"area (ISO3)": ["all"]}]
+            .pr.sum(dim="area (ISO3)", skipna=True, min_count=1)
+        )
+        xr.testing.assert_allclose(expected_result_CO2, actual_result_CO2)
+
+        # the bare entity name does not match the variable, so nothing is aggregated
+        test_ds = minimal_ds_in_gwp.pr.add_aggregates_coordinates(
             agg_info={
                 "area (ISO3)": {
                     "all": {
@@ -695,35 +723,7 @@ class TestAddAggregatesCoordinates:
                 }
             }
         )
-
-        # as we select entities we expect the variables SF6 and SF6 (SARGWP100)
-        # to be aggregated but for CO2 we expect np.nan
-        expected_result_SF6 = minimal_ds["SF6"].pr.sum(dim="area (ISO3)")
-        actual_result_SF6 = (
-            test_ds["SF6"].pr.loc[{"area (ISO3)": ["all"]}].pr.sum(dim="area (ISO3)")
-        )
-        xr.testing.assert_allclose(expected_result_SF6, actual_result_SF6)
-
-        expected_result_SF6GWP = xr.full_like(expected_result_SF6, np.nan).pr.quantify(
-            units="Gg CO2 / year"
-        )
-        # expected_result_SF6GWP = expected_result_SF6GWP.pr.convert_to_gwp
-        actual_result_SF6GWP = (
-            test_ds["SF6 (SARGWP100)"]
-            .pr.loc[{"area (ISO3)": ["all"]}]
-            .pr.sum(dim="area (ISO3)", skipna=True, min_count=1)
-        )
-        xr.testing.assert_allclose(expected_result_SF6GWP, actual_result_SF6GWP)
-
-        expected_result_CO2 = xr.full_like(expected_result_SF6, np.nan).pr.quantify(
-            units="Gg CO2 / year"
-        )
-        actual_result_CO2 = (
-            test_ds["CO2"]
-            .pr.loc[{"area (ISO3)": ["all"]}]
-            .pr.sum(dim="area (ISO3)", skipna=True, min_count=1)
-        )
-        xr.testing.assert_allclose(expected_result_CO2, actual_result_CO2)
+        assert "all" not in test_ds["area (ISO3)"]
 
     def test_add_aggregates_coordinates_warning(self, minimal_ds, caplog):
         """
