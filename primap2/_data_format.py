@@ -428,8 +428,9 @@ def ensure_valid_data_variables(ds: xr.Dataset):
         else:
             ensure_not_gwp(key, da)
 
-        if "described_variable" in da.attrs or is_processing_variable(key):
+        if is_processing_variable(key):
             ensure_processing_variable_name(str(key), da)
+            ensure_processing_variable_dimensions(ds, str(key), da)
 
 
 def ensure_unique_gas_representation(ds: xr.Dataset) -> None:
@@ -472,6 +473,34 @@ def ensure_processing_variable_name(name: str, da: xr.DataArray) -> None:
         raise ValueError(
             f"variable name {name!r} inconsistent with described_variable"
             f" {da.attrs['described_variable']!r}"
+        )
+
+
+def ensure_processing_variable_dimensions(ds: xr.Dataset, name: str, da: xr.DataArray) -> None:
+    """Ensure processing information describes exactly the timeseries of its variable.
+
+    The described variable has to be contained in the dataset and the processing
+    information has to have the same dimensions as the described variable, with the
+    exception of the "time" dimension, which it must not have. Note that the reverse is
+    not required: variables without processing information are fine.
+    """
+    described_variable = da.attrs["described_variable"]
+    if described_variable not in ds:
+        logger.error(
+            f"{name!r} contains processing information for {described_variable!r}, "
+            f"which is not contained in the dataset."
+        )
+        raise ValueError(f"described_variable {described_variable!r} not in dataset for {name!r}")
+
+    described_dims = {dim for dim in ds[described_variable].dims if dim != "time"}
+    if described_dims != set(da.dims):
+        logger.error(
+            f"{name!r} has dimensions {sorted(str(dim) for dim in da.dims)!r}, but the "
+            f"described variable {described_variable!r} has dimensions "
+            f"{sorted(str(dim) for dim in described_dims)!r} apart from 'time'."
+        )
+        raise ValueError(
+            f"dimensions of {name!r} inconsistent with described_variable {described_variable!r}"
         )
 
 
