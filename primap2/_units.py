@@ -13,7 +13,12 @@ from loguru import logger
 from openscm_units import unit_registry as ureg
 
 from . import _accessor_base
-from ._processing_info import is_processing_variable, processing_variable_name
+from ._processing_info import (
+    ProcessingStepDescription,
+    add_processing_step,
+    is_processing_variable,
+    processing_variable_name,
+)
 
 pint_xarray.setup_registry(ureg)
 
@@ -37,6 +42,37 @@ def is_single_gas(da: xr.DataArray) -> bool:
     do not contain emissions at all, like population.
     """
     return _entity_unit(da) is not None
+
+
+def _quantity_repr(da: xr.DataArray) -> str:
+    """Describe what an array contains, for the processing information."""
+    units = da.pint.units
+    if units is None:
+        # a dequantified array keeps its units in the attrs
+        units = da.attrs.get("units", "unknown units")
+    gwp_context = da.attrs.get("gwp_context")
+    if gwp_context is None:
+        return f"mass in {units}"
+    return f"the global warming potential {gwp_context} in {units}"
+
+
+def _conversion_step(
+    function: str, before: xr.DataArray, after: xr.DataArray
+) -> ProcessingStepDescription | None:
+    """Describe the conversion of a whole timeseries, for the processing information.
+
+    Returns ``None`` if the conversion left the data as it was, so that conversions
+    which are a no-op for a variable don't add a step which describes nothing.
+    """
+    before_repr = _quantity_repr(before)
+    after_repr = _quantity_repr(after)
+    if before_repr == after_repr:
+        return None
+    return ProcessingStepDescription(
+        time="all",
+        function=function,
+        description=f"converted from {before_repr} to {after_repr}",
+    )
 
 
 def _is_gas_emissions(da: xr.DataArray) -> bool:
@@ -373,12 +409,16 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
                 entity_contexts.add(gwp_context)
         return contexts
 
-    def _build_converted_dataset(self, converted: dict[Hashable, xr.DataArray]) -> xr.Dataset:
+    def _build_converted_dataset(
+        self,
+        converted: dict[Hashable, xr.DataArray],
+        processing_steps: dict[Hashable, ProcessingStepDescription],
+    ) -> xr.Dataset:
         """Assemble the result of a conversion of all data variables.
 
         Variables are stored under their new names, processing information variables
-        are renamed to follow the variables they describe, and name clashes introduced
-        by the conversion are reported.
+        are renamed to follow the variables they describe and record what was done to
+        them, and name clashes introduced by the conversion are reported.
 
         Parameters
         ----------
@@ -386,6 +426,10 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
             The converted data variables, keyed by their name before the conversion.
             Variables which were not converted have to be included unchanged, and
             processing information variables have to be left out.
+        processing_steps
+            The processing step to record for each variable which was actually
+            converted, keyed by its name before the conversion. Variables which were
+            returned unchanged have to be left out.
         """
         renames = {name: da.name for name, da in converted.items() if da.name != name}
 
@@ -402,6 +446,11 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
             if not is_processing_variable(name):
                 continue
             described_variable = da.attrs["described_variable"]
+
+            step = processing_steps.get(described_variable)
+            if step is not None:
+                da = add_processing_step(da, step)
+
             if described_variable not in renames:
                 result[name] = da
                 continue
@@ -420,7 +469,10 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
 
         Converted variables are renamed to ``"{entity} ({gwp_context})"``, and
         processing information variables are renamed along with the variables they
-        describe.
+        describe. For variables which are actually converted, the conversion is
+        recorded as a processing step. Variables which have no processing information
+        don't get any, so converting a dataset without processing information still
+        gives a dataset without processing information.
 
         Variables which do not contain emissions of a single gas - like population,
         string-valued variables, or gas baskets given in mass units - are not
@@ -454,6 +506,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
         available_gwp_contexts = self._gwp_contexts_by_entity()
 
         converted: dict[Hashable, xr.DataArray] = {}
+        processing_steps: dict[Hashable, ProcessingStepDescription] = {}
         not_converted: list[Hashable] = []
         superseded_baskets: list[Hashable] = []
         missing_baskets: list[Hashable] = []
@@ -485,6 +538,9 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
                 continue
 
             converted[name] = da.pr.convert_to_gwp(gwp_context=gwp_context, units=units)
+            step = _conversion_step("convert_to_gwp", da, converted[name])
+            if step is not None:
+                processing_steps[name] = step
 
         if not_converted:
             logger.info(
@@ -506,7 +562,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
                 f"instead of being given in {gwp_context!r} throughout."
             )
 
-        return self._build_converted_dataset(converted)
+        return self._build_converted_dataset(converted, processing_steps)
 
     def convert_to_gwp_like(self, like: xr.DataArray) -> xr.Dataset:
         """Convert all greenhouse gas emissions to a global warming potential in the
@@ -566,6 +622,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
         converted : xr.Dataset
         """
         converted: dict[Hashable, xr.DataArray] = {}
+        processing_steps: dict[Hashable, ProcessingStepDescription] = {}
         not_converted: list[Hashable] = []
         gas_baskets: list[Hashable] = []
         for name, da in self._ds.data_vars.items():
@@ -581,6 +638,9 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
                 converted[name] = da
             else:
                 converted[name] = da.pr.convert_to_mass(gwp_context=gwp_context)
+                step = _conversion_step("convert_to_mass", da, converted[name])
+                if step is not None:
+                    processing_steps[name] = step
 
         if not_converted:
             logger.info(
@@ -593,4 +653,4 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
                 f"because their composition is unknown."
             )
 
-        return self._build_converted_dataset(converted)
+        return self._build_converted_dataset(converted, processing_steps)

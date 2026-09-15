@@ -110,7 +110,8 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
         N-dimensional pandas DataFrame.
 
         Only those data variables in the dataset are considered which are defined on
-        all given dims, i.e. each dim is in ``ds[key].dims``.
+        all given dims, i.e. each dim is in ``ds[key].dims``. Processing information
+        variables are not data and are therefore never counted.
 
         If the dataset only contains boolean arrays, count the number of True values
         instead. This makes it possible to easily apply preprocessing. For example,
@@ -134,7 +135,7 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
         if not dims:
             raise ValueError("Specify at least one dimension.")
 
-        ds = self._ds
+        ds = self._ds.pr.remove_processing_info()
 
         for dim in dims:
             if dim == "entity":
