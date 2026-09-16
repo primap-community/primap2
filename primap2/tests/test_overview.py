@@ -198,3 +198,17 @@ def test_set_coverage_error(opulent_ds):
 
     with pytest.raises(ValueError, match="Dimension 'non-existing' does not exist"):
         ds.pr.coverage("animal", "non-existing")
+
+
+@pytest.mark.parametrize(
+    "dims", [("area (ISO3)",), ("area (ISO3)", "entity"), ("entity", "product")]
+)
+def test_coverage_ignores_processing_info(dims, opulent_processing_ds, opulent_ds):
+    """Processing information is not data and must never be counted."""
+    expected = opulent_ds.pr.coverage(*dims)
+    actual = opulent_processing_ds.pr.coverage(*dims)
+
+    if isinstance(expected, pd.DataFrame):
+        pd.testing.assert_frame_equal(expected, actual)
+    else:
+        pd.testing.assert_series_equal(expected, actual)

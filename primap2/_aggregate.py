@@ -10,6 +10,11 @@ from loguru import logger
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._data_format import split_var_name
 from ._dim_names import dim_names
+from ._processing_info import (
+    add_processing_step_on_change_ds,
+    ensure_no_processing_info,
+    is_processing_variable,
+)
 from ._selection import alias_dims
 from ._types import DatasetOrDataArray, DimOrDimsT
 from ._units import ureg
@@ -409,15 +414,15 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
     def fill_all_na(self, dim: DimOrDimsT, value=0) -> xr.Dataset:
         """Fill NA values only where all values along the specified dimension(s) are NA.
 
-        Example: if you have a Dataset with dimensions ``time`` and ``positions``,
-        filling it along ``time`` will only fill those values where all time-points are
-        NA in each DataArray.
+        Example: if you have a Dataset with dimensions ``time``, ``positions`` and ``sector``,
+        filling it along ``time`` will only fill those combinations of ``postiion`` and ``sector``
+        for which all ``time``s are NA.
 
         Parameters
         ----------
         dim: str or list of str
-          Dimension(s) to evaluate. NA values are only filled if all values along these
-          dimension(s) are also NA.
+          Dimension(s) to evaluate. NA values are only filled if all values whose coordinates only
+          differ in these dimension(s) are also NA.
         value: optional
           Fill value to use. Default: 0.
 
@@ -425,13 +430,17 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         filled : xr.Dataset
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
+        data = self._ds.drop_vars([var for var in self._ds if is_processing_variable(var)])
+        filled = data.map(self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True)
 
-        return self._ds.map(self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True)
+        return add_processing_step_on_change_ds(
+            old_ds=self._ds,
+            new_ds=filled,
+            function="fill_all_na",
+            description_template=(
+                f"all values along {dim!r} were NA, filled with {value} (<coords>)"
+            ),
+        )
 
     def _reduce_dim(
         self, dim: DimOrDimsT | None, reduce_to_dim: DimOrDimsT | None
@@ -453,6 +462,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
     @alias_dims(["dim"], wraps=xr.Dataset.any)
     def any(self, *args, **kwargs):
+        ensure_no_processing_info(self._ds)
+
         return self._ds.any(*args, **kwargs)
 
     @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
@@ -500,6 +511,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
             counted : xr.Dataset or xr.DataArray if "entity" in dims.
         """
+        ensure_no_processing_info(self._ds)
+
         dim = self._reduce_dim(dim, reduce_to_dim)
 
         if dim is not None and "entity" in dim:
@@ -594,11 +607,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         summed : xr.DataArray | xr.Dataset
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
+        ensure_no_processing_info(self._ds)
 
         dim = self._reduce_dim(dim, reduce_to_dim)
 
@@ -681,11 +690,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         summed : xr.DataArray
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
+        ensure_no_processing_info(self._ds)
 
         basket_contents_converted = xr.Dataset()
 
@@ -769,11 +774,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         filled : xr.DataArray
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
+        ensure_no_processing_info(self._ds)
 
         ds_sel = select_no_scalar_dimension(self._ds, sel)
         return self._ds[basket].fillna(
@@ -856,6 +857,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 Input with added aggregated values for coordinates / dimensions as
                 specified in the agg_info dict
         """
+        ensure_no_processing_info(self._ds)
+
         ds_out = self._ds.copy(deep=True)
         for var in ds_out.data_vars:
             ds_out = ds_out.pr.merge(
@@ -933,6 +936,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             xr.Dataset
                 Input with aggregated gas baskets added
         """
+        ensure_no_processing_info(self._ds)
+
         ds_out = self._ds.copy(deep=True)
         variables_present = set(ds_out.data_vars)
         for basket, current_basket_config in gas_baskets.items():

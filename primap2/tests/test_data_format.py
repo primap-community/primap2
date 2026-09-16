@@ -99,7 +99,10 @@ class TestEnsureValid:
         enough to check that it doesn't raise - nothing may be logged either.
         """
         caplog.set_level(logging.INFO)
-        ds = primap2.pm2io.from_interchange_format(any_ds.pr.to_interchange_format())
+        # the interchange format can not represent processing information yet
+        ds = primap2.pm2io.from_interchange_format(
+            any_ds.pr.remove_processing_info().pr.to_interchange_format()
+        )
         ds.pr.ensure_valid()
         assert not caplog.records
 

@@ -11,6 +11,7 @@ import xarray as xr
 from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+from ._processing_info import ensure_no_processing_info
 
 
 class DataArrayFillAccessor(BaseDataArrayAccessor):
@@ -124,11 +125,7 @@ class DatasetFillAccessor(BaseDatasetAccessor):
             filled
                 calling Dataset where nan values are filled from ds_fill where possible
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
+        ensure_no_processing_info(self._ds)
 
         ds_start = self._ds
 
@@ -176,11 +173,7 @@ class DatasetFillAccessor(BaseDatasetAccessor):
             combined
                 calling Dataset calling DataArray combined with da_combine
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
+        ensure_no_processing_info(self._ds)
 
         ds_start = self._ds
 

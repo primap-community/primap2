@@ -10,7 +10,10 @@ import xarray as xr
 from loguru import logger
 
 import primap2._data_format
-from primap2._processing_info import processing_variable_name
+from primap2._processing_info import (
+    TimeseriesProcessingDescription,
+    processing_variable_name,
+)
 
 from . import _models
 from ._strategies.exceptions import StrategyUnableToProcess
@@ -263,7 +266,7 @@ def compose_timeseries(
     input_data: xr.DataArray,
     priority_definition: _models.PriorityDefinition,
     strategy_definition: _models.StrategyDefinition,
-) -> tuple[xr.DataArray, primap2._data_format.TimeseriesProcessingDescription]:
+) -> tuple[xr.DataArray, TimeseriesProcessingDescription]:
     """
     Compute a single timeseries from given input data, priorities, and strategies.
 
@@ -377,6 +380,4 @@ def compose_timeseries(
             f"\n{input_data.coords}\n{input_data.attrs}\n{priority_definition=}"
         )
 
-    return result_ts, primap2._data_format.TimeseriesProcessingDescription(
-        steps=processing_steps_descriptions
-    )
+    return result_ts, TimeseriesProcessingDescription(steps=processing_steps_descriptions)
