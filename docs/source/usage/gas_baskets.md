@@ -95,7 +95,7 @@ Here, use
 {py:meth}`xarray.Dataset.pr.downscale_gas_timeseries`
 
 ```{code-cell}
-# delete all data about the years 2005-2009 from the individual gas data
+# delete all data about the years 2002-2003 (inclusive) from the individual gas data
 sel = {"time": slice("2002", "2003")}
 ds["CO2"].loc[sel].pint.magnitude[:] = np.nan
 ds["SF6"].loc[sel].pint.magnitude[:] = np.nan

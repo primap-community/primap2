@@ -37,8 +37,8 @@ import primap2
 
 This example contains only the required metadata, which are the time, the area,
 and the source.
-It also shows how multiple gases and global warming potentials stemming from the
-gases are included in a single dataset and the use of units.
+It also shows how multiple gases are included in a single dataset and how units
+are used.
 
 The example is created with dummy data; note that in real usage, you would read
 data from a file or API instead.
@@ -217,7 +217,7 @@ Compared to the minimal example, this data set has a lot more to unpack:
   categories given in parentheses and with appropriate metadata in the `attrs`.
   The `scenario` is a standard dimension, and the metadata in `attrs` is given using
   the `scen` key. The `animal` and `product` dimensions are nonstandard.
-* There is also a coordinate which is not defining a dimension, `category names`. It
+* There is also a coordinate which is not defining a dimension, `category_names`. It
   gives additional information about categories, which can be helpful for humans
   trying to make sense of the category codes without looking them up. Note that
   because this coordinate is not used as an index for a dimension, the category

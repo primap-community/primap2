@@ -200,8 +200,8 @@ In the repository, all code is inside the `primap2/` directory, with the unit te
 all in the `primap2/tests/` directory.
 Documentation is mainly in the `docs/` directory, but some documentation which should
 be easily accessible directly from the GitHub starting page is also at the top level
-(namely, `AUTHORS.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, the ``LICENSE`` and the
-`README.md` itself).
+(namely, `CONTRIBUTING.md`, `changelog.md`, the `LICENSE` and the `README.md`
+itself).
 Licenses of software included from other projects are in the `licenses/` directory.
 Additional configuration files for the Python packaging and assorted tools are
 directly at the top level.
@@ -284,11 +284,11 @@ Ideally, you also add tests for your new functionality, and all tests for the fi
 documentation section below to document your code.
 
 Within methods defined on Accessor classes, you can use any other PRIMAP2 functionality
-via `self._ds.pr.other_functio`` just like outside of PRIMAP2.
+via `self._ds.pr.other_function` just like outside of PRIMAP2.
 
 ## Documentation
 
-For documenting RPIMAP2, we use `sphinx` and host the documentation online at
+For documenting PRIMAP2, we use `sphinx` and host the documentation online at
 [ReadTheDocs](https://primap2.readthedocs.io/).
 Before your changes land in the main PRIMAP2 branch, where ReadTheDocs picks them up,
 you can compile the documentation locally using `make docs` in the terminal and
@@ -316,7 +316,7 @@ kernelspec:
   name: python3
 ---
 ```
-Now, you can either write it directly in yuor editor, or open it in `jupyter lab`,
+Now, you can either write it directly in your editor, or open it in `jupyter lab`,
 right-click it, select "open with -> jupytext notebook" and edit and run it like a
 normal jupyter notebook. The notebook will be saved as markdown, which makes it easy to
 see changes using simple diffing tools and make quick edits with a simple text editor.

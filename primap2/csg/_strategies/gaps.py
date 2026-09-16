@@ -42,7 +42,7 @@ class FitParameters:
     """
     Class to represent parameters for a polynomial fit.
 
-    While `min_data_points` refers
+    While `min_trend_points` refers
     to the actual number of data points `trend_length` does not. `trend_length` and
     `trend_length_unit` together define a time span which is independent of the actual
     data points and their spacing.
@@ -67,9 +67,9 @@ class FitParameters:
         Unit for the length of the trend. String passed to the `freq` argument of
         `pd.date_range`. Default is 'YS' (yearly at start of year)
     min_trend_points :
-        minimal number of points to calculate the trend. Default is 1, but if the degree
-        of the fit polynomial is higher than 1, the minimal number of data points
-        the degree of the fit polynomial
+        minimal number of points to calculate the trend. Default is 5. It must not be
+        smaller than `fit_degree`, because a polynomial of that degree can not be
+        fitted to fewer points; a `ValueError` is raised otherwise.
     """
 
     fit_degree: int = 1
