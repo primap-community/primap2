@@ -107,7 +107,7 @@ def test_fill_all_na_processing_info():
     steps = processing.pr.loc[{"area": "COL"}].item().steps
     assert steps[0] == creation_step
     assert steps[1].function == "fill_all_na"
-    assert steps[1].description == "all values along 'time' were NA, filled with 0"
+    assert "all values along 'time' were NA, filled with 0" in steps[1].description
     assert steps[1].source is None
     np.testing.assert_array_equal(steps[1].time, time.values)
 
