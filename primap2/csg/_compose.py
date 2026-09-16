@@ -51,6 +51,9 @@ def compose(
         minus the priority dimensions defined in the priority_definition. From the
         priority dimensions, the different datasets for the filling are selected, so
         they vanish in the result.
+        The input data is checked using :py:meth:`xarray.Dataset.pr.ensure_valid`
+        before processing starts, so that problems in the input data are reported
+        directly instead of surfacing later as confusing errors.
     priority_definition
         Defines the priorities to select timeseries from the input data. Priorities
         are formed by a list of selections and are used "from left to right", where the

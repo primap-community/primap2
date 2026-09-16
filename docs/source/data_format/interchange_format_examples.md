@@ -47,7 +47,6 @@ as mandatory columns with the restriction that each entity can have only one uni
 
 All optional dimensions (see [Data format details](data_format_details.md)) can be
 added as optional columns. Secondary categories are columns with free format names.
-They are listed as secondary columns in the metadata dict.
 
 Column names correspond to the dimension key of the xarray format, i.e. they contain
 the terminology in parentheses (e.g. `area (ISO3)`).

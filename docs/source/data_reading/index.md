@@ -74,11 +74,17 @@ NaN. For example "IE" stands for "included elsewhere" and thus it has to be
 mapped to 0 to show that emissions in this timeseries are 0 and not missing.
 
 As a default, we use easy rules combined with defined mappings for special cases.
-The rules are as follows and each data point is tested against the rules in the same order as below.
+The special cases are checked first, then the code is split at commas and each part is
+stripped of dots and whitespace and upper-cased.
+The resulting parts are tested against the rules in the same order as below.
 
-- If the code contains `FX` it is mapped to `np.nan`
-- If the code contains `IE` and/or `NO` it is mapped to 0
-- If the code contains `NE` and/or `NA` but neither `IE` nor `NO`, it is mapped to `np.nan`.
+- If one of the parts is `FX`, the code is mapped to `np.nan`
+- If one of the parts is `IE` and/or `NO`, the code is mapped to 0
+- If one of the parts is `NE` and/or `NA` but none is `IE`, `NO`, or `FX`, the code is
+  mapped to `np.nan`
+- Otherwise, if the code is a number followed by a footnote marker of the form `(X)`,
+  the footnote marker is stripped and the number is used
+- If none of the rules applies, a `ValueError` is raised
 
 The special cases are
 
@@ -99,7 +105,7 @@ _special_codes = {
 
 `NaN` and `nan` will be detected as `np.nan`.
 
-Users can define custom rules by assigning a dict in the format of `_special_rules`
+Users can define custom rules by assigning a dict in the format of `_special_codes`
 to the `convert_str` parameter.
 
 ## Further formats

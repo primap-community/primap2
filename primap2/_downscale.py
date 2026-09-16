@@ -66,7 +66,10 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
           downscaling will be done on ``da.loc[sel]``.
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
-          skipped entirely if missing fully. By default, no NA values are skipped.
+          skipped entirely if missing fully. Only one of ``skipna`` and
+          ``skipna_evaluation_dims`` may be given, and because ``skipna`` defaults to
+          ``True``, you have to pass ``skipna=False`` explicitly when using
+          ``skipna_evaluation_dims``.
         skipna: bool, default True
           If true it will be passed on to xarray's ds.sum function with min_count=1
           for the calculation of the basket.
@@ -191,7 +194,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         Returns
         -------
         xr.DataArray
-            A new datarray with variables downscaled along `dim` using the provided shares.
+            A new DataArray with values downscaled along `dim` using the provided shares.
         """
 
         basket_contents_shares = basket_contents_shares.pr.loc[{dim: basket_contents}]
@@ -270,7 +273,10 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
           downscaling will be done on ``ds.loc[sel]``.
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
-          skipped entirely if missing fully. By default, no NA values are skipped.
+          skipped entirely if missing fully. Only one of ``skipna`` and
+          ``skipna_evaluation_dims`` may be given, and because ``skipna`` defaults to
+          ``True``, you have to pass ``skipna=False`` explicitly when using
+          ``skipna_evaluation_dims``.
         skipna: bool, default True
           If true it will be passed on to xarray's ds.sum function with min_count=1 for
           the calculation of the basket.
@@ -360,8 +366,11 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
           downscaling will be done on ``ds.loc[sel]``.
         skipna_evaluation_dims: list of str, optional
           Dimensions which should be evaluated to determine if NA values should be
-          skipped entirely if missing fully. By default, no NA values are skipped.
-        skipna: bool, optional
+          skipped entirely if missing fully. Only one of ``skipna`` and
+          ``skipna_evaluation_dims`` may be given, and because ``skipna`` defaults to
+          ``True``, you have to pass ``skipna=False`` explicitly when using
+          ``skipna_evaluation_dims``.
+        skipna: bool, default True
           If true it will be passed on to xarray's ds.sum function with min_count=1 for
           the calculation of the basket.
           The effect is that NA values in a sum will be ignored and treated as zero

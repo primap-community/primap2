@@ -37,7 +37,7 @@ for the actual `data` (which is found in the column `emissions` in the CSV file)
 The format used in the `year` column is given using the `time_format` argument.
 Values for the `scenario` and `source` coordinate is not available in the csv file;
  therefore, we add them using default values defined in `coords_defaults`.
-Terminologies are given for `area`, `category`, `scenario`, and the secondary categories.
+Terminologies are given for `area`, `category`, and `scenario`.
 Providing these terminologies is mandatory to create a valid PRIMAP2 dataset.
 
 Coordinate mapping is necessary for `category`, `entity`, and `unit`.

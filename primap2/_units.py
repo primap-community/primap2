@@ -64,7 +64,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
     def quantify(self, **kwargs):
         """Attaches units to the DataArray.
 
-        Units can be specified as a :py:class`pint.Unit` or as a string.
+        Units can be specified as a :py:class:`pint.Unit` or as a string.
         If no units are specified then the
         units will be parsed from the `'units'` entry of the DataArray's
         `.attrs`. Will raise a ValueError if the DataArray already contains

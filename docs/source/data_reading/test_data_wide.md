@@ -12,7 +12,7 @@ kernelspec:
 ---
 
 # Data reading example 1 - minimal test dataset
-To run this example the file `test_csv_data_sec_cat.csv` must be placed in the same folder as this notebook. You can find the notebook and the csv file in the folder `docs/data_reading_examples` in the PRIMAP2 repository.
+To run this example the file `test_csv_data_sec_cat.csv` must be placed in the same folder as this notebook. You can find the notebook and the csv file in the folder `docs/source/data_reading` in the PRIMAP2 repository.
 
 ```{code-cell} ipython3
 import primap2 as pm2

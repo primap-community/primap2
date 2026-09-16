@@ -275,7 +275,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
             skips missing values for ``float`` dtypes; other dtypes either do not
             have a sentinel missing value (int) or ``skipna=True`` has not been
             implemented (``object``, ``datetime64`` or ``timedelta64``).
-        min_count: int (default None, but set to 1 unless skipna=False)
+        min_count: int, default 1
             The minimal number of non-NA values in a sum that is necessary for a non-NA
             result. This only has an effect if NA values are skipped. As an example: you sum data
             for a region for a certain sector, gas and year. If ``skipna=False``,
@@ -653,7 +653,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         basket_contents: list of str
           The name of the gases in the gas basket. The sum of all basket_contents
           equals the basket. Values from ``ds.keys()``.
-        basket_unit: str or pint.Unit, optional
+        basket_units: str or pint.Unit, optional
           The unit to use for the result. If not given, we use the unit of the existing
           basket, or if the basket does not exist ``Gg CO2 / year``.
         skipna: bool, optional
@@ -840,7 +840,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             skips missing values for float dtypes; other dtypes either do not
             have a sentinel missing value (int) or ``skipna=True`` has not been
             implemented (``object``, ``datetime64`` or ``timedelta64``).
-        min_count: int (default None, but set to 1 unless skipna=False)
+        min_count: int, default 1
             The minimal number of non-NA values in a sum that is necessary for a non-NA
             result. This only has an effect if NA values are skipped. As an example: you sum data
             for a region for a certain sector, gas and year. If ``skipna=False``,
@@ -898,7 +898,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                         'tolerance': <non-default tolerance> (optional),
                         'sel': <filter in pr.loc style> (optional),
                     },
-                    "new_value": [source_values], # simplified format for coord2
+                    "new_value": [source_values], # simplified format
                     ...
                 }
                 example:
@@ -918,7 +918,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             skips missing values for float dtypes; other dtypes either do not
             have a sentinel missing value (int) or ``skipna=True`` has not been
             implemented (``object``, ``datetime64`` or ``timedelta64``).
-        min_count: int (default None, but set to 1 unless skipna=False)
+        min_count: int, default 1
             The minimal number of non-NA values in a sum that is necessary for a non-NA
             result. This only has an effect if NA values are skipped. As an example: you sum data
             for a region for a certain sector, gas and year. If ``skipna=False``,
