@@ -35,10 +35,12 @@ def minimal_ds() -> xr.Dataset:
         attrs={"area": "area (ISO3)"},
     ).pr.quantify()
 
-    with ureg.context("SARGWP100"):
-        minimal["SF6 (SARGWP100)"] = minimal["SF6"].pint.to("CO2 Gg / year")
-    minimal["SF6 (SARGWP100)"].attrs["gwp_context"] = "SARGWP100"
     return minimal
+
+
+def minimal_ds_in_gwp() -> xr.Dataset:
+    """Like the minimal dataset, but with all gases given as a global warming potential."""
+    return minimal_ds().pr.convert_to_gwp(gwp_context="SARGWP100", units="CO2 Gg / year")
 
 
 def toy_ds() -> xr.Dataset:
@@ -68,9 +70,6 @@ def toy_ds() -> xr.Dataset:
         attrs={"area": "area (ISO3)", "cat": "category (IPCC2006)"},
     ).pr.quantify()
 
-    with ureg.context("SARGWP100"):
-        toy["CH4 (SARGWP100)"] = toy["CH4"].pint.to("CO2 Gg / year")
-    toy["CH4 (SARGWP100)"].attrs["gwp_context"] = "SARGWP100"
     return toy
 
 
@@ -157,10 +156,6 @@ def opulent_ds() -> xr.Dataset:
     )
 
     opulent = opulent.pint.quantify(unit_registry=ureg)
-
-    with ureg.context("SARGWP100"):
-        opulent["SF6 (SARGWP100)"] = opulent["SF6"].pint.to("CO2 Gg / year")
-    opulent["SF6 (SARGWP100)"].attrs["gwp_context"] = "SARGWP100"
 
     return opulent
 
@@ -315,6 +310,7 @@ def realistic_ds() -> xr.Dataset:
 
 
 _cached_minimal_ds = minimal_ds()
+_cached_minimal_ds_in_gwp = minimal_ds_in_gwp()
 _cached_opulent_ds = opulent_ds()
 _cached_opulent_str_ds = opulent_str_ds()
 _cached_opulent_processing_ds = opulent_processing_ds()

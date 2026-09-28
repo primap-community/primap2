@@ -86,12 +86,13 @@ class LocalTrendsStrategy:
     ----------
     fit_params
         Instance of the FitParameters class defining the parameters for the fits on the
-        boundaries of the time-series. The default values are
-            trend_length=10,  # ten years if default unit for trend length is used)
-            min_trend_points=5,   # minimal data points necessary for trend calculation
-            trend_length_unit="YS",  # year start datapoint
-            fit_degree=1,  # linear trend by default
-            fallback_degree=0,  # constant
+        boundaries of the time-series. The default values are::
+
+            trend_length=10  # ten years if the default unit for trend length is used
+            min_trend_points=5  # minimal data points necessary for trend calculation
+            trend_length_unit="YS"  # year start datapoint
+            fit_degree=1  # linear trend by default
+            fallback_degree=0  # take the average as fallback
     allow_negative
         Allow the filling time series to contain negative data initially.
     """

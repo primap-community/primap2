@@ -16,7 +16,7 @@ from loguru import logger
 from . import _accessor_base, pm2io
 from ._processing_info import is_processing_variable, processing_variable_name
 from ._selection import translations_from_dims
-from ._units import ureg
+from ._units import is_single_gas, ureg
 
 
 def open_dataset(
@@ -112,6 +112,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         ensure_valid_coordinates(self._ds)
         ensure_valid_coordinate_values(self._ds)
         ensure_valid_data_variables(self._ds)
+        ensure_unique_gas_representation(self._ds)
         ensure_valid_attributes(self._ds)
 
     def to_interchange_format(self, time_format: str = "%Y") -> pd.DataFrame:
@@ -426,6 +427,31 @@ def ensure_valid_data_variables(ds: xr.Dataset):
 
         if "described_variable" in da.attrs or is_processing_variable(key):
             ensure_processing_variable_name(str(key), da)
+
+
+def ensure_unique_gas_representation(ds: xr.Dataset) -> None:
+    """Ensure each single gas is contained in the dataset only once.
+
+    Gas baskets are exempt, because their composition is unknown so they can not be
+    converted between global warming potentials and are commonly given in several.
+    """
+    variables_by_entity: dict[str, list[Hashable]] = {}
+    for name, da in ds.data_vars.items():
+        entity = da.attrs.get("entity")
+        if entity is None or is_processing_variable(name) or not is_single_gas(da):
+            continue
+        variables_by_entity.setdefault(entity, []).append(name)
+
+    for entity, names in variables_by_entity.items():
+        if len(names) > 1:
+            logger.error(
+                f"The single gas {entity!r} is contained more than once, as "
+                f"{sorted(str(name) for name in names)!r}."
+            )
+            raise ValueError(
+                f"{entity!r} is contained more than once, as "
+                f"{sorted(str(name) for name in names)!r}."
+            )
 
 
 def ensure_processing_variable_name(name: str, da: xr.DataArray) -> None:

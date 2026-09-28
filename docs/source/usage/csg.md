@@ -177,22 +177,24 @@ with all desired dimensions and metadata.
 The function takes the same inputs as {py:func}`primap2.csg.compose` with additional input to
 define pre- and postprocessing:
 
-* **result_prio_coords** Defines the vales for the priority coordinates in the output dataset. As the
+* **result_prio_coords** Defines the values for the priority coordinates in the output dataset. As the
 priority coordinates differ for all input sources there is no canonical value
 for the result and it has to be explicitly defined
 * **metadata** Set metadata values such as title and references
 
 ```{code-cell} ipython3
-result_prio_coords = result_prio_coords = {
-        "source": {"value": "PRIMAP-test"},
-        "scenario": {"value": "HISTORY", "terminology": "PRIMAP"},
-    }
-metadata = {"references": "test-data", "contact": "test@example.xx"}
+result_prio_coords = {
+    "source": {"value": "PRIMAP-test"},
+    "scenario": {"value": "HISTORY", "terminology": "PRIMAP"},
+}
+metadata = {"references": "test-data", "contact": "test@example.com"}
 
 ```
 
 * **limit_coords** Optional parameter to remove data for coordinate values not needed for the
-composition from the input data. The time coordinate is treated separately.
+composition from the input data. The time coordinate is treated separately, use
+`time_range` for it. Besides dimensions, the key `variable` can be used to limit the
+input data to a subset of the data variables.
 * **time_range** Optional parameter to limit the time coverage of the input data. The input can either be a pandas `DatetimeIndex` or a tuple of `str` or datetime-like in the form (year_from, year_to) where both boundaries are included in the range. Only the overlap of the supplied index or index created from the tuple with the time coordinate of the input dataset will be used.
 
 

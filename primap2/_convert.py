@@ -323,10 +323,6 @@ def initialize_empty_converted_da(
         if pdim in new_attrs and new_attrs[pdim] == old_dim:
             new_attrs[pdim] = new_dim
 
-    if "sec cats" in new_attrs and old_dim in new_attrs["sec_cats"]:
-        new_attrs["sec_cats"].remove(old_dim)
-        new_attrs["sec_cats"].append(new_dim)
-
     # initialize the converted array using all NA
     all_na_array = np.empty(new_shape)
     all_na_array[:] = np.nan

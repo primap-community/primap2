@@ -30,6 +30,15 @@ def _entity_unit(da: xr.DataArray) -> pint.Quantity | None:
         return None
 
 
+def is_single_gas(da: xr.DataArray) -> bool:
+    """True if the entity of the array is a single gas known to the unit registry.
+
+    Gas baskets like ``KYOTOGHG`` are not single gases, and neither are variables which
+    do not contain emissions at all, like population.
+    """
+    return _entity_unit(da) is not None
+
+
 def _is_gas_emissions(da: xr.DataArray) -> bool:
     """True if the array contains emissions of a single gas.
 
@@ -55,7 +64,7 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
     def quantify(self, **kwargs):
         """Attaches units to the DataArray.
 
-        Units can be specified as a :py:class`pint.Unit` or as a string.
+        Units can be specified as a :py:class:`pint.Unit` or as a string.
         If no units are specified then the
         units will be parsed from the `'units'` entry of the DataArray's
         `.attrs`. Will raise a ValueError if the DataArray already contains
@@ -191,9 +200,9 @@ class DataArrayUnitAccessor(_accessor_base.BaseDataArrayAccessor):
         --------
         >>> import primap2
         >>> import primap2.tests
-        >>> ds = primap2.tests.minimal_ds()
+        >>> ds = primap2.tests.minimal_ds_in_gwp()
         >>> with ds["SF6 (SARGWP100)"].pr.gwp_context:
-        ...     ds["CH4"].pint.to("Gg CO2 / year")
+        ...     ...
 
         Returns
         -------
