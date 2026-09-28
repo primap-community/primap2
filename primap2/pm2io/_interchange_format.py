@@ -174,7 +174,7 @@ def write_interchange_format(
     # we need to sort the metadata for stable output
     attrs_sorted = dict(sorted(attrs.items()))
     for entry in attrs_sorted["dimensions"]:
-        attrs_sorted["dimensions"][entry] = list(sorted(attrs_sorted["dimensions"][entry]))
+        attrs_sorted["dimensions"][entry] = sorted(attrs_sorted["dimensions"][entry])
     attrs_sorted["dimensions"] = dict(sorted(attrs_sorted["dimensions"].items()))
     attrs_sorted["attrs"] = dict(sorted(attrs_sorted["attrs"].items()))
 
@@ -274,7 +274,7 @@ def from_interchange_format(
 
     # build dicts for additional coordinates
     add_coord_mapping_dicts = {}
-    for coord in attrs["additional_coordinates"].keys():
+    for coord in attrs["additional_coordinates"]:
         values = data[[coord, attrs["additional_coordinates"][coord]]]
         values = values.drop_duplicates()
         dim_values = list(values[attrs["additional_coordinates"][coord]])
@@ -326,7 +326,7 @@ def from_interchange_format(
     dim_lens = {dim: len(np.unique(data_xr[dim].dropna("index"))) for dim in index_cols}
     dim_lens["time"] = len(time_cols)
     shapes = []
-    for _, dims in dimensions.items():
+    for dims in dimensions.values():
         shapes.append([dim_lens[dim] for dim in dims if dim != "unit"])
     array_size = sum(np.prod(shape) for shape in shapes)
     logger.debug(f"Expected array shapes: {shapes}, resulting in size {array_size:,}.")
@@ -363,7 +363,7 @@ def from_interchange_format(
     data_xr = xr.Dataset(data_vars)
 
     # add the additional coordinates
-    for coord in attrs["additional_coordinates"].keys():
+    for coord in attrs["additional_coordinates"]:
         dim_values_xr = list(data_xr[attrs["additional_coordinates"][coord]].values)
         coord_values_ordered = [add_coord_mapping_dicts[coord][value] for value in dim_values_xr]
         data_xr = data_xr.assign_coords(

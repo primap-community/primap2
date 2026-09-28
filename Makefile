@@ -1,4 +1,4 @@
-.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit stubs update-venv README.md check-python-version
+.PHONY: clean clean-test clean-pyc clean-build docs help virtual-environment install-pre-commit stubs update-venv README.md
 .DEFAULT_GOAL := help
 
 define PRINT_HELP_PYSCRIPT
@@ -31,68 +31,67 @@ clean-pyc: ## remove Python file artifacts
 	find . -name '__pycache__' -exec rm -fr {} +
 
 clean-test: ## remove test and coverage artifacts
-	rm -fr .tox/
+	rm -fr .venv-test-*/
 	rm -f .coverage
 	rm -fr htmlcov/
 	rm -fr .pytest_cache
 
-lint: venv ## check style with pre-commit hooks
-	venv/bin/pre-commit run --all-files
+lint: .venv ## check style with pre-commit hooks
+	uv run --no-sync pre-commit run --all-files
 
-test: venv ## run tests quickly with the default Python
-	venv/bin/pytest --xdoc -rx
+test: .venv ## run tests quickly with the default Python
+	uv run --no-sync pytest --xdoc -rx
 
-test-all: ## run tests on every Python version with tox
-	venv/bin/tox -p
+# note that the lowest dependency versions we support predate python 3.13 and can't be
+# installed there, so like the CI we only test them on python 3.12
+test-all: ## run tests on every supported Python version and dependency resolution
+	@for python in 3.12 3.13 3.14; do \
+	  for resolution in highest lowest-direct; do \
+	    if [ "$$resolution" = "lowest-direct" ] && [ "$$python" != "3.12" ]; then continue; fi; \
+	    echo "=== Python $$python, $$resolution dependency resolution ==="; \
+	    uv venv --python $$python .venv-test-$$python-$$resolution || exit 1; \
+	    VIRTUAL_ENV=.venv-test-$$python-$$resolution uv pip install --resolution $$resolution ".[test]" || exit 1; \
+	    .venv-test-$$python-$$resolution/bin/pytest --xdoc -rx || exit 1; \
+	  done; \
+	done
 
-coverage: venv ## check code coverage quickly with the default Python
-	venv/bin/coverage run --source primap2 -m pytest
-	venv/bin/coverage report -m
-	venv/bin/coverage html
+coverage: .venv ## check code coverage quickly with the default Python
+	uv run --no-sync coverage run --source primap2 -m pytest
+	uv run --no-sync coverage report -m
+	uv run --no-sync coverage html
 	ls htmlcov/index.html
 
-clean-docs: venv ## Remove generated parts of documentation, then build docs
-	. venv/bin/activate ; $(MAKE) -C docs clean
-	. venv/bin/activate ; $(MAKE) -C docs html
+clean-docs: .venv ## Remove generated parts of documentation, then build docs
+	uv run --no-sync $(MAKE) -C docs clean
+	uv run --no-sync $(MAKE) -C docs html
 
-docs: venv ## generate Sphinx HTML documentation, including API docs
-	. venv/bin/activate ; $(MAKE) -C docs html
+docs: .venv ## generate Sphinx HTML documentation, including API docs
+	uv run --no-sync $(MAKE) -C docs html
 
-release: venv dist ## package and upload a release
-	venv/bin/twine upload --repository primap dist/*
+release: .venv dist ## package and upload a release
+	uv run --no-sync twine upload --repository primap dist/*
 
-dist: clean venv ## builds source and wheel package
-	# because we update the citation info after releasing on github and zenodo but
-	# before building for pypi, we need to force the correct version.
-	SETUPTOOLS_SCM_PRETEND_VERSION=0.13.0 venv/bin/python -m build
+dist: clean .venv ## builds source and wheel package
+	uv build
 
-install: clean ## install the package to the active Python's site-packages
-	python setup.py install
+virtual-environment: .venv ## setup a virtual environment for development
 
-virtual-environment: venv ## setup a virtual environment for development
-
-venv: requirements_dev.txt setup.cfg
-	[ -d venv ] || python3 .check_python_version.py
-	[ -d venv ] || python3 -m venv venv
-	venv/bin/python -m pip install --upgrade wheel uv
-	. venv/bin/activate ; venv/bin/uv pip install --upgrade -e .[dev]
-	touch venv
+.venv: pyproject.toml uv.lock ## create or update the development virtual environment
+	uv sync
+	@touch .venv
 
 update-venv: ## update all packages in the development environment
-	[ -d venv ] || python3 -m venv venv
-	venv/bin/python .check_python_version.py
-	venv/bin/python -m pip install --upgrade wheel uv
-	. venv/bin/activate ; venv/bin/uv pip  install --upgrade --resolution highest -e .[dev]
-	touch venv
+	uv sync --upgrade
+	@touch .venv
 
-install-pre-commit: update-venv ## install the pre-commit hooks
-	venv/bin/pre-commit install
+install-pre-commit: .venv ## install the pre-commit hooks
+	uv run --no-sync pre-commit install
 
-stubs: venv ## generate directory with xarray stubs with inserted primap2 stubs
+stubs: .venv ## generate directory with xarray stubs with inserted primap2 stubs
 	rm -rf stubs
 	mkdir -p stubs
-	venv/bin/stubgen -p xarray -o stubs
+	uv run --no-sync stubgen -p xarray -o stubs
 	(cd stubs; patch -s -p0 < ../primap-stubs.patch)
 
-README.md: ## Update the citation information from zenodo
-	venv/bin/python update_citation_info.py
+README.md: .venv ## Update the citation information from zenodo
+	uv run --no-sync python update_citation_info.py

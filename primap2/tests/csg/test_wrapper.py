@@ -1,6 +1,6 @@
-#!/usr/bin/env python
 """Tests for csg/_wrapper.py"""
 
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -26,8 +26,8 @@ def test_set_priority_coords(minimal_ds):
 def test_create_time_index():
     start = "1990"
     end = "2000"
-    start_dt = datetime.strptime(start, "%Y")
-    end_dt = datetime.strptime(end, "%Y")
+    start_dt = datetime.strptime(start, "%Y")  # noqa: DTZ007
+    end_dt = datetime.strptime(end, "%Y")  # noqa: DTZ007
     start_ts = pd.Timestamp(start)
     end_ts = pd.Timestamp(end)
     expected = pd.date_range(start=start, end=end, freq="YS")
@@ -48,7 +48,7 @@ def test_create_time_index():
     pd.testing.assert_index_equal(create_time_index(expected), expected)
 
 
-def test_create_composite_source():
+def test_create_composite_source(caplog):
     cat_terminology = "IPCC2006_PRIMAP"
 
     main_categories = ["1.A", "1.B.2", "2.A", "M.AG.ELV", "M.LULUCF", "4"]
@@ -186,8 +186,11 @@ def test_create_composite_source():
         metadata=metadata,
     )
 
-    # remove processing info as following functions can't deal with it yet
-    # in this case to_netcdf can't deal with the None values in processing info
+    # create_composite_source runs ensure_valid on the result, which only logs most
+    # problems instead of raising, so check that nothing was reported
+    assert not [record for record in caplog.records if record.levelno >= logging.WARNING]
+
+    # remove processing info, the comparison data was created without it
     result = result.pr.remove_processing_info()
 
     # assert results

@@ -143,7 +143,7 @@ class PriorityDefinition:
                 if dim not in sel:
                     raise ValueError(f"In priority={sel}: missing priority dimension={dim}")
                 if not isinstance(sel[dim], str):
-                    raise ValueError(
+                    raise ValueError(  # noqa: TRY004
                         f"In priority={sel}: specified multiple values for priority "
                         f"dimension={dim}, values={sel[dim]}"
                     )

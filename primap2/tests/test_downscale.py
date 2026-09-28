@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Tests for _downscale.py"""
 
 import logging

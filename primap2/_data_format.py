@@ -14,6 +14,7 @@ from attr import define
 from loguru import logger
 
 from . import _accessor_base, pm2io
+from ._processing_info import is_processing_variable, processing_variable_name
 from ._selection import translations_from_dims
 from ._units import ureg
 
@@ -83,9 +84,9 @@ def open_dataset(
     if "publication_date" in ds.attrs:
         ds.attrs["publication_date"] = datetime.date.fromisoformat(ds.attrs["publication_date"])
     for entity in ds:
-        if entity.startswith("Processing of "):
+        if is_processing_variable(entity):
             ds[entity].data = np.vectorize(
-                lambda x: TimeseriesProcessingDescription.deserialize(x)
+                TimeseriesProcessingDescription.deserialize, otypes=[object]
             )(ds[entity].data)
     return ds
 
@@ -104,7 +105,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         """
         if not isinstance(self._ds, xr.Dataset):
             logger.error("object is not an xarray Dataset.")
-            raise ValueError("ds is not an xr.Dataset")
+            raise TypeError("ds is not an xr.Dataset")
 
         ensure_valid_dimensions(self._ds)
         ensure_no_dimension_without_coordinates(self._ds)
@@ -141,7 +142,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         dfs = []
         entities = []
         for x in dsd:
-            if isinstance(x, str) and x.startswith("Processing of "):
+            if is_processing_variable(x):
                 continue
             entities.append(x)
             df = (
@@ -253,18 +254,16 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             # use the zlib compression algorithm and compression level 9,
             # 0 (no compression) - larger files, shorter processing
             # 9 (maximum compression) - smaller files, longer processing
-            compression = dict(zlib=True, complevel=9)
+            compression = {"zlib": True, "complevel": 9}
             encoding = {var: compression for var in ds.data_vars}
 
         if "publication_date" in ds.attrs:
             ds.attrs["publication_date"] = ds.attrs["publication_date"].isoformat()
         for entity in ds:
-            if (
-                isinstance(entity, str)
-                and entity.startswith("Processing of ")
-                and ds[entity].data.dtype == object
-            ):
-                ds[entity].data = np.vectorize(lambda x: x.serialize())(ds[entity].data)
+            if is_processing_variable(entity) and ds[entity].data.dtype == object:
+                ds[entity].data = np.vectorize(TimeseriesProcessingDescription.serialize_optional)(
+                    ds[entity].data
+                )
 
         ds = ds.drop_encoding()
         return ds.to_netcdf(
@@ -278,13 +277,11 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
 
     def remove_processing_info(self) -> xr.Dataset:
         """Return dataset with all variables with processing information removed."""
-        return self._ds.drop_vars(
-            [var for var in self._ds if isinstance(var, str) and var.startswith("Processing of ")]
-        )
+        return self._ds.drop_vars([var for var in self._ds if is_processing_variable(var)])
 
     def has_processing_info(self) -> bool:
         """True if the dataset has processing information for at least one entity."""
-        return any(isinstance(var, str) and var.startswith("Processing of ") for var in self._ds)
+        return any(is_processing_variable(var) for var in self._ds)
 
     def expand_dims(
         self,
@@ -371,7 +368,7 @@ def ensure_valid_coordinates(ds: xr.Dataset):
             logger.error(
                 f"Coordinate {coord!r} is of type {type(coord)}, but only strings are allowed."
             )
-            raise ValueError(f"Coord key {coord!r} is not a string")
+            raise TypeError(f"Coord key {coord!r} is not a string")
         elif coord in additional_coords:
             if " " in coord:
                 logger.error(
@@ -394,7 +391,7 @@ def ensure_valid_attributes(ds: xr.Dataset):
         publication_date = ds.attrs["publication_date"]
         if not isinstance(publication_date, datetime.date):
             logger.error(f"Publication date is not a datetime.date object: {publication_date!r}.")
-            raise ValueError("Publication date is not a date object.")
+            raise TypeError("Publication date is not a date object.")
     valid_attr_keys = {
         "references",
         "rights",
@@ -427,9 +424,7 @@ def ensure_valid_data_variables(ds: xr.Dataset):
         else:
             ensure_not_gwp(key, da)
 
-        if "described_variable" in da.attrs or (
-            isinstance(key, str) and key.startswith("Processing of ")
-        ):
+        if "described_variable" in da.attrs or is_processing_variable(key):
             ensure_processing_variable_name(str(key), da)
 
 
@@ -440,7 +435,7 @@ def ensure_processing_variable_name(name: str, da: xr.DataArray) -> None:
             f" is not defined in attrs."
         )
         raise ValueError(f"'described_variable' attr missing for {name!r}")
-    if name != f"Processing of {da.attrs['described_variable']}":
+    if name != processing_variable_name(da.attrs["described_variable"]):
         logger.error(
             f"variable name {name!r} is inconsistent with described_variable "
             f"{da.attrs['described_variable']!r}"
@@ -547,7 +542,7 @@ def ensure_valid_dimensions(ds: xr.Dataset):
             raise ValueError(f"{req_dim!r} not in dims")
 
         for var in ds:
-            if isinstance(var, str) and var.startswith("Processing of ") and req_dim == "time":
+            if is_processing_variable(var) and req_dim == "time":
                 if req_dim in ds[var].dims:
                     logger.error(f"{var!r} is a metadata variable, but 'time' is a dimension.")
                     raise ValueError(f"{var!r} contains metadata, but carries 'time' dimension")
@@ -663,14 +658,42 @@ class TimeseriesProcessingDescription:
         """Convert into binary data, e.g. for saving to disk."""
         return msgpack.packb({"steps": [x.unstructure() for x in self.steps]}, use_bin_type=True)
 
+    @staticmethod
+    def serialize_optional(
+        processing: "TimeseriesProcessingDescription | None",
+    ) -> bytes:
+        """Convert into binary data, also for missing processing information.
+
+        Processing information can be missing for individual timeseries, for example
+        if a dataset uses different categories for different variables. Missing
+        processing information is represented by empty binary data.
+
+        Parameters
+        ----------
+        processing
+            A TimeseriesProcessingDescription, or a null value (``None`` or NaN) if
+            no processing information is available for the timeseries.
+        """
+        if pd.isnull(processing):
+            return b""
+        return processing.serialize()
+
     @classmethod
-    def deserialize(cls, b: bytes) -> "TimeseriesProcessingDescription":
-        """Parse from binary data as produced by "serialize".
+    def deserialize(cls, b: bytes) -> "TimeseriesProcessingDescription | None":
+        """Parse from binary data as produced by "serialize" or "serialize_optional".
 
         Parameters
         ----------
         b
-            Binary data representing a TimeseriesProcessingDescription.
+            Binary data representing a TimeseriesProcessingDescription, or empty
+            binary data if no processing information is available for the timeseries.
+
+        Returns
+        -------
+        processing : TimeseriesProcessingDescription or None
+            ``None`` is returned for empty binary data.
         """
+        if not b:
+            return None
         ust = msgpack.unpackb(b, raw=False, use_list=False)
         return cls(steps=[ProcessingStepDescription.structure(x) for x in ust["steps"]])

@@ -28,6 +28,6 @@ def test_metadata_properties(opulent_ds):
     assert ds.pr.institution == "institution"
     ds.pr.entity_terminology = "entity_terminology"
     assert ds.pr.entity_terminology == "entity_terminology"
-    today = datetime.date.today()
+    today = datetime.date.today()  # noqa: DTZ011
     ds.pr.publication_date = today
     assert ds.pr.publication_date == today

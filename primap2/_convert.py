@@ -374,7 +374,7 @@ def factors_categories_to_xarray(
         factors is an xarray DataArray which can be multiplied with an xarray object
         after applying the selection.
     """
-    selection = {dim: [cat.codes[0] for cat in factors_categories.keys()]}
+    selection = {dim: [cat.codes[0] for cat in factors_categories]}
     factors = xr.DataArray(
         data=list(factors_categories.values()),
         dims=[dim],

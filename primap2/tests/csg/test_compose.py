@@ -73,7 +73,7 @@ def test_compose_simple(opulent_ds):
                 {"entity": ent},
                 primap2.csg.SubstitutionStrategy(),
             )
-            for ent in input_data.keys()
+            for ent in input_data
         ]
     )
 
@@ -86,8 +86,8 @@ def test_compose_simple(opulent_ds):
     # if necessary
     result = result.expand_dims(dim={"source": ["composed"]})
     result.pr.ensure_valid()
-    assert "CO2" in result.keys()
-    assert "Processing of CO2" in result.keys()
+    assert "CO2" in result
+    assert "Processing of CO2" in result
     assert_copied_from_input_data(
         result["CH4"],
         input_data["CH4"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "highpop"}],
@@ -165,8 +165,8 @@ def test_compose_exclude_result(opulent_ds):
     result = result.expand_dims(dim={"source": ["composed"]})
     result.pr.ensure_valid()
 
-    assert "CO2" in result.keys()
-    assert "Processing of CO2" in result.keys()
+    assert "CO2" in result
+    assert "Processing of CO2" in result
 
     assert_copied_from_input_data(
         result["CO2"],
@@ -534,7 +534,7 @@ def test_compose_pbar(opulent_ds):
         strategy_definition=strategy_definition,
         progress_bar=None,
     )
-    assert "CO2" in result.keys()
+    assert "CO2" in result
 
 
 def test_compose_sec_cats_missing(opulent_ds):
