@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Tests for _fill_combine.py
 
 We only test the features regarding the buggy treatment of additional (non-indexed)

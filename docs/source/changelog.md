@@ -19,6 +19,64 @@ of rst and use slightly different categories.
 
 <!-- towncrier release notes start -->
 
+## primap2 0.14.0 (2026-09-02)
+
+### Breaking Changes
+
+- * Dropped support for Python 3.11 and raised the minimum supported versions of numpy to
+    2.2, pandas to 2.3, scipy to 1.14, h5py to 3.12 and matplotlib to 3.9, following
+    [SPEC 0](https://scientific-python.org/specs/spec-0000/). ([#386](https://github.com/primap-community/primap2/pull/386))
+
+### Improvements
+
+- * Added support for Python 3.13 and 3.14. ([#386](https://github.com/primap-community/primap2/pull/386))
+
+### Bug Fixes
+
+- * Fixed unit tests that were to strict about the serialization of timestamps.
+  * Allowed differing datetime precisions in doctests for the `_setters` docstring examples.
+  * Allowed output of `np.str_` types in some tests instead of `str`.
+
+  ([#382](https://github.com/primap-community/primap2/pull/382))
+
+### Trivial/Internal Changes
+
+- [#383](https://github.com/primap-community/primap2/pull/383), [#385](https://github.com/primap-community/primap2/pull/385)
+
+
+## primap2 0.13.0 (2025-09-05)
+
+### Breaking Changes
+
+- Removed Python 3.10 support in line with NEP 29 timeline. ([#350](https://github.com/primap-community/primap2/pull/350))
+
+### Bug Fixes
+
+- Pinned xarray and pint-xarray versions due to behaviour changes in xarray and pint-xarray which lead to failures in primap2.
+
+  This is only an interim measure, we will update primap2 to work with the latest xarray and pint-xarray versions soon. ([#350](https://github.com/primap-community/primap2/pull/350))
+
+
+## primap2 0.12.3 (2025-07-10)
+
+### Improvements
+
+- Added a wrapper for the csg `compose` function to handle input data preparation (remove data which is not needed in the process) and output data handling (set coords and metadata) ([#286](https://github.com/primap-community/primap2/pull/286))
+- Added a csg filling strategy using local gap filling with polynomial trends to calculate scaling factors (similar to the method used in primap1). ([#288](https://github.com/primap-community/primap2/pull/288))
+- Added additional non-numerical codes in data reading functions. ([#323](https://github.com/primap-community/primap2/pull/323))
+- Add function to downscale based on shares of a reference dataset. ([#330](https://github.com/primap-community/primap2/pull/330))
+
+### Bug Fixes
+
+- Fixed conversion of nan values. ([#313](https://github.com/primap-community/primap2/pull/313))
+- Replaced xr.core.ops.fillna with fillna from public xarray API for compatibility with upcoming xarray releases. ([#322](https://github.com/primap-community/primap2/pull/322))
+- * Fix a pandas stack issue in GHG_inventory_reading
+  * Fix `skipna` in conversions
+
+  ([#323](https://github.com/primap-community/primap2/pull/323))
+- Drop encoding of data sets when merging or saving to netcfd to avoid truncation of coordinate values ([#324](https://github.com/primap-community/primap2/pull/324))
+
+
 ## primap2 0.12.2 (2025-02-07)
 
 ### Bug Fixes

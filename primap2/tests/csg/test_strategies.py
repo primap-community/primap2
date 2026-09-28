@@ -52,7 +52,7 @@ def test_substitution_strategy():
     assert len(result_descriptions) == 1
     assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
     assert result_descriptions[0].description == "substituted with corresponding values from B"
-    assert "source" not in result_ts.coords.keys()
+    assert "source" not in result_ts.coords
 
 
 def test_globalLS_strategy():
@@ -116,7 +116,7 @@ def test_globalLS_strategy():
         ).fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")
 
     # general
-    assert "source" not in result_ts.coords.keys()
+    assert "source" not in result_ts.coords
 
 
 def test_localTrends_strategy():
@@ -218,7 +218,7 @@ def test_localTrends_strategy():
         )
 
     # general
-    assert "source" not in result_ts.coords.keys()
+    assert "source" not in result_ts.coords
 
 
 def test_localLS_strategy():
@@ -343,9 +343,7 @@ def test_raises_error_substitution_strategy_missing_years():
     )
 
     with pytest.raises(ValueError, match=re.escape(expected_msg)):
-        result_ts, result_descriptions = primap2.csg.SubstitutionStrategy().fill(
-            ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
-        )
+        primap2.csg.SubstitutionStrategy().fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")
 
 
 def test_raises_error_substitution_strategy_wrong_dimension():
@@ -357,6 +355,4 @@ def test_raises_error_substitution_strategy_wrong_dimension():
     fill_ts = fill_ts.rename({"time": "TIME"})
 
     with pytest.raises(IndexError):
-        result_ts, result_descriptions = primap2.csg.SubstitutionStrategy().fill(
-            ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
-        )
+        primap2.csg.SubstitutionStrategy().fill(ts=ts, fill_ts=fill_ts, fill_ts_repr="B")

@@ -196,8 +196,7 @@ def test_convert_BURDI(empty_ds: xr.Dataset):
     # 4.D -> M.3.C.45.AG
     # TODO This category is only available on M3C45AG branch in climate categories
     # test locally with:
-    # `source venv/bin/activate`
-    # `pip install -e ../climate_categories`
+    # `uv pip install -e ../climate_categories`
     # Will pass after climate categories release
     assert (
         (result.pr.loc[{"category": "M.3.C.45.AG"}] == 1.0 * primap2.ureg("Gg CO2 / year"))

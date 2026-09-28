@@ -54,7 +54,15 @@ def opulent_processing_ds() -> xr.Dataset:
     return examples._cached_opulent_processing_ds.copy(deep=True)
 
 
-@pytest.fixture(params=["opulent", "opulent_str", "opulent_processing", "minimal", "empty"])
+@pytest.fixture
+def realistic_ds() -> xr.Dataset:
+    """A dataset shaped like the data published by PRIMAP."""
+    return examples._cached_realistic_ds.copy(deep=True)
+
+
+@pytest.fixture(
+    params=["opulent", "opulent_str", "opulent_processing", "minimal", "empty", "realistic"]
+)
 def any_ds(request) -> xr.Dataset:
     """Test with all available valid example Datasets."""
     if request.param == "opulent":
@@ -67,3 +75,5 @@ def any_ds(request) -> xr.Dataset:
         return examples._cached_minimal_ds.copy(deep=True)
     elif request.param == "empty":
         return examples._cached_empty_ds.copy(deep=True)
+    elif request.param == "realistic":
+        return examples._cached_realistic_ds.copy(deep=True)

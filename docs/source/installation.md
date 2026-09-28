@@ -28,8 +28,12 @@ $ git clone git://github.com/primap-community/primap2
 Once you have a copy of the source, you can install it with:
 
 ```shell
-$ python setup.py install
+$ pip install .
 ```
+
+If you want to develop PRIMAP2 instead of just using it, follow the
+{ref}`development instructions <development-reference>` to set up a development
+environment using [uv](https://docs.astral.sh/uv/).
 
 [pip]: https://pip.pypa.io
 [python installation guide]: http://docs.python-guide.org/en/latest/starting/installation/

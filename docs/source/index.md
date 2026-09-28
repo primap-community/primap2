@@ -19,4 +19,5 @@ development
 credits
 changelog
 api/index
+ideas_for_sparse_data
 ```
