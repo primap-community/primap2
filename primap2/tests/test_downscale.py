@@ -355,6 +355,29 @@ def test_downscale_gas_timeseries_da_partial_zero(gas_downscaling_ds):
     xr.testing.assert_identical(downscaled, expected)
 
 
+# TODO: we need tests where several time-series with different coverage
+# are downscaled in one go. See e.G. Saint Kitts and Nevis BUR2
+
+
+def test_downscale_gas_timeseries_da_full_zero(gas_downscaling_ds):
+    for var in ["CO2", "SF6", "CH4"]:
+        gas_downscaling_ds[var].data = 0 * gas_downscaling_ds[var].data
+    gas_downscaling_ds["KYOTOGHG (AR4GWP100)"].data = (
+        0 * gas_downscaling_ds["KYOTOGHG (AR4GWP100)"].data
+    )
+
+    downscaled = gas_downscaling_ds.pr.downscale_gas_timeseries(
+        basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
+    )
+
+    expected = gas_downscaling_ds.copy()
+    expected["CO2"][:] = 0 * ureg("Gg CO2 / year")
+    expected["SF6"][:] = 0 * ureg("Gg SF6 / year")
+    expected["CH4"][:] = 0 * ureg("Gg CH4 / year")
+
+    xr.testing.assert_identical(downscaled, expected)
+
+
 def test_downscale_timeseries_by_shares(opulent_ds):
     # build a reference data array with the shares of the basket contents
     time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
