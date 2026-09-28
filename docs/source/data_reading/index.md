@@ -77,8 +77,8 @@ As a default, we use easy rules combined with defined mappings for special cases
 The rules are as follows and each data point is tested against the rules in the same order as below.
 
 - If the code contains `FX` it is mapped to `np.nan`
-- If the code contains `IE` and/or `NO` it is mapped to 0
 - If the code contains `NE` and/or `NA` but neither `IE` nor `NO`, it is mapped to `np.nan`.
+- If the code contains `IE` and/or `NO` it is mapped to 0
 
 The special cases are
 
@@ -86,7 +86,6 @@ The special cases are
 _special_codes = {
     "C": np.nan,
     "CC": np.nan,
-    "CH4": np.nan,  # TODO: move to user passed codes in CRT reading
     "nan": np.nan,
     "NaN": np.nan,
     "-": 0,
