@@ -4,6 +4,7 @@ import pathlib
 import re
 
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 
@@ -65,6 +66,53 @@ def test_fill_all_na():
     dsf = ds.pr.fill_all_na(dim="b", value=0)
     assert np.allclose(dsf["1"], a_expected, equal_nan=True)
     assert np.allclose(dsf["2"], a_expected, equal_nan=True)
+
+
+def test_fill_all_na_processing_info():
+    time = pd.date_range("2000-01-01", "2002-01-01", freq="YS")
+    area = ["COL", "ARG"]
+    creation_step = primap2.ProcessingStepDescription(
+        time="all", function="random", description="Values created randomly."
+    )
+    ds = xr.Dataset(
+        {
+            "CO2": xr.DataArray(
+                data=[[np.nan, np.nan, np.nan], [np.nan, 1.0, 2.0]],
+                dims=["area (ISO3)", "time"],
+                coords={"area (ISO3)": area, "time": time},
+                attrs={"entity": "CO2", "units": "Gg CO2 / year"},
+            ),
+            "Processing of CO2": xr.DataArray(
+                data=np.array(
+                    [primap2.TimeseriesProcessingDescription(steps=[creation_step])] * 2,
+                    dtype=object,
+                ),
+                dims=["area (ISO3)"],
+                coords={"area (ISO3)": area},
+                attrs={"entity": "Processing of CO2", "described_variable": "CO2"},
+            ),
+        },
+        attrs={"area": "area (ISO3)"},
+    )
+
+    filled = ds.pr.fill_all_na(dim="time", value=0)
+
+    assert np.allclose(filled["CO2"], [[0, 0, 0], [np.nan, 1, 2]], equal_nan=True)
+
+    processing = filled["Processing of CO2"]
+    assert processing.attrs == ds["Processing of CO2"].attrs
+    # ARG is not filled because not all of its values are NA
+    assert processing.pr.loc[{"area": "ARG"}].item().steps == [creation_step]
+
+    steps = processing.pr.loc[{"area": "COL"}].item().steps
+    assert steps[0] == creation_step
+    assert steps[1].function == "fill_all_na"
+    assert "all values along 'time' were NA, filled with 0" in steps[1].description
+    assert steps[1].source is None
+    np.testing.assert_array_equal(steps[1].time, time.values)
+
+    # the input is not modified
+    assert ds["Processing of CO2"].pr.loc[{"area": "COL"}].item().steps == [creation_step]
 
 
 class TestSum:

@@ -5,6 +5,7 @@ import pandas as pd
 import xarray as xr
 
 from . import _accessor_base
+from ._processing_info import ensure_no_processing_info
 from ._selection import alias_dims
 
 
@@ -574,11 +575,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         if not isinstance(value, xr.Dataset):
             raise TypeError(f"value must be a Dataset, not {type(value)}")
 
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
+        ensure_no_processing_info(self._ds)
 
         return self._ds.map(
             self._set_apply,
