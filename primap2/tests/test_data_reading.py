@@ -70,14 +70,6 @@ def test_is_float(to_test_for_float, expected_result):
         ("IE", 0),
         ("NO", 0),
         ("-", 0),
-        ("NO,NE", 0),
-        ("NO, NE", 0),
-        ("NE,NO", 0),
-        ("NE, NO", 0),
-        ("IE, NE, NO", 0),
-        ("IE,NA,NO", 0),
-        ("NA,IE,NO", 0),
-        ("NO,NE,IE", 0),
     ],
 )
 def test_parse_code(code_to_test, expected_result):
@@ -94,6 +86,14 @@ def test_parse_code(code_to_test, expected_result):
         ("nan", np.nan),
         ("NA, NE", np.nan),
         ("NA,NE", np.nan),
+        ("NO,NE", np.nan),
+        ("NO, NE", np.nan),
+        ("NE,NO", np.nan),
+        ("NE, NO", np.nan),
+        ("IE, NE, NO", np.nan),
+        ("IE,NA,NO", np.nan),
+        ("NA,IE,NO", np.nan),
+        ("NO,NE,IE", np.nan),
     ],
 )
 def test_parse_code_nan(code_to_test_nan, expected_result):
@@ -106,12 +106,14 @@ def test_parse_code_nan(code_to_test_nan, expected_result):
         (
             ["IE", "IE,NA", "NA"],
             {},
-            {"IE": 0, "IE,NA": 0, "NA": np.nan},
+            {"IE": 0, "IE,NA": np.nan, "NA": np.nan},
         ),
         (
             ["IE", "IE,NA", "NA"],
             {"NA": 0},
-            {"IE": 0, "IE,NA": 0, "NA": 0},
+            {"IE": 0, "IE,NA": np.nan, "NA": 0},
+            #  the user configuration currently does not influence the replacements
+            #  based on parts of the string, only full strings
         ),
     ],
 )
@@ -1148,6 +1150,18 @@ class TestRegression:
         )
         expected = primap2.open_dataset(DATA_PATH / "Guetschow-et-al-2021-PRIMAP-crf96_2021-v1.nc")
         assert_ds_aligned_equal(actual, expected, equal_nan=True)
+
+
+def test_convert_unit_to_primap2():
+    unit = "ktCO2eq"
+    entity = "CO2"
+    expected = "kt CO2 / yr"
+    assert pm2io._conversion.convert_unit_to_primap2(unit, entity) == expected
+
+    unit = "GgCO2e"
+    entity = "CH4"
+    expected = "Gg CO2 / yr"
+    assert pm2io._conversion.convert_unit_to_primap2(unit, entity) == expected
 
 
 # functions that still need individual testing

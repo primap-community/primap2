@@ -79,9 +79,8 @@ stripped of dots and whitespace and upper-cased.
 The resulting parts are tested against the rules in the same order as below.
 
 - If one of the parts is `FX`, the code is mapped to `np.nan`
-- If one of the parts is `IE` and/or `NO`, the code is mapped to 0
-- If one of the parts is `NE` and/or `NA` but none is `IE`, `NO`, or `FX`, the code is
-  mapped to `np.nan`
+- If one of the parts is `NE` and/or `NA`/`N/A` the code is mapped to `np.nan`.
+- If one of the parts is `IE` and/or `NO` but neither `NE` nor `NA`, the code is mapped to zero.
 - Otherwise, if the code is a number followed by a footnote marker of the form `(X)`,
   the footnote marker is stripped and the number is used
 - If none of the rules applies, a `ValueError` is raised
@@ -92,7 +91,6 @@ The special cases are
 _special_codes = {
     "C": np.nan,
     "CC": np.nan,
-    "CH4": np.nan,  # TODO: move to user passed codes in CRT reading
     "nan": np.nan,
     "NaN": np.nan,
     "-": 0,
