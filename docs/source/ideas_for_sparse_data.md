@@ -1,7 +1,7 @@
-### Sparse data ideas
+# Sparse data ideas
 
 Here, we document an unfinished proposal for more advanced data structures for sparse data within primap2.
-#### Background
+## Background
 * From [pydata sparse documentation](https://sparse.pydata.org/en/stable/introduction/): Sparse arrays, or arrays that are mostly empty or filled with zeros, are common in many scientific applications. To save space we often avoid storing these arrays in traditional dense formats, and instead choose different data structures. Our choice of data structure can significantly affect our storage and computational costs when working with these arrays.
 * The PRIMAP-hist dataset is relatively sparse. In the March 2025 release, the share of filled values (non-NaNs) was 20% for CO2 and 1% for NF3.
 * The problem is even more pronounced in earlier steps, where we have more subcategories that may differ from country to country.
@@ -11,7 +11,7 @@ Here, we document an unfinished proposal for more advanced data structures for s
 * Merging sparse datasets into one dataset is very memory-intensive. We cannot execute this task on our laptops.
 * Other tasks, like selecting or downscaling, are also slower with very sparse datasets.
 
-#### Our specific requirements
+## Our specific requirements
 
 To handle very sparse arrays effectively, primap2 data handling functions should meet the following key requirements:
 
@@ -29,7 +29,7 @@ To handle very sparse arrays effectively, primap2 data handling functions should
 
 We aim to retain as much of the current codebase as possible, though some parts may require rewriting.
 
-#### Possible approaches
+## Possible approaches
 
 * We considered several approaches and chose [xarray datatree](https://docs.xarray.dev/en/stable/generated/xarray.DataTree.html).
 * Excluded approaches:
@@ -37,7 +37,7 @@ We aim to retain as much of the current codebase as possible, though some parts 
   * **SQL database**: Could serve as a backend for data storage but is too slow for calculations and not suitable for our workflows.
   * **Pandas**: Useful for pre-processing, where we already use it, but rewriting everything in pandas would be a significant effort. Mathematical operations are slow, and datasets remain sparse after converting back to xarray. Basiv example of conversion in pandas [here](https://github.com/primap-community/primap2/pull/321/files).
 
-#### DataTree
+## DataTree
 
 * Data trees are a hierarchical structure of datasets.
 * They offer a data structure for managing multiple datasets without the need to merge them (which is slow for sparse arrays).
@@ -53,7 +53,7 @@ We aim to retain as much of the current codebase as possible, though some parts 
 | All pre-processing steps can be covered in DataTree.  | Processing DataTrees may involve looping through sub-datasets. Is it faster than merging once? |
 | | The hierarchical concept does not align well with out use case. All country datasets would "siblings," but this is not necessarily a problem. |
 
-#### Test case: aggregation of CRT data
+## Test case: aggregation of CRT data
 
 * In the `UNFCCC_non-AnnexI_data` repository we combine CRT datasets from several countries. We did some tests on how it could look like using datatree (PR [here](https://github.com/JGuetschow/UNFCCC_non-AnnexI_data/pull/120))
 * It is not possible to merge all the datasets into one, because this operation would be too memory-intensive
@@ -86,13 +86,13 @@ most of the processing happens at the dataset level. It seems that many of the m
 navigating the hierarchical structure (parent/child relationships), which isn’t a core requirement for our use case.
 We mainly need a structure with many sibling nodes and possibly one parent.
 
-#### Test case: conversion
+## Test case: conversion
 
 The conversion function can be adapted to datatree formats relatively easy, if we assume the categories
 are coordinates of the dataset and do not show up in the datatree. An example can be found in [this
 pull request](https://github.com/primap-community/primap2/pull/318).
 
-#### Possible use of datatree
+## Possible use of datatree
 
 We can set up a data structure based on datatree in two different ways:
 

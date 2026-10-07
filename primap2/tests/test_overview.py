@@ -128,8 +128,13 @@ def test_set_coverage(opulent_ds):
         columns=ds.pr["animal"].values,
         data=np.zeros((len(ds.pr["product"]), len(ds.pr["animal"])), dtype=int),
     )
-    expected[:] = np.prod(ds["CO2"].shape) // np.prod(expected.shape) * 4
-    expected.loc["milk", :] = np.prod(ds["CO2"].shape) // np.prod(expected.shape) * 3
+    # CO2, SF6 and CH4 cover the product and animal dimensions, and of those only
+    # CO2 was set to NaN for milk above
+    covering_variables = 3
+    expected[:] = np.prod(ds["CO2"].shape) // np.prod(expected.shape) * covering_variables
+    expected.loc["milk", :] = (
+        np.prod(ds["CO2"].shape) // np.prod(expected.shape) * (covering_variables - 1)
+    )
     expected.index.name = "product (FAOSTAT)"
     expected.columns.name = "animal (FAOSTAT)"
     expected.name = "coverage"

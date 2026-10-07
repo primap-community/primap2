@@ -83,12 +83,14 @@ def create_composite_source(
         DataArray in the input_data Dataset, the variable is its name, the entity is
         the value of the key `entity` in its attrs.
     result_prio_coords
-        Defines the vales for the priority coordinates in the output dataset. As the
+        Defines the values for the priority coordinates in the output dataset. As the
         priority coordinates differ for all input sources there is no canonical value
         for the result and it has to be explicitly defined.
     limit_coords
         Optional parameter to remove data for coordinate values not needed for the
-        composition from the input data. The time coordinate is treated separately.
+        composition from the input data. The time coordinate is treated separately,
+        use ``time_range`` for it. Besides dimensions, the key ``variable`` can be
+        used to limit the input data to a subset of the data variables.
     time_range
         Optional parameter to limit the time coverage of the input data.
         Can either be a pandas `DatetimeIndex` or a tuple of `str` or `np.datetime64` in
