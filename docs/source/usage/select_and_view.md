@@ -279,7 +279,7 @@ da.pr.coverage("time", "area")
 For Datasets, you can also specify the "entity" as a coordinate:
 
 ```{code-cell} ipython3
-ds = primap2.tests.examples._cached_opulent_ds.copy(deep=True)
+ds = primap2.tests.examples.opulent_ds()
 ds["CO2"].pr.loc[{"product": "milk", "area": ["COL", "MEX"]}].pint.magnitude[:] = np.nan
 
 ds.pr.coverage("product", "entity", "area")

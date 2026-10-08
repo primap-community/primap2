@@ -79,6 +79,23 @@ If you want all-NA sums to be zero instead, pass `min_count=0` explicitly:
 da.pr.sum(dim="time", min_count=0).pr.to_df()
 ```
 
+The `skipna`, `skipna_evaluation_dims`, and `min_count` parameters work the same in all
+primap2 functions which sum data:
+
+- {py:meth}`xarray.DataArray.pr.sum` and {py:meth}`xarray.Dataset.pr.sum`
+- {py:meth}`xarray.Dataset.pr.gas_basket_contents_sum` and
+  {py:meth}`xarray.Dataset.pr.fill_na_gas_basket_from_contents`
+- {py:meth}`xarray.DataArray.pr.add_aggregates_coordinates`,
+  {py:meth}`xarray.Dataset.pr.add_aggregates_coordinates`, and
+  {py:meth}`xarray.Dataset.pr.add_aggregates_variables`
+- {py:meth}`xarray.DataArray.pr.downscale_timeseries`,
+  {py:meth}`xarray.Dataset.pr.downscale_timeseries`, and
+  {py:meth}`xarray.Dataset.pr.downscale_gas_timeseries`, where they are used to
+  sum the basket contents
+
+In all of them, only one of `skipna` and `skipna_evaluation_dims` may be given, and
+`min_count` has no effect if `skipna=False` or `skipna_evaluation_dims` is given.
+
 ## Infilling
 
 The same functionality is available for filling in missing information using the
