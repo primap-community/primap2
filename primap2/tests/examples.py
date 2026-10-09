@@ -202,7 +202,7 @@ def opulent_processing_ds() -> xr.Dataset:
             data=np.full(
                 shape=shape,
                 fill_value=primap2.ProcessingStepDescription(
-                    time="all",
+                    time=opulent["time"].values,
                     function="random",
                     description="Values created randomly.",
                 ),

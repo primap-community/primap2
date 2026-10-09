@@ -48,9 +48,8 @@ class SubstitutionStrategy:
         ts_aligned, fill_ts_aligned = xr.align(ts, fill_ts, join="exact")
         filled_ts = ts_aligned.fillna(fill_ts_aligned)
         filled_mask = ts.isnull() & ~fill_ts.isnull()
-        time_filled = "all" if filled_mask.all() else filled_mask["time"][filled_mask].to_numpy()
         description = primap2.ProcessingStepDescription(
-            time=time_filled,
+            time=filled_mask["time"][filled_mask].to_numpy(),
             description=f"substituted with corresponding values from {fill_ts_repr}",
             function=self.type,
             source=fill_ts_repr,

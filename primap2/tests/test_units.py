@@ -7,7 +7,7 @@ import pytest
 import xarray as xr
 import xarray.testing
 
-from primap2 import ureg
+from primap2 import TimeRange, ureg
 
 from .utils import allclose, assert_equal
 
@@ -141,7 +141,7 @@ class TestDatasetConvertToGWP:
         before = opulent_processing_ds["Processing of CH4"].values.flat[0]
         step = converted["Processing of CH4 (AR4GWP100)"].values.flat[0]
         assert step.function == "convert_to_gwp"
-        assert step.time == "all"
+        assert step.time == (TimeRange("2000", "2020"),)
         assert step.description == (
             "converted from mass in CH4 * gigagram / year to the global warming "
             "potential AR4GWP100 in CO2 * gigagram / year"
@@ -350,7 +350,7 @@ class TestDatasetConvertToMass:
 
         steps = converted["Processing of CH4"].values.flat[0].history()
         assert [step.function for step in steps[-2:]] == ["convert_to_gwp", "convert_to_mass"]
-        assert steps[-1].time == "all"
+        assert steps[-1].time == (TimeRange("2000", "2020"),)
         assert steps[-1].description == (
             "converted from the global warming potential AR4GWP100 in CO2 * gigagram / "
             "year to mass in CH4 * gigagram / year"

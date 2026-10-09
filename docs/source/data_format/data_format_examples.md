@@ -244,7 +244,7 @@ This example shows a dataset with detailed processing step information.
 time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
 area_iso3 = np.array(["COL", "ARG"])
 invented = primap2.ProcessingStepDescription(
-    time="all",
+    time=primap2.TimeRange("2000", "2020"),
     function="rand",
     description="invented from thin air",
 )

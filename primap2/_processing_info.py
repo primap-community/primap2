@@ -8,6 +8,8 @@ import pandas as pd
 import xarray as xr
 from attr import define, evolve, field
 
+from ._time_range import TimeRange, time_ranges
+
 PROCESSING_PREFIX = "Processing of "
 
 
@@ -50,6 +52,19 @@ def ensure_no_processing_info(ds: xr.Dataset) -> None:
         )
 
 
+def _to_time_ranges(value: typing.Any) -> tuple[TimeRange, ...]:
+    """Convert a TimeRange, an iterable of TimeRanges or of time points into TimeRanges."""
+    if isinstance(value, TimeRange):
+        return (value,)
+    if isinstance(value, str):
+        raise TypeError(f"time has to be a TimeRange or an iterable of time points, not {value!r}.")
+    if not isinstance(value, np.ndarray):
+        value = list(value)
+        if all(isinstance(x, TimeRange) for x in value):
+            return tuple(value)
+    return time_ranges(value)
+
+
 @define(frozen=True, kw_only=True)
 class ProcessingStepDescription:
     """Structured description of a processing step done on a timeseries.
@@ -60,9 +75,9 @@ class ProcessingStepDescription:
     Attributes
     ----------
     time
-        Time points for which data was changed during the processing step. Use
-        "all" if all time points were changed or it is not specified which time
-        points were changed.
+        Time points for which data was changed during the processing step. Can be given
+        as a TimeRange, an iterable of TimeRanges or an iterable of time points, which
+        is converted to TimeRanges.
     function
         The name of the function which did the processing.
     description
@@ -75,20 +90,27 @@ class ProcessingStepDescription:
         processing step. Empty if the step created the timeseries.
     """
 
-    time: np.ndarray[np.datetime64] | typing.Literal["all"]
+    time: tuple[TimeRange, ...] = field(converter=_to_time_ranges)
     function: str
     description: str
     source: str | None = None
     parents: tuple["ProcessingStepDescription", ...] = field(default=(), converter=tuple)
 
     def __str__(self) -> str:
+        times = ", ".join(str(time_range) for time_range in self.time) or "none"
         if self.source is None:
-            return f"Using function={self.function} for times={self.time}: {self.description}"
+            return f"Using function={self.function} for times={times}: {self.description}"
         else:
             return (
                 f"Using function={self.function} with source={self.source} for "
-                f"times={self.time}: {self.description}"
+                f"times={times}: {self.description}"
             )
+
+    def time_points(self) -> np.ndarray:
+        """All time points for which data was changed during the processing step."""
+        if not self.time:
+            return np.array([], dtype="datetime64")
+        return np.concatenate([time_range.time_points() for time_range in self.time])
 
     def history(self) -> list["ProcessingStepDescription"]:
         """All processing steps which led to this step, including the step itself."""
@@ -125,14 +147,7 @@ class ProcessingStepDescription:
     def unstructure(self) -> dict[str, typing.Any]:
         """Convert this step without its parents into basic python types."""
         return {
-            "time": "all"
-            if isinstance(self.time, str) and self.time == "all"
-            else list(
-                np.datetime_as_string(
-                    self.time,
-                    unit="Y",
-                )
-            ),
+            "time": [time_range.unstructure() for time_range in self.time],
             "description": self.description,
             "function": self.function,
             "source": self.source,
@@ -153,8 +168,13 @@ class ProcessingStepDescription:
         parents
             The parents of the step, which are not part of ``u``.
         """
-        time = "all" if u["time"] == "all" else np.array(u["time"], dtype=np.datetime64)
-        return cls(**{**u, "time": time}, parents=parents)
+        return cls(
+            time=[TimeRange.structure(time_range) for time_range in u["time"]],
+            function=u["function"],
+            description=u["description"],
+            source=u["source"],
+            parents=parents,
+        )
 
     def serialize(self) -> bytes:
         """Convert this step and all steps which led to it into binary data, e.g. for
@@ -217,16 +237,8 @@ class ProcessingStepDescription:
             return None
         ust = msgpack.unpackb(b, raw=False, use_list=False)
         steps: list[ProcessingStepDescription] = []
-        for position, u in enumerate(ust["steps"]):
-            u = dict(u)
-            parent_positions = u.pop("parents", None)
-            if parent_positions is None:
-                # stored as a list of steps without parents, each step builds on the
-                # previous one
-                parent_positions = (position - 1,) if position else ()
-            steps.append(cls.structure(u, parents=[steps[i] for i in parent_positions]))
-        if not steps:
-            return None
+        for u in ust["steps"]:
+            steps.append(cls.structure(u, parents=[steps[i] for i in u["parents"]]))
         return steps[-1]
 
 

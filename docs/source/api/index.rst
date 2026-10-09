@@ -11,6 +11,7 @@ Top-level API
 
     Not
     ProcessingStepDescription
+    TimeRange
     accessors
     open_dataset
     ureg

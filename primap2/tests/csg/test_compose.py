@@ -95,7 +95,7 @@ def test_compose_simple(opulent_ds):
         result["Processing of CH4"].loc[{"area (ISO3)": "COL"}].values.flat[0].history()
     )
     assert len(result_col_proc) == 1
-    assert result_col_proc[0].time == "all"
+    assert result_col_proc[0].time == (primap2.TimeRange("2000", "2020"),)
     assert result_col_proc[0].function == "substitution"
     assert "'source': 'RAND2020'" in result_col_proc[0].description
     assert "'scenario (FAOSTAT)': 'highpop'" in result_col_proc[0].description
@@ -109,7 +109,7 @@ def test_compose_simple(opulent_ds):
         result["Processing of CH4"].loc[{"area (ISO3)": "ARG"}].values.flat[0].history()
     )
     assert len(result_arg_proc) == 1
-    assert result_arg_proc[0].time == "all"
+    assert result_arg_proc[0].time == (primap2.TimeRange("2000", "2020"),)
     assert result_arg_proc[0].function == "substitution"
     assert result_arg_proc[0].source == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'}"
 
@@ -124,7 +124,7 @@ def test_compose_simple(opulent_ds):
     assert len(result_col_co2_proc) == 2
     assert result_col_co2_proc[0].function == "substitution"
     np.testing.assert_array_equal(
-        result_col_co2_proc[1].time,
+        result_col_co2_proc[1].time_points(),
         np.array(["2000", "2001"], dtype=np.datetime64),
     )
     assert result_col_co2_proc[1].function == "substitution"
@@ -390,7 +390,7 @@ def test_compose_skip_source(opulent_ds):
     )
     assert len(tpd.history()) == 2
     assert tpd.history()[0].function == "compose_timeseries"
-    assert tpd.history()[0].time == "all"
+    assert tpd.history()[0].time == ()
     assert (
         tpd.history()[0].description
         == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'} is excluded from "
@@ -639,11 +639,10 @@ def test_compose_timeseries_trivial():
 
     result_description = result_step.history()
     assert len(result_description) == 2
-    assert result_description[0].time[0] == np.datetime64("1852-01-01")
+    assert result_description[0].time == (primap2.TimeRange("1852", "2022"),)
     assert result_description[0].function == "substitution"
     assert result_description[0].description == "substituted with corresponding values from 'A'"
-    assert len(result_description[1].time) == 1
-    assert result_description[1].time[0] == np.datetime64("1850-01-01")
+    assert result_description[1].time == (primap2.TimeRange("1850", "1850"),)
     assert result_description[1].function == "substitution"
     assert result_description[1].description == "substituted with corresponding values from 'B'"
 

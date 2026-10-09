@@ -167,7 +167,7 @@ Each `ProcessingStepDescription` contains the following information:
 
 | attribute   | type                                 | description                                                                            |
 |-------------|--------------------------------------|----------------------------------------------------------------------------------------|
-| time        | `np.datetime64` or string "all"      | Time points affected by the operation, or "all" for operations on the whole timeseries |
+| time        | tuple of `primap2.TimeRange`         | Time points affected by the operation                                                  |
 | function    | str                                  | Name of the function which did the operation                                           |
 | description | str                                  | Long-form description of the operation which was performed                             |
 | source      | str or `None`                        | If applicable, identifier for the data source which was used in the operation          |
@@ -178,3 +178,8 @@ processing history of a timeseries is a directed acyclic graph rather than a lis
 `ProcessingStepDescription.history()` returns all steps of the history in an order in
 which every step comes after its parents, and
 `ProcessingStepDescription.format_history()` describes them in human-readable form.
+
+A `TimeRange` describes equally spaced time points with both ends included, e.g.
+`TimeRange("1970", "2015")` for every year from 1970 to 2015 or
+`TimeRange("1990", "2020", np.timedelta64(5, "Y"))` for every fifth year.
+Time points given as an array are converted to `TimeRange`s automatically.

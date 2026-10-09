@@ -1,15 +1,17 @@
 """Tests for _processing_info.py"""
 
-import msgpack
 import numpy as np
+import pandas as pd
+import pytest
 import xarray as xr
 
 from primap2._processing_info import ProcessingStepDescription, add_processing_step
+from primap2._time_range import TimeRange
 
 
 def step(name: str, *parents: ProcessingStepDescription) -> ProcessingStepDescription:
     return ProcessingStepDescription(
-        time="all", function=name, description=f"step {name}", parents=parents
+        time=TimeRange("2000", "2020"), function=name, description=f"step {name}", parents=parents
     )
 
 
@@ -25,7 +27,7 @@ def test_parents_default_empty():
 
 def test_parents_converted_to_tuple():
     a = step("a")
-    b = ProcessingStepDescription(time="all", function="b", description="b", parents=[a])
+    b = ProcessingStepDescription(time=(), function="b", description="b", parents=[a])
     assert b.parents == (a,)
 
 
@@ -60,10 +62,10 @@ def test_history_long_chain():
 
 def test_format_history():
     assert diamond().format_history() == (
-        "[1] Using function=a for times=all: step a\n"
-        "[2] (from [1]) Using function=b for times=all: step b\n"
-        "[3] (from [1]) Using function=c for times=all: step c\n"
-        "[4] (from [2], [3]) Using function=d for times=all: step d"
+        "[1] Using function=a for times=2000 to 2020: step a\n"
+        "[2] (from [1]) Using function=b for times=2000 to 2020: step b\n"
+        "[3] (from [1]) Using function=c for times=2000 to 2020: step c\n"
+        "[4] (from [2], [3]) Using function=d for times=2000 to 2020: step d"
     )
 
 
@@ -80,7 +82,10 @@ def test_serialize_round_trip():
 
 def test_serialize_round_trip_times():
     a = ProcessingStepDescription(
-        time=np.array(["2000", "2001"], dtype=np.datetime64),
+        time=(
+            TimeRange("1990-01", "1990-12"),
+            TimeRange("2000", "2020", np.timedelta64(5, "Y")),
+        ),
         function="a",
         description="step a",
         source="source",
@@ -90,9 +95,8 @@ def test_serialize_round_trip_times():
     result = ProcessingStepDescription.deserialize(b.serialize())
 
     (result_a,) = result.parents
-    np.testing.assert_array_equal(result_a.time, a.time)
-    assert result_a.source == "source"
-    assert result_a.parents == ()
+    assert result_a == a
+    assert str(result_a.time[0]) == "1990-01 to 1990-12"
 
 
 def test_structure_does_not_modify_input():
@@ -110,32 +114,6 @@ def test_serialize_optional_missing():
     assert ProcessingStepDescription.deserialize(b"") is None
 
 
-def test_deserialize_list_of_steps():
-    """Processing information stored as a list of steps without parents is read as a
-    chain of steps."""
-    legacy = msgpack.packb(
-        {
-            "steps": [
-                {"time": "all", "function": "a", "description": "step a", "source": None},
-                {"time": ["2000"], "function": "b", "description": "step b", "source": "x"},
-            ]
-        },
-        use_bin_type=True,
-    )
-
-    result = ProcessingStepDescription.deserialize(legacy)
-
-    assert result.function == "b"
-    assert result.source == "x"
-    (a,) = result.parents
-    assert a == step("a")
-
-
-def test_deserialize_empty_list_of_steps():
-    legacy = msgpack.packb({"steps": []}, use_bin_type=True)
-    assert ProcessingStepDescription.deserialize(legacy) is None
-
-
 def test_add_processing_step():
     a = step("a")
     da = xr.DataArray(np.array([a, None], dtype=object), dims=["area"])
@@ -146,3 +124,15 @@ def test_add_processing_step():
     assert result.values[1] is None
     # the input is not modified
     assert da.values[0] is a
+
+
+def test_time_points_converted():
+    step = ProcessingStepDescription(
+        time=pd.date_range("1970", "2015", freq="YS").values, function="f", description="d"
+    )
+    assert step.time == (TimeRange("1970", "2015"),)
+
+
+def test_time_all_rejected():
+    with pytest.raises(TypeError):
+        ProcessingStepDescription(time="all", function="f", description="d")

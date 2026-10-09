@@ -69,7 +69,7 @@ def _conversion_step(
     if before_repr == after_repr:
         return None
     return ProcessingStepDescription(
-        time="all",
+        time=before["time"].values,
         function=function,
         description=f"converted from {before_repr} to {after_repr}",
     )

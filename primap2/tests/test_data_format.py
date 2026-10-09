@@ -89,7 +89,10 @@ class TestToNetCDF:
             parents=(created,),
         )
         ds["Processing of CO2"].data.flat[0] = primap2.ProcessingStepDescription(
-            time="all", function="sum", description="summed", parents=(filled, created)
+            time=primap2.TimeRange("2000", "2020"),
+            function="sum",
+            description="summed",
+            parents=(filled, created),
         )
 
         ds.pr.to_netcdf(tmp_path / "temp.nc")
@@ -99,7 +102,7 @@ class TestToNetCDF:
         assert [step.function for step in summed.history()] == ["random", "fill", "sum"]
         nfilled, ncreated = summed.parents
         assert nfilled.parents[0] is ncreated
-        np.testing.assert_array_equal(nfilled.time, filled.time)
+        assert summed == ds["Processing of CO2"].values.flat[0]
 
 
 class TestEnsureValid:

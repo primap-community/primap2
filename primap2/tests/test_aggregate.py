@@ -72,7 +72,7 @@ def test_fill_all_na_processing_info():
     time = pd.date_range("2000-01-01", "2002-01-01", freq="YS")
     area = ["COL", "ARG"]
     creation_step = primap2.ProcessingStepDescription(
-        time="all", function="random", description="Values created randomly."
+        time=time.values, function="random", description="Values created randomly."
     )
     ds = xr.Dataset(
         {
@@ -109,7 +109,7 @@ def test_fill_all_na_processing_info():
     assert step.function == "fill_all_na"
     assert "all values along 'time' were NA, filled with 0" in step.description
     assert step.source is None
-    np.testing.assert_array_equal(step.time, time.values)
+    assert step.time == (primap2.TimeRange("2000", "2002"),)
 
     # the input is not modified
     assert ds["Processing of CO2"].pr.loc[{"area": "COL"}].item() == creation_step

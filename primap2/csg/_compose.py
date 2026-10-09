@@ -331,7 +331,7 @@ def compose_timeseries(
         if priority_definition.excludes_input(fill_ts):
             append_step(
                 ProcessingStepDescription(
-                    time="all",
+                    time=(),
                     description=f"{fill_ts_repr} is excluded from processing, skipped",
                     function="compose_timeseries",
                     source=fill_ts_repr,
@@ -341,7 +341,7 @@ def compose_timeseries(
         if fill_ts.isnull().all():
             append_step(
                 ProcessingStepDescription(
-                    time="all",
+                    time=(),
                     description=f"{fill_ts_repr} is fully NaN, skipped",
                     function="compose_timeseries",
                     source=fill_ts_repr,
@@ -364,7 +364,7 @@ def compose_timeseries(
             except StrategyUnableToProcess:
                 append_step(
                     ProcessingStepDescription(
-                        time="all",
+                        time=(),
                         description=f"strategy {strategy.type} unable to process "
                         f"{fill_ts_repr}, skipping to next strategy",
                         function="compose_timeseries",
