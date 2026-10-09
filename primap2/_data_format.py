@@ -12,7 +12,7 @@ from loguru import logger
 
 from . import _accessor_base, pm2io
 from ._processing_info import (
-    TimeseriesProcessingDescription,
+    ProcessingStepDescription,
     ensure_no_processing_info,
     is_processing_variable,
     processing_variable_name,
@@ -87,9 +87,9 @@ def open_dataset(
         ds.attrs["publication_date"] = datetime.date.fromisoformat(ds.attrs["publication_date"])
     for entity in ds:
         if is_processing_variable(entity):
-            ds[entity].data = np.vectorize(
-                TimeseriesProcessingDescription.deserialize, otypes=[object]
-            )(ds[entity].data)
+            ds[entity].data = np.vectorize(ProcessingStepDescription.deserialize, otypes=[object])(
+                ds[entity].data
+            )
     return ds
 
 
@@ -265,7 +265,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             ds.attrs["publication_date"] = ds.attrs["publication_date"].isoformat()
         for entity in ds:
             if is_processing_variable(entity) and ds[entity].data.dtype == object:
-                ds[entity].data = np.vectorize(TimeseriesProcessingDescription.serialize_optional)(
+                ds[entity].data = np.vectorize(ProcessingStepDescription.serialize_optional)(
                     ds[entity].data
                 )
 

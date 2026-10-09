@@ -141,7 +141,8 @@ terminology is defined elsewhere.
 To record processing information, rich processing information can be stored in
 special data variables.
 These store processing information for a specific normal data variable.
-For each timeseries in the normal data variable, a list of processing steps is kept.
+For each timeseries in the normal data variable, the last processing step is kept,
+which refers to the earlier processing steps.
 The name of these variables is `Processing of {var}` where `{var}` is the
 full name of the data variable which is described. Additionally, the following
 attributes are defined:
@@ -157,17 +158,23 @@ The `gwp_context` and `units` attributes must not be given.
 as the data variable which is described.
 The data array contains processing information as rich metadata types.
 Therefore, the data type is `object` and it contains
-`primap2.TimeseriesProcessingDescription` objects.
+`primap2.ProcessingStepDescription` objects, each describing the last processing step
+done on the timeseries.
 Processing information can be missing for individual timeseries, for example if a
 dataset uses different categories for different variables. Missing processing
 information is marked by a null value (`None` or NaN) and is read back as `None`.
-Each `TimeseriesProcessingDescription` object comprises multiple
-`primap2.ProcessingStepDescription` objects.
 Each `ProcessingStepDescription` contains the following information:
 
-| attribute   | type                            | description                                                                            |
-|-------------|---------------------------------|----------------------------------------------------------------------------------------|
-| time        | `np.datetime64` or string "all" | Time points affected by the operation, or "all" for operations on the whole timeseries |
-| function    | str                             | Name of the function which did the operation                                           |
-| description | str                             | Long-form description of the operation which was performed                             |
-| source      | str or `None`                   | If applicable, identifier for the data source which was used in the operation          |
+| attribute   | type                                 | description                                                                            |
+|-------------|--------------------------------------|----------------------------------------------------------------------------------------|
+| time        | `np.datetime64` or string "all"      | Time points affected by the operation, or "all" for operations on the whole timeseries |
+| function    | str                                  | Name of the function which did the operation                                           |
+| description | str                                  | Long-form description of the operation which was performed                             |
+| source      | str or `None`                        | If applicable, identifier for the data source which was used in the operation          |
+| parents     | tuple of `ProcessingStepDescription` | The last processing steps of the timeseries which were the input of the operation      |
+
+Operations which combine several timeseries, like sums, have several parents, so the
+processing history of a timeseries is a directed acyclic graph rather than a list.
+`ProcessingStepDescription.history()` returns all steps of the history in an order in
+which every step comes after its parents, and
+`ProcessingStepDescription.format_history()` describes them in human-readable form.

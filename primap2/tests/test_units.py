@@ -139,7 +139,7 @@ class TestDatasetConvertToGWP:
         converted = opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
 
         before = opulent_processing_ds["Processing of CH4"].values.flat[0]
-        step = converted["Processing of CH4 (AR4GWP100)"].values.flat[0].steps[-1]
+        step = converted["Processing of CH4 (AR4GWP100)"].values.flat[0]
         assert step.function == "convert_to_gwp"
         assert step.time == "all"
         assert step.description == (
@@ -147,7 +147,7 @@ class TestDatasetConvertToGWP:
             "potential AR4GWP100 in CO2 * gigagram / year"
         )
         # the existing steps are kept, and the input is not modified
-        assert converted["Processing of CH4 (AR4GWP100)"].values.flat[0].steps[:-1] == before.steps
+        assert step.parents == (before,)
         assert opulent_processing_ds["Processing of CH4"].values.flat[0] == before
 
     def test_processing_info_not_recorded_for_unconverted(self, opulent_processing_ds: xr.Dataset):
@@ -173,7 +173,7 @@ class TestDatasetConvertToGWP:
 
         processing = converted["Processing of CH4 (AR4GWP100)"]
         assert processing.values.flat[0] is None
-        assert processing.values.flat[1].steps[-1].function == "convert_to_gwp"
+        assert processing.values.flat[1].function == "convert_to_gwp"
 
     def test_processing_info_no_op_not_recorded(self, opulent_processing_ds: xr.Dataset):
         """A conversion which changes nothing must not record a step."""
@@ -348,7 +348,7 @@ class TestDatasetConvertToMass:
 
         converted = ds.pr.convert_to_mass()
 
-        steps = converted["Processing of CH4"].values.flat[0].steps
+        steps = converted["Processing of CH4"].values.flat[0].history()
         assert [step.function for step in steps[-2:]] == ["convert_to_gwp", "convert_to_mass"]
         assert steps[-1].time == "all"
         assert steps[-1].description == (

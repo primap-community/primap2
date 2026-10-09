@@ -6,7 +6,7 @@ import msgpack
 import numpy as np
 import pandas as pd
 import xarray as xr
-from attr import define
+from attr import define, evolve, field
 
 PROCESSING_PREFIX = "Processing of "
 
@@ -54,6 +54,9 @@ def ensure_no_processing_info(ds: xr.Dataset) -> None:
 class ProcessingStepDescription:
     """Structured description of a processing step done on a timeseries.
 
+    Processing steps form the history of a timeseries: every step refers to the steps
+    which produced its input data as its parents.
+
     Attributes
     ----------
     time
@@ -67,12 +70,16 @@ class ProcessingStepDescription:
     source
         Optional: a short identifier for the source of the data which was used for the
         processing.
+    parents
+        The last processing steps of the timeseries which were the input of this
+        processing step. Empty if the step created the timeseries.
     """
 
     time: np.ndarray[np.datetime64] | typing.Literal["all"]
     function: str
     description: str
     source: str | None = None
+    parents: tuple["ProcessingStepDescription", ...] = field(default=(), converter=tuple)
 
     def __str__(self) -> str:
         if self.source is None:
@@ -83,8 +90,40 @@ class ProcessingStepDescription:
                 f"times={self.time}: {self.description}"
             )
 
+    def history(self) -> list["ProcessingStepDescription"]:
+        """All processing steps which led to this step, including the step itself."""
+        ordered: list[ProcessingStepDescription] = []
+        visited: set[int] = set()
+        # depth-first search without recursion, so that long histories don't exhaust
+        # the stack. Steps are marked as "expanded" once their parents are on the stack.
+        stack: list[tuple[ProcessingStepDescription, bool]] = [(self, False)]
+        while stack:
+            step, expanded = stack.pop()
+            if expanded:
+                ordered.append(step)
+                continue
+            if id(step) in visited:
+                continue
+            visited.add(id(step))
+            stack.append((step, True))
+            stack.extend((parent, False) for parent in reversed(step.parents))
+        return ordered
+
+    def format_history(self) -> str:
+        """Human-readable description of all processing steps which led to this step."""
+        history = self.history()
+        numbers = {id(step): i for i, step in enumerate(history, start=1)}
+        lines = []
+        for step in history:
+            line = f"[{numbers[id(step)]}] "
+            if step.parents:
+                parent_numbers = ", ".join(f"[{numbers[id(parent)]}]" for parent in step.parents)
+                line += f"(from {parent_numbers}) "
+            lines.append(line + str(step))
+        return "\n".join(lines)
+
     def unstructure(self) -> dict[str, typing.Any]:
-        """Convert into basic python types."""
+        """Convert this step without its parents into basic python types."""
         return {
             "time": "all"
             if isinstance(self.time, str) and self.time == "all"
@@ -100,35 +139,47 @@ class ProcessingStepDescription:
         }
 
     @classmethod
-    def structure(cls, u: dict[str, typing.Any]) -> "ProcessingStepDescription":
-        """Initialize from basic python types as created by "unstructure"."""
-        time = u.pop("time")
-        return cls(time="all" if time == "all" else np.array(time, dtype=np.datetime64), **u)
+    def structure(
+        cls,
+        u: dict[str, typing.Any],
+        parents: typing.Iterable["ProcessingStepDescription"] = (),
+    ) -> "ProcessingStepDescription":
+        """Initialize from basic python types as created by "unstructure".
 
-
-@define(frozen=True)
-class TimeseriesProcessingDescription:
-    """Structured description of all processing steps done on a timeseries.
-
-    Attributes
-    ----------
-    steps
-        Steps that were performed during processing, in order from first to last.
-    """
-
-    steps: list[ProcessingStepDescription]
-
-    def __str__(self) -> str:
-        return "\n".join(str(step) for step in self.steps)
+        Parameters
+        ----------
+        u
+            The step as created by "unstructure".
+        parents
+            The parents of the step, which are not part of ``u``.
+        """
+        time = "all" if u["time"] == "all" else np.array(u["time"], dtype=np.datetime64)
+        return cls(**{**u, "time": time}, parents=parents)
 
     def serialize(self) -> bytes:
-        """Convert into binary data, e.g. for saving to disk."""
-        return msgpack.packb({"steps": [x.unstructure() for x in self.steps]}, use_bin_type=True)
+        """Convert this step and all steps which led to it into binary data, e.g. for
+        saving to disk.
+        """
+        history = self.history()
+        positions = {id(step): i for i, step in enumerate(history)}
+        # The parents have to come first: the binary data is saved as fixed-length byte
+        # strings, which lose trailing null bytes, and the parent position 0 is encoded
+        # as a null byte.
+        return msgpack.packb(
+            {
+                "steps": [
+                    {
+                        "parents": [positions[id(parent)] for parent in step.parents],
+                        **step.unstructure(),
+                    }
+                    for step in history
+                ]
+            },
+            use_bin_type=True,
+        )
 
     @staticmethod
-    def serialize_optional(
-        processing: "TimeseriesProcessingDescription | None",
-    ) -> bytes:
+    def serialize_optional(processing: "ProcessingStepDescription | None") -> bytes:
         """Convert into binary data, also for missing processing information.
 
         Processing information can be missing for individual timeseries, for example
@@ -138,32 +189,45 @@ class TimeseriesProcessingDescription:
         Parameters
         ----------
         processing
-            A TimeseriesProcessingDescription, or a null value (``None`` or NaN) if
-            no processing information is available for the timeseries.
+            The last processing step of a timeseries, or a null value (``None`` or NaN)
+            if no processing information is available for the timeseries.
         """
         if pd.isnull(processing):
             return b""
         return processing.serialize()
 
     @classmethod
-    def deserialize(cls, b: bytes) -> "TimeseriesProcessingDescription | None":
+    def deserialize(cls, b: bytes) -> "ProcessingStepDescription | None":
         """Parse from binary data as produced by "serialize" or "serialize_optional".
 
         Parameters
         ----------
         b
-            Binary data representing a TimeseriesProcessingDescription, or empty
-            binary data if no processing information is available for the timeseries.
+            Binary data representing the processing steps of a timeseries, or
+            empty binary data if no processing information is available for the
+            timeseries.
 
         Returns
         -------
-        processing : TimeseriesProcessingDescription or None
-            ``None`` is returned for empty binary data.
+        processing : ProcessingStepDescription or None
+            The last processing step of the timeseries, which refers to the earlier
+            steps as its parents. ``None`` is returned for empty binary data.
         """
         if not b:
             return None
         ust = msgpack.unpackb(b, raw=False, use_list=False)
-        return cls(steps=[ProcessingStepDescription.structure(x) for x in ust["steps"]])
+        steps: list[ProcessingStepDescription] = []
+        for position, u in enumerate(ust["steps"]):
+            u = dict(u)
+            parent_positions = u.pop("parents", None)
+            if parent_positions is None:
+                # stored as a list of steps without parents, each step builds on the
+                # previous one
+                parent_positions = (position - 1,) if position else ()
+            steps.append(cls.structure(u, parents=[steps[i] for i in parent_positions]))
+        if not steps:
+            return None
+        return steps[-1]
 
 
 def add_processing_step(
@@ -178,18 +242,24 @@ def add_processing_step(
     processing_infos
         The processing information variable to add the step to. It is not modified.
     step
-        The processing step to append.
+        The processing step to append. Its parents are replaced by the last processing
+        step of each timeseries.
 
     Returns
     -------
     with_step : xr.DataArray
         A copy of ``da`` with ``step`` appended to each timeseries.
     """
+    if len(step.parents) > 0:
+        raise ValueError(
+            "Calling add_processing_step with a history of steps instead  of an individual step "
+            "is invalid. (Ensure the passed step has no parents!)"
+        )
 
-    def append(processing: TimeseriesProcessingDescription | None):
+    def append(processing: ProcessingStepDescription | None):
         if pd.isnull(processing):
             return processing
-        return TimeseriesProcessingDescription(steps=[*processing.steps, step])
+        return evolve(step, parents=(processing,))
 
     result = processing_infos.copy()
     result.data = np.vectorize(append, otypes=[object])(processing_infos.data)
@@ -322,13 +392,13 @@ def add_processing_step_on_change(
             if dim in processing_infos.coords
         }
 
-        step = ProcessingStepDescription(
+        result.data[index] = ProcessingStepDescription(
             time=changed_times,
             function=function,
             description=description_template.replace("<coords>", _coordinates_repr(coordinates)),
             source=source,
+            parents=(processing,),
         )
-        result.data[index] = TimeseriesProcessingDescription(steps=[*processing.steps, step])
 
     return result
 

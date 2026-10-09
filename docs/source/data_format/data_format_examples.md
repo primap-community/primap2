@@ -243,6 +243,11 @@ This example shows a dataset with detailed processing step information.
 
 time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
 area_iso3 = np.array(["COL", "ARG"])
+invented = primap2.ProcessingStepDescription(
+    time="all",
+    function="rand",
+    description="invented from thin air",
+)
 with_processing = xr.Dataset(
     {
         "CO2": xr.DataArray(
@@ -259,30 +264,14 @@ with_processing = xr.Dataset(
             data=np.array(
                 [
                     [
-                        primap2.TimeseriesProcessingDescription(
-                            steps=[
-                                primap2.ProcessingStepDescription(
-                                    time="all",
-                                    function="rand",
-                                    description="invented from thin air",
-                                ),
-                                primap2.ProcessingStepDescription(
-                                    time=np.array(["2000", "2001"], dtype=np.datetime64),
-                                    function="replace",
-                                    description="use other data which is also invented, but better",
-                                    source="betterData2024",
-                                ),
-                            ]
+                        primap2.ProcessingStepDescription(
+                            time=np.array(["2000", "2001"], dtype=np.datetime64),
+                            function="replace",
+                            description="use other data which is also invented, but better",
+                            source="betterData2024",
+                            parents=(invented,),
                         ),
-                        primap2.TimeseriesProcessingDescription(
-                            steps=[
-                                primap2.ProcessingStepDescription(
-                                    time="all",
-                                    function="rand",
-                                    description="invented from thin air",
-                                ),
-                            ]
-                        ),
+                        invented,
                     ]
                 ],
                 dtype=object,
@@ -299,14 +288,15 @@ with_processing
 
 Note that the processing information in the data variable "Processing of CO2" has the same dimensions as the
 described variable "CO2", with the exception of the "time". The time information is included in the rich
-metadata object itself:
+metadata object itself. For each timeseries, only the last processing step is stored, which refers to
+the earlier steps as its parents:
 
 ```{code-cell} ipython3
 print("COL processing:")
-print(with_processing["Processing of CO2"].pr.loc[{"area": "COL"}].item())
+print(with_processing["Processing of CO2"].pr.loc[{"area": "COL"}].item().format_history())
 print()
 print("ARG processing:")
-print(with_processing["Processing of CO2"].pr.loc[{"area": "ARG"}].item())
+print(with_processing["Processing of CO2"].pr.loc[{"area": "ARG"}].item().format_history())
 ```
 
 ## Limitations

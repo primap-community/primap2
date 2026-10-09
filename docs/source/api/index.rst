@@ -11,7 +11,6 @@ Top-level API
 
     Not
     ProcessingStepDescription
-    TimeseriesProcessingDescription
     accessors
     open_dataset
     ureg

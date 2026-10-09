@@ -201,14 +201,10 @@ def opulent_processing_ds() -> xr.Dataset:
         new_vars[processing_variable_name(var)] = xr.DataArray(
             data=np.full(
                 shape=shape,
-                fill_value=primap2.TimeseriesProcessingDescription(
-                    steps=[
-                        primap2.ProcessingStepDescription(
-                            time="all",
-                            function="random",
-                            description="Values created randomly.",
-                        )
-                    ]
+                fill_value=primap2.ProcessingStepDescription(
+                    time="all",
+                    function="random",
+                    description="Values created randomly.",
                 ),
             ),
             coords=opulent[dims],

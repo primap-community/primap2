@@ -84,7 +84,7 @@ def test_fill_all_na_processing_info():
             ),
             "Processing of CO2": xr.DataArray(
                 data=np.array(
-                    [primap2.TimeseriesProcessingDescription(steps=[creation_step])] * 2,
+                    [creation_step] * 2,
                     dtype=object,
                 ),
                 dims=["area (ISO3)"],
@@ -102,17 +102,17 @@ def test_fill_all_na_processing_info():
     processing = filled["Processing of CO2"]
     assert processing.attrs == ds["Processing of CO2"].attrs
     # ARG is not filled because not all of its values are NA
-    assert processing.pr.loc[{"area": "ARG"}].item().steps == [creation_step]
+    assert processing.pr.loc[{"area": "ARG"}].item() == creation_step
 
-    steps = processing.pr.loc[{"area": "COL"}].item().steps
-    assert steps[0] == creation_step
-    assert steps[1].function == "fill_all_na"
-    assert "all values along 'time' were NA, filled with 0" in steps[1].description
-    assert steps[1].source is None
-    np.testing.assert_array_equal(steps[1].time, time.values)
+    step = processing.pr.loc[{"area": "COL"}].item()
+    assert step.parents == (creation_step,)
+    assert step.function == "fill_all_na"
+    assert "all values along 'time' were NA, filled with 0" in step.description
+    assert step.source is None
+    np.testing.assert_array_equal(step.time, time.values)
 
     # the input is not modified
-    assert ds["Processing of CO2"].pr.loc[{"area": "COL"}].item().steps == [creation_step]
+    assert ds["Processing of CO2"].pr.loc[{"area": "COL"}].item() == creation_step
 
 
 class TestSum:

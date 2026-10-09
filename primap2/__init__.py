@@ -10,10 +10,7 @@ from loguru import logger
 
 from . import accessors, pm2io
 from ._data_format import open_dataset
-from ._processing_info import (
-    ProcessingStepDescription,
-    TimeseriesProcessingDescription,
-)
+from ._processing_info import ProcessingStepDescription
 from ._selection import Not
 from ._units import ureg
 
@@ -28,7 +25,6 @@ logger.add(
 __all__ = [
     "Not",
     "ProcessingStepDescription",
-    "TimeseriesProcessingDescription",
     "accessors",
     "open_dataset",
     "pm2io",

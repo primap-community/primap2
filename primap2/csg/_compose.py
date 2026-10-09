@@ -4,14 +4,14 @@ import math
 import typing
 from collections.abc import Hashable
 
+import attrs
 import numpy as np
 import tqdm
 import xarray as xr
 from loguru import logger
 
-import primap2._data_format
 from primap2._processing_info import (
-    TimeseriesProcessingDescription,
+    ProcessingStepDescription,
     processing_variable_name,
 )
 
@@ -269,7 +269,7 @@ def compose_timeseries(
     input_data: xr.DataArray,
     priority_definition: _models.PriorityDefinition,
     strategy_definition: _models.StrategyDefinition,
-) -> tuple[xr.DataArray, TimeseriesProcessingDescription]:
+) -> tuple[xr.DataArray, ProcessingStepDescription | None]:
     """
     Compute a single timeseries from given input data, priorities, and strategies.
 
@@ -289,8 +289,9 @@ def compose_timeseries(
     -------
         result_ts, processing_description. In result_ts is the numerical result, with
         the time as the only dimension.
-        processing_description is the representation of the processing steps taken to
-        derive the result.
+        processing_description is the last of the processing steps taken to derive the
+        result, the earlier steps are its ancestors. It is None if no processing steps
+        were taken.
     """
     context_logger = logger.bind(
         fixed_coordinates={k: v for k, v in input_data.coords.items() if v.shape == ()},
@@ -302,7 +303,13 @@ def compose_timeseries(
     )
 
     result_ts: xr.DataArray | None = None
-    processing_steps_descriptions = []
+    last_step: ProcessingStepDescription | None = None
+
+    def append_step(step: ProcessingStepDescription) -> None:
+        """Record step as the next step in the processing of the result."""
+        nonlocal last_step
+        last_step = attrs.evolve(step, parents=() if last_step is None else (last_step,))
+
     for selector in priority_definition.priorities:
         try:
             fill_ts = input_data.loc[selector]
@@ -322,8 +329,8 @@ def compose_timeseries(
             result_ts = xr.full_like(fill_ts_no_prio_dims, np.nan)
 
         if priority_definition.excludes_input(fill_ts):
-            processing_steps_descriptions.append(
-                primap2.ProcessingStepDescription(
+            append_step(
+                ProcessingStepDescription(
                     time="all",
                     description=f"{fill_ts_repr} is excluded from processing, skipped",
                     function="compose_timeseries",
@@ -332,8 +339,8 @@ def compose_timeseries(
             )
             continue
         if fill_ts.isnull().all():
-            processing_steps_descriptions.append(
-                primap2.ProcessingStepDescription(
+            append_step(
+                ProcessingStepDescription(
                     time="all",
                     description=f"{fill_ts_repr} is fully NaN, skipped",
                     function="compose_timeseries",
@@ -351,11 +358,12 @@ def compose_timeseries(
                     fill_ts=fill_ts_no_prio_dims,
                     fill_ts_repr=fill_ts_repr,
                 )
-                processing_steps_descriptions += descriptions
+                for description in descriptions:
+                    append_step(description)
                 break
             except StrategyUnableToProcess:
-                processing_steps_descriptions.append(
-                    primap2.ProcessingStepDescription(
+                append_step(
+                    ProcessingStepDescription(
                         time="all",
                         description=f"strategy {strategy.type} unable to process "
                         f"{fill_ts_repr}, skipping to next strategy",
@@ -383,4 +391,4 @@ def compose_timeseries(
             f"\n{input_data.coords}\n{input_data.attrs}\n{priority_definition=}"
         )
 
-    return result_ts, TimeseriesProcessingDescription(steps=processing_steps_descriptions)
+    return result_ts, last_step
