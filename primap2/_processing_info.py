@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from attr import define, evolve, field
+from loguru import logger
 
 from ._time_range import TimeRange, time_ranges
 
@@ -492,3 +493,63 @@ def add_processing_step_on_change_ds(
         )
 
     return result
+
+
+def _without_processing_info(ds: xr.Dataset) -> xr.Dataset:
+    return ds.drop_vars([var for var in ds if is_processing_variable(var)])
+
+
+class ProcessingStepRecorder:
+    """Records a processing step for every timeseries changed within a ``with`` block.
+
+    Use it via :py:meth:`xarray.Dataset.pr.processing_step`. Within the block, ``ds`` is
+    a deep copy of the dataset without processing information, and the result of the
+    processing has to be assigned to ``ds``. After the block, ``result`` is the processed
+    dataset including the updated processing information.
+
+    Only changes of values are supported, the data variables, dimensions and
+    coordinates have to stay the same.
+    """
+
+    def __init__(
+        self,
+        ds: xr.Dataset,
+        *,
+        function: str,
+        description_template: str,
+        source: str | None = None,
+    ):
+        self._original = ds
+        self._function = function
+        self._description_template = description_template
+        self._source = source
+        self._result: xr.Dataset | None = None
+        self.ds = _without_processing_info(ds).copy(deep=True)
+
+    def __enter__(self) -> typing.Self:
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        if exc_type is not None:
+            return
+        self._result = add_processing_step_on_change_ds(
+            old_ds=self._original,
+            new_ds=self.ds,
+            function=self._function,
+            description_template=self._description_template,
+            source=self._source,
+        )
+        if self.ds.equals(_without_processing_info(self._original)):
+            logger.debug(
+                f"No data changed in the processing step of {self._function!r}, so no "
+                f"processing step was recorded."
+            )
+
+    @property
+    def result(self) -> xr.Dataset:
+        """The processed dataset including the updated processing information."""
+        if self._result is None:
+            raise RuntimeError(
+                "The result is only available after the with block ended without an error."
+            )
+        return self._result

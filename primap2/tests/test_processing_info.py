@@ -136,3 +136,98 @@ def test_time_points_converted():
 def test_time_all_rejected():
     with pytest.raises(TypeError):
         ProcessingStepDescription(time="all", function="f", description="d")
+
+
+def processing_ds() -> xr.Dataset:
+    time = pd.date_range("2000", "2002", freq="YS")
+    return xr.Dataset(
+        {
+            "CO2": xr.DataArray(
+                [[1.0, np.nan, 3.0], [1.0, 2.0, 3.0]],
+                dims=["area (ISO3)", "time"],
+                coords={"area (ISO3)": ["COL", "ARG"], "time": time},
+                attrs={"entity": "CO2", "units": "Gg CO2 / year"},
+            ),
+            "Processing of CO2": xr.DataArray(
+                np.array([step("a"), step("b")], dtype=object),
+                dims=["area (ISO3)"],
+                coords={"area (ISO3)": ["COL", "ARG"]},
+                attrs={"entity": "Processing of CO2", "described_variable": "CO2"},
+            ),
+        },
+        attrs={"area": "area (ISO3)"},
+    )
+
+
+def test_processing_step_records_changes():
+    ds = processing_ds()
+
+    with ds.pr.processing_step(function="fill", description_template="filled <coords>") as s:
+        assert not s.ds.pr.has_processing_info()
+        s.ds = s.ds.fillna(0)
+
+    result = s.result
+    np.testing.assert_array_equal(result["CO2"], [[1, 0, 3], [1, 2, 3]])
+    col = result["Processing of CO2"].pr.loc[{"area": "COL"}].item()
+    assert col == ProcessingStepDescription(
+        time=TimeRange("2001", "2001"),
+        function="fill",
+        description="filled area (ISO3)='COL'",
+        parents=(step("a"),),
+    )
+    # ARG was not changed
+    assert result["Processing of CO2"].pr.loc[{"area": "ARG"}].item() == step("b")
+
+
+def test_processing_step_in_place_changes():
+    ds = processing_ds()
+
+    with ds.pr.processing_step(function="set", description_template="set") as s:
+        s.ds["CO2"].loc[{"area (ISO3)": "ARG", "time": "2000"}] = 5.0
+
+    assert s.result["Processing of CO2"].pr.loc[{"area": "ARG"}].item().function == "set"
+    # the input is not modified
+    assert ds["CO2"].pr.loc[{"area": "ARG", "time": "2000"}].item() == 1.0
+
+
+def test_processing_step_no_change_logged(caplog):
+    ds = processing_ds()
+
+    with ds.pr.processing_step(function="nothing", description_template="nothing") as s:
+        pass
+
+    xr.testing.assert_identical(s.result, ds)
+    assert "No data changed in the processing step of 'nothing'" in caplog.text
+
+
+def test_processing_step_exception():
+    ds = processing_ds()
+
+    with (
+        pytest.raises(KeyError),
+        ds.pr.processing_step(function="f", description_template="d") as s,
+    ):
+        raise KeyError("error")
+
+    with pytest.raises(RuntimeError, match="only available after the with block"):
+        _ = s.result
+
+
+def test_processing_step_result_within_block():
+    ds = processing_ds()
+
+    with (
+        ds.pr.processing_step(function="f", description_template="d") as s,
+        pytest.raises(RuntimeError),
+    ):
+        _ = s.result
+
+
+def test_processing_step_changed_coordinates():
+    ds = processing_ds()
+
+    with (
+        pytest.raises(ValueError, match="Coordinate values"),
+        ds.pr.processing_step(function="f", description_template="d") as s,
+    ):
+        s.ds = s.ds.pr.loc[{"area": ["COL"]}]

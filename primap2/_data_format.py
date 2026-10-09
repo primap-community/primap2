@@ -13,6 +13,7 @@ from loguru import logger
 from . import _accessor_base, pm2io
 from ._processing_info import (
     ProcessingStepDescription,
+    ProcessingStepRecorder,
     ensure_no_processing_info,
     is_processing_variable,
     processing_variable_name,
@@ -282,6 +283,46 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
     def remove_processing_info(self) -> xr.Dataset:
         """Return dataset with all variables with processing information removed."""
         return self._ds.drop_vars([var for var in self._ds if is_processing_variable(var)])
+
+    def processing_step(
+        self, *, function: str, description_template: str, source: str | None = None
+    ) -> ProcessingStepRecorder:
+        """Record a processing step for every timeseries changed within a ``with`` block.
+
+        Within the block, work on ``step.ds``, which is a deep copy of the dataset
+        without processing information, and assign the result back to ``step.ds``.
+        After the block, ``step.result`` is the processed dataset including the updated
+        processing information. Only changes of values are supported, the data
+        variables, dimensions and coordinates have to stay the same.
+
+        Examples
+        --------
+        >>> # xdoctest: +SKIP
+        >>> with ds.pr.processing_step(
+        ...     function="interpolate_na",
+        ...     description_template="interpolated <var> for <coords>",
+        ... ) as step:
+        ...     step.ds = step.ds.interpolate_na(dim="time")
+        >>> ds = step.result
+
+        Parameters
+        ----------
+        function
+            The name of the function which does the processing.
+        description_template
+            Human-readable description of the processing step, in which "<coords>" is
+            replaced by the coordinates of each changed timeseries and "<var>" by the
+            name of its data variable.
+        source
+            Optional: a short identifier for the source of the data which is used for the
+            processing.
+        """
+        return ProcessingStepRecorder(
+            self._ds,
+            function=function,
+            description_template=description_template,
+            source=source,
+        )
 
     def has_processing_info(self) -> bool:
         """True if the dataset has processing information for at least one entity."""

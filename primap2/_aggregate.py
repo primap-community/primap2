@@ -10,11 +10,7 @@ from loguru import logger
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._data_format import split_var_name
 from ._dim_names import dim_names
-from ._processing_info import (
-    add_processing_step_on_change_ds,
-    ensure_no_processing_info,
-    is_processing_variable,
-)
+from ._processing_info import ensure_no_processing_info
 from ._selection import alias_dims
 from ._types import DatasetOrDataArray, DimOrDimsT
 from ._units import ureg
@@ -480,17 +476,14 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         filled : xr.Dataset
         """
-        data = self._ds.drop_vars([var for var in self._ds if is_processing_variable(var)])
-        filled = data.map(self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True)
-
-        return add_processing_step_on_change_ds(
-            old_ds=self._ds,
-            new_ds=filled,
+        with self._ds.pr.processing_step(
             function="fill_all_na",
             description_template=(
                 f"all values along {dim!r} were NA, filled with {value} (<coords>)"
             ),
-        )
+        ) as step:
+            step.ds = step.ds.map(self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True)
+        return step.result
 
     def _reduce_dim(
         self, dim: DimOrDimsT | None, reduce_to_dim: DimOrDimsT | None

@@ -171,6 +171,7 @@ Methods
     Dataset.pr.gas_basket_contents_sum
     Dataset.pr.has_processing_info
     Dataset.pr.merge
+    Dataset.pr.processing_step
     Dataset.pr.quantify
     Dataset.pr.remove_processing_info
     Dataset.pr.set
