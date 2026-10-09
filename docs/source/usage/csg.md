@@ -155,7 +155,7 @@ result_ds["Processing of CH4"].pr.loc[sel]
 ```{code-cell}
 for tpd in result_ds["Processing of CH4"].pr.loc[sel]:
     print(f"category={tpd['category (IPCC 2006)'].item()}")
-    print(str(tpd.item()))
+    print(tpd.item().format_history())
     print()
 ```
 

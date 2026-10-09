@@ -91,41 +91,45 @@ def test_compose_simple(opulent_ds):
         input_data["CH4"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "highpop"}],
         {"area": "COL"},
     )
-    result_col_proc = result["Processing of CH4"].loc[{"area (ISO3)": "COL"}].values.flat[0]
-    assert len(result_col_proc.steps) == 1
-    assert result_col_proc.steps[0].time == "all"
-    assert result_col_proc.steps[0].function == "substitution"
-    assert "'source': 'RAND2020'" in result_col_proc.steps[0].description
-    assert "'scenario (FAOSTAT)': 'highpop'" in result_col_proc.steps[0].description
+    result_col_proc = (
+        result["Processing of CH4"].loc[{"area (ISO3)": "COL"}].values.flat[0].history()
+    )
+    assert len(result_col_proc) == 1
+    assert result_col_proc[0].time == (primap2.TimeRange("2000", "2020"),)
+    assert result_col_proc[0].function == "substitution"
+    assert "'source': 'RAND2020'" in result_col_proc[0].description
+    assert "'scenario (FAOSTAT)': 'highpop'" in result_col_proc[0].description
 
     assert_copied_from_input_data(
         result["CH4"],
         input_data["CH4"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
         {"area": "ARG"},
     )
-    result_arg_proc = result["Processing of CH4"].loc[{"area (ISO3)": "ARG"}].values.flat[0]
-    assert len(result_arg_proc.steps) == 1
-    assert result_arg_proc.steps[0].time == "all"
-    assert result_arg_proc.steps[0].function == "substitution"
-    assert (
-        result_arg_proc.steps[0].source == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'}"
+    result_arg_proc = (
+        result["Processing of CH4"].loc[{"area (ISO3)": "ARG"}].values.flat[0].history()
     )
+    assert len(result_arg_proc) == 1
+    assert result_arg_proc[0].time == (primap2.TimeRange("2000", "2020"),)
+    assert result_arg_proc[0].function == "substitution"
+    assert result_arg_proc[0].source == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'}"
 
     assert_copied_from_input_data(
         result["CO2"],
         input_data["CO2"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
         {"area": "COL", "time": slice("2002", None)},
     )
-    result_col_co2_proc = result["Processing of CO2"].loc[{"area (ISO3)": "COL"}].values.flat[0]
-    assert len(result_col_co2_proc.steps) == 2
-    assert result_col_co2_proc.steps[0].function == "substitution"
+    result_col_co2_proc = (
+        result["Processing of CO2"].loc[{"area (ISO3)": "COL"}].values.flat[0].history()
+    )
+    assert len(result_col_co2_proc) == 2
+    assert result_col_co2_proc[0].function == "substitution"
     np.testing.assert_array_equal(
-        result_col_co2_proc.steps[1].time,
+        result_col_co2_proc[1].time_points(),
         np.array(["2000", "2001"], dtype=np.datetime64),
     )
-    assert result_col_co2_proc.steps[1].function == "substitution"
-    assert "'source': 'RAND2020'" in result_col_co2_proc.steps[0].description
-    assert "'scenario (FAOSTAT)': 'lowpop'" in result_col_co2_proc.steps[0].description
+    assert result_col_co2_proc[1].function == "substitution"
+    assert "'source': 'RAND2020'" in result_col_co2_proc[0].description
+    assert "'scenario (FAOSTAT)': 'lowpop'" in result_col_co2_proc[0].description
 
 
 def test_compose_exclude_result(opulent_ds):
@@ -381,19 +385,19 @@ def test_compose_skip_source(opulent_ds):
         {"category": "1"},
     )
 
-    tpd: primap2.TimeseriesProcessingDescription = (
+    tpd: primap2.ProcessingStepDescription = (
         result["Processing of CH4"].pr.loc[{"area": "COL", "category": "0"}].item()
     )
-    assert len(tpd.steps) == 2
-    assert tpd.steps[0].function == "compose_timeseries"
-    assert tpd.steps[0].time == "all"
+    assert len(tpd.history()) == 2
+    assert tpd.history()[0].function == "compose_timeseries"
+    assert tpd.history()[0].time == ()
     assert (
-        tpd.steps[0].description
+        tpd.history()[0].description
         == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'} is excluded from "
         "processing, skipped"
     )
-    assert tpd.steps[1].function == "substitution"
-    assert tpd.steps[1].source == ("{'source': 'RAND2021', 'scenario (FAOSTAT)': 'highpop'}")
+    assert tpd.history()[1].function == "substitution"
+    assert tpd.history()[1].source == ("{'source': 'RAND2021', 'scenario (FAOSTAT)': 'highpop'}")
 
 
 def test_compose_skip_variable(opulent_ds):
@@ -620,7 +624,7 @@ def test_compose_timeseries_trivial():
 
     input_data = xr.concat((da_a, da_b), dim="source", join="exact")
 
-    result_ts, result_description = primap2.csg._compose.compose_timeseries(
+    result_ts, result_step = primap2.csg._compose.compose_timeseries(
         input_data=input_data,
         priority_definition=priority_definition,
         strategy_definition=strategy_definition,
@@ -633,18 +637,14 @@ def test_compose_timeseries_trivial():
 
     xr.testing.assert_identical(result_ts, expected_ts)
 
-    assert len(result_description.steps) == 2
-    assert result_description.steps[0].time[0] == np.datetime64("1852-01-01")
-    assert result_description.steps[0].function == "substitution"
-    assert (
-        result_description.steps[0].description == "substituted with corresponding values from 'A'"
-    )
-    assert len(result_description.steps[1].time) == 1
-    assert result_description.steps[1].time[0] == np.datetime64("1850-01-01")
-    assert result_description.steps[1].function == "substitution"
-    assert (
-        result_description.steps[1].description == "substituted with corresponding values from 'B'"
-    )
+    result_description = result_step.history()
+    assert len(result_description) == 2
+    assert result_description[0].time == (primap2.TimeRange("1852", "2022"),)
+    assert result_description[0].function == "substitution"
+    assert result_description[0].description == "substituted with corresponding values from 'A'"
+    assert result_description[1].time == (primap2.TimeRange("1850", "1850"),)
+    assert result_description[1].function == "substitution"
+    assert result_description[1].description == "substituted with corresponding values from 'B'"
 
 
 def test_compose_timeseries_no_match(caplog):
@@ -696,14 +696,14 @@ def test_compose_timeseries_all_null():
     )
     input_data = xr.concat((da_a, da_b), dim="source", join="exact")
 
-    _, result_description = primap2.csg._compose.compose_timeseries(
+    _, result_step = primap2.csg._compose.compose_timeseries(
         input_data=input_data,
         priority_definition=priority_definition,
         strategy_definition=strategy_definition,
     )
 
-    print(result_description)
-    assert result_description.steps[1].description == "'B' is fully NaN, skipped"
+    print(result_step.format_history())
+    assert result_step.history()[1].description == "'B' is fully NaN, skipped"
 
 
 def test_compose_timeseries_priorities_wrong():

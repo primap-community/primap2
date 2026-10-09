@@ -78,6 +78,32 @@ class TestToNetCDF:
         assert nds["Processing of CO2"].isnull().all()
         xr.testing.assert_identical(ds, nds)
 
+    def test_processing_info_history(self, opulent_processing_ds: xr.Dataset, tmp_path):
+        """Processing steps with parents must round-trip, including shared ancestors."""
+        ds = opulent_processing_ds
+        created = ds["Processing of CO2"].values.flat[0]
+        filled = primap2.ProcessingStepDescription(
+            time=np.array(["2000", "2001"], dtype=np.datetime64),
+            function="fill",
+            description="filled",
+            parents=(created,),
+        )
+        ds["Processing of CO2"].data.flat[0] = primap2.ProcessingStepDescription(
+            time=primap2.TimeRange("2000", "2020"),
+            function="sum",
+            description="summed",
+            parents=(filled, created),
+        )
+
+        ds.pr.to_netcdf(tmp_path / "temp.nc")
+        nds = primap2.open_dataset(tmp_path / "temp.nc")
+
+        summed = nds["Processing of CO2"].values.flat[0]
+        assert [step.function for step in summed.history()] == ["random", "fill", "sum"]
+        nfilled, ncreated = summed.parents
+        assert nfilled.parents[0] is ncreated
+        assert summed == ds["Processing of CO2"].values.flat[0]
+
 
 class TestEnsureValid:
     def test_something_else_entirely(self, caplog):
@@ -99,7 +125,10 @@ class TestEnsureValid:
         enough to check that it doesn't raise - nothing may be logged either.
         """
         caplog.set_level(logging.INFO)
-        ds = primap2.pm2io.from_interchange_format(any_ds.pr.to_interchange_format())
+        # the interchange format can not represent processing information yet
+        ds = primap2.pm2io.from_interchange_format(
+            any_ds.pr.remove_processing_info().pr.to_interchange_format()
+        )
         ds.pr.ensure_valid()
         assert not caplog.records
 

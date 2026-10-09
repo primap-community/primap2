@@ -1,20 +1,23 @@
 import contextlib
 import datetime
 import pathlib
-import typing
 from collections.abc import Hashable, Iterable, Mapping
 from typing import IO
 
-import msgpack
 import numpy as np
 import pandas as pd
 import pint
 import xarray as xr
-from attr import define
 from loguru import logger
 
 from . import _accessor_base, pm2io
-from ._processing_info import is_processing_variable, processing_variable_name
+from ._processing_info import (
+    ProcessingStepDescription,
+    ProcessingStepRecorder,
+    ensure_no_processing_info,
+    is_processing_variable,
+    processing_variable_name,
+)
 from ._selection import translations_from_dims
 from ._units import is_single_gas, ureg
 
@@ -85,9 +88,9 @@ def open_dataset(
         ds.attrs["publication_date"] = datetime.date.fromisoformat(ds.attrs["publication_date"])
     for entity in ds:
         if is_processing_variable(entity):
-            ds[entity].data = np.vectorize(
-                TimeseriesProcessingDescription.deserialize, otypes=[object]
-            )(ds[entity].data)
+            ds[entity].data = np.vectorize(ProcessingStepDescription.deserialize, otypes=[object])(
+                ds[entity].data
+            )
     return ds
 
 
@@ -130,6 +133,9 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         -------
         df: pd.DataFrame
         """
+        # TODO: we need to decide how to store the processing info in the interchange format
+        ensure_no_processing_info(self._ds)
+
         dsd = self._ds.pr.dequantify()
 
         dsd["time"] = dsd["time"].dt.strftime(time_format)
@@ -143,8 +149,6 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         dfs = []
         entities = []
         for x in dsd:
-            if is_processing_variable(x):
-                continue
             entities.append(x)
             df = (
                 dsd[x]
@@ -262,7 +266,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             ds.attrs["publication_date"] = ds.attrs["publication_date"].isoformat()
         for entity in ds:
             if is_processing_variable(entity) and ds[entity].data.dtype == object:
-                ds[entity].data = np.vectorize(TimeseriesProcessingDescription.serialize_optional)(
+                ds[entity].data = np.vectorize(ProcessingStepDescription.serialize_optional)(
                     ds[entity].data
                 )
 
@@ -279,6 +283,62 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
     def remove_processing_info(self) -> xr.Dataset:
         """Return dataset with all variables with processing information removed."""
         return self._ds.drop_vars([var for var in self._ds if is_processing_variable(var)])
+
+    def processing_step(
+        self,
+        *,
+        function: str,
+        description_template: str,
+        source: str | None = None,
+        other_ds: xr.Dataset | None = None,
+    ) -> ProcessingStepRecorder:
+        """Record a processing step for every timeseries changed within a ``with`` block.
+
+        Within the block, work on ``step.ds``, which is a deep copy of the dataset
+        without processing information, and assign the result back to ``step.ds``.
+        After the block, ``step.result`` is the processed dataset including the updated
+        processing information. For each timeseries, it is:
+
+        * the processing information of the dataset, if the timeseries was not changed.
+        * a new processing step, if the timeseries was changed. Its parents are the
+          processing information of the dataset and of ``other_ds`` at the same
+          coordinates.
+        * the processing information of ``other_ds``, if the timeseries did not exist in
+          the dataset.
+
+        The dimensions of the data variables have to stay the same.
+
+        Examples
+        --------
+        >>> # xdoctest: +SKIP
+        >>> with ds.pr.processing_step(
+        ...     function="interpolate_na",
+        ...     description_template="interpolated <var> for <coords>",
+        ... ) as step:
+        ...     step.ds = step.ds.interpolate_na(dim="time")
+        >>> ds = step.result
+
+        Parameters
+        ----------
+        function
+            The name of the function which does the processing.
+        description_template
+            Human-readable description of the processing step, in which "<coords>" is
+            replaced by the coordinates of each changed timeseries and "<var>" by the
+            name of its data variable.
+        source
+            Optional: a short identifier for the source of the data which is used for the
+            processing.
+        other_ds
+            Optional: dataset from which data is taken in the block.
+        """
+        return ProcessingStepRecorder(
+            self._ds,
+            function=function,
+            description_template=description_template,
+            source=source,
+            other_ds=other_ds,
+        )
 
     def has_processing_info(self) -> bool:
         """True if the dataset has processing information for at least one entity."""
@@ -425,8 +485,9 @@ def ensure_valid_data_variables(ds: xr.Dataset):
         else:
             ensure_not_gwp(key, da)
 
-        if "described_variable" in da.attrs or is_processing_variable(key):
+        if is_processing_variable(key):
             ensure_processing_variable_name(str(key), da)
+            ensure_processing_variable_dimensions(ds, str(key), da)
 
 
 def ensure_unique_gas_representation(ds: xr.Dataset) -> None:
@@ -469,6 +530,34 @@ def ensure_processing_variable_name(name: str, da: xr.DataArray) -> None:
         raise ValueError(
             f"variable name {name!r} inconsistent with described_variable"
             f" {da.attrs['described_variable']!r}"
+        )
+
+
+def ensure_processing_variable_dimensions(ds: xr.Dataset, name: str, da: xr.DataArray) -> None:
+    """Ensure processing information describes exactly the timeseries of its variable.
+
+    The described variable has to be contained in the dataset and the processing
+    information has to have the same dimensions as the described variable, with the
+    exception of the "time" dimension, which it must not have. Note that the reverse is
+    not required: variables without processing information are fine.
+    """
+    described_variable = da.attrs["described_variable"]
+    if described_variable not in ds:
+        logger.error(
+            f"{name!r} contains processing information for {described_variable!r}, "
+            f"which is not contained in the dataset."
+        )
+        raise ValueError(f"described_variable {described_variable!r} not in dataset for {name!r}")
+
+    described_dims = {dim for dim in ds[described_variable].dims if dim != "time"}
+    if described_dims != set(da.dims):
+        logger.error(
+            f"{name!r} has dimensions {sorted(str(dim) for dim in da.dims)!r}, but the "
+            f"described variable {described_variable!r} has dimensions "
+            f"{sorted(str(dim) for dim in described_dims)!r} apart from 'time'."
+        )
+        raise ValueError(
+            f"dimensions of {name!r} inconsistent with described_variable {described_variable!r}"
         )
 
 
@@ -607,119 +696,3 @@ def ensure_valid_dimensions(ds: xr.Dataset):
     for dim in required_indirect_dims.union(optional_indirect_dims):
         if dim in ds.attrs:
             split_dim_name(ds.attrs[dim])
-
-
-@define(frozen=True, kw_only=True)
-class ProcessingStepDescription:
-    """Structured description of a processing step done on a timeseries.
-
-    Attributes
-    ----------
-    time
-        Time points for which data was changed during the processing step. Use
-        "all" if all time points were changed or it is not specified which time
-        points were changed.
-    function
-        The name of the function which did the processing.
-    description
-        Human-readable description of the processing step.
-    source
-        Optional: a short identifier for the source of the data which was used for the
-        processing.
-    """
-
-    time: np.ndarray[np.datetime64] | typing.Literal["all"]
-    function: str
-    description: str
-    source: str | None = None
-
-    def __str__(self) -> str:
-        if self.source is None:
-            return f"Using function={self.function} for times={self.time}: {self.description}"
-        else:
-            return (
-                f"Using function={self.function} with source={self.source} for "
-                f"times={self.time}: {self.description}"
-            )
-
-    def unstructure(self) -> dict[str, typing.Any]:
-        """Convert into basic python types."""
-        return {
-            "time": "all"
-            if isinstance(self.time, str) and self.time == "all"
-            else list(
-                np.datetime_as_string(
-                    self.time,
-                    unit="Y",
-                )
-            ),
-            "description": self.description,
-            "function": self.function,
-            "source": self.source,
-        }
-
-    @classmethod
-    def structure(cls, u: dict[str, typing.Any]) -> "ProcessingStepDescription":
-        """Initialize from basic python types as created by "unstructure"."""
-        time = u.pop("time")
-        return cls(time="all" if time == "all" else np.array(time, dtype=np.datetime64), **u)
-
-
-@define(frozen=True)
-class TimeseriesProcessingDescription:
-    """Structured description of all processing steps done on a timeseries.
-
-    Attributes
-    ----------
-    steps
-        Steps that were performed during processing, in order from first to last.
-    """
-
-    steps: list[ProcessingStepDescription]
-
-    def __str__(self) -> str:
-        return "\n".join(str(step) for step in self.steps)
-
-    def serialize(self) -> bytes:
-        """Convert into binary data, e.g. for saving to disk."""
-        return msgpack.packb({"steps": [x.unstructure() for x in self.steps]}, use_bin_type=True)
-
-    @staticmethod
-    def serialize_optional(
-        processing: "TimeseriesProcessingDescription | None",
-    ) -> bytes:
-        """Convert into binary data, also for missing processing information.
-
-        Processing information can be missing for individual timeseries, for example
-        if a dataset uses different categories for different variables. Missing
-        processing information is represented by empty binary data.
-
-        Parameters
-        ----------
-        processing
-            A TimeseriesProcessingDescription, or a null value (``None`` or NaN) if
-            no processing information is available for the timeseries.
-        """
-        if pd.isnull(processing):
-            return b""
-        return processing.serialize()
-
-    @classmethod
-    def deserialize(cls, b: bytes) -> "TimeseriesProcessingDescription | None":
-        """Parse from binary data as produced by "serialize" or "serialize_optional".
-
-        Parameters
-        ----------
-        b
-            Binary data representing a TimeseriesProcessingDescription, or empty
-            binary data if no processing information is available for the timeseries.
-
-        Returns
-        -------
-        processing : TimeseriesProcessingDescription or None
-            ``None`` is returned for empty binary data.
-        """
-        if not b:
-            return None
-        ust = msgpack.unpackb(b, raw=False, use_list=False)
-        return cls(steps=[ProcessingStepDescription.structure(x) for x in ust["steps"]])

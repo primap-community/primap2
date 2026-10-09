@@ -574,18 +574,18 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         if not isinstance(value, xr.Dataset):
             raise TypeError(f"value must be a Dataset, not {type(value)}")
 
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
+        with self._ds.pr.processing_step(
+            function="set",
+            description_template=f"set values for {dim}={key!r} (<var>; <coords>)",
+            other_ds=value,
+        ) as step:
+            step.ds = step.ds.map(
+                self._set_apply,
+                keep_attrs=True,
+                dim=dim,
+                key=key,
+                value=value.pr.remove_processing_info(),
+                existing=existing,
+                new=new,
             )
-
-        return self._ds.map(
-            self._set_apply,
-            keep_attrs=True,
-            dim=dim,
-            key=key,
-            value=value,
-            existing=existing,
-            new=new,
-        )
+        return step.result

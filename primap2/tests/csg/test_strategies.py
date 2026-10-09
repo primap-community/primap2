@@ -49,7 +49,7 @@ def test_substitution_strategy():
     assert result_ts[0] == 2.0
     assert (result_ts[1:] == 1.0).all()
     assert len(result_descriptions) == 1
-    assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
+    assert result_descriptions[0].time == (primap2.TimeRange("1850", "1850"),)
     assert result_descriptions[0].description == "substituted with corresponding values from B"
     assert "source" not in result_ts.coords
 
@@ -64,7 +64,7 @@ def test_globalLS_strategy():
     )
     xr.testing.assert_allclose(ts, result_ts)
     assert len(result_descriptions) == 1
-    assert len(result_descriptions[0].time) == 0  # comparison of results fails
+    assert result_descriptions[0].time == ()
     assert result_descriptions[0].description == "no additional data in B"
 
     # allow_shift = False
@@ -74,7 +74,7 @@ def test_globalLS_strategy():
     )
     xr.testing.assert_allclose(get_single_ts(data=1.0), result_ts)
     assert len(result_descriptions) == 1
-    assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
+    assert result_descriptions[0].time == (primap2.TimeRange("1850", "1850"),)
     assert (
         result_descriptions[0].description
         == "filled with least squares matched data from B. Factor=0.500"
@@ -91,7 +91,7 @@ def test_globalLS_strategy():
     expected_ts[0] = 0.5
     xr.testing.assert_allclose(expected_ts, result_ts)
     assert len(result_descriptions) == 1
-    assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
+    assert result_descriptions[0].time == (primap2.TimeRange("1850", "1850"),)
     assert (
         result_descriptions[0].description == "filled with least squares matched data from B. "
         "a*x+b with a=1.000, b=-1.000"
@@ -136,7 +136,7 @@ def test_localTrends_strategy():
     )
     xr.testing.assert_allclose(ts, result_ts)
     assert len(result_descriptions) == 1
-    assert len(result_descriptions[0].time) == 0  # comparison of results fails
+    assert result_descriptions[0].time == ()
     assert result_descriptions[0].description == "no additional data in B"
 
     # fill a gap at the start
@@ -146,7 +146,7 @@ def test_localTrends_strategy():
     )
     xr.testing.assert_allclose(get_single_ts(data=1.0), result_ts)
     assert len(result_descriptions) == 1
-    assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
+    assert result_descriptions[0].time == (primap2.TimeRange("1850", "1850"),)
     assert (
         result_descriptions[0].description == "filled with local trend matched data from B. "
         "The following gaps have been filled: "
@@ -160,8 +160,9 @@ def test_localTrends_strategy():
     )
     xr.testing.assert_allclose(get_single_ts(data=1.0), result_ts)
     assert len(result_descriptions) == 1
-    assert all(
-        result_descriptions[0].time == np.array(["1850", "1870", "1871"], dtype=np.datetime64)
+    np.testing.assert_array_equal(
+        result_descriptions[0].time_points(),
+        np.array(["1850", "1870", "1871"], dtype=np.datetime64),
     )
     assert (
         result_descriptions[0].description == "filled with local trend matched data from B. "
@@ -179,7 +180,7 @@ def test_localTrends_strategy():
     expected_ts = ts.copy()
     expected_ts[0] = 1
     xr.testing.assert_allclose(expected_ts, result_ts)
-    assert all(result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64))
+    assert result_descriptions[0].time == (primap2.TimeRange("1850", "1850"),)
     assert (
         result_descriptions[0].description == "filled with local trend matched data from B. "
         "The following gaps have been filled: "
@@ -201,7 +202,10 @@ def test_localTrends_strategy():
     expected_ts[20] = 1
     expected_ts[21] = 3
     xr.testing.assert_allclose(expected_ts, result_ts)
-    assert all(result_descriptions[0].time == np.array(["1870", "1871"], dtype=np.datetime64))
+    assert result_descriptions[0].time == (
+        primap2.TimeRange("1870", "1870"),
+        primap2.TimeRange("1871", "1871"),
+    )
     assert (
         result_descriptions[0].description == "filled with local trend matched data from B. "
         "The following gaps have been filled: "

@@ -10,26 +10,19 @@ import xarray as xr
 
 import primap2
 from primap2 import pm2io
-from primap2._processing_info import is_processing_variable
 
 from . import utils
 
 
 def test_round_trip(any_ds: xr.Dataset, tmp_path):
     path = tmp_path / "if"
-    pm2io.write_interchange_format(path, any_ds.pr.to_interchange_format())
+    # the interchange format has no representation for processing information yet
+    expected = any_ds.pr.remove_processing_info()
+    pm2io.write_interchange_format(path, expected.pr.to_interchange_format())
     with path.with_suffix(".yaml").open() as fd:
         print(fd.read())
     actual = pm2io.from_interchange_format(pm2io.read_interchange_format(path))
-    # we expect that Processing information is lost here
-    expected = any_ds
-    to_remove = []
-    for var in expected:
-        if is_processing_variable(var) and "described_variable" in expected[var].attrs:
-            to_remove.append(var)
-    for var in to_remove:
-        del expected[var]
-    utils.assert_ds_aligned_equal(any_ds, actual)
+    utils.assert_ds_aligned_equal(expected, actual)
 
 
 def test_missing_file(minimal_ds, tmp_path):
