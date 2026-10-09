@@ -11,7 +11,16 @@ import xarray as xr
 from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
-from ._processing_info import ensure_no_processing_info
+
+
+def _data_and_other_ds(
+    other: xr.Dataset | xr.DataArray, ds: xr.Dataset
+) -> tuple[xr.Dataset | xr.DataArray, xr.Dataset]:
+    """``other`` without processing information, and as a dataset with processing
+    information. A DataArray is used for all data variables of ``ds``."""
+    if isinstance(other, xr.Dataset):
+        return other.pr.remove_processing_info(), other
+    return other, xr.Dataset({var: other for var in ds.pr.remove_processing_info().data_vars})
 
 
 class DataArrayFillAccessor(BaseDataArrayAccessor):
@@ -125,10 +134,17 @@ class DatasetFillAccessor(BaseDatasetAccessor):
             filled
                 calling Dataset where nan values are filled from ds_fill where possible
         """
-        ensure_no_processing_info(self._ds)
+        ds_fill, other_ds = _data_and_other_ds(ds_fill, self._ds)
+        with self._ds.pr.processing_step(
+            function="fillna",
+            description_template="filled missing values (<var>; <coords>)",
+            other_ds=other_ds,
+        ) as step:
+            step.ds = self._fillna(step.ds, ds_fill)
+        return step.result
 
-        ds_start = self._ds
-
+    @staticmethod
+    def _fillna(ds_start: xr.Dataset, ds_fill: xr.Dataset | xr.DataArray) -> xr.Dataset:
         coords_start = ds_start.coords
         coords_fill = ds_fill.coords
         filled = ds_start.fillna(ds_fill)
@@ -173,10 +189,17 @@ class DatasetFillAccessor(BaseDatasetAccessor):
             combined
                 calling Dataset calling DataArray combined with da_combine
         """
-        ensure_no_processing_info(self._ds)
+        ds_combine, other_ds = _data_and_other_ds(ds_combine, self._ds)
+        with self._ds.pr.processing_step(
+            function="combine_first",
+            description_template="combined with other data (<var>; <coords>)",
+            other_ds=other_ds,
+        ) as step:
+            step.ds = self._combine_first(step.ds, ds_combine)
+        return step.result
 
-        ds_start = self._ds
-
+    @staticmethod
+    def _combine_first(ds_start: xr.Dataset, ds_combine: xr.Dataset | xr.DataArray) -> xr.Dataset:
         coords_start = ds_start.coords
         coords_fill = ds_combine.coords
         filled = ds_start.combine_first(ds_combine)

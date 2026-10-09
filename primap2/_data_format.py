@@ -285,15 +285,28 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         return self._ds.drop_vars([var for var in self._ds if is_processing_variable(var)])
 
     def processing_step(
-        self, *, function: str, description_template: str, source: str | None = None
+        self,
+        *,
+        function: str,
+        description_template: str,
+        source: str | None = None,
+        other_ds: xr.Dataset | None = None,
     ) -> ProcessingStepRecorder:
         """Record a processing step for every timeseries changed within a ``with`` block.
 
         Within the block, work on ``step.ds``, which is a deep copy of the dataset
         without processing information, and assign the result back to ``step.ds``.
         After the block, ``step.result`` is the processed dataset including the updated
-        processing information. Only changes of values are supported, the data
-        variables, dimensions and coordinates have to stay the same.
+        processing information. For each timeseries, it is:
+
+        * the processing information of the dataset, if the timeseries was not changed.
+        * a new processing step, if the timeseries was changed. Its parents are the
+          processing information of the dataset and of ``other_ds`` at the same
+          coordinates.
+        * the processing information of ``other_ds``, if the timeseries did not exist in
+          the dataset.
+
+        The dimensions of the data variables have to stay the same.
 
         Examples
         --------
@@ -316,12 +329,15 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         source
             Optional: a short identifier for the source of the data which is used for the
             processing.
+        other_ds
+            Optional: dataset from which data is taken in the block.
         """
         return ProcessingStepRecorder(
             self._ds,
             function=function,
             description_template=description_template,
             source=source,
+            other_ds=other_ds,
         )
 
     def has_processing_info(self) -> bool:

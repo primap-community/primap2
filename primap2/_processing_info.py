@@ -288,42 +288,6 @@ def _changed_values(old_da: xr.DataArray, new_da: xr.DataArray) -> xr.DataArray:
     return (old_da != new_da) & ~(old_da.isnull() & new_da.isnull())
 
 
-def _ensure_matching_dimensions(
-    *, old_da: xr.DataArray, new_da: xr.DataArray, processing_infos: xr.DataArray
-) -> None:
-    """Ensure that data and processing information describe the same timeseries.
-
-    Raises
-    ------
-    ValueError
-        If the dimensions or coordinates of the given arrays don't match.
-    """
-    if "time" not in new_da.dims:
-        raise ValueError(
-            f"The data has no 'time' dimension, its dimensions are "
-            f"{sorted(str(dim) for dim in new_da.dims)!r}."
-        )
-    if set(old_da.dims) != set(new_da.dims):
-        raise ValueError(
-            f"Dimensions of old_da {sorted(str(dim) for dim in old_da.dims)!r} and new_da "
-            f"{sorted(str(dim) for dim in new_da.dims)!r} don't match."
-        )
-    described_dims = {dim for dim in new_da.dims if dim != "time"}
-    if described_dims != set(processing_infos.dims):
-        raise ValueError(
-            f"Dimensions of the processing information "
-            f"{sorted(str(dim) for dim in processing_infos.dims)!r} don't match the "
-            f"dimensions of the data {sorted(str(dim) for dim in described_dims)!r}."
-        )
-
-    # xarray would silently align the arrays on the intersection of their coordinates,
-    # which would compare and describe the wrong timeseries, so require equal coordinates
-    try:
-        xr.align(old_da, new_da, processing_infos, join="exact")
-    except ValueError as err:
-        raise ValueError(f"Coordinate values of the given arrays don't match: {err}") from err
-
-
 def _coordinate_value(coords: xr.DataArray, index: int) -> typing.Any:
     """A single coordinate value as a plain python object."""
     value = coords.data[index]
@@ -335,116 +299,183 @@ def _coordinates_repr(coordinates: dict[str, typing.Any]) -> str:
     return ", ".join(f"{dim}={value!r}" for dim, value in coordinates.items())
 
 
-def add_processing_step_on_change(
+def _dims_repr(dims: typing.Iterable[typing.Hashable]) -> str:
+    return repr(sorted(str(dim) for dim in dims))
+
+
+def _described(da: xr.DataArray) -> xr.DataArray:
+    """The array without its "time" dimension, i.e. with one value per timeseries."""
+    if "time" not in da.dims:
+        raise ValueError(
+            f"{da.name!r} has no 'time' dimension, its dimensions are {_dims_repr(da.dims)}."
+        )
+    return da.isel(time=0, drop=True)
+
+
+def _on_template(da: xr.DataArray, template: xr.DataArray, fill_value) -> np.ndarray:
+    """The values of ``da`` for each timeseries of ``template``, broadcasting ``da`` along
+    dimensions it doesn't have."""
+    if not set(da.dims) <= set(template.dims):
+        raise ValueError(
+            f"Dimensions of {da.name!r} {_dims_repr(da.dims)} are not a subset of the "
+            f"dimensions of the result {_dims_repr(template.dims)}."
+        )
+    # non-index coordinates like a scalar coordinate of a selected value would conflict
+    # with the dimensions of the result
+    reindexed = da.reset_coords(drop=True).reindex(
+        {dim: template[dim] for dim in da.dims}, fill_value=fill_value, copy=False
+    )
+    return reindexed.broadcast_like(template).transpose(*template.dims).values
+
+
+def _exists(da: xr.DataArray, template: xr.DataArray) -> np.ndarray:
+    """Boolean array which is True for each timeseries of ``template`` also in ``da``."""
+    described = _described(da)
+    present = xr.DataArray(
+        np.ones(described.shape, dtype=bool),
+        dims=described.dims,
+        coords={dim: described[dim] for dim in described.dims},
+        name=da.name,
+    )
+    return _on_template(present, template, fill_value=False)
+
+
+def _processing_infos_on_template(
+    data: xr.DataArray, processing_infos: xr.DataArray, template: xr.DataArray
+) -> np.ndarray:
+    """The processing information for each timeseries of ``template``."""
+    try:
+        xr.align(_described(data), processing_infos, join="exact")
+    except ValueError as err:
+        raise ValueError(
+            f"Processing information {processing_infos.name!r} doesn't match the data it "
+            f"describes: {err}"
+        ) from err
+    return _on_template(processing_infos, template, fill_value=None)
+
+
+def _processing_infos_on_change(
     *,
-    old_da: xr.DataArray,
+    var: typing.Hashable,
+    old_ds: xr.Dataset,
     new_da: xr.DataArray,
-    processing_infos: xr.DataArray,
+    other_ds: xr.Dataset | None,
     function: str,
     description_template: str,
-    source: str | None = None,
+    source: str | None,
 ) -> xr.DataArray:
-    """For every timeseries of ``new_da`` that was changed compared to ``old_da``, append a new
-    processing step to the corresponding processing information. ``description_template`` is used
-    as a template for the appended processing steps description in which "<coords>" will be replaced
-    by the coordinates of the affected timeseries. The times will be set automatically to a list of
-    the changed timepoints.
+    """The processing information of ``new_da``, see add_processing_step_on_change_ds."""
+    name = processing_variable_name(var)
+    template = _described(new_da)
+    dims = template.dims
+    n_timeseries = template.shape
 
-    Timeseries whose processing information is missing are left untouched.
-
-    Parameters
-    ----------
-    old_da
-        Pre-modification data.
-    new_da
-        Post-modification data. Has to have the same dimensions and coordinates as
-        ``old_da``, only the values may differ.
-    processing_infos
-        The processing information variable describing ``old_da``. Has to have the same
-        dimensions and coordinates as the data, with the exception of the "time"
-        dimension, which it does not have. It is not modified.
-    function
-        The name of the function which did the processing.
-    description_template
-        Human-readable description of the processing step, optionally including the "<coords>"
-        placeholder.
-    source
-        Optional: a short identifier for the source of the data which was used for the
-        processing.
-
-    Returns
-    -------
-    : xr.DataArray
-        A copy of ``processing_infos`` with the new processing step appended to each
-        affected timeseries.
-
-    Raises
-    ------
-    ValueError
-        If the dimensions or coordinates of the data and the processing information
-        don't match.
-    """
-    _ensure_matching_dimensions(old_da=old_da, new_da=new_da, processing_infos=processing_infos)
-
-    changed = _changed_values(old_da, new_da)
-    times = changed["time"].data
-    # steps are immutable, so a shallow copy of the array is enough and keeps the
-    # history shared between timeseries
-    result = processing_infos.copy(deep=False, data=processing_infos.data.copy())
-    for index in np.ndindex(processing_infos.shape):
-        processing = processing_infos.data[index]
-        if pd.isnull(processing):
-            continue
-
-        selection = dict(zip(processing_infos.dims, index, strict=True))
-        changed_times = times[changed.isel(selection).data]
-        if not len(changed_times):
-            continue
-
-        coordinates = {
-            str(dim): _coordinate_value(processing_infos.coords[dim], i)
-            for dim, i in selection.items()
-            if dim in processing_infos.coords
-        }
-
-        result.data[index] = ProcessingStepDescription(
-            time=changed_times,
-            function=function,
-            description=description_template.replace("<coords>", _coordinates_repr(coordinates)),
-            source=source,
-            parents=(processing,),
+    in_old = var in old_ds
+    in_other = other_ds is not None and var in other_ds
+    if in_old:
+        old_da = old_ds[var]
+        if set(old_da.dims) != set(new_da.dims):
+            raise ValueError(
+                f"Dimensions of {var!r} changed from {_dims_repr(old_da.dims)} to "
+                f"{_dims_repr(new_da.dims)}."
+            )
+        old_exists = _exists(old_da, template)
+        old_infos = _processing_infos_on_template(old_da, old_ds[name], template)
+        changed = (
+            _changed_values(old_da.reindex_like(new_da), new_da).transpose(*dims, "time").values
         )
+    else:
+        old_exists = np.zeros(n_timeseries, dtype=bool)
+    if in_other:
+        other_exists = _exists(other_ds[var], template)
+    else:
+        other_exists = np.zeros(n_timeseries, dtype=bool)
+    if in_other and name in other_ds:
+        other_infos = _processing_infos_on_template(other_ds[var], other_ds[name], template)
+    else:
+        other_infos = np.full(n_timeseries, None, dtype=object)
+    has_data = new_da.notnull().any("time").transpose(*dims).values
 
-    return result
+    times = new_da["time"].values
+    result = np.full(n_timeseries, None, dtype=object)
+    for index in np.ndindex(n_timeseries):
+        other = None if pd.isnull(other_infos[index]) else other_infos[index]
+        if old_exists[index]:
+            old = old_infos[index]
+            if pd.isnull(old):
+                continue
+            changed_times = times[changed[index]]
+            if not len(changed_times):
+                result[index] = old
+                continue
+            coordinates = {
+                str(dim): _coordinate_value(template[dim], i)
+                for dim, i in zip(dims, index, strict=True)
+            }
+            result[index] = ProcessingStepDescription(
+                time=changed_times,
+                function=function,
+                description=description_template.replace(
+                    "<coords>", _coordinates_repr(coordinates)
+                ),
+                source=source,
+                parents=(old,) if other is None else (old, other),
+            )
+        elif other_exists[index]:
+            result[index] = other
+        elif has_data[index]:
+            raise ValueError(
+                f"A timeseries of {var!r} contains data, but exists neither in old_ds nor "
+                f"in other_ds, so its history is unknown."
+            )
+
+    return xr.DataArray(
+        result,
+        dims=dims,
+        coords=template.coords,
+        name=name,
+        attrs={"entity": name, "described_variable": var},
+    )
 
 
 def add_processing_step_on_change_ds(
     *,
     old_ds: xr.Dataset,
     new_ds: xr.Dataset,
+    other_ds: xr.Dataset | None = None,
     function: str,
     description_template: str,
     source: str | None = None,
 ) -> xr.Dataset:
-    """For every timeseries of ``new_ds`` that was changed compared to ``old_ds``, append a new
-    processing step to the corresponding processing information. ``description_template`` is used
-    as a template for the appended processing steps description in which "<coords>" will be replaced
-    by the coordinates of the affected timeseries and "<var>" will be replaced by the name of the
-    data variable it belongs to. The times will be set automatically to a list of the changed
-    timepoints.
+    """Determine the processing information of ``new_ds``, which was derived from
+    ``old_ds`` and optionally ``other_ds``.
 
-    Variables without processing information and timeseries whose processing information
-    is missing are left untouched, so a dataset without processing information stays a
-    dataset without processing information.
+    For each timeseries of ``new_ds``, the processing information is:
+
+    * the processing information of ``old_ds``, if the timeseries is unchanged compared
+      to ``old_ds``.
+    * a new processing step, if the timeseries was changed compared to ``old_ds``. Its
+      parents are the processing information of ``old_ds`` and of ``other_ds`` at the
+      same coordinates, if available. ``description_template`` is used as a template for
+      its description, in which "<coords>" is replaced by the coordinates of the
+      timeseries and "<var>" by the name of its data variable. Its times are the changed
+      time points.
+    * the processing information of ``other_ds``, if the timeseries does not exist in
+      ``old_ds``, but in ``other_ds``.
+
+    Processing information which is missing in ``old_ds`` stays missing, and variables
+    without processing information stay without processing information.
 
     Parameters
     ----------
     old_ds
         Pre-modification dataset including processing information.
     new_ds
-        Post-modification dataset. Has to contain the same data variables with the same
-        dimensions and coordinates as ``old_ds``, only the values may differ. Processing
-        information is taken from here if it is contained, and from ``old_ds`` otherwise.
+        Post-modification dataset. Its data variables have to have the same dimensions
+        as in ``old_ds``. Processing information contained in it is ignored.
+    other_ds
+        Optional: dataset including processing information from which the changed values
+        in ``new_ds`` were taken. It may lack dimensions of ``new_ds``.
     function
         The name of the function which did the processing.
     description_template
@@ -457,38 +488,38 @@ def add_processing_step_on_change_ds(
     Returns
     -------
     : xr.Dataset
-        A copy of ``new_ds`` in which the new processing step is appended to the
-        processing information of each affected timeseries.
+        A copy of ``new_ds`` with the processing information.
 
     Raises
     ------
     ValueError
-        If the data variables, dimensions or coordinates of ``old_ds`` and ``new_ds``
-        don't match, or if the processing information doesn't match the data it
-        describes.
+        If the dimensions of a data variable changed, if the processing information
+        doesn't match the data it describes, or if a timeseries of ``new_ds`` contains
+        data but exists neither in ``old_ds`` nor in ``other_ds``.
     """
-    old_vars = {var for var in old_ds.data_vars if not is_processing_variable(var)}
-    new_vars = {var for var in new_ds.data_vars if not is_processing_variable(var)}
-    if old_vars != new_vars:
-        raise ValueError(
-            f"Data variables of old_ds {sorted(str(var) for var in old_vars)!r} and new_ds "
-            f"{sorted(str(var) for var in new_vars)!r} don't match."
-        )
-
+    new_ds = _without_processing_info(new_ds)
     result = new_ds.copy()
-    for var in sorted(new_vars, key=str):
+    for var in new_ds.data_vars:
         name = processing_variable_name(var)
-        if name in new_ds:
-            processing_infos = new_ds[name]
-        elif name in old_ds:
-            processing_infos = old_ds[name]
+        if var in old_ds:
+            tracked = name in old_ds
+        elif other_ds is not None and var in other_ds:
+            tracked = name in other_ds
         else:
+            tracked = any(is_processing_variable(x) for x in old_ds) or (
+                other_ds is not None and any(is_processing_variable(x) for x in other_ds)
+            )
+            if tracked:
+                raise ValueError(
+                    f"{var!r} exists neither in old_ds nor in other_ds, so its history is unknown."
+                )
+        if not tracked:
             continue
-
-        result[name] = add_processing_step_on_change(
-            old_da=old_ds[var],
+        result[name] = _processing_infos_on_change(
+            var=var,
+            old_ds=old_ds,
             new_da=new_ds[var],
-            processing_infos=processing_infos,
+            other_ds=other_ds,
             function=function,
             description_template=description_template.replace("<var>", str(var)),
             source=source,
@@ -509,8 +540,8 @@ class ProcessingStepRecorder:
     processing has to be assigned to ``ds``. After the block, ``result`` is the processed
     dataset including the updated processing information.
 
-    Only changes of values are supported, the data variables, dimensions and
-    coordinates have to stay the same.
+    How the processing information is determined is described in
+    add_processing_step_on_change_ds.
     """
 
     def __init__(
@@ -520,8 +551,10 @@ class ProcessingStepRecorder:
         function: str,
         description_template: str,
         source: str | None = None,
+        other_ds: xr.Dataset | None = None,
     ):
         self._original = ds
+        self._other_ds = other_ds
         self._function = function
         self._description_template = description_template
         self._source = source
@@ -537,6 +570,7 @@ class ProcessingStepRecorder:
         self._result = add_processing_step_on_change_ds(
             old_ds=self._original,
             new_ds=self.ds,
+            other_ds=self._other_ds,
             function=self._function,
             description_template=self._description_template,
             source=self._source,

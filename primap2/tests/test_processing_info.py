@@ -239,11 +239,207 @@ def test_processing_step_result_within_block():
         _ = s.result
 
 
-def test_processing_step_changed_coordinates():
+def test_processing_step_changed_dimensions():
     ds = processing_ds()
 
     with (
-        pytest.raises(ValueError, match="Coordinate values"),
+        pytest.raises(ValueError, match="Dimensions of 'CO2' changed"),
         ds.pr.processing_step(function="f", description_template="d") as s,
     ):
+        s.ds = s.ds.sum("area (ISO3)")
+
+
+def test_processing_step_selection():
+    ds = processing_ds()
+
+    with ds.pr.processing_step(function="f", description_template="d") as s:
         s.ds = s.ds.pr.loc[{"area": ["COL"]}]
+
+    assert list(s.result["Processing of CO2"].values) == [step("a")]
+
+
+def other_ds(*, dims=("area (ISO3)",), with_processing_info=True) -> xr.Dataset:
+    """CO2 for COL and MEX, and CH4 for COL."""
+    time = pd.date_range("2000", "2002", freq="YS")
+    if dims:
+        coords = {"area (ISO3)": ["COL", "MEX"], "time": time}
+        co2 = [[5.0, 5.0, 5.0], [6.0, 6.0, 6.0]]
+        co2_steps = np.array([step("c"), step("d")], dtype=object)
+    else:
+        coords = {"time": time}
+        co2 = [5.0, 5.0, 5.0]
+        co2_steps = np.array(step("c"), dtype=object)
+    ds = xr.Dataset(
+        {
+            "CO2": xr.DataArray(
+                co2,
+                dims=[*dims, "time"],
+                coords=coords,
+                attrs={"entity": "CO2", "units": "Gg CO2 / year"},
+            ),
+            "CH4": xr.DataArray(
+                [[1.0, 1.0, 1.0]],
+                dims=["area (ISO3)", "time"],
+                coords={"area (ISO3)": ["COL"], "time": time},
+                attrs={"entity": "CH4", "units": "Gg CH4 / year"},
+            ),
+        },
+        attrs={"area": "area (ISO3)"},
+    )
+    if with_processing_info:
+        ds["Processing of CO2"] = xr.DataArray(
+            co2_steps,
+            dims=list(dims),
+            coords={dim: coords[dim] for dim in dims},
+            attrs={"entity": "Processing of CO2", "described_variable": "CO2"},
+        )
+        ds["Processing of CH4"] = xr.DataArray(
+            np.array([step("e")], dtype=object),
+            dims=["area (ISO3)"],
+            coords={"area (ISO3)": ["COL"]},
+            attrs={"entity": "Processing of CH4", "described_variable": "CH4"},
+        )
+    return ds
+
+
+def test_processing_step_other_ds():
+    ds = processing_ds()
+    other = other_ds()
+
+    with ds.pr.processing_step(
+        function="combine", description_template="combined", other_ds=other
+    ) as s:
+        s.ds = s.ds.combine_first(other.pr.remove_processing_info())
+
+    processing = s.result["Processing of CO2"]
+    # changed: the step combines both histories
+    assert processing.pr.loc[{"area": "COL"}].item() == ProcessingStepDescription(
+        time=TimeRange("2001", "2001"),
+        function="combine",
+        description="combined",
+        parents=(step("a"), step("c")),
+    )
+    # unchanged: the history of ds
+    assert processing.pr.loc[{"area": "ARG"}].item() == step("b")
+    # only in other_ds: the history of other_ds
+    assert processing.pr.loc[{"area": "MEX"}].item() == step("d")
+    # variables only in other_ds keep their history
+    assert s.result["Processing of CH4"].pr.loc[{"area": "COL"}].item() == step("e")
+
+
+def test_processing_step_other_ds_broadcast():
+    """other_ds may lack dimensions of ds."""
+    ds = processing_ds()
+    other = other_ds(dims=())
+
+    with ds.pr.processing_step(function="fill", description_template="filled", other_ds=other) as s:
+        s.ds = s.ds.fillna(other[["CO2"]])
+
+    col = s.result["Processing of CO2"].pr.loc[{"area": "COL"}].item()
+    assert col.parents == (step("a"), step("c"))
+
+
+def test_processing_step_other_ds_without_processing_info():
+    ds = processing_ds()
+    other = other_ds(with_processing_info=False)
+
+    with ds.pr.processing_step(
+        function="combine", description_template="combined", other_ds=other
+    ) as s:
+        s.ds = s.ds[["CO2"]].combine_first(other[["CO2"]])
+
+    processing = s.result["Processing of CO2"]
+    assert processing.pr.loc[{"area": "COL"}].item().parents == (step("a"),)
+    assert processing.pr.loc[{"area": "MEX"}].item() is None
+
+
+def test_processing_step_new_timeseries():
+    ds = processing_ds()
+
+    # timeseries without data have no history
+    with ds.pr.processing_step(function="f", description_template="d") as s:
+        s.ds = s.ds.reindex({"area (ISO3)": ["COL", "ARG", "BOL"]})
+    assert s.result["Processing of CO2"].pr.loc[{"area": "BOL"}].item() is None
+
+    # timeseries with data need a history
+    with (
+        pytest.raises(ValueError, match="exists neither in old_ds nor in other_ds"),
+        ds.pr.processing_step(function="f", description_template="d") as s,
+    ):
+        s.ds = s.ds.reindex({"area (ISO3)": ["COL", "ARG", "BOL"]}, fill_value=1.0)
+
+
+def test_processing_step_new_variable():
+    ds = processing_ds()
+
+    with (
+        pytest.raises(ValueError, match="'CH4' exists neither in old_ds nor in other_ds"),
+        ds.pr.processing_step(function="f", description_template="d") as s,
+    ):
+        s.ds["CH4"] = s.ds["CO2"]
+
+
+def test_fillna_processing_info():
+    ds = processing_ds()
+    other = other_ds(dims=())[["CO2", "Processing of CO2"]]
+
+    result = ds.pr.fillna(other)
+
+    processing = result["Processing of CO2"]
+    col = processing.pr.loc[{"area": "COL"}].item()
+    assert col.function == "fillna"
+    assert col.parents == (step("a"), step("c"))
+    assert processing.pr.loc[{"area": "ARG"}].item() == step("b")
+
+
+def test_fillna_data_array_processing_info():
+    ds = processing_ds()
+
+    result = ds.pr.fillna(other_ds(dims=())["CO2"])
+
+    col = result["Processing of CO2"].pr.loc[{"area": "COL"}].item()
+    assert col.parents == (step("a"),)
+
+
+def test_combine_first_processing_info():
+    ds = processing_ds()
+
+    result = ds.pr.combine_first(other_ds())
+
+    processing = result["Processing of CO2"]
+    col = processing.pr.loc[{"area": "COL"}].item()
+    assert col.function == "combine_first"
+    assert col.parents == (step("a"), step("c"))
+    assert processing.pr.loc[{"area": "ARG"}].item() == step("b")
+    assert processing.pr.loc[{"area": "MEX"}].item() == step("d")
+    assert result["Processing of CH4"].pr.loc[{"area": "COL"}].item() == step("e")
+
+
+def test_merge_processing_info():
+    ds = processing_ds()
+
+    result = ds.pr.merge(other_ds(), error_on_discrepancy=False)
+
+    processing = result["Processing of CO2"]
+    col = processing.pr.loc[{"area": "COL"}].item()
+    assert col.function == "merge"
+    assert col.time == (TimeRange("2001", "2001"),)
+    assert col.parents == (step("a"), step("c"))
+    assert processing.pr.loc[{"area": "ARG"}].item() == step("b")
+    assert processing.pr.loc[{"area": "MEX"}].item() == step("d")
+    assert result["Processing of CH4"].pr.loc[{"area": "COL"}].item() == step("e")
+
+
+def test_set_processing_info():
+    ds = processing_ds()
+    value = ds.pr.loc[{"area": "COL"}]
+
+    # new timeseries take the history of the value
+    result = ds.pr.set("area", "BOL", value)
+    assert result["Processing of CO2"].pr.loc[{"area": "BOL"}].item() == step("a")
+
+    # changed timeseries combine both histories
+    result = ds.pr.set("area", "ARG", value, existing="overwrite")
+    arg = result["Processing of CO2"].pr.loc[{"area": "ARG"}].item()
+    assert arg.function == "set"
+    assert arg.parents == (step("b"), step("a"))

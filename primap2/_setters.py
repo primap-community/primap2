@@ -5,7 +5,6 @@ import pandas as pd
 import xarray as xr
 
 from . import _accessor_base
-from ._processing_info import ensure_no_processing_info
 from ._selection import alias_dims
 
 
@@ -575,14 +574,18 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         if not isinstance(value, xr.Dataset):
             raise TypeError(f"value must be a Dataset, not {type(value)}")
 
-        ensure_no_processing_info(self._ds)
-
-        return self._ds.map(
-            self._set_apply,
-            keep_attrs=True,
-            dim=dim,
-            key=key,
-            value=value,
-            existing=existing,
-            new=new,
-        )
+        with self._ds.pr.processing_step(
+            function="set",
+            description_template=f"set values for {dim}={key!r} (<var>; <coords>)",
+            other_ds=value,
+        ) as step:
+            step.ds = step.ds.map(
+                self._set_apply,
+                keep_attrs=True,
+                dim=dim,
+                key=key,
+                value=value.pr.remove_processing_info(),
+                existing=existing,
+                new=new,
+            )
+        return step.result
