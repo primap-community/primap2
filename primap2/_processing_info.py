@@ -274,7 +274,7 @@ def add_processing_step(
             return processing
         return evolve(step, parents=(processing,))
 
-    result = processing_infos.copy()
+    result = processing_infos.copy(deep=False)
     result.data = np.vectorize(append, otypes=[object])(processing_infos.data)
     return result
 
@@ -388,7 +388,9 @@ def add_processing_step_on_change(
 
     changed = _changed_values(old_da, new_da)
     times = changed["time"].data
-    result = processing_infos.copy()
+    # steps are immutable, so a shallow copy of the array is enough and keeps the
+    # history shared between timeseries
+    result = processing_infos.copy(deep=False, data=processing_infos.data.copy())
     for index in np.ndindex(processing_infos.shape):
         processing = processing_infos.data[index]
         if pd.isnull(processing):

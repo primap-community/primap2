@@ -456,7 +456,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
                 continue
             described_variable = renames[described_variable]
             new_name = processing_variable_name(described_variable)
-            da = da.copy()
+            da = da.copy(deep=False)
             da.attrs["described_variable"] = described_variable
             da.attrs["entity"] = new_name
             da.name = new_name

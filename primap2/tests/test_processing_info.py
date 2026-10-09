@@ -121,6 +121,7 @@ def test_add_processing_step():
     result = add_processing_step(da, step("b"))
 
     assert result.values[0] == step("b", a)
+    assert result.values[0].parents[0] is a
     assert result.values[1] is None
     # the input is not modified
     assert da.values[0] is a
@@ -177,6 +178,21 @@ def test_processing_step_records_changes():
     )
     # ARG was not changed
     assert result["Processing of CO2"].pr.loc[{"area": "ARG"}].item() == step("b")
+
+
+def test_processing_step_shares_history():
+    """Steps are immutable, so the history must not be copied."""
+    ds = processing_ds()
+    col_before, arg_before = ds["Processing of CO2"].values
+
+    with ds.pr.processing_step(function="fill", description_template="filled") as s:
+        s.ds = s.ds.fillna(0)
+
+    col, arg = s.result["Processing of CO2"].values
+    assert col.parents[0] is col_before
+    assert arg is arg_before
+    # the input is not modified
+    assert ds["Processing of CO2"].values[0] is col_before
 
 
 def test_processing_step_in_place_changes():
