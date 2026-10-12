@@ -354,6 +354,177 @@ def _processing_infos_on_template(
     return _on_template(processing_infos, template, fill_value=None)
 
 
+def combine_histories(
+    processing_infos: xr.DataArray,
+    dim: typing.Hashable | list[typing.Hashable],
+    *,
+    data: xr.DataArray | None = None,
+) -> xr.DataArray:
+    """Combine the histories of all timeseries along ``dim``.
+
+    Parameters
+    ----------
+    processing_infos
+        The processing information to combine.
+    dim
+        The dimension or dimensions along which to combine.
+    data
+        Optional: the data described by ``processing_infos``. If given, the histories of
+        timeseries without any data are left out.
+
+    Returns
+    -------
+    : xr.DataArray
+        For each timeseries remaining after removing ``dim``, a tuple of the histories
+        along ``dim``, for use as ``parents`` in record_step. Missing histories are left
+        out.
+    """
+    dims = dim if isinstance(dim, list) else [dim]
+    if data is not None:
+        has_data = data.notnull().any("time").reindex_like(processing_infos, fill_value=False)
+        processing_infos = processing_infos.where(has_data)
+    remaining = [x for x in processing_infos.dims if x not in dims]
+    values = processing_infos.transpose(*remaining, *dims).values
+    shape = values.shape[: len(remaining)]
+    values = values.reshape(*shape, -1)
+    result = np.empty(shape, dtype=object)
+    for index in np.ndindex(shape):
+        result[index] = _unique(x for x in values[index] if not pd.isnull(x))
+    return xr.DataArray(
+        result,
+        dims=remaining,
+        coords={x: processing_infos[x] for x in remaining},
+        name=processing_infos.name,
+    )
+
+
+def _unique(steps: typing.Iterable[ProcessingStepDescription]) -> tuple:
+    """The steps without duplicates, keeping the order."""
+    return tuple({id(step): step for step in steps}.values())
+
+
+def record_step(
+    new_da: xr.DataArray,
+    *,
+    previous: typing.Sequence[tuple[xr.DataArray, xr.DataArray | None]] = (),
+    parents: typing.Sequence[xr.DataArray] = (),
+    function: str,
+    description_template: str,
+    source: str | None = None,
+) -> xr.DataArray:
+    """Processing information of ``new_da`` after a processing step.
+
+    The previous state of each timeseries of ``new_da`` is taken from the first entry of
+    ``previous`` which contains it. The processing information of the timeseries is:
+
+    * the previous processing information, if the timeseries is unchanged.
+    * a new processing step, if the timeseries was changed or did not exist before. Its
+      parents are the previous processing information and the values of ``parents``
+      for the timeseries. Its times are the changed time points.
+
+    Missing previous processing information stays missing, and timeseries which did not
+    exist before and contain no data have no processing information. Previous timeseries
+    without data and without processing information count as not existing.
+
+    Parameters
+    ----------
+    new_da
+        The data after the processing step.
+    previous
+        Pairs of data before the processing step and its processing information, which
+        is ``None`` if the data has no processing information. The data may lack
+        dimensions of ``new_da``, it is broadcast along them.
+    parents
+        Additional parents of the new steps, as processing information or as tuples of
+        processing information like returned by combine_histories. They may lack
+        dimensions or timeseries of ``new_da``.
+    function
+        The name of the function which did the processing.
+    description_template
+        Human-readable description of the processing step, in which "<coords>" is
+        replaced by the coordinates of the timeseries.
+    source
+        Optional: a short identifier for the source of the data which was used for the
+        processing.
+
+    Returns
+    -------
+    : xr.DataArray
+        The processing information of ``new_da``.
+
+    Raises
+    ------
+    ValueError
+        If processing information doesn't match the data it describes, or if a timeseries
+        contains data, did not exist before, and has no parents.
+    """
+    template = _described(new_da)
+    dims = template.dims
+    shape = template.shape
+
+    found = np.zeros(shape, dtype=bool)
+    result = np.full(shape, None, dtype=object)
+    # without a previous state, all time points with data are changed
+    changed = new_da.notnull().transpose(*dims, "time").values
+    for data, processing_infos in previous:
+        if processing_infos is None:
+            previous_infos = np.full(shape, None, dtype=object)
+        else:
+            previous_infos = _processing_infos_on_template(data, processing_infos, template)
+        has_data = _on_template(data.notnull().any("time"), template, fill_value=False)
+        # timeseries without data and processing information, e.g. added as padding when
+        # aligning, carry no information
+        exists = _exists(data, template) & ~found & (has_data | ~pd.isnull(previous_infos))
+        result[exists] = previous_infos[exists]
+        reindexed = data.reindex({x: new_da[x] for x in data.dims}, copy=False)
+        changed[exists] = _changed_values(reindexed, new_da).transpose(*dims, "time").values[exists]
+        found |= exists
+    result[pd.isnull(result)] = None
+    parent_values = [_on_template(x, template, fill_value=None) for x in parents]
+
+    times = new_da["time"].values
+    for flat_index in np.flatnonzero(changed.any(axis=-1)):
+        index = np.unravel_index(flat_index, shape)
+        if found[index]:
+            if result[index] is None:
+                continue
+            step_parents = [result[index]]
+        else:
+            step_parents = []
+        for value in parent_values:
+            if isinstance(value[index], tuple):
+                step_parents.extend(value[index])
+            elif not pd.isnull(value[index]):
+                step_parents.append(value[index])
+        coordinates = _coordinates_repr(
+            {
+                str(dim): _coordinate_value(template[dim], i)
+                for dim, i in zip(dims, index, strict=True)
+            }
+        )
+        if not step_parents:
+            raise ValueError(
+                f"The timeseries {coordinates} of {new_da.name!r} contains data, but did "
+                f"not exist before and has no parents, so its history is unknown."
+            )
+        result[index] = ProcessingStepDescription(
+            time=times[changed[index]],
+            function=function,
+            description=description_template.replace("<coords>", coordinates),
+            source=source,
+            parents=_unique(step_parents),
+        )
+
+    name = processing_variable_name(new_da.name)
+    return xr.DataArray(
+        result,
+        dims=dims,
+        coords=template.coords,
+        name=name,
+        attrs={"entity": name, "described_variable": new_da.name},
+    )
+
+
 def _processing_infos_on_change(
     *,
     var: typing.Hashable,
@@ -366,75 +537,29 @@ def _processing_infos_on_change(
 ) -> xr.DataArray:
     """The processing information of ``new_da``, see add_processing_step_on_change_ds."""
     name = processing_variable_name(var)
-    template = _described(new_da)
-    dims = template.dims
-    n_timeseries = template.shape
-
-    in_old = var in old_ds
-    in_other = other_ds is not None and var in other_ds
-    if in_old:
+    previous = []
+    parents = []
+    if var in old_ds:
         old_da = old_ds[var]
         if set(old_da.dims) != set(new_da.dims):
             raise ValueError(
                 f"Dimensions of {var!r} changed from {_dims_repr(old_da.dims)} to "
                 f"{_dims_repr(new_da.dims)}."
             )
-        old_exists = _exists(old_da, template)
-        old_infos = _processing_infos_on_template(old_da, old_ds[name], template)
-        changed = (
-            _changed_values(old_da.reindex_like(new_da), new_da).transpose(*dims, "time").values
-        )
-    else:
-        old_exists = np.zeros(n_timeseries, dtype=bool)
-    if in_other:
-        other_exists = _exists(other_ds[var], template)
-    else:
-        other_exists = np.zeros(n_timeseries, dtype=bool)
-    if in_other and name in other_ds:
-        other_infos = _processing_infos_on_template(other_ds[var], other_ds[name], template)
-    else:
-        other_infos = np.full(n_timeseries, None, dtype=object)
-    has_data = new_da.notnull().any("time").transpose(*dims).values
-
-    times = new_da["time"].values
-    result = np.full(n_timeseries, None, dtype=object)
-    for index in np.ndindex(n_timeseries):
-        other = None if pd.isnull(other_infos[index]) else other_infos[index]
-        if old_exists[index]:
-            old = old_infos[index]
-            if pd.isnull(old):
-                continue
-            changed_times = times[changed[index]]
-            if not len(changed_times):
-                result[index] = old
-                continue
-            coordinates = {
-                str(dim): _coordinate_value(template[dim], i)
-                for dim, i in zip(dims, index, strict=True)
-            }
-            result[index] = ProcessingStepDescription(
-                time=changed_times,
-                function=function,
-                description=description_template.replace(
-                    "<coords>", _coordinates_repr(coordinates)
-                ),
-                source=source,
-                parents=(old,) if other is None else (old, other),
-            )
-        elif other_exists[index]:
-            result[index] = other
-        elif has_data[index]:
-            raise ValueError(
-                f"A timeseries of {var!r} contains data, but exists neither in old_ds nor "
-                f"in other_ds, so its history is unknown."
-            )
-
-    return xr.DataArray(
-        result,
-        dims=dims,
-        coords=template.coords,
-        name=name,
-        attrs={"entity": name, "described_variable": var},
+        previous.append((old_da, old_ds[name]))
+    if other_ds is not None and var in other_ds:
+        # timeseries which only exist in other_ds were taken from it
+        other_infos = other_ds.get(name)
+        previous.append((other_ds[var], other_infos))
+        if other_infos is not None:
+            parents.append(other_infos)
+    return record_step(
+        new_da,
+        previous=previous,
+        parents=parents,
+        function=function,
+        description_template=description_template,
+        source=source,
     )
 
 

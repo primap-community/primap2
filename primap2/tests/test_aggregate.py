@@ -861,3 +861,41 @@ class TestAddAggregatesCoordinates:
         )
 
         assert "All Countries" in test_ds.coords["area_name"]
+
+
+def test_add_aggregates_variables_processing_info(basket_processing_ds):
+    ds = basket_processing_ds
+    basket = "KYOTOGHG (AR4GWP100)"
+    # the basket is missing in 2002, where its contents are known for the region
+    ds[basket] = ds[basket].where(ds["time"] != np.datetime64("2002-01-01"))
+
+    def step(ds, var):
+        return ds[f"Processing of {var}"].pr.loc[{"area": "CAMB"}].item()
+
+    result = ds.pr.add_aggregates_variables(
+        gas_baskets={
+            basket: ["CO2", "SF6", "CH4"],
+            "FGASES (AR4GWP100)": ["SF6"],
+            "TEST (AR4GWP100)": ["CO2", "FGASES (AR4GWP100)"],
+        }
+    )
+
+    # the existing basket is filled
+    filled = step(result, basket)
+    assert filled.function == "add_aggregates_variables"
+    assert filled.time == (primap2.TimeRange("2002", "2002"),)
+    assert filled.parents == tuple(step(ds, var) for var in [basket, "CO2", "SF6", "CH4"])
+    # new baskets are created from their contents, also from baskets created before
+    fgases = step(result, "FGASES (AR4GWP100)")
+    assert fgases.parents == (step(ds, "SF6"),)
+    assert step(result, "TEST (AR4GWP100)").parents == (step(ds, "CO2"), fgases)
+
+
+@pytest.mark.parametrize(
+    "function", ["gas_basket_contents_sum", "fill_na_gas_basket_from_contents"]
+)
+def test_gas_basket_data_array_result_processing_info(basket_processing_ds, function):
+    with pytest.raises(NotImplementedError, match="add_aggregates_variables"):
+        getattr(basket_processing_ds.pr, function)(
+            basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2"]
+        )

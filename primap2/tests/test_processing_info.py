@@ -5,7 +5,13 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from primap2._processing_info import ProcessingStepDescription, add_processing_step
+import primap2
+from primap2._processing_info import (
+    ProcessingStepDescription,
+    add_processing_step,
+    combine_histories,
+    record_step,
+)
 from primap2._time_range import TimeRange
 
 
@@ -363,7 +369,7 @@ def test_processing_step_new_timeseries():
 
     # timeseries with data need a history
     with (
-        pytest.raises(ValueError, match="exists neither in old_ds nor in other_ds"),
+        pytest.raises(ValueError, match="history is unknown"),
         ds.pr.processing_step(function="f", description_template="d") as s,
     ):
         s.ds = s.ds.reindex({"area (ISO3)": ["COL", "ARG", "BOL"]}, fill_value=1.0)
@@ -443,3 +449,206 @@ def test_set_processing_info():
     arg = result["Processing of CO2"].pr.loc[{"area": "ARG"}].item()
     assert arg.function == "set"
     assert arg.parents == (step("b"), step("a"))
+
+
+def test_combine_histories():
+    a, b, c = step("a"), step("b"), step("c")
+    infos = xr.DataArray(
+        np.array([[a, b], [c, None]], dtype=object),
+        dims=["area", "category"],
+        coords={"area": ["COL", "ARG"], "category": ["1", "2"]},
+    )
+
+    combined = combine_histories(infos, "category")
+
+    assert combined.dims == ("area",)
+    assert combined.pr.loc[{"area": "COL"}].item() == (a, b)
+    # missing histories are left out
+    assert combined.pr.loc[{"area": "ARG"}].item() == (c,)
+    assert combine_histories(infos, ["area", "category"]).item() == (a, b, c)
+
+
+def test_combine_histories_without_data():
+    a, b = step("a"), step("b")
+    infos = xr.DataArray(
+        np.array([a, b], dtype=object), dims=["area"], coords={"area": ["COL", "ARG"]}
+    )
+    data = xr.DataArray(
+        [[1.0, 2.0], [np.nan, np.nan]],
+        dims=["area", "time"],
+        coords={"area": ["COL", "ARG"], "time": pd.date_range("2000", "2001", freq="YS")},
+    )
+
+    assert combine_histories(infos, "area", data=data).item() == (a,)
+
+
+def test_record_step():
+    time = pd.date_range("2000", "2001", freq="YS")
+    a, b = step("a"), step("b")
+    old = xr.DataArray(
+        [[1.0, 2.0], [3.0, 4.0]],
+        dims=["area", "time"],
+        coords={"area": ["COL", "ARG"], "time": time},
+        name="CO2",
+    )
+    old_infos = xr.DataArray(
+        np.array([a, b], dtype=object), dims=["area"], coords={"area": ["COL", "ARG"]}
+    )
+    new = xr.DataArray(
+        [[1.0, 5.0], [3.0, 4.0], [6.0, 6.0], [np.nan, np.nan]],
+        dims=["area", "time"],
+        coords={"area": ["COL", "ARG", "MEX", "BOL"], "time": time},
+        name="CO2",
+    )
+    c = step("c")
+    parent_values = np.empty(2, dtype=object)
+    parent_values[:] = [(c,), (c,)]
+    parents = xr.DataArray(parent_values, dims=["area"], coords={"area": ["COL", "MEX"]})
+
+    result = record_step(
+        new,
+        previous=[(old, old_infos)],
+        parents=[parents],
+        function="f",
+        description_template="d <coords>",
+    )
+
+    assert result.name == "Processing of CO2"
+    assert result.attrs == {"entity": "Processing of CO2", "described_variable": "CO2"}
+    # changed
+    assert result.loc["COL"].item() == ProcessingStepDescription(
+        time=TimeRange("2001", "2001"), function="f", description="d area='COL'", parents=(a, c)
+    )
+    # unchanged
+    assert result.loc["ARG"].item() is b
+    # new, with parents
+    assert result.loc["MEX"].item().parents == (c,)
+    np.testing.assert_array_equal(result.loc["MEX"].item().time_points(), time.values)
+    # new, without data
+    assert result.loc["BOL"].item() is None
+
+    # new with data, without parents
+    with pytest.raises(ValueError, match="history is unknown"):
+        record_step(new, previous=[(old, old_infos)], function="f", description_template="d")
+
+
+def category_ds() -> xr.Dataset:
+    """CO2 for categories 1.A, 1.B and 2 in COL and ARG, ARG has no data for 1.B."""
+    time = pd.date_range("2000", "2001", freq="YS")
+    areas = ["COL", "ARG"]
+    categories = ["1.A", "1.B", "2"]
+    data = np.ones((len(areas), len(categories), len(time)))
+    data[1, 1, :] = np.nan
+    return xr.Dataset(
+        {
+            "CO2": xr.DataArray(
+                data,
+                dims=["area (ISO3)", "category (IPCC2006)", "time"],
+                coords={"area (ISO3)": areas, "category (IPCC2006)": categories, "time": time},
+                attrs={"entity": "CO2", "units": "Gg CO2 / year"},
+            ),
+            "Processing of CO2": xr.DataArray(
+                np.array([[step(f"{a} {c}") for c in categories] for a in areas], dtype=object),
+                dims=["area (ISO3)", "category (IPCC2006)"],
+                coords={"area (ISO3)": areas, "category (IPCC2006)": categories},
+                attrs={"entity": "Processing of CO2", "described_variable": "CO2"},
+            ),
+        },
+        attrs={"area": "area (ISO3)", "cat": "category (IPCC2006)"},
+    ).pr.quantify()
+
+
+def test_sum_processing_info():
+    ds = category_ds()
+
+    result = ds.pr.sum("category")
+
+    processing = result["Processing of CO2"]
+    assert processing.dims == ("area (ISO3)",)
+    col = processing.pr.loc[{"area": "COL"}].item()
+    assert col.function == "sum"
+    assert col.parents == (step("COL 1.A"), step("COL 1.B"), step("COL 2"))
+    # timeseries without data are not parents
+    arg = processing.pr.loc[{"area": "ARG"}].item()
+    assert arg.parents == (step("ARG 1.A"), step("ARG 2"))
+
+
+@pytest.mark.parametrize("dim", ["time", "entity"])
+def test_sum_processing_info_not_supported(dim):
+    with pytest.raises(NotImplementedError, match="remove_processing_info"):
+        category_ds().pr.sum(dim)
+
+
+def test_add_aggregates_coordinates_processing_info():
+    ds = category_ds()
+
+    result = ds.pr.add_aggregates_coordinates(
+        agg_info={"category": {"1": ["1.A", "1.B"], "0": ["1", "2"]}}
+    )
+
+    processing = result["Processing of CO2"]
+    one = processing.pr.loc[{"area": "COL", "category": "1"}].item()
+    assert one.function == "add_aggregates_coordinates"
+    assert one.parents == (step("COL 1.A"), step("COL 1.B"))
+    # later rules build on the results of earlier rules
+    zero = processing.pr.loc[{"area": "COL", "category": "0"}].item()
+    assert zero.parents == (one, step("COL 2"))
+    # the sources are unchanged
+    assert processing.pr.loc[{"area": "COL", "category": "1.A"}].item() == step("COL 1.A")
+    # timeseries without data are not parents
+    arg_one = processing.pr.loc[{"area": "ARG", "category": "1"}].item()
+    assert arg_one.parents == (step("ARG 1.A"),)
+
+
+def test_add_aggregates_coordinates_existing_aggregate_processing_info():
+    """Existing values of the aggregate are kept, missing values are filled."""
+    ds = category_ds()
+    ds = ds.pr.set("category", "1", ds.pr.loc[{"category": ["1.A", "1.B"]}].pr.sum("category"))
+    missing = (
+        (ds["area (ISO3)"] == "COL")
+        & (ds["category (IPCC2006)"] == "1")
+        & (ds["time"] == np.datetime64("2001-01-01"))
+    )
+    ds["CO2"] = ds["CO2"].where(~missing)
+    existing = ds["Processing of CO2"].pr.loc[{"area": "COL", "category": "1"}].item()
+
+    result = ds.pr.add_aggregates_coordinates(agg_info={"category": {"1": ["1.A", "1.B"]}})
+
+    one = result["Processing of CO2"].pr.loc[{"area": "COL", "category": "1"}].item()
+    assert one.time == (TimeRange("2001", "2001"),)
+    assert one.parents == (existing, step("COL 1.A"), step("COL 1.B"))
+
+
+def test_add_aggregates_coordinates_several_variables_processing_info():
+    """Merging the first variable adds the new coordinate to all variables."""
+    ds = category_ds()
+    ch4 = ds["CO2"].pint.dequantify()
+    ch4.attrs.update(entity="CH4", units="Gg CH4 / year")
+    ds["CH4"] = ch4.pint.quantify(unit_registry=primap2.ureg)
+    ds["Processing of CH4"] = ds["Processing of CO2"].assign_attrs(
+        entity="Processing of CH4", described_variable="CH4"
+    )
+
+    result = ds.pr.add_aggregates_coordinates(agg_info={"category": {"1": ["1.A", "1.B"]}})
+
+    for var in ("CO2", "CH4"):
+        one = result[f"Processing of {var}"].pr.loc[{"area": "COL", "category": "1"}].item()
+        assert one.parents == (step("COL 1.A"), step("COL 1.B"))
+
+
+def test_fill_padded_timeseries_processing_info(basket_processing_ds):
+    """Filling a timeseries which was only added as padding records its history."""
+    ds = basket_processing_ds[["CO2", "Processing of CO2", "CH4", "Processing of CH4"]]
+    col = ds.pr.loc[{"area": ["COL"]}]
+    mex = ds.pr.loc[{"area": ["MEX"]}]
+
+    # CO2 for MEX pads CH4 with an empty timeseries for MEX
+    padded = col.pr.combine_first(mex[["CO2", "Processing of CO2"]])
+    assert padded["Processing of CH4"].pr.loc[{"area": "MEX"}].isnull()
+
+    filled = padded.pr.fillna(mex[["CH4", "Processing of CH4"]])
+
+    assert (
+        filled["Processing of CH4"].pr.loc[{"area": "MEX"}].item()
+        == mex["Processing of CH4"].pr.loc[{"area": "MEX"}].item()
+    )
