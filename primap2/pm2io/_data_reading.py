@@ -968,7 +968,7 @@ def check_overlapping_specifications_add_cols(
 
 def matches_time_format(value: str, time_format: str) -> bool:
     try:
-        datetime.datetime.strptime(value, time_format)  # noqa: DTZ007
+        datetime.datetime.strptime(value, time_format)
         return True
     except ValueError:
         return False
