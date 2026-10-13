@@ -14,9 +14,11 @@ from . import _accessor_base, pm2io
 from ._processing_info import (
     ProcessingStepDescription,
     ProcessingStepRecorder,
+    ensure_complete_processing_info,
     ensure_no_processing_info,
     is_processing_variable,
     processing_variable_name,
+    record_step,
 )
 from ._selection import translations_from_dims
 from ._units import is_single_gas, ureg
@@ -115,6 +117,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         ensure_valid_coordinates(self._ds)
         ensure_valid_coordinate_values(self._ds)
         ensure_valid_data_variables(self._ds)
+        ensure_complete_processing_information(self._ds)
         ensure_unique_gas_representation(self._ds)
         ensure_valid_attributes(self._ds)
 
@@ -330,7 +333,8 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             Optional: a short identifier for the source of the data which is used for the
             processing.
         other_ds
-            Optional: dataset from which data is taken in the block.
+            Optional: dataset from which data is taken in the block. If the dataset has
+            processing information, ``other_ds`` needs it as well.
         """
         return ProcessingStepRecorder(
             self._ds,
@@ -339,6 +343,51 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             source=source,
             other_ds=other_ds,
         )
+
+    def with_creation_step(
+        self,
+        *,
+        function: str,
+        description: str,
+        source: str | None = None,
+    ) -> xr.Dataset:
+        """Add processing information to a dataset without processing information.
+
+        Every timeseries with data gets a processing step without parents which describes
+        its creation, e.g. reading the data from its source.
+
+        Parameters
+        ----------
+        function
+            The name of the function which created the data.
+        description
+            Human-readable description of how the data was created, in which "<coords>"
+            is replaced by the coordinates of each timeseries and "<var>" by the name of
+            its data variable.
+        source
+            Optional: a short identifier for the source of the data.
+
+        Returns
+        -------
+        : xr.Dataset
+            A copy of the dataset with processing information.
+
+        Raises
+        ------
+        ValueError
+            If the dataset already has processing information.
+        """
+        if self.has_processing_info():
+            raise ValueError("The dataset already has processing information.")
+        result = self._ds.copy()
+        for var in self._ds.data_vars:
+            result[processing_variable_name(var)] = record_step(
+                self._ds[var],
+                function=function,
+                description_template=description.replace("<var>", str(var)),
+                source=source,
+            )
+        return result
 
     def has_processing_info(self) -> bool:
         """True if the dataset has processing information for at least one entity."""
@@ -533,13 +582,24 @@ def ensure_processing_variable_name(name: str, da: xr.DataArray) -> None:
         )
 
 
+def ensure_complete_processing_information(ds: xr.Dataset) -> None:
+    """Ensure that a dataset with processing information has it for every timeseries.
+
+    Processing information may only be missing for timeseries without any data.
+    """
+    try:
+        ensure_complete_processing_info(ds)
+    except ValueError as err:
+        logger.error(str(err))
+        raise
+
+
 def ensure_processing_variable_dimensions(ds: xr.Dataset, name: str, da: xr.DataArray) -> None:
     """Ensure processing information describes exactly the timeseries of its variable.
 
     The described variable has to be contained in the dataset and the processing
     information has to have the same dimensions as the described variable, with the
-    exception of the "time" dimension, which it must not have. Note that the reverse is
-    not required: variables without processing information are fine.
+    exception of the "time" dimension, which it must not have.
     """
     described_variable = da.attrs["described_variable"]
     if described_variable not in ds:

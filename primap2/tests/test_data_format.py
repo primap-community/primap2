@@ -53,7 +53,9 @@ class TestToNetCDF:
         the missing information is marked by ``None`` or by NaN.
         """
         ds = opulent_processing_ds
-        ds["Processing of CO2"].loc[{"area (ISO3)": ["ARG", "MEX", "BOL"]}] = missing
+        areas = ["ARG", "MEX", "BOL"]
+        ds["CO2"] = ds["CO2"].where(~ds["area (ISO3)"].isin(areas))
+        ds["Processing of CO2"].loc[{"area (ISO3)": areas}] = missing
         caplog.set_level(logging.INFO)
 
         ds.pr.to_netcdf(tmp_path / "temp.nc")
@@ -71,6 +73,7 @@ class TestToNetCDF:
     def test_processing_info_all_missing(self, opulent_processing_ds: xr.Dataset, tmp_path):
         """A variable without any processing info at all must round-trip as well."""
         ds = opulent_processing_ds
+        ds["CO2"] = ds["CO2"].where(ds["CO2"].isnull())
         ds["Processing of CO2"][:] = None
 
         ds.pr.to_netcdf(tmp_path / "temp.nc")
@@ -151,6 +154,17 @@ class TestEnsureValid:
         ):
             opulent_processing_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
+
+    def test_processing_info_missing_for_variable(self, opulent_processing_ds, caplog):
+        del opulent_processing_ds["Processing of CO2"]
+        with pytest.raises(ValueError, match="has processing information, but not for 'CO2'"):
+            opulent_processing_ds.pr.ensure_valid()
+        assert "has processing information, but not for 'CO2'" in caplog.text
+
+    def test_processing_info_missing_for_data(self, opulent_processing_ds, caplog):
+        opulent_processing_ds["Processing of CO2"].data.flat[0] = None
+        with pytest.raises(ValueError, match="contain data, but have no processing information"):
+            opulent_processing_ds.pr.ensure_valid()
 
     def test_metadata_wrong_attr(self, opulent_processing_ds, caplog):
         opulent_processing_ds["Processing of CO2"].attrs["described_variable"] = "CH4"

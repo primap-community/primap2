@@ -7,20 +7,24 @@ see https://github.com/pydata/xarray/issues/9124
 
 """
 
+import pint
 import xarray as xr
 from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+from ._processing_info import ensure_complete_processing_info_of_other
 
 
 def _data_and_other_ds(
     other: xr.Dataset | xr.DataArray, ds: xr.Dataset
-) -> tuple[xr.Dataset | xr.DataArray, xr.Dataset]:
-    """``other`` without processing information, and as a dataset with processing
-    information. A DataArray is used for all data variables of ``ds``."""
+) -> tuple[xr.Dataset | xr.DataArray, xr.Dataset | None]:
+    """``other`` without processing information, and the dataset with the processing
+    information of the data taken from it."""
+    ensure_complete_processing_info_of_other(ds, other)
     if isinstance(other, xr.Dataset):
         return other.pr.remove_processing_info(), other
-    return other, xr.Dataset({var: other for var in ds.pr.remove_processing_info().data_vars})
+    # only possible if ds has no processing information either
+    return other, None
 
 
 class DataArrayFillAccessor(BaseDataArrayAccessor):
@@ -114,7 +118,7 @@ class DataArrayFillAccessor(BaseDataArrayAccessor):
 class DatasetFillAccessor(BaseDatasetAccessor):
     def fillna(
         self: xr.Dataset,
-        ds_fill: xr.Dataset | xr.DataArray,
+        ds_fill: xr.Dataset | xr.DataArray | float | pint.Quantity,
     ) -> xr.Dataset:
         """Fill missing information from other dataset.
 
@@ -127,13 +131,25 @@ class DatasetFillAccessor(BaseDatasetAccessor):
         Parameters
         ----------
         ds_fill
-            Dataset or DataArray used to fill nan values in the calling dataset
+            Dataset, DataArray or single value used to fill nan values in the calling
+            dataset. If the calling dataset has processing information, a Dataset needs
+            processing information as well, see
+            :py:meth:`xarray.DataArray.pr.with_creation_step`, and a single value is recorded
+            as the creation of the filled values.
 
         Returns
         -------
             filled
                 calling Dataset where nan values are filled from ds_fill where possible
         """
+        if not isinstance(ds_fill, xr.Dataset | xr.DataArray):
+            with self._ds.pr.processing_step(
+                function="fillna",
+                description_template=f"filled missing values with {ds_fill} (<var>; <coords>)",
+            ) as step:
+                step.ds = step.ds.fillna(ds_fill)
+            return step.result
+
         ds_fill, other_ds = _data_and_other_ds(ds_fill, self._ds)
         with self._ds.pr.processing_step(
             function="fillna",

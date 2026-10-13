@@ -9,6 +9,7 @@ import xarray as xr
 from attr import define, evolve, field
 from loguru import logger
 
+from ._accessor_base import BaseDataArrayAccessor
 from ._time_range import TimeRange, time_ranges
 
 PROCESSING_PREFIX = "Processing of "
@@ -30,6 +31,95 @@ def processing_variable_name(described_variable: typing.Hashable) -> str:
     return f"{PROCESSING_PREFIX}{described_variable}"
 
 
+def has_processing_info(ds: xr.Dataset) -> bool:
+    """True if the dataset carries processing information for at least one variable."""
+    return any(is_processing_variable(var) for var in ds)
+
+
+def ensure_complete_processing_info(ds: xr.Dataset) -> None:
+    """Raise if the dataset has processing information, but not for every timeseries.
+
+    If a dataset has processing information, every data variable needs processing
+    information, which may only be missing for timeseries without any data.
+
+    Raises
+    ------
+    ValueError
+        If processing information is missing for a data variable or for a timeseries
+        with data.
+    """
+    if not has_processing_info(ds):
+        return
+    for var in ds.data_vars:
+        if is_processing_variable(var):
+            continue
+        name = processing_variable_name(var)
+        if name not in ds:
+            raise ValueError(f"The dataset has processing information, but not for {var!r}.")
+        processing_infos = ds[name]
+        da = ds[var]
+        has_data = da.notnull().any("time") if "time" in da.dims else da.notnull()
+        missing = (has_data & processing_infos.isnull()).transpose(*processing_infos.dims)
+        if missing.any():
+            index = tuple(np.argwhere(missing.values)[0])
+            coordinates = _coordinates_repr(
+                {
+                    str(dim): _coordinate_value(processing_infos[dim], i)
+                    for dim, i in zip(processing_infos.dims, index, strict=True)
+                }
+            )
+            raise ValueError(
+                f"{int(missing.sum())} timeseries of {var!r} contain data, but have no "
+                f"processing information, e.g. {coordinates}."
+            )
+
+
+_PROCESSING_STEP_HINT = (
+    "wrapping the call in a ds.pr.processing_step() block, which records it as one "
+    "processing step of the dataset"
+)
+
+
+def ensure_complete_processing_info_of_other(
+    ds: xr.Dataset, other: xr.Dataset | xr.DataArray
+) -> None:
+    """Raise if ``ds`` has processing information, but ``other``, from which data is taken
+    for ``ds``, has not for every timeseries.
+
+    Raises
+    ------
+    TypeError
+        If ``ds`` has processing information and ``other`` is a DataArray.
+    ValueError
+        If ``ds`` has processing information and ``other`` has incomplete processing
+        information.
+    """
+    if not has_processing_info(ds):
+        return
+    if isinstance(other, xr.DataArray):
+        raise TypeError(
+            "The dataset has processing information, but the DataArray it is combined with "
+            "can not carry any. Consider creating a dataset with processing information "
+            "from it with da.pr.with_creation_step(), which is then only combined with the "
+            "variable of the same name, or wrapping the call in a ds.pr.processing_step() "
+            "block, which combines the DataArray with all variables and records the call "
+            "as one processing step of the dataset."
+        )
+    if not has_processing_info(other):
+        raise ValueError(
+            "The dataset has processing information, but the data it is combined with has "
+            "none, so the history of the result would be unknown. Consider adding "
+            "processing information to the other data, or " + _PROCESSING_STEP_HINT + "."
+        )
+    try:
+        ensure_complete_processing_info(other)
+    except ValueError as err:
+        raise ValueError(
+            f"The processing information of the data it is combined with is incomplete: "
+            f"{err} Consider " + _PROCESSING_STEP_HINT + "."
+        ) from err
+
+
 def ensure_no_processing_info(ds: xr.Dataset) -> None:
     """Raise if the dataset carries processing information.
 
@@ -46,7 +136,7 @@ def ensure_no_processing_info(ds: xr.Dataset) -> None:
     NotImplementedError
         If the dataset contains processing information for at least one variable.
     """
-    if any(is_processing_variable(var) for var in ds):
+    if has_processing_info(ds):
         raise NotImplementedError(
             "Dataset contains processing information, this is not supported yet. "
             "Use ds.pr.remove_processing_info()."
@@ -279,6 +369,21 @@ def add_processing_step(
     return result
 
 
+def _new_processing_infos(data: xr.DataArray, values: np.ndarray | None = None) -> xr.DataArray:
+    """Processing information for ``data`` with the given values, by default empty."""
+    template = _described(data)
+    if values is None:
+        values = np.full(template.shape, None, dtype=object)
+    name = processing_variable_name(data.name)
+    return xr.DataArray(
+        values,
+        dims=template.dims,
+        coords=template.coords,
+        name=name,
+        attrs={"entity": name, "described_variable": data.name},
+    )
+
+
 def _changed_values(old_da: xr.DataArray, new_da: xr.DataArray) -> xr.DataArray:
     """Boolean array which is True wherever ``new_da`` differs from ``old_da``.
 
@@ -406,7 +511,7 @@ def _unique(steps: typing.Iterable[ProcessingStepDescription]) -> tuple:
 def record_step(
     new_da: xr.DataArray,
     *,
-    previous: typing.Sequence[tuple[xr.DataArray, xr.DataArray | None]] = (),
+    previous: typing.Sequence[tuple[xr.DataArray, xr.DataArray]] = (),
     parents: typing.Sequence[xr.DataArray] = (),
     function: str,
     description_template: str,
@@ -419,21 +524,20 @@ def record_step(
 
     * the previous processing information, if the timeseries is unchanged.
     * a new processing step, if the timeseries was changed or did not exist before. Its
-      parents are the previous processing information and the values of ``parents``
-      for the timeseries. Its times are the changed time points.
+      parents are the previous processing information, if available, and the values of
+      ``parents`` for the timeseries. Its times are the changed time points.
 
-    Missing previous processing information stays missing, and timeseries which did not
-    exist before and contain no data have no processing information. Previous timeseries
-    without data and without processing information count as not existing.
+    Timeseries which did not exist before and contain no data have no processing
+    information. Previous timeseries without data and without processing information
+    count as not existing.
 
     Parameters
     ----------
     new_da
         The data after the processing step.
     previous
-        Pairs of data before the processing step and its processing information, which
-        is ``None`` if the data has no processing information. The data may lack
-        dimensions of ``new_da``, it is broadcast along them.
+        Pairs of data before the processing step and its processing information. The data
+        may lack dimensions of ``new_da``, it is broadcast along them.
     parents
         Additional parents of the new steps, as processing information or as tuples of
         processing information like returned by combine_histories. They may lack
@@ -455,8 +559,7 @@ def record_step(
     Raises
     ------
     ValueError
-        If processing information doesn't match the data it describes, or if a timeseries
-        contains data, did not exist before, and has no parents.
+        If processing information doesn't match the data it describes.
     """
     template = _described(new_da)
     dims = template.dims
@@ -467,10 +570,7 @@ def record_step(
     # without a previous state, all time points with data are changed
     changed = new_da.notnull().transpose(*dims, "time").values
     for data, processing_infos in previous:
-        if processing_infos is None:
-            previous_infos = np.full(shape, None, dtype=object)
-        else:
-            previous_infos = _processing_infos_on_template(data, processing_infos, template)
+        previous_infos = _processing_infos_on_template(data, processing_infos, template)
         has_data = _on_template(data.notnull().any("time"), template, fill_value=False)
         # timeseries without data and processing information, e.g. added as padding when
         # aligning, carry no information
@@ -485,12 +585,7 @@ def record_step(
     times = new_da["time"].values
     for flat_index in np.flatnonzero(changed.any(axis=-1)):
         index = np.unravel_index(flat_index, shape)
-        if found[index]:
-            if result[index] is None:
-                continue
-            step_parents = [result[index]]
-        else:
-            step_parents = []
+        step_parents = [] if result[index] is None else [result[index]]
         for value in parent_values:
             if isinstance(value[index], tuple):
                 step_parents.extend(value[index])
@@ -502,11 +597,6 @@ def record_step(
                 for dim, i in zip(dims, index, strict=True)
             }
         )
-        if not step_parents:
-            raise ValueError(
-                f"The timeseries {coordinates} of {new_da.name!r} contains data, but did "
-                f"not exist before and has no parents, so its history is unknown."
-            )
         result[index] = ProcessingStepDescription(
             time=times[changed[index]],
             function=function,
@@ -515,14 +605,49 @@ def record_step(
             parents=_unique(step_parents),
         )
 
-    name = processing_variable_name(new_da.name)
-    return xr.DataArray(
-        result,
-        dims=dims,
-        coords=template.coords,
-        name=name,
-        attrs={"entity": name, "described_variable": new_da.name},
-    )
+    return _new_processing_infos(new_da, result)
+
+
+class DataArrayProcessingInfoAccessor(BaseDataArrayAccessor):
+    def with_creation_step(
+        self,
+        *,
+        function: str,
+        description: str,
+        source: str | None = None,
+    ) -> xr.Dataset:
+        """Create a dataset with processing information from this DataArray.
+
+        Every timeseries with data gets a processing step without parents which describes
+        its creation. Use this to combine data without processing information with a
+        dataset with processing information.
+
+        Parameters
+        ----------
+        function
+            The name of the function which created the data.
+        description
+            Human-readable description of how the data was created, in which "<coords>"
+            is replaced by the coordinates of each timeseries.
+        source
+            Optional: a short identifier for the source of the data.
+
+        Returns
+        -------
+        : xr.Dataset
+            A dataset containing this DataArray, named by its name, and its processing
+            information.
+        """
+        if self._da.name is None:
+            raise ValueError("The DataArray needs a name, which is used for the data variable.")
+        return xr.Dataset(
+            {
+                self._da.name: self._da,
+                processing_variable_name(self._da.name): record_step(
+                    self._da, function=function, description_template=description, source=source
+                ),
+            }
+        )
 
 
 def _processing_infos_on_change(
@@ -547,12 +672,10 @@ def _processing_infos_on_change(
                 f"{_dims_repr(new_da.dims)}."
             )
         previous.append((old_da, old_ds[name]))
-    if other_ds is not None and var in other_ds:
+    if other_ds is not None and name in other_ds:
         # timeseries which only exist in other_ds were taken from it
-        other_infos = other_ds.get(name)
-        previous.append((other_ds[var], other_infos))
-        if other_infos is not None:
-            parents.append(other_infos)
+        previous.append((other_ds[var], other_ds[name]))
+        parents.append(other_ds[name])
     return record_step(
         new_da,
         previous=previous,
@@ -563,7 +686,7 @@ def _processing_infos_on_change(
     )
 
 
-def add_processing_step_on_change_ds(
+def _add_processing_step_on_change_ds(
     *,
     old_ds: xr.Dataset,
     new_ds: xr.Dataset,
@@ -579,17 +702,15 @@ def add_processing_step_on_change_ds(
 
     * the processing information of ``old_ds``, if the timeseries is unchanged compared
       to ``old_ds``.
-    * a new processing step, if the timeseries was changed compared to ``old_ds``. Its
-      parents are the processing information of ``old_ds`` and of ``other_ds`` at the
-      same coordinates, if available. ``description_template`` is used as a template for
-      its description, in which "<coords>" is replaced by the coordinates of the
-      timeseries and "<var>" by the name of its data variable. Its times are the changed
-      time points.
     * the processing information of ``other_ds``, if the timeseries does not exist in
-      ``old_ds``, but in ``other_ds``.
+      ``old_ds``, but in ``other_ds``, and is unchanged compared to ``other_ds``.
+    * a new processing step otherwise. Its parents are the processing information of
+      ``old_ds`` and of ``other_ds`` at the same coordinates, if available.
+      ``description_template`` is used as a template for its description, in which
+      "<coords>" is replaced by the coordinates of the timeseries and "<var>" by the name
+      of its data variable. Its times are the changed time points.
 
-    Processing information which is missing in ``old_ds`` stays missing, and variables
-    without processing information stay without processing information.
+    If ``old_ds`` has no processing information, the result has none either.
 
     Parameters
     ----------
@@ -618,29 +739,15 @@ def add_processing_step_on_change_ds(
     Raises
     ------
     ValueError
-        If the dimensions of a data variable changed, if the processing information
-        doesn't match the data it describes, or if a timeseries of ``new_ds`` contains
-        data but exists neither in ``old_ds`` nor in ``other_ds``.
+        If the dimensions of a data variable changed, or if the processing information
+        doesn't match the data it describes.
     """
     new_ds = _without_processing_info(new_ds)
     result = new_ds.copy()
+    if not has_processing_info(old_ds):
+        return result
     for var in new_ds.data_vars:
-        name = processing_variable_name(var)
-        if var in old_ds:
-            tracked = name in old_ds
-        elif other_ds is not None and var in other_ds:
-            tracked = name in other_ds
-        else:
-            tracked = any(is_processing_variable(x) for x in old_ds) or (
-                other_ds is not None and any(is_processing_variable(x) for x in other_ds)
-            )
-            if tracked:
-                raise ValueError(
-                    f"{var!r} exists neither in old_ds nor in other_ds, so its history is unknown."
-                )
-        if not tracked:
-            continue
-        result[name] = _processing_infos_on_change(
+        result[processing_variable_name(var)] = _processing_infos_on_change(
             var=var,
             old_ds=old_ds,
             new_da=new_ds[var],
@@ -678,6 +785,9 @@ class ProcessingStepRecorder:
         source: str | None = None,
         other_ds: xr.Dataset | None = None,
     ):
+        ensure_complete_processing_info(ds)
+        if other_ds is not None:
+            ensure_complete_processing_info_of_other(ds, other_ds)
         self._original = ds
         self._other_ds = other_ds
         self._function = function
@@ -692,7 +802,7 @@ class ProcessingStepRecorder:
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         if exc_type is not None:
             return
-        self._result = add_processing_step_on_change_ds(
+        self._result = _add_processing_step_on_change_ds(
             old_ds=self._original,
             new_ds=self.ds,
             other_ds=self._other_ds,

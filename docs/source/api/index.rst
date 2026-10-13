@@ -115,6 +115,7 @@ Methods
     DataArray.pr.set
     DataArray.pr.sum
     DataArray.pr.to_df
+    DataArray.pr.with_creation_step
 
 
 Dataset
@@ -179,3 +180,4 @@ Methods
     Dataset.pr.to_df
     Dataset.pr.to_interchange_format
     Dataset.pr.to_netcdf
+    Dataset.pr.with_creation_step

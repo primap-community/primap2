@@ -8,6 +8,7 @@ import xarray as xr
 from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+from ._processing_info import ensure_complete_processing_info_of_other
 
 
 def merge_with_tolerance_core(
@@ -205,6 +206,7 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
             merged
                 Dataset with data from da_merge merged into the calling object
         """
+        ensure_complete_processing_info_of_other(self._ds, ds_merge)
         if isinstance(ds_merge, xr.DataArray):
             ds_merge = ds_merge.to_dataset()
         with self._ds.pr.processing_step(

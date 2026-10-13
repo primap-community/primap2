@@ -8,7 +8,14 @@ from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._aggregate import select_no_scalar_dimension
-from ._processing_info import combine_histories, processing_variable_name, record_step
+from ._processing_info import (
+    combine_histories,
+    ensure_complete_processing_info,
+    ensure_complete_processing_info_of_other,
+    has_processing_info,
+    processing_variable_name,
+    record_step,
+)
 from ._types import DimOrDimsT
 from ._units import ureg
 
@@ -343,6 +350,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         """
         skipna = _deprecated_skipna_false_with_evaluation_dims(skipna, skipna_evaluation_dims)
 
+        tracked = has_processing_info(self._ds)
+        ensure_complete_processing_info(self._ds)
         data = self._ds.pr.remove_processing_info()
         downscaled = self._ds.copy()
         contents = {dim: list(basket_contents)}
@@ -358,14 +367,13 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                 min_count=min_count,
                 tolerance=tolerance,
             )
-            name = processing_variable_name(var)
-            if name not in self._ds:
+            if not tracked:
                 continue
-            processing_infos = self._ds[name]
-            # the shares are derived from all basket contents
-            downscaled[name] = record_step(
+            processing_infos = self._ds[processing_variable_name(var)]
+            downscaled[processing_variable_name(var)] = record_step(
                 downscaled[var],
                 previous=[(data[var], processing_infos)],
+                # the shares are derived from all basket contents
                 parents=[
                     processing_infos.pr.loc[{dim: basket}],
                     combine_histories(
@@ -540,37 +548,30 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                 )
 
         result = data.pr.fillna(downscaled_converted)
+        if not has_processing_info(self._ds):
+            return result
 
-        processing = {
-            var: self._ds[processing_variable_name(var)]
-            for var in self._ds.data_vars
-            if processing_variable_name(var) in self._ds
-        }
-        tracked_contents = [var for var in basket_contents if var in processing]
-        parents = []
-        if basket in processing:
-            parents.append(processing[basket])
-        if tracked_contents:
+        ensure_complete_processing_info(self._ds)
+        processing = {var: self._ds[processing_variable_name(var)] for var in data.data_vars}
+        parents = [
+            processing[basket],
             # the shares are derived from all basket contents
-            parents.append(
-                combine_histories(
-                    xr.concat([processing[var] for var in tracked_contents], "variable"),
-                    "variable",
-                    data=xr.concat(
-                        [data[var].pr.dequantify() for var in tracked_contents], "variable"
-                    ),
-                )
-            )
-        for var, processing_infos in processing.items():
-            if var in tracked_contents:
-                processing_infos = record_step(
+            combine_histories(
+                xr.concat([processing[var] for var in basket_contents], "variable"),
+                "variable",
+                data=xr.concat([data[var].pr.dequantify() for var in basket_contents], "variable"),
+            ),
+        ]
+        for var in result.data_vars:
+            if var in basket_contents:
+                processing[var] = record_step(
                     result[var],
-                    previous=[(data[var], processing_infos)],
+                    previous=[(data[var], processing[var])],
                     parents=parents,
                     function="downscale_gas_timeseries",
                     description_template=f"downscaled from {basket!r} (<coords>)",
                 )
-            result[processing_variable_name(var)] = processing_infos
+            result[processing_variable_name(var)] = processing[var]
         return result
 
     def downscale_timeseries_by_shares(
@@ -607,6 +608,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         xr.Dataset
             A new dataset with variables downscaled along `dim` using the provided shares.
         """
+        ensure_complete_processing_info(self._ds)
+        ensure_complete_processing_info_of_other(self._ds, basket_contents_shares)
         ds = self._ds.pr.remove_processing_info()
         downscaled_dict = {}
         for var in ds.data_vars:
@@ -627,25 +630,23 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
 
         result = xr.Dataset(downscaled_dict).assign_attrs(ds.attrs)
         contents = {dim: list(basket_contents)}
+        if not has_processing_info(self._ds):
+            return result
         for var in downscaled_dict:
             name = processing_variable_name(var)
-            if name not in self._ds:
-                continue
             processing_infos = self._ds[name]
-            parents = [processing_infos.pr.loc[{dim: basket}]]
-            if isinstance(basket_contents_shares, xr.Dataset) and name in basket_contents_shares:
-                # the shares are normalised over all basket contents
-                parents.append(
+            result[name] = record_step(
+                result[var],
+                previous=[(ds[var], processing_infos)],
+                parents=[
+                    processing_infos.pr.loc[{dim: basket}],
+                    # the shares are normalised over all basket contents
                     combine_histories(
                         basket_contents_shares[name].pr.loc[contents],
                         dim,
                         data=basket_contents_shares[var].pr.loc[contents],
-                    )
-                )
-            result[name] = record_step(
-                result[var],
-                previous=[(ds[var], processing_infos)],
-                parents=parents,
+                    ),
+                ],
                 function="downscale_timeseries_by_shares",
                 description_template=f"downscaled from {dim}={basket!r} using shares (<coords>)",
             )

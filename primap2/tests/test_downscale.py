@@ -639,3 +639,22 @@ def test_downscale_timeseries_by_shares_processing_info(basket_processing_ds):
         _step(ds, "CO2", "CAMB"),
         *(_step(reference, "CO2", x) for x in COUNTRIES),
     )
+
+
+def test_downscale_timeseries_by_shares_without_processing_info(basket_processing_ds):
+    """Shares without processing information can't be used with processing information."""
+    reference = basket_processing_ds[["CO2", "Processing of CO2"]]
+    ds = reference.pr.loc[{"area": ["CAMB"]}]
+
+    without_processing_info = reference.pr.remove_processing_info()
+    for shares, error, match in (
+        (without_processing_info, ValueError, "the data it is combined with has none"),
+        (reference["CO2"], TypeError, "with_creation_step"),
+    ):
+        with pytest.raises(error, match=match):
+            ds.pr.downscale_timeseries_by_shares(
+                dim="area (ISO3)",
+                basket="CAMB",
+                basket_contents=COUNTRIES,
+                basket_contents_shares=shares,
+            )

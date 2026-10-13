@@ -160,7 +160,8 @@ The data array contains processing information as rich metadata types.
 Therefore, the data type is `object` and it contains
 `primap2.ProcessingStepDescription` objects, each describing the last processing step
 done on the timeseries.
-Processing information can be missing for individual timeseries, for example if a
+If a dataset contains processing information, every data variable needs processing
+information. It can only be missing for timeseries without any data, for example if a
 dataset uses different categories for different variables. Missing processing
 information is marked by a null value (`None` or NaN) and is read back as `None`.
 Each `ProcessingStepDescription` contains the following information:

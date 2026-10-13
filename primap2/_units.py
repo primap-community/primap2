@@ -16,6 +16,7 @@ from . import _accessor_base
 from ._processing_info import (
     ProcessingStepDescription,
     add_processing_step,
+    ensure_complete_processing_info,
     is_processing_variable,
     processing_variable_name,
 )
@@ -433,6 +434,7 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
         """
         renames = {name: da.name for name, da in converted.items() if da.name != name}
 
+        ensure_complete_processing_info(self._ds)
         result: dict[Hashable, xr.DataArray] = {}
         for name, da in converted.items():
             if da.name in result:

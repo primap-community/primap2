@@ -346,17 +346,13 @@ def test_processing_step_other_ds_broadcast():
 
 
 def test_processing_step_other_ds_without_processing_info():
-    ds = processing_ds()
-    other = other_ds(with_processing_info=False)
-
-    with ds.pr.processing_step(
-        function="combine", description_template="combined", other_ds=other
-    ) as s:
-        s.ds = s.ds[["CO2"]].combine_first(other[["CO2"]])
-
-    processing = s.result["Processing of CO2"]
-    assert processing.pr.loc[{"area": "COL"}].item().parents == (step("a"),)
-    assert processing.pr.loc[{"area": "MEX"}].item() is None
+    """Data taken from another dataset needs processing information."""
+    with pytest.raises(ValueError, match="the data it is combined with has none"):
+        processing_ds().pr.processing_step(
+            function="f",
+            description_template="d",
+            other_ds=other_ds(with_processing_info=False),
+        )
 
 
 def test_processing_step_new_timeseries():
@@ -367,22 +363,37 @@ def test_processing_step_new_timeseries():
         s.ds = s.ds.reindex({"area (ISO3)": ["COL", "ARG", "BOL"]})
     assert s.result["Processing of CO2"].pr.loc[{"area": "BOL"}].item() is None
 
-    # timeseries with data need a history
-    with (
-        pytest.raises(ValueError, match="history is unknown"),
-        ds.pr.processing_step(function="f", description_template="d") as s,
-    ):
+    # timeseries with data are created by the processing step
+    with ds.pr.processing_step(function="f", description_template="d") as s:
         s.ds = s.ds.reindex({"area (ISO3)": ["COL", "ARG", "BOL"]}, fill_value=1.0)
+    bol = s.result["Processing of CO2"].pr.loc[{"area": "BOL"}].item()
+    assert bol.function == "f"
+    assert bol.parents == ()
 
 
 def test_processing_step_new_variable():
     ds = processing_ds()
 
-    with (
-        pytest.raises(ValueError, match="'CH4' exists neither in old_ds nor in other_ds"),
-        ds.pr.processing_step(function="f", description_template="d") as s,
-    ):
+    with ds.pr.processing_step(function="f", description_template="d") as s:
         s.ds["CH4"] = s.ds["CO2"]
+
+    col = s.result["Processing of CH4"].pr.loc[{"area": "COL"}].item()
+    assert col.function == "f"
+    assert col.parents == ()
+
+
+def test_processing_step_incomplete_processing_info():
+    """Timeseries with data need processing information."""
+    ds = processing_ds()
+    ds["Processing of CO2"].pr.loc[{"area": "COL"}] = None
+
+    with pytest.raises(ValueError, match="contain data, but have no processing information"):
+        ds.pr.processing_step(function="f", description_template="d")
+
+    ds = processing_ds()
+    ds["CH4"] = ds["CO2"]
+    with pytest.raises(ValueError, match="has processing information, but not for 'CH4'"):
+        ds.pr.processing_step(function="f", description_template="d")
 
 
 def test_fillna_processing_info():
@@ -398,13 +409,83 @@ def test_fillna_processing_info():
     assert processing.pr.loc[{"area": "ARG"}].item() == step("b")
 
 
-def test_fillna_data_array_processing_info():
+@pytest.mark.parametrize("function", ["fillna", "combine_first", "merge"])
+def test_other_without_processing_info(function):
+    """Data without processing information can't be combined with processing information."""
     ds = processing_ds()
+    other = other_ds(with_processing_info=False)[["CO2"]]
 
-    result = ds.pr.fillna(other_ds(dims=())["CO2"])
+    with pytest.raises(ValueError, match=r"the data it is combined with has none.*processing_step"):
+        getattr(ds.pr, function)(other)
+    with pytest.raises(TypeError, match=r"with_creation_step.*processing_step"):
+        getattr(ds.pr, function)(other["CO2"])
+
+
+def test_fillna_value_processing_info():
+    """Filling with a single value creates the filled values."""
+    ds = processing_ds().pr.quantify()
+
+    result = ds.pr.fillna(0)
 
     col = result["Processing of CO2"].pr.loc[{"area": "COL"}].item()
-    assert col.parents == (step("a"),)
+    assert col == ProcessingStepDescription(
+        time=TimeRange("2001", "2001"),
+        function="fillna",
+        description="filled missing values with 0 (CO2; area (ISO3)='COL')",
+        parents=(step("a"),),
+    )
+    assert result["Processing of CO2"].pr.loc[{"area": "ARG"}].item() == step("b")
+
+
+def test_with_creation_step():
+    time = pd.date_range("2000", "2001", freq="YS")
+    da = xr.DataArray(
+        [[1.0, 2.0], [np.nan, np.nan]],
+        dims=["area (ISO3)", "time"],
+        coords={"area (ISO3)": ["COL", "ARG"], "time": time},
+        name="CO2",
+    )
+
+    ds = da.pr.with_creation_step(
+        function="estimate", description="estimated (<coords>)", source="expert"
+    )
+
+    xr.testing.assert_identical(ds["CO2"], da)
+    assert ds["Processing of CO2"].attrs == {
+        "entity": "Processing of CO2",
+        "described_variable": "CO2",
+    }
+    assert ds["Processing of CO2"].loc["COL"].item() == ProcessingStepDescription(
+        time=time.values,
+        function="estimate",
+        description="estimated (area (ISO3)='COL')",
+        source="expert",
+    )
+    # timeseries without data have no processing information
+    assert ds["Processing of CO2"].loc["ARG"].item() is None
+
+    with pytest.raises(ValueError, match="needs a name"):
+        da.rename(None).pr.with_creation_step(function="f", description="d")
+
+
+def test_fillna_with_creation_step():
+    ds = processing_ds()
+    fill = other_ds(dims=(), with_processing_info=False)["CO2"]
+
+    result = ds.pr.fillna(fill.pr.with_creation_step(function="f", description="d"))
+
+    col = result["Processing of CO2"].pr.loc[{"area": "COL"}].item()
+    assert col.function == "fillna"
+    assert col.parents[0] == step("a")
+    assert col.parents[1].function == "f"
+
+
+def test_set_without_processing_info():
+    ds = processing_ds()
+    value = ds.pr.remove_processing_info().pr.loc[{"area": "COL"}]
+
+    with pytest.raises(ValueError, match="the data it is combined with has none"):
+        ds.pr.set("area", "BOL", value)
 
 
 def test_combine_first_processing_info():
@@ -528,8 +609,8 @@ def test_record_step():
     assert result.loc["BOL"].item() is None
 
     # new with data, without parents
-    with pytest.raises(ValueError, match="history is unknown"):
-        record_step(new, previous=[(old, old_infos)], function="f", description_template="d")
+    result = record_step(new, previous=[(old, old_infos)], function="f", description_template="d")
+    assert result.loc["MEX"].item().parents == ()
 
 
 def category_ds() -> xr.Dataset:
@@ -652,3 +733,34 @@ def test_fill_padded_timeseries_processing_info(basket_processing_ds):
         filled["Processing of CH4"].pr.loc[{"area": "MEX"}].item()
         == mex["Processing of CH4"].pr.loc[{"area": "MEX"}].item()
     )
+
+
+def test_other_with_incomplete_processing_info():
+    ds = processing_ds()
+    other = other_ds()
+    other["Processing of CO2"].pr.loc[{"area": "COL"}] = None
+
+    with pytest.raises(ValueError, match=r"combined with is incomplete.*processing_step"):
+        ds.pr.combine_first(other)
+
+
+def test_dataset_with_creation_step(basket_processing_ds):
+    ds = basket_processing_ds.pr.remove_processing_info()
+
+    result = ds.pr.with_creation_step(
+        function="read", description="read <var> (<coords>)", source="RAND2020"
+    )
+
+    result.pr.ensure_valid()
+    co2 = result["Processing of CO2"].pr.loc[{"area": "COL"}].item()
+    assert co2 == ProcessingStepDescription(
+        time=[np.datetime64("2000"), np.datetime64("2004")],
+        function="read",
+        description="read CO2 (area (ISO3)='COL', source='RAND2020')",
+        source="RAND2020",
+    )
+    # the input is not modified
+    assert not ds.pr.has_processing_info()
+
+    with pytest.raises(ValueError, match="already has processing information"):
+        result.pr.with_creation_step(function="read", description="read")

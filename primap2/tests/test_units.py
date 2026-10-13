@@ -165,15 +165,12 @@ class TestDatasetConvertToGWP:
 
         assert not converted.pr.has_processing_info()
 
-    def test_processing_info_missing_stays_missing(self, opulent_processing_ds: xr.Dataset):
-        """Appending a step to missing processing info would claim it is the only one."""
+    def test_processing_info_incomplete(self, opulent_processing_ds: xr.Dataset):
+        """Timeseries with data need processing information."""
         opulent_processing_ds["Processing of CH4"].data.flat[0] = None
 
-        converted = opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
-
-        processing = converted["Processing of CH4 (AR4GWP100)"]
-        assert processing.values.flat[0] is None
-        assert processing.values.flat[1].function == "convert_to_gwp"
+        with pytest.raises(ValueError, match="no processing information"):
+            opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
 
     def test_processing_info_no_op_not_recorded(self, opulent_processing_ds: xr.Dataset):
         """A conversion which changes nothing must not record a step."""
