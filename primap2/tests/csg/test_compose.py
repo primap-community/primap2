@@ -388,16 +388,9 @@ def test_compose_skip_source(opulent_ds):
     tpd: primap2.ProcessingStepDescription = (
         result["Processing of CH4"].pr.loc[{"area": "COL", "category": "0"}].item()
     )
-    assert len(tpd.history()) == 2
-    assert tpd.history()[0].function == "compose_timeseries"
-    assert tpd.history()[0].time == ()
-    assert (
-        tpd.history()[0].description
-        == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'} is excluded from "
-        "processing, skipped"
-    )
-    assert tpd.history()[1].function == "substitution"
-    assert tpd.history()[1].source == ("{'source': 'RAND2021', 'scenario (FAOSTAT)': 'highpop'}")
+    assert len(tpd.history()) == 1
+    assert tpd.function == "substitution"
+    assert tpd.source == ("{'source': 'RAND2021', 'scenario (FAOSTAT)': 'highpop'}")
 
 
 def test_compose_skip_variable(opulent_ds):
@@ -675,7 +668,7 @@ def test_compose_timeseries_no_match(caplog):
     assert "selector={'source': 'C'} matched no input_data, skipping." in caplog.text
 
 
-def test_compose_timeseries_all_null():
+def test_compose_timeseries_all_null(caplog):
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source"],
         priorities=[{"source": "A"}, {"source": "B"}],
@@ -702,8 +695,114 @@ def test_compose_timeseries_all_null():
         strategy_definition=strategy_definition,
     )
 
-    print(result_step.format_history())
-    assert result_step.history()[1].description == "'B' is fully NaN, skipped"
+    assert len(result_step.history()) == 1
+    assert result_step.source == "'A'"
+    assert "'B' is fully NaN, skipped." in caplog.text
+
+
+def test_compose_timeseries_input_processing():
+    priority_definition = primap2.csg.PriorityDefinition(
+        priority_dimensions=["source"],
+        priorities=[{"source": "A"}, {"source": "B"}],
+    )
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[({}, primap2.csg.SubstitutionStrategy())]
+    )
+    da_a = get_single_ts(coords={"source": "A"})
+    da_a[0] = np.nan
+    da_b = get_single_ts(coords={"source": "B"})
+    input_data = xr.concat((da_a, da_b), dim="source", join="exact")
+    step_a = primap2.ProcessingStepDescription(time=(), function="read", description="A")
+    step_b = primap2.ProcessingStepDescription(time=(), function="read", description="B")
+    input_processing = xr.DataArray(
+        np.array([step_a, step_b], dtype=object),
+        dims=["source"],
+        coords={"source": ["A", "B"]},
+    )
+
+    _, result_step = primap2.csg._compose.compose_timeseries(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+        input_processing=input_processing,
+    )
+
+    first, second = result_step.parents
+    assert first.parents == (step_a,)
+    assert first.source == "'A'"
+    assert second is step_b
+    assert result_step.source == "'B'"
+
+
+def test_compose_timeseries_input_processing_unused(caplog):
+    priority_definition = primap2.csg.PriorityDefinition(
+        priority_dimensions=["source"],
+        priorities=[{"source": "A"}, {"source": "B"}],
+        exclude_input=[{"source": "A"}],
+    )
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[({}, primap2.csg.GlobalLSStrategy()), ({}, primap2.csg.SubstitutionStrategy())]
+    )
+    da_a = get_single_ts(coords={"source": "A"})
+    da_b = get_single_ts(coords={"source": "B"})
+    da_c = get_single_ts(coords={"source": "C"})
+    input_data = xr.concat((da_a, da_b, da_c), dim="source", join="exact")
+    steps = [
+        primap2.ProcessingStepDescription(time=(), function="read", description=source)
+        for source in "ABC"
+    ]
+    input_processing = xr.DataArray(
+        np.array(steps, dtype=object), dims=["source"], coords={"source": ["A", "B", "C"]}
+    )
+
+    _, result_step = primap2.csg._compose.compose_timeseries(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+        input_processing=input_processing,
+    )
+
+    assert result_step.history() == [steps[1], result_step]
+    assert "'A' is excluded from processing, skipped." in caplog.text
+    assert "Strategy globalLS unable to process 'B' (No overlap" in caplog.text
+
+
+def test_compose_input_processing(opulent_processing_ds):
+    input_data = opulent_processing_ds.drop_vars(["population", "Processing of population"])
+    input_data = input_data.pr.loc[{"category": ["0", "1"]}]
+    input_data["CO2"].loc[{"source": "RAND2020", "time": ["2000", "2001"]}] = np.nan * primap2.ureg(
+        "Mt CO2 / year"
+    )
+    priority_definition = primap2.csg.PriorityDefinition(
+        priority_dimensions=["source", "scenario (FAOSTAT)"],
+        priorities=[
+            {"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"},
+            {"source": "RAND2021", "scenario (FAOSTAT)": "highpop"},
+        ],
+    )
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[({}, primap2.csg.SubstitutionStrategy())]
+    )
+
+    result = primap2.csg.compose(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+        progress_bar=None,
+    )
+
+    result.expand_dims(dim={"source": ["composed"]}).pr.ensure_valid()
+    input_step = input_data["Processing of CO2"].values.flat[0]
+    co2_step = result["Processing of CO2"].pr.loc[{"area": "COL"}].values.flat[0]
+    # all input timeseries share the same step
+    assert [step.function for step in co2_step.history()] == [
+        "random",
+        "substitution",
+        "substitution",
+    ]
+    assert co2_step.parents[1] is input_step
+    ch4_step = result["Processing of CH4"].pr.loc[{"area": "COL"}].values.flat[0]
+    assert ch4_step.parents == (input_step,)
 
 
 def test_compose_timeseries_priorities_wrong():

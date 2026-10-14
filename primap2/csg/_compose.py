@@ -6,12 +6,14 @@ from collections.abc import Hashable
 
 import attrs
 import numpy as np
+import pandas as pd
 import tqdm
 import xarray as xr
 from loguru import logger
 
 from primap2._processing_info import (
     ProcessingStepDescription,
+    is_processing_variable,
     processing_variable_name,
 )
 
@@ -44,7 +46,9 @@ def compose(
     In addition to the harmonized data, also a description of the processing steps
     done for each timeseries is returned in the result dataset, where for each
     variable, a variable of the form "Processing of $variable" is returned, with the
-    same dimensions as the variable, apart from the time dimension.
+    same dimensions as the variable, apart from the time dimension. If input_data has
+    processing information, the histories of the input timeseries used are the parents
+    of the processing steps.
 
     Parameters
     ----------
@@ -100,11 +104,12 @@ def compose(
 
     result_das = {}
     input_data = input_data.pr.dequantify()
+    variables = [var for var in input_data.data_vars if not is_processing_variable(var)]
 
     if progress_bar is None:
-        variable_iterator = input_data
+        variable_iterator = variables
     else:
-        variable_iterator = progress_bar(input_data)
+        variable_iterator = progress_bar(variables)
 
     priority_dimensions = priority_definition.priority_dimensions
     priority_definition.check_dimensions()
@@ -117,6 +122,7 @@ def compose(
 
         input_da = input_data[variable]
         entity = input_da.attrs["entity"]
+        input_processing_da = input_data.get(processing_variable_name(variable))
 
         # all dimensions are either time, priority selection dimensions, or need to
         # be iterated over
@@ -152,6 +158,7 @@ def compose(
             result_da=result_das[variable],
             result_processing_da=result_das[processing_variable_name(variable)],
             progress_bar=pbar,
+            input_processing_da=input_processing_da,
         )
         if pbar is not None:
             pbar.close()
@@ -212,6 +219,10 @@ def priority_coordinates_repr(*, fill_ts: xr.DataArray, priority_dimensions: lis
     return repr(priority_coordinates)
 
 
+def _select(da: xr.DataArray | None, selector: dict[Hashable, typing.Any]) -> xr.DataArray | None:
+    return None if da is None else da.loc[selector]
+
+
 def iterate_next_fixed_dimension(
     *,
     input_da: xr.DataArray,
@@ -221,12 +232,14 @@ def iterate_next_fixed_dimension(
     result_da: xr.DataArray,
     result_processing_da: xr.DataArray,
     progress_bar: tqdm.tqdm | None,
+    input_processing_da: xr.DataArray | None = None,
 ) -> None:
     """Recursively iterate over dimensions in group_by_dimensions.
 
     If there is only one dimension left, actually compute results and store
     them in the result_da and the result_processing_da. Otherwise, iterate over one
     dimension and recursively call iterate_next_fixed_dimension again.
+    input_processing_da is the optional processing information of input_da.
     """
     my_dim = group_by_dimensions[0]
     new_group_by_dimensions = group_by_dimensions[1:]
@@ -244,6 +257,7 @@ def iterate_next_fixed_dimension(
                 result_da=result_da.loc[{my_dim: val}],
                 result_processing_da=result_processing_da.loc[{my_dim: val}],
                 progress_bar=progress_bar,
+                input_processing_da=_select(input_processing_da, {my_dim: val}),
             )
         else:
             # Result exclusions are handled here (per definition, we don't do any
@@ -259,6 +273,7 @@ def iterate_next_fixed_dimension(
                     input_data=input_da.loc[{my_dim: val}],
                     priority_definition=limited_priority_definition,
                     strategy_definition=limited_strategy_definition,
+                    input_processing=_select(input_processing_da, {my_dim: val}),
                 )
             if progress_bar is not None:
                 progress_bar.update()
@@ -269,6 +284,7 @@ def compose_timeseries(
     input_data: xr.DataArray,
     priority_definition: _models.PriorityDefinition,
     strategy_definition: _models.StrategyDefinition,
+    input_processing: xr.DataArray | None = None,
 ) -> tuple[xr.DataArray, ProcessingStepDescription | None]:
     """
     Compute a single timeseries from given input data, priorities, and strategies.
@@ -278,6 +294,9 @@ def compose_timeseries(
     input_data
         The input data which has dimensions time plus the priority dimensions. The
         fixed coordinates are supplied as zero-dimensional coordinates.
+    input_processing
+        Optional: the processing information of input_data. The processing steps of the
+        result have the histories of the input timeseries used as parents.
     priority_definition
         The definition of priorities within input_data. Each priority selects a single
         timeseries (i.e. an array with only time as the dimension), so has to specify
@@ -305,10 +324,13 @@ def compose_timeseries(
     result_ts: xr.DataArray | None = None
     last_step: ProcessingStepDescription | None = None
 
-    def append_step(step: ProcessingStepDescription) -> None:
+    def append_step(
+        step: ProcessingStepDescription, fill_history: ProcessingStepDescription | None
+    ) -> None:
         """Record step as the next step in the processing of the result."""
         nonlocal last_step
-        last_step = attrs.evolve(step, parents=() if last_step is None else (last_step,))
+        parents = tuple(x for x in (last_step, fill_history) if not pd.isnull(x))
+        last_step = attrs.evolve(step, parents=parents)
 
     for selector in priority_definition.priorities:
         try:
@@ -316,6 +338,7 @@ def compose_timeseries(
         except KeyError:
             context_logger.debug(f"{selector=} matched no input_data, skipping.")
             continue
+        fill_history = None if input_processing is None else input_processing.loc[selector].item()
 
         fill_ts_repr = priority_coordinates_repr(
             fill_ts=fill_ts,
@@ -329,24 +352,10 @@ def compose_timeseries(
             result_ts = xr.full_like(fill_ts_no_prio_dims, np.nan)
 
         if priority_definition.excludes_input(fill_ts):
-            append_step(
-                ProcessingStepDescription(
-                    time=(),
-                    description=f"{fill_ts_repr} is excluded from processing, skipped",
-                    function="compose_timeseries",
-                    source=fill_ts_repr,
-                )
-            )
+            context_logger.debug(f"{fill_ts_repr} is excluded from processing, skipped.")
             continue
         if fill_ts.isnull().all():
-            append_step(
-                ProcessingStepDescription(
-                    time=(),
-                    description=f"{fill_ts_repr} is fully NaN, skipped",
-                    function="compose_timeseries",
-                    source=fill_ts_repr,
-                )
-            )
+            context_logger.debug(f"{fill_ts_repr} is fully NaN, skipped.")
             continue
 
         context_logger.debug(f"Filling with {fill_ts_repr} now.")
@@ -359,17 +368,17 @@ def compose_timeseries(
                     fill_ts_repr=fill_ts_repr,
                 )
                 for description in descriptions:
-                    append_step(description)
+                    if description.time:
+                        append_step(description, fill_history)
+                    else:
+                        context_logger.debug(
+                            f"No data changed using {fill_ts_repr}: {description.description}"
+                        )
                 break
-            except StrategyUnableToProcess:
-                append_step(
-                    ProcessingStepDescription(
-                        time=(),
-                        description=f"strategy {strategy.type} unable to process "
-                        f"{fill_ts_repr}, skipping to next strategy",
-                        function="compose_timeseries",
-                        source=fill_ts_repr,
-                    )
+            except StrategyUnableToProcess as err:
+                context_logger.info(
+                    f"Strategy {strategy.type} unable to process {fill_ts_repr} "
+                    f"({err.reason}), skipping to next strategy."
                 )
                 # next strategy
                 continue
