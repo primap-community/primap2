@@ -8,6 +8,7 @@ import xarray as xr
 from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+from ._processing_info import records_processing_step
 
 
 def merge_with_tolerance_core(
@@ -170,9 +171,15 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
 
 
 class DatasetMergeAccessor(BaseDatasetAccessor):
+    @records_processing_step(
+        "self",
+        other="ds_merge",
+        function="merge",
+        description_template="merged with other data (<var>; <coords>)",
+    )
     def merge(
         self,
-        ds_merge: xr.Dataset,
+        ds_merge: xr.Dataset | xr.DataArray,
         tolerance: float = 0.01,
         error_on_discrepancy: bool = True,
         combine_attrs: xr.core.types.CombineAttrsOptions = "drop_conflicts",
@@ -186,8 +193,9 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
 
         Parameters
         ----------
-        ds_merge: xr.Dataset
-            data to merge to the calling object
+        ds_merge: xr.Dataset or xr.DataArray
+            data to merge to the calling object. A DataArray is merged as the data
+            variable of its name.
         tolerance: float (optional), default = 0.01
             The tolerance to use when comparing data. Tolerance is relative to values in
             the calling Dataset. Thus, by default a 1% deviation of values in da_merge
@@ -204,14 +212,25 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
             merged
                 Dataset with data from da_merge merged into the calling object
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
+        if isinstance(ds_merge, xr.DataArray):
+            ds_merge = ds_merge.to_dataset()
+        return self._merge(
+            ds_start=self._ds,
+            ds_merge=ds_merge,
+            tolerance=tolerance,
+            error_on_discrepancy=error_on_discrepancy,
+            combine_attrs=combine_attrs,
+        )
 
-        ds_start = self._ds
-
+    @staticmethod
+    def _merge(
+        *,
+        ds_start: xr.Dataset,
+        ds_merge: xr.Dataset,
+        tolerance: float,
+        error_on_discrepancy: bool,
+        combine_attrs: xr.core.types.CombineAttrsOptions,
+    ) -> xr.Dataset:
         # Remove the encoding from the dataset
         # Only the encoding of ds_start is considered in the merge,
         # so we don't have to remove it from ds_merge
@@ -240,6 +259,7 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
             [ds_start[vars_only_start], ds_merge[vars_only_merge]],
             combine_attrs=combine_attrs,
             compat="no_conflicts",
+            join="outer",
         )
 
         # merge potentially problematic variables which are in both datasets
@@ -255,5 +275,6 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
                 [ds_result, ds_result_new],
                 combine_attrs="override",
                 compat="no_conflicts",
+                join="outer",
             )
         return ds_result

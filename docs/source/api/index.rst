@@ -11,9 +11,10 @@ Top-level API
 
     Not
     ProcessingStepDescription
-    TimeseriesProcessingDescription
+    TimeRange
     accessors
     open_dataset
+    records_processing_step
     ureg
 
 
@@ -115,6 +116,7 @@ Methods
     DataArray.pr.set
     DataArray.pr.sum
     DataArray.pr.to_df
+    DataArray.pr.with_creation_step
 
 
 Dataset
@@ -171,6 +173,7 @@ Methods
     Dataset.pr.gas_basket_contents_sum
     Dataset.pr.has_processing_info
     Dataset.pr.merge
+    Dataset.pr.processing_step
     Dataset.pr.quantify
     Dataset.pr.remove_processing_info
     Dataset.pr.set
@@ -178,3 +181,4 @@ Methods
     Dataset.pr.to_df
     Dataset.pr.to_interchange_format
     Dataset.pr.to_netcdf
+    Dataset.pr.with_creation_step

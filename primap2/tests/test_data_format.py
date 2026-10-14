@@ -53,7 +53,9 @@ class TestToNetCDF:
         the missing information is marked by ``None`` or by NaN.
         """
         ds = opulent_processing_ds
-        ds["Processing of CO2"].loc[{"area (ISO3)": ["ARG", "MEX", "BOL"]}] = missing
+        areas = ["ARG", "MEX", "BOL"]
+        ds["CO2"] = ds["CO2"].where(~ds["area (ISO3)"].isin(areas))
+        ds["Processing of CO2"].loc[{"area (ISO3)": areas}] = missing
         caplog.set_level(logging.INFO)
 
         ds.pr.to_netcdf(tmp_path / "temp.nc")
@@ -71,12 +73,39 @@ class TestToNetCDF:
     def test_processing_info_all_missing(self, opulent_processing_ds: xr.Dataset, tmp_path):
         """A variable without any processing info at all must round-trip as well."""
         ds = opulent_processing_ds
+        ds["CO2"] = ds["CO2"].where(ds["CO2"].isnull())
         ds["Processing of CO2"][:] = None
 
         ds.pr.to_netcdf(tmp_path / "temp.nc")
         nds = primap2.open_dataset(tmp_path / "temp.nc")
         assert nds["Processing of CO2"].isnull().all()
         xr.testing.assert_identical(ds, nds)
+
+    def test_processing_info_history(self, opulent_processing_ds: xr.Dataset, tmp_path):
+        """Processing steps with parents must round-trip, including shared ancestors."""
+        ds = opulent_processing_ds
+        created = ds["Processing of CO2"].values.flat[0]
+        filled = primap2.ProcessingStepDescription(
+            time=np.array(["2000", "2001"], dtype=np.datetime64),
+            function="fill",
+            description="filled",
+            parents=(created,),
+        )
+        ds["Processing of CO2"].data.flat[0] = primap2.ProcessingStepDescription(
+            time=primap2.TimeRange("2000", "2020"),
+            function="sum",
+            description="summed",
+            parents=(filled, created),
+        )
+
+        ds.pr.to_netcdf(tmp_path / "temp.nc")
+        nds = primap2.open_dataset(tmp_path / "temp.nc")
+
+        summed = nds["Processing of CO2"].values.flat[0]
+        assert [step.function for step in summed.history()] == ["random", "fill", "sum"]
+        nfilled, ncreated = summed.parents
+        assert nfilled.parents[0] is ncreated
+        assert summed == ds["Processing of CO2"].values.flat[0]
 
 
 class TestEnsureValid:
@@ -99,7 +128,10 @@ class TestEnsureValid:
         enough to check that it doesn't raise - nothing may be logged either.
         """
         caplog.set_level(logging.INFO)
-        ds = primap2.pm2io.from_interchange_format(any_ds.pr.to_interchange_format())
+        # the interchange format can not represent processing information yet
+        ds = primap2.pm2io.from_interchange_format(
+            any_ds.pr.remove_processing_info().pr.to_interchange_format()
+        )
         ds.pr.ensure_valid()
         assert not caplog.records
 
@@ -122,6 +154,17 @@ class TestEnsureValid:
         ):
             opulent_processing_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
+
+    def test_processing_info_missing_for_variable(self, opulent_processing_ds, caplog):
+        del opulent_processing_ds["Processing of CO2"]
+        with pytest.raises(ValueError, match="has processing information, but not for 'CO2'"):
+            opulent_processing_ds.pr.ensure_valid()
+        assert "has processing information, but not for 'CO2'" in caplog.text
+
+    def test_processing_info_missing_for_data(self, opulent_processing_ds, caplog):
+        opulent_processing_ds["Processing of CO2"].data.flat[0] = None
+        with pytest.raises(ValueError, match="contain data, but have no processing information"):
+            opulent_processing_ds.pr.ensure_valid()
 
     def test_metadata_wrong_attr(self, opulent_processing_ds, caplog):
         opulent_processing_ds["Processing of CO2"].attrs["described_variable"] = "CH4"

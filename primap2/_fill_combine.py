@@ -7,10 +7,12 @@ see https://github.com/pydata/xarray/issues/9124
 
 """
 
+import pint
 import xarray as xr
 from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+from ._processing_info import records_processing_step
 
 
 class DataArrayFillAccessor(BaseDataArrayAccessor):
@@ -103,8 +105,8 @@ class DataArrayFillAccessor(BaseDataArrayAccessor):
 
 class DatasetFillAccessor(BaseDatasetAccessor):
     def fillna(
-        self: xr.Dataset,
-        ds_fill: xr.Dataset | xr.DataArray,
+        self,
+        ds_fill: xr.Dataset | xr.DataArray | float | pint.Quantity,
     ) -> xr.Dataset:
         """Fill missing information from other dataset.
 
@@ -117,21 +119,37 @@ class DatasetFillAccessor(BaseDatasetAccessor):
         Parameters
         ----------
         ds_fill
-            Dataset or DataArray used to fill nan values in the calling dataset
+            Dataset, DataArray or single value used to fill nan values in the calling
+            dataset. If the calling dataset has processing information, a Dataset needs
+            processing information as well, see
+            :py:meth:`xarray.DataArray.pr.with_creation_step`, and a single value is recorded
+            as the creation of the filled values.
 
         Returns
         -------
             filled
                 calling Dataset where nan values are filled from ds_fill where possible
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
+        if isinstance(ds_fill, xr.Dataset | xr.DataArray):
+            return self._fillna(ds_fill)
+        return self._fillna_value(ds_fill)
 
+    @records_processing_step(
+        "self",
+        function="fillna",
+        description_template="filled missing values with {value} (<var>; <coords>)",
+    )
+    def _fillna_value(self, value: float | pint.Quantity) -> xr.Dataset:
+        return self._ds.fillna(value)
+
+    @records_processing_step(
+        "self",
+        other="ds_fill",
+        function="fillna",
+        description_template="filled missing values (<var>; <coords>)",
+    )
+    def _fillna(self, ds_fill: xr.Dataset | xr.DataArray) -> xr.Dataset:
         ds_start = self._ds
-
         coords_start = ds_start.coords
         coords_fill = ds_fill.coords
         filled = ds_start.fillna(ds_fill)
@@ -154,8 +172,14 @@ class DatasetFillAccessor(BaseDatasetAccessor):
 
         return filled
 
+    @records_processing_step(
+        "self",
+        other="ds_combine",
+        function="combine_first",
+        description_template="combined with other data (<var>; <coords>)",
+    )
     def combine_first(
-        self: xr.Dataset,
+        self,
         ds_combine: xr.Dataset | xr.DataArray,
     ) -> xr.Dataset:
         """Combine with data from other dataset or array.
@@ -176,14 +200,7 @@ class DatasetFillAccessor(BaseDatasetAccessor):
             combined
                 calling Dataset calling DataArray combined with da_combine
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
-
         ds_start = self._ds
-
         coords_start = ds_start.coords
         coords_fill = ds_combine.coords
         filled = ds_start.combine_first(ds_combine)
