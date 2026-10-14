@@ -14,6 +14,7 @@ Top-level API
     TimeRange
     accessors
     open_dataset
+    records_processing_step
     ureg
 
 

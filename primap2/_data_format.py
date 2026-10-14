@@ -136,7 +136,6 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         -------
         df: pd.DataFrame
         """
-        # TODO: we need to decide how to store the processing info in the interchange format
         ensure_no_processing_info(self._ds)
 
         dsd = self._ds.pr.dequantify()

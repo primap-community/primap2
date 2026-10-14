@@ -1,5 +1,7 @@
 """Processing information for the timeseries of a data variable."""
 
+import functools
+import inspect
 import typing
 
 import msgpack
@@ -9,7 +11,7 @@ import xarray as xr
 from attr import define, evolve, field
 from loguru import logger
 
-from ._accessor_base import BaseDataArrayAccessor
+from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._time_range import TimeRange, time_ranges
 
 PROCESSING_PREFIX = "Processing of "
@@ -824,3 +826,106 @@ class ProcessingStepRecorder:
                 "The result is only available after the with block ended without an error."
             )
         return self._result
+
+
+F = typing.TypeVar("F", bound=typing.Callable[..., xr.Dataset])
+
+
+def records_processing_step(
+    input_ds: str,
+    *,
+    description_template: str,
+    function: str | None = None,
+    source: str | None = None,
+    other: str | None = None,
+) -> typing.Callable[[F], F]:
+    """Decorator which records a processing step for every timeseries changed by the
+    decorated function.
+
+    The decorated function receives a deep copy of the input dataset without processing
+    information and has to return the processed dataset. The decorated function then
+    returns it including the updated processing information, determined like in
+    :py:meth:`xarray.Dataset.pr.processing_step`.
+
+    Examples
+    --------
+    >>> # xdoctest: +SKIP
+    >>> @records_processing_step(
+    ...     "ds", description_template="interpolated with {method} (<var>; <coords>)"
+    ... )
+    ... def interpolate(ds: xr.Dataset, method: str = "linear") -> xr.Dataset:
+    ...     return ds.interpolate_na(dim="time", method=method)
+
+    Parameters
+    ----------
+    input_ds
+        The name of the argument holding the input dataset. For methods of dataset
+        accessors, use "self" to take the accessor's dataset as input.
+    description_template
+        Human-readable description of the processing step. "{name}" fields are replaced
+        by the arguments of the call using :py:meth:`str.format_map`, "<coords>" by the
+        coordinates of each changed timeseries and "<var>" by the name of its data
+        variable.
+    function
+        Optional: the name of the function which does the processing. Defaults to the
+        qualified name of the decorated function.
+    source
+        Optional: a short identifier for the source of the data which is used for the
+        processing, with "{name}" fields replaced like in ``description_template``.
+    other
+        Optional: the name of the argument holding a dataset from which data is taken.
+        The decorated function receives it without processing information. If the input
+        dataset has processing information, a Dataset passed as ``other`` needs it as
+        well and a DataArray is not allowed.
+    """
+
+    def decorator(func: F) -> F:
+        signature = inspect.signature(func)
+        for name in (input_ds, other):
+            if name is not None and name not in signature.parameters:
+                raise ValueError(f"{func.__qualname__} has no argument {name!r}.")
+        function_name = func.__qualname__ if function is None else function
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> xr.Dataset:
+            bound = signature.bind(*args, **kwargs)
+            bound.apply_defaults()
+            arguments = dict(bound.arguments)
+
+            value = arguments[input_ds]
+            is_accessor = isinstance(value, BaseDatasetAccessor)
+            ds = value._ds if is_accessor else value
+            if not isinstance(ds, xr.Dataset):
+                raise TypeError(
+                    f"Argument {input_ds!r} of {func.__qualname__} has to be a Dataset, not "
+                    f"{type(ds).__name__}."
+                )
+
+            other_ds = None
+            if other is not None:
+                other_value = arguments[other]
+                if isinstance(other_value, xr.Dataset | xr.DataArray):
+                    ensure_complete_processing_info_of_other(ds, other_value)
+                if isinstance(other_value, xr.Dataset):
+                    bound.arguments[other] = _without_processing_info(other_value)
+                    other_ds = other_value
+
+            with ProcessingStepRecorder(
+                ds,
+                function=function_name,
+                description_template=description_template.format_map(arguments),
+                source=None if source is None else source.format_map(arguments),
+                other_ds=other_ds,
+            ) as step:
+                bound.arguments[input_ds] = type(value)(step.ds) if is_accessor else step.ds
+                result = func(*bound.args, **bound.kwargs)
+                if not isinstance(result, xr.Dataset):
+                    raise TypeError(
+                        f"{func.__qualname__} has to return a Dataset, not {type(result).__name__}."
+                    )
+                step.ds = result
+            return step.result
+
+        return typing.cast(F, wrapper)
+
+    return decorator

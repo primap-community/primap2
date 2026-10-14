@@ -764,3 +764,105 @@ def test_dataset_with_creation_step(basket_processing_ds):
 
     with pytest.raises(ValueError, match="already has processing information"):
         result.pr.with_creation_step(function="read", description="read")
+
+
+@primap2.records_processing_step(
+    "ds", description_template="filled with {value} (<var>; <coords>)", source="{source}"
+)
+def fill_value(ds: xr.Dataset, value: float = 0.0, source: str = "default") -> xr.Dataset:
+    assert not ds.pr.has_processing_info()
+    return ds.fillna(value)
+
+
+def test_records_processing_step():
+    ds = processing_ds()
+
+    result = fill_value(ds, source="test")
+
+    np.testing.assert_array_equal(result["CO2"], [[1, 0, 3], [1, 2, 3]])
+    processing = result["Processing of CO2"]
+    assert processing.pr.loc[{"area": "COL"}].item() == ProcessingStepDescription(
+        time=TimeRange("2001", "2001"),
+        function="fill_value",
+        description="filled with 0.0 (CO2; area (ISO3)='COL')",
+        source="test",
+        parents=(step("a"),),
+    )
+    assert processing.pr.loc[{"area": "ARG"}].item() == step("b")
+    # the input is not modified
+    assert np.isnan(ds["CO2"].pr.loc[{"area": "COL", "time": "2001"}].item())
+
+
+def test_records_processing_step_without_processing_info():
+    ds = processing_ds().pr.remove_processing_info()
+
+    result = fill_value(value=1.0, ds=ds)
+
+    assert not result.pr.has_processing_info()
+    assert result["CO2"].pr.loc[{"area": "COL", "time": "2001"}].item() == 1.0
+
+
+def test_records_processing_step_in_place_changes():
+    @primap2.records_processing_step("ds", function="set", description_template="set")
+    def set_in_place(ds: xr.Dataset) -> xr.Dataset:
+        ds["CO2"].loc[{"area (ISO3)": "ARG", "time": "2000"}] = 5.0
+        return ds
+
+    ds = processing_ds()
+
+    result = set_in_place(ds)
+
+    assert result["Processing of CO2"].pr.loc[{"area": "ARG"}].item().function == "set"
+    assert ds["CO2"].pr.loc[{"area": "ARG", "time": "2000"}].item() == 1.0
+
+
+class FillAccessor(primap2._accessor_base.BaseDatasetAccessor):
+    @primap2.records_processing_step(
+        "self", other="other", description_template="filled (<var>; <coords>)"
+    )
+    def fill(self, other: xr.Dataset | xr.DataArray | float) -> xr.Dataset:
+        assert isinstance(self, FillAccessor)
+        assert not self._ds.pr.has_processing_info()
+        if isinstance(other, xr.Dataset):
+            assert not other.pr.has_processing_info()
+        return self._ds.fillna(other)
+
+
+def test_records_processing_step_accessor_other():
+    ds = processing_ds()
+
+    result = FillAccessor(ds).fill(other_ds(dims=())[["CO2", "Processing of CO2"]])
+
+    col = result["Processing of CO2"].pr.loc[{"area": "COL"}].item()
+    assert col.function == "FillAccessor.fill"
+    assert col.parents == (step("a"), step("c"))
+
+
+def test_records_processing_step_other_value():
+    result = FillAccessor(processing_ds()).fill(0.0)
+
+    col = result["Processing of CO2"].pr.loc[{"area": "COL"}].item()
+    assert col.parents == (step("a"),)
+
+
+def test_records_processing_step_other_invalid():
+    ds = processing_ds()
+    with pytest.raises(TypeError, match="DataArray it is combined with"):
+        FillAccessor(ds).fill(ds["CO2"])
+    with pytest.raises(ValueError, match="the data it is combined with has none"):
+        FillAccessor(ds).fill(other_ds(with_processing_info=False))
+
+
+def test_records_processing_step_invalid():
+    with pytest.raises(ValueError, match="has no argument 'da'"):
+        primap2.records_processing_step("da", description_template="d")(fill_value.__wrapped__)
+
+    with pytest.raises(TypeError, match="has to be a Dataset, not DataArray"):
+        fill_value(processing_ds()["CO2"])
+
+    @primap2.records_processing_step("ds", description_template="d")
+    def to_array(ds: xr.Dataset) -> xr.Dataset:
+        return ds["CO2"]
+
+    with pytest.raises(TypeError, match="has to return a Dataset, not DataArray"):
+        to_array(processing_ds())

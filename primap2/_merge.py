@@ -8,7 +8,7 @@ import xarray as xr
 from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
-from ._processing_info import ensure_complete_processing_info_of_other
+from ._processing_info import records_processing_step
 
 
 def merge_with_tolerance_core(
@@ -171,6 +171,12 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
 
 
 class DatasetMergeAccessor(BaseDatasetAccessor):
+    @records_processing_step(
+        "self",
+        other="ds_merge",
+        function="merge",
+        description_template="merged with other data (<var>; <coords>)",
+    )
     def merge(
         self,
         ds_merge: xr.Dataset | xr.DataArray,
@@ -206,22 +212,15 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
             merged
                 Dataset with data from da_merge merged into the calling object
         """
-        ensure_complete_processing_info_of_other(self._ds, ds_merge)
         if isinstance(ds_merge, xr.DataArray):
             ds_merge = ds_merge.to_dataset()
-        with self._ds.pr.processing_step(
-            function="merge",
-            description_template="merged with other data (<var>; <coords>)",
-            other_ds=ds_merge,
-        ) as step:
-            step.ds = self._merge(
-                ds_start=step.ds,
-                ds_merge=ds_merge.pr.remove_processing_info(),
-                tolerance=tolerance,
-                error_on_discrepancy=error_on_discrepancy,
-                combine_attrs=combine_attrs,
-            )
-        return step.result
+        return self._merge(
+            ds_start=self._ds,
+            ds_merge=ds_merge,
+            tolerance=tolerance,
+            error_on_discrepancy=error_on_discrepancy,
+            combine_attrs=combine_attrs,
+        )
 
     @staticmethod
     def _merge(

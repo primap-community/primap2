@@ -14,10 +14,10 @@ from ._dim_names import dim_names
 from ._processing_info import (
     combine_histories,
     ensure_complete_processing_info,
-    ensure_no_processing_info,
     has_processing_info,
     processing_variable_name,
     record_step,
+    records_processing_step,
 )
 from ._selection import alias_dims
 from ._types import DatasetOrDataArray, DimOrDimsT
@@ -499,6 +499,11 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         ).all()
 
     @alias_dims(["dim"])
+    @records_processing_step(
+        "self",
+        function="fill_all_na",
+        description_template="all values along {dim!r} were NA, filled with {value} (<coords>)",
+    )
     def fill_all_na(self, dim: DimOrDimsT, value=0) -> xr.Dataset:
         """Fill NA values only where all values along the specified dimension(s) are NA.
 
@@ -518,14 +523,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         filled : xr.Dataset
         """
-        with self._ds.pr.processing_step(
-            function="fill_all_na",
-            description_template=(
-                f"all values along {dim!r} were NA, filled with {value} (<coords>)"
-            ),
-        ) as step:
-            step.ds = step.ds.map(self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True)
-        return step.result
+        return self._ds.map(self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True)
 
     def _reduce_dim(
         self, dim: DimOrDimsT | None, reduce_to_dim: DimOrDimsT | None
@@ -547,9 +545,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
     @alias_dims(["dim"], wraps=xr.Dataset.any)
     def any(self, *args, **kwargs):
-        ensure_no_processing_info(self._ds)
-
-        return self._ds.any(*args, **kwargs)
+        return self._ds.pr.remove_processing_info().any(*args, **kwargs)
 
     @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
     def count(
@@ -570,6 +566,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
            `count` will be applied along all other dimensions (including ``entity``).
         3. If you specify ``entity`` in "dim", the Dataset is converted to a DataArray
            and counted along the data variables.
+
+        Processing information is ignored.
 
         Parameters
         ----------
@@ -596,14 +594,13 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
             counted : xr.Dataset or xr.DataArray if "entity" in dims.
         """
-        ensure_no_processing_info(self._ds)
-
         dim = self._reduce_dim(dim, reduce_to_dim)
+        ds = self._ds.pr.remove_processing_info()
 
         if dim is not None and "entity" in dim:
             ndim = set(dim) - {"entity"}
 
-            ds = self._ds.count(dim=ndim, keep_attrs=keep_attrs, **kwargs)
+            ds = ds.count(dim=ndim, keep_attrs=keep_attrs, **kwargs)
 
             if not ds.pr._all_vars_all_dimensions():
                 raise NotImplementedError(
@@ -613,7 +610,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
             return ds.to_array("entity").sum(dim="entity", keep_attrs=True)
         else:
-            return self._ds.count(dim=dim, keep_attrs=keep_attrs, **kwargs)
+            return ds.count(dim=dim, keep_attrs=keep_attrs, **kwargs)
 
     @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
     def sum(
