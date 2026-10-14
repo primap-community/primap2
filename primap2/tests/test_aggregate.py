@@ -322,7 +322,8 @@ class TestCount:
     def test_processing_info(self, opulent_processing_ds):
         ds = opulent_processing_ds[["CO2", "SF6", "Processing of CO2", "Processing of SF6"]]
         xr.testing.assert_identical(
-            ds.pr.count(dim="area"), ds.pr.remove_processing_info().count(dim="area (ISO3)")
+            ds.pr.count(dim="area"),
+            ds.pr.remove_processing_info().count(dim="area (ISO3)", keep_attrs=True),
         )
         xr.testing.assert_identical(
             ds.pr.count(dim=["entity", "area"]),
