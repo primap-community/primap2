@@ -235,7 +235,7 @@ Compared to the minimal example, this data set has a lot more to unpack:
 
 ## Processing information example
 
-For detailed descriptions of processing steps done to arrive at the dataset at hand, we use rich metadata types.
+Processing information describes the processing steps done to arrive at the dataset at hand, as `primap2.ProcessingStepDescription` objects.
 This example shows a dataset with detailed processing step information.
 
 ```{code-cell} ipython3

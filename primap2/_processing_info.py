@@ -911,9 +911,10 @@ def records_processing_step(
     """Decorator which records a processing step for every timeseries changed by the
     decorated function.
 
-    The decorated function receives a deep copy of the input dataset without processing
-    information and has to return the processed dataset. The decorated function then
-    returns it including the updated processing information, determined like in
+    The decorator removes the processing information from a deep copy of the input
+    dataset before the function is called, so the function only works with the data and
+    returns the processed dataset. The decorator then adds the updated processing
+    information to the returned dataset, determined like in
     :py:meth:`xarray.Dataset.pr.processing_step`.
 
     Examples
@@ -926,8 +927,9 @@ def records_processing_step(
     Parameters
     ----------
     input_ds
-        The name of the argument holding the input dataset. For methods of dataset
-        accessors, use "self" to take the accessor's dataset as input.
+        The name of the argument holding the input dataset. For methods of primap2's
+        dataset accessors, use "self": the method is then called on an accessor of the
+        input dataset without processing information.
     description
         Human-readable description of the processing step. "{name}" fields are replaced
         by the arguments of the call using :py:meth:`str.format_map`.

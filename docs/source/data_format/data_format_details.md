@@ -138,9 +138,8 @@ terminology is defined elsewhere.
 
 ## Timeseries-Level Processing Information
 
-To record processing information, rich processing information can be stored in
-special data variables.
-These store processing information for a specific normal data variable.
+How each timeseries was derived can be recorded as processing information, which is
+stored in special data variables, one for each normal data variable it describes.
 For each timeseries in the normal data variable, the last processing step is kept,
 which refers to the earlier processing steps.
 The name of these variables is `Processing of {var}` where `{var}` is the

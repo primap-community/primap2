@@ -132,9 +132,12 @@ result_ds = primap2.csg.compose(
 result_ds
 ```
 
-In the result, you can see that the priority dimensions have been removed, and there are
+In the result, you can see that the priority dimensions have been removed, and that
 processing information was added which describes for each timeseries how it was derived.
-Use {py:meth}`xarray.Dataset.pr.processing_info` to select it.
+If the input data has processing information, the histories of the input timeseries
+are the parents of the composed timeseries, otherwise their history starts with the
+composition. Use {py:meth}`xarray.Dataset.pr.processing_info` to select it, see
+[processing information](processing_info.md).
 
 ```{code-cell}
 sel = {
