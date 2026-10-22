@@ -96,7 +96,7 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
         -------
             df: pandas.DataFrame
         """
-        df = self._ds.pr.remove_processing_info().reset_coords(drop=True).to_dataframe()
+        df = self._ds.pr.without_processing_info().reset_coords(drop=True).to_dataframe()
         if name is not None:
             df.columns.name = name
         return df
@@ -135,7 +135,7 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
         if not dims:
             raise ValueError("Specify at least one dimension.")
 
-        ds = self._ds.pr.remove_processing_info()
+        ds = self._ds.pr.without_processing_info()
 
         for dim in dims:
             if dim == "entity":

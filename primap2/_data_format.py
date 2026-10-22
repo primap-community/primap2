@@ -1,6 +1,7 @@
 import contextlib
 import datetime
 import pathlib
+import warnings
 from collections.abc import Hashable, Iterable, Mapping
 from typing import IO
 
@@ -14,6 +15,8 @@ from . import _accessor_base, pm2io
 from ._processing_info import (
     ProcessingStepDescription,
     ProcessingStepRecorder,
+    _described,
+    _dims_repr,
     ensure_complete_processing_info,
     ensure_no_processing_info,
     is_processing_variable,
@@ -282,9 +285,110 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             format="NETCDF4",
         )
 
-    def remove_processing_info(self) -> xr.Dataset:
-        """Return dataset with all variables with processing information removed."""
+    def without_processing_info(self) -> xr.Dataset:
+        """A copy of the dataset without processing information.
+
+        See Also
+        --------
+        processing_info, with_processing_info
+        """
         return self._ds.drop_vars([var for var in self._ds if is_processing_variable(var)])
+
+    def remove_processing_info(self) -> xr.Dataset:
+        """Deprecated, use :py:meth:`xarray.Dataset.pr.without_processing_info`."""
+        warnings.warn(
+            "remove_processing_info is deprecated, use without_processing_info instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.without_processing_info()
+
+    def processing_info(self) -> xr.Dataset:
+        """The processing information of all data variables.
+
+        The result is only meant for reading: it is not a valid primap2 dataset, and
+        changing it does not change this dataset.
+
+        Returns
+        -------
+        : xr.Dataset
+            A dataset with the attributes of this dataset, which contains for every data
+            variable with processing information a variable of the same name holding the
+            last processing step of each of its timeseries.
+
+        See Also
+        --------
+        without_processing_info, with_processing_info
+        """
+        return xr.Dataset(
+            {
+                da.attrs["described_variable"]: da
+                for name, da in self._ds.data_vars.items()
+                if is_processing_variable(name)
+            },
+            attrs=self._ds.attrs,
+        )
+
+    def with_processing_info(self, processing_info: xr.Dataset) -> xr.Dataset:
+        """Combine this dataset with processing information, as returned by
+        :py:meth:`xarray.Dataset.pr.processing_info`.
+
+        The processing information is selected to the coordinates of this dataset, so
+        that a dataset can be split, selected and recombined. The processing
+        information has to describe the data as it is: to change data, use
+        :py:meth:`xarray.Dataset.pr.processing_step`, which records the change.
+
+        Parameters
+        ----------
+        processing_info
+            The processing information of the data variables, named like them.
+
+        Returns
+        -------
+        : xr.Dataset
+            A copy of this dataset with the processing information.
+
+        Raises
+        ------
+        ValueError
+            If the dataset already has processing information, if processing information
+            is given for a variable which is not in the dataset, if its dimensions or
+            coordinates don't match, or if processing information is missing for a
+            timeseries with data.
+
+        See Also
+        --------
+        processing_info, without_processing_info
+        """
+        if self.has_processing_info():
+            raise ValueError("The dataset already has processing information.")
+        result = self._ds.copy()
+        for var, da in processing_info.data_vars.items():
+            if var not in self._ds.data_vars:
+                raise ValueError(
+                    f"Processing information is given for {var!r}, which is not a data "
+                    f"variable of the dataset."
+                )
+            described = _described(self._ds[var])
+            if set(da.dims) != set(described.dims):
+                raise ValueError(
+                    f"The processing information of {var!r} has the dimensions "
+                    f"{_dims_repr(da.dims)}, but needs {_dims_repr(described.dims)}."
+                )
+            try:
+                selected = da.sel({dim: described[dim].values for dim in described.dims})
+            except KeyError as err:
+                raise ValueError(
+                    f"The processing information of {var!r} lacks coordinates of the data: {err}"
+                ) from err
+            name = processing_variable_name(var)
+            result[name] = (
+                selected.transpose(*described.dims)
+                .rename(name)
+                .assign_attrs(entity=name, described_variable=var)
+            )
+        ensure_complete_processing_info(result)
+        return result
 
     def processing_step(
         self,

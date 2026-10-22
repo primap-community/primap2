@@ -400,7 +400,7 @@ def test_processing_step_other_ds():
     other = other_ds()
 
     with ds.pr.processing_step(function="combine", description="combined", other_ds=other) as s:
-        s.ds = s.ds.combine_first(other.pr.remove_processing_info())
+        s.ds = s.ds.combine_first(other.pr.without_processing_info())
 
     processing = s.result["Processing of CO2"]
     # changed: the step combines both histories
@@ -571,7 +571,7 @@ def test_fillna_with_creation_step():
 
 def test_set_without_processing_info():
     ds = processing_ds()
-    value = ds.pr.remove_processing_info().pr.loc[{"area": "COL"}]
+    value = ds.pr.without_processing_info().pr.loc[{"area": "COL"}]
 
     with pytest.raises(ValueError, match="the data it is combined with has none"):
         ds.pr.set("area", "BOL", value)
@@ -750,7 +750,7 @@ def test_sum_processing_info():
 
 @pytest.mark.parametrize("dim", ["time", "entity"])
 def test_sum_processing_info_not_supported(dim):
-    with pytest.raises(NotImplementedError, match="remove_processing_info"):
+    with pytest.raises(NotImplementedError, match="without_processing_info"):
         category_ds().pr.sum(dim)
 
 
@@ -839,7 +839,7 @@ def test_other_with_incomplete_processing_info():
 
 
 def test_dataset_with_creation_step(basket_processing_ds):
-    ds = basket_processing_ds.pr.remove_processing_info()
+    ds = basket_processing_ds.pr.without_processing_info()
 
     result = ds.pr.with_creation_step(function="read", description="read", source="RAND2020")
 
@@ -888,7 +888,7 @@ def test_records_processing_step():
 
 
 def test_records_processing_step_without_processing_info():
-    ds = processing_ds().pr.remove_processing_info()
+    ds = processing_ds().pr.without_processing_info()
 
     result = fill_value(value=1.0, ds=ds)
 
@@ -958,3 +958,72 @@ def test_records_processing_step_invalid():
 
     with pytest.raises(TypeError, match="has to return a Dataset, not DataArray"):
         to_array(processing_ds())
+
+
+def test_processing_info_split_and_recombine(opulent_processing_ds):
+    ds = opulent_processing_ds
+
+    data = ds.pr.without_processing_info()
+    processing = ds.pr.processing_info()
+
+    assert not data.pr.has_processing_info()
+    assert set(processing.data_vars) == set(data.data_vars)
+    assert processing.attrs == ds.attrs
+    assert processing["CO2"].identical(ds["Processing of CO2"].rename("CO2"))
+    xr.testing.assert_identical(data.pr.with_processing_info(processing), ds)
+
+
+def test_processing_info_without_processing_info():
+    ds = processing_ds().pr.without_processing_info()
+    assert len(ds.pr.processing_info().data_vars) == 0
+
+
+def test_processing_info_select():
+    ds = processing_ds()
+
+    col = ds.pr.processing_info().pr.loc[{"area": "COL"}]["CO2"]
+
+    assert col.item() == step("a")
+
+
+def test_with_processing_info_selected_data():
+    """The processing information is selected to the coordinates of the data."""
+    ds = processing_ds()
+
+    data = ds.pr.without_processing_info().pr.loc[{"area": ["ARG"]}]
+    result = data.pr.with_processing_info(ds.pr.processing_info())
+
+    xr.testing.assert_identical(result, ds.pr.loc[{"area": ["ARG"]}])
+
+
+def test_with_processing_info_invalid():
+    ds = processing_ds()
+    data = ds.pr.without_processing_info()
+    processing = ds.pr.processing_info()
+
+    with pytest.raises(ValueError, match="already has processing information"):
+        ds.pr.with_processing_info(processing)
+    with pytest.raises(ValueError, match="'CH4', which is not a data variable"):
+        data.pr.with_processing_info(processing.rename({"CO2": "CH4"}))
+    with pytest.raises(ValueError, match="has the dimensions"):
+        data.pr.with_processing_info(processing.expand_dims(source=["RAND2020"]))
+    with pytest.raises(ValueError, match="lacks coordinates of the data"):
+        data.pr.with_processing_info(processing.pr.loc[{"area": ["COL"]}])
+
+
+def test_with_processing_info_incomplete(opulent_processing_ds):
+    data = opulent_processing_ds.pr.without_processing_info()
+    processing = opulent_processing_ds.pr.processing_info()
+
+    with pytest.raises(ValueError, match="but not for 'CO2'"):
+        data.pr.with_processing_info(processing.drop_vars("CO2"))
+    # without any processing information, the result has none either
+    result = data.pr.with_processing_info(processing.drop_vars(list(processing)))
+    assert not result.pr.has_processing_info()
+
+
+def test_remove_processing_info_deprecated():
+    ds = processing_ds()
+    with pytest.warns(DeprecationWarning, match="use without_processing_info"):
+        result = ds.pr.remove_processing_info()
+    xr.testing.assert_identical(result, ds.pr.without_processing_info())

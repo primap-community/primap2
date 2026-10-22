@@ -193,7 +193,7 @@ def test_create_composite_source(caplog):
     assert not [record for record in caplog.records if record.levelno >= logging.WARNING]
 
     # remove processing info, the comparison data was created without it
-    result = result.pr.remove_processing_info()
+    result = result.pr.without_processing_info()
 
     # assert results
     # load comparison data

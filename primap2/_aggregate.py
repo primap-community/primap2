@@ -546,7 +546,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
     @alias_dims(["dim"], wraps=xr.Dataset.any)
     def any(self, *args, **kwargs):
-        return self._ds.pr.remove_processing_info().any(*args, **kwargs)
+        return self._ds.pr.without_processing_info().any(*args, **kwargs)
 
     @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
     def count(
@@ -596,7 +596,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             counted : xr.Dataset or xr.DataArray if "entity" in dims.
         """
         dim = self._reduce_dim(dim, reduce_to_dim)
-        ds = self._ds.pr.remove_processing_info()
+        ds = self._ds.pr.without_processing_info()
 
         if dim is not None and "entity" in dim:
             ndim = set(dim) - {"entity"}
@@ -701,7 +701,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         dim = self._reduce_dim(dim, reduce_to_dim)
 
         ds, skipna, min_count = resolve_skipna(
-            self._ds.pr.remove_processing_info(), skipna, skipna_evaluation_dims, min_count
+            self._ds.pr.without_processing_info(), skipna, skipna_evaluation_dims, min_count
         )
 
         if dim is not None and "entity" in dim:
@@ -710,7 +710,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                     "Summing along the entity dimension gives a DataArray, which can not "
                     "carry processing information. Consider wrapping the call in a "
                     "ds.pr.processing_step() block and assigning the result to a variable of "
-                    "the block's dataset, or use ds.pr.remove_processing_info() first."
+                    "the block's dataset, or use ds.pr.without_processing_info() first."
                 )
             ndim = set(dim) - {"entity"}
 
@@ -738,7 +738,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 raise NotImplementedError(
                     "Summing along 'time' gives values which are not timeseries, so they "
                     "can not carry processing information. Use "
-                    "ds.pr.remove_processing_info() first."
+                    "ds.pr.without_processing_info() first."
                 )
             summed[name] = record_step(
                 summed[var],
@@ -996,7 +996,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 Input with added aggregated values for coordinates / dimensions as
                 specified in the agg_info dict
         """
-        data = self._ds.pr.remove_processing_info()
+        data = self._ds.pr.without_processing_info()
         ds_out = data.copy(deep=True)
         tracked = has_processing_info(self._ds)
         ensure_complete_processing_info(self._ds)
@@ -1113,7 +1113,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         """
         tracked = has_processing_info(self._ds)
         ensure_complete_processing_info(self._ds)
-        ds_out = self._ds.pr.remove_processing_info().copy(deep=True)
+        ds_out = self._ds.pr.without_processing_info().copy(deep=True)
         processing_infos = {
             var: self._ds[processing_variable_name(var)]
             for var in ds_out.data_vars

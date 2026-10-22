@@ -136,7 +136,7 @@ def ensure_no_processing_info(ds: xr.Dataset) -> None:
     if has_processing_info(ds):
         raise NotImplementedError(
             "Dataset contains processing information, this is not supported yet. "
-            "Use ds.pr.remove_processing_info()."
+            "Use ds.pr.without_processing_info()."
         )
 
 

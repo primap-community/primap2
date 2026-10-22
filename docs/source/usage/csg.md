@@ -133,8 +133,8 @@ result_ds
 ```
 
 In the result, you can see that the priority dimensions have been removed, and there are
-new data variables "Processing of $entity" added which contain detailed information for
-each timeseries how it was derived.
+processing information was added which describes for each timeseries how it was derived.
+Use {py:meth}`xarray.Dataset.pr.processing_info` to select it.
 
 ```{code-cell}
 sel = {
@@ -149,13 +149,13 @@ result_ds["CH4"].pr.loc[sel]
 
 ```{code-cell}
 del sel["time"]
-result_ds["Processing of CH4"].pr.loc[sel]
+processing = result_ds.pr.processing_info()["CH4"].pr.loc[sel]
+processing
 ```
 
 ```{code-cell}
-for tpd in result_ds["Processing of CH4"].pr.loc[sel]:
-    print(f"category={tpd['category (IPCC 2006)'].item()}")
-    print(tpd.item().format_history())
+for step in processing.values.flat:
+    print(step.format_history())
     print()
 ```
 

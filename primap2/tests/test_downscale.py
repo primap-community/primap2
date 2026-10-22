@@ -646,7 +646,7 @@ def test_downscale_timeseries_by_shares_without_processing_info(basket_processin
     reference = basket_processing_ds[["CO2", "Processing of CO2"]]
     ds = reference.pr.loc[{"area": ["CAMB"]}]
 
-    without_processing_info = reference.pr.remove_processing_info()
+    without_processing_info = reference.pr.without_processing_info()
     for shares, error, match in (
         (without_processing_info, ValueError, "the data it is combined with has none"),
         (reference["CO2"], TypeError, "with_creation_step"),

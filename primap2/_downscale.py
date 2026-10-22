@@ -352,7 +352,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
 
         tracked = has_processing_info(self._ds)
         ensure_complete_processing_info(self._ds)
-        data = self._ds.pr.remove_processing_info()
+        data = self._ds.pr.without_processing_info()
         downscaled = self._ds.copy()
         contents = {dim: list(basket_contents)}
         for var in data.data_vars:
@@ -466,7 +466,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         -------
         downscaled: xr.Dataset
         """
-        data = self._ds.pr.remove_processing_info()
+        data = self._ds.pr.without_processing_info()
         ds_sel = select_no_scalar_dimension(data, sel)
 
         basket_contents_converted = xr.Dataset()
@@ -610,7 +610,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         """
         ensure_complete_processing_info(self._ds)
         ensure_complete_processing_info_of_other(self._ds, basket_contents_shares)
-        ds = self._ds.pr.remove_processing_info()
+        ds = self._ds.pr.without_processing_info()
         downscaled_dict = {}
         for var in ds.data_vars:
             if isinstance(basket_contents_shares, xr.Dataset):

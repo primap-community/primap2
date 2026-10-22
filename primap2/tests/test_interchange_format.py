@@ -17,7 +17,7 @@ from . import utils
 def test_round_trip(any_ds: xr.Dataset, tmp_path):
     path = tmp_path / "if"
     # the interchange format has no representation for processing information yet
-    expected = any_ds.pr.remove_processing_info()
+    expected = any_ds.pr.without_processing_info()
     pm2io.write_interchange_format(path, expected.pr.to_interchange_format())
     with path.with_suffix(".yaml").open() as fd:
         print(fd.read())

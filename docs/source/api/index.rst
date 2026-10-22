@@ -173,6 +173,7 @@ Methods
     Dataset.pr.gas_basket_contents_sum
     Dataset.pr.has_processing_info
     Dataset.pr.merge
+    Dataset.pr.processing_info
     Dataset.pr.processing_step
     Dataset.pr.quantify
     Dataset.pr.remove_processing_info
@@ -182,3 +183,5 @@ Methods
     Dataset.pr.to_interchange_format
     Dataset.pr.to_netcdf
     Dataset.pr.with_creation_step
+    Dataset.pr.with_processing_info
+    Dataset.pr.without_processing_info

@@ -130,7 +130,7 @@ class TestEnsureValid:
         caplog.set_level(logging.INFO)
         # the interchange format can not represent processing information yet
         ds = primap2.pm2io.from_interchange_format(
-            any_ds.pr.remove_processing_info().pr.to_interchange_format()
+            any_ds.pr.without_processing_info().pr.to_interchange_format()
         )
         ds.pr.ensure_valid()
         assert not caplog.records
@@ -428,13 +428,13 @@ class TestToInterchangeFormat:
         )
 
 
-def test_remove_processing_info(opulent_processing_ds):
-    result = opulent_processing_ds.pr.remove_processing_info()
+def test_without_processing_info(opulent_processing_ds):
+    result = opulent_processing_ds.pr.without_processing_info()
     assert all(not is_processing_variable(x) for x in result)
 
 
-def test_remove_processing_info_nothing_to_do(opulent_ds):
-    result = opulent_ds.pr.remove_processing_info()
+def test_without_processing_info_nothing_to_do(opulent_ds):
+    result = opulent_ds.pr.without_processing_info()
     xr.testing.assert_identical(opulent_ds, result)
 
 

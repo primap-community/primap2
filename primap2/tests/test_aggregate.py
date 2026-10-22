@@ -314,7 +314,7 @@ def test_any(opulent_ds_or_da):
 def test_any_processing_info(opulent_processing_ds):
     xr.testing.assert_identical(
         opulent_processing_ds.pr.any(dim="area"),
-        opulent_processing_ds.pr.remove_processing_info().any(dim="area (ISO3)"),
+        opulent_processing_ds.pr.without_processing_info().any(dim="area (ISO3)"),
     )
 
 
@@ -323,11 +323,11 @@ class TestCount:
         ds = opulent_processing_ds[["CO2", "SF6", "Processing of CO2", "Processing of SF6"]]
         xr.testing.assert_identical(
             ds.pr.count(dim="area"),
-            ds.pr.remove_processing_info().count(dim="area (ISO3)", keep_attrs=True),
+            ds.pr.without_processing_info().count(dim="area (ISO3)", keep_attrs=True),
         )
         xr.testing.assert_identical(
             ds.pr.count(dim=["entity", "area"]),
-            ds.pr.remove_processing_info().pr.count(dim=["entity", "area"]),
+            ds.pr.without_processing_info().pr.count(dim=["entity", "area"]),
         )
 
     def test_inhomogeneous_entity(self, opulent_ds):
