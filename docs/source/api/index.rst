@@ -182,6 +182,7 @@ Methods
     Dataset.pr.to_df
     Dataset.pr.to_interchange_format
     Dataset.pr.to_netcdf
+    Dataset.pr.used_sources
     Dataset.pr.with_creation_step
     Dataset.pr.with_processing_info
     Dataset.pr.without_processing_info

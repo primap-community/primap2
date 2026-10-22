@@ -22,6 +22,7 @@ from ._processing_info import (
     is_processing_variable,
     processing_variable_name,
     record_step,
+    used_sources,
 )
 from ._selection import translations_from_dims
 from ._units import is_single_gas, ureg
@@ -390,6 +391,43 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         ensure_complete_processing_info(result)
         return result
 
+    def used_sources(self, coordinate: str | None = None, dim: str = "used source") -> xr.Dataset:
+        """Which sources were used for each data point, determined from the processing
+        information.
+
+        The sources are the steps which created data, e.g. by reading it. A source was
+        used for a data point if its data at the same time point was used. Data points
+        derived from other time points, e.g. by extrapolation, used all sources of the
+        timeseries they were derived from, as the processing information doesn't record
+        which time points were used. Sources whose data was only used to adjust values,
+        e.g. for least squares matching, are not included.
+
+        Parameters
+        ----------
+        coordinate
+            Optional: identify sources by their coordinate in this dimension at their
+            creation, e.g. "source". By default, the ``source`` of the creation step is
+            used.
+        dim
+            The name of the dimension listing the sources in the result.
+
+        Returns
+        -------
+        : xr.Dataset
+            A dataset with the data variables of this dataset, with ``dim`` as additional
+            dimension. Each value is 2 if the source's data at the same time point was
+            used, 1 if only its data at other time points was used, and 0 otherwise.
+
+        Raises
+        ------
+        ValueError
+            If the dataset has no processing information, or a creation step has no
+            source.
+        """
+        if coordinate is not None:
+            coordinate = self._ds.pr.dim_alias_translations.get(coordinate, coordinate)
+        return used_sources(self._ds, coordinate=coordinate, dim=dim)
+
     def processing_step(
         self,
         *,
@@ -410,7 +448,8 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
           processing information of the dataset and of ``other_ds`` at the same
           coordinates.
         * the processing information of ``other_ds``, if the timeseries did not exist in
-          the dataset.
+          the dataset and was taken unchanged from ``other_ds``, which has the same
+          dimensions.
 
         The dimensions of the data variables have to stay the same.
 

@@ -163,6 +163,24 @@ In the other direction, filling a dataset without processing information with da
 which has it gives a result without processing information. To keep the history of the
 other data, add processing information to the dataset first.
 
+## Looking up the sources of data points
+
+{py:meth}`xarray.Dataset.pr.used_sources` determines from the processing information
+which sources were used for each data point. The result has an additional dimension
+listing the sources, with the value 2 if the source's data at the same time point was
+used, 1 if only its data at other time points was used, e.g. for extrapolation, and 0
+otherwise:
+
+```{code-cell} ipython3
+filled = ds.pr.fillna(tracked_estimate)
+used = filled.pr.used_sources()
+used["CO2"].pr.loc[{"area": "COL"}].squeeze("source", drop=True).to_pandas()
+```
+
+The sources are identified by the `source` of the steps which created the data. To use
+a coordinate of the created data instead, e.g. if a dataset with several sources was
+read at once, pass its dimension, like `ds.pr.used_sources("source")`.
+
 ## Recording your own processing steps
 
 To record processing done with your own functions, decorate them with
@@ -251,6 +269,8 @@ functions directly on a dataset with processing information:
   processing information alike.
 * Selecting a single variable, e.g. `ds["CO2"]`, gives a DataArray without its
   processing information. Use `ds.pr.processing_info()["CO2"]` to get it.
+* Selecting several variables with `ds[["CO2", "CH4"]]` drops their processing
+  information, use `ds.pr[["CO2", "CH4"]]` instead.
 * Calculations on the whole dataset, e.g. `ds * 2`, fail, because they are also applied
   to the processing information.
 * Changing data in other ways, e.g. with `ds.fillna(...)`, by assigning

@@ -747,8 +747,10 @@ def _processing_infos_on_change(
             )
         previous.append((old_da, old_ds[name]))
     if other_ds is not None and name in other_ds:
-        # timeseries which only exist in other_ds were taken from it
-        previous.append((other_ds[var], other_ds[name]))
+        # timeseries which only exist in other_ds were taken from it, unless it lacks
+        # dimensions: then they were broadcast to new coordinates, which is a change
+        if set(other_ds[var].dims) == set(new_da.dims):
+            previous.append((other_ds[var], other_ds[name]))
         parents.append(other_ds[name])
     return record_step(
         new_da,
@@ -777,7 +779,9 @@ def _add_processing_step_on_change_ds(
     * the processing information of ``old_ds``, if the timeseries is unchanged compared
       to ``old_ds``.
     * the processing information of ``other_ds``, if the timeseries does not exist in
-      ``old_ds``, but in ``other_ds``, and is unchanged compared to ``other_ds``.
+      ``old_ds``, but in ``other_ds``, and is unchanged compared to ``other_ds``. If
+      ``other_ds`` lacks dimensions of the timeseries, it was broadcast and gets a new
+      step.
     * a new processing step otherwise. Its parents are the processing information of
       ``old_ds`` and of ``other_ds`` at the same coordinates, if available. Its times
       are the changed time points.
@@ -996,3 +1000,142 @@ def records_processing_step(
         return typing.cast(F, wrapper)
 
     return decorator
+
+
+# levels of source usage in used_sources, chosen so that combining is taking the maximum
+_USED_AT_OTHER_TIMES = 1
+_USED_AT_SAME_TIME = 2
+
+# per step and label: bit masks over the time axis of the data used at the same time
+# point and of the data used only at other time points
+_Usage = dict[typing.Hashable, tuple[int, int]]
+
+
+def _is_previous_state(step: ProcessingStepDescription, parent: ProcessingStepDescription) -> bool:
+    """True if ``parent`` is the state of the timeseries of ``step`` before the step."""
+    if step.coords is None or parent.coords is None:
+        # without coordinates, rely on the convention to list the previous state first
+        return True
+    return parent.variable == step.variable and all(
+        dim in step.coords and step.coords[dim] == value for dim, value in parent.coords.items()
+    )
+
+
+def _step_usage(
+    step: ProcessingStepDescription,
+    parent_usages: list[_Usage],
+    changed: int,
+    label: typing.Callable[[ProcessingStepDescription], typing.Hashable],
+) -> _Usage:
+    if not step.parents:
+        return {label(step): (changed, 0)} if changed else {}
+    usage: _Usage = {}
+
+    def add(key: typing.Hashable, same: int, other: int) -> None:
+        old_same, old_other = usage.get(key, (0, 0))
+        usage[key] = (old_same | same, old_other | other)
+
+    if _is_previous_state(step, step.parents[0]):
+        for key, (same, other) in parent_usages[0].items():
+            if (same | other) & ~changed:
+                add(key, same & ~changed, other & ~changed)
+    covered = 0
+    for parent_usage in parent_usages:
+        for key, (same, other) in parent_usage.items():
+            if (same | other) & changed:
+                add(key, same & changed, other & changed)
+                covered |= (same | other) & changed
+    # values not derived from any parent at the same time point were derived from other
+    # time points, e.g. by extrapolation
+    uncovered = changed & ~covered
+    if uncovered:
+        for parent_usage in parent_usages:
+            for key, (same, other) in parent_usage.items():
+                if same | other:
+                    add(key, 0, uncovered)
+    return usage
+
+
+def _bits_to_array(bits: int, length: int) -> np.ndarray:
+    as_bytes = np.frombuffer(bits.to_bytes((length + 7) // 8, "little"), dtype=np.uint8)
+    return np.unpackbits(as_bytes, bitorder="little")[:length].astype(bool)
+
+
+def used_sources(
+    ds: xr.Dataset, coordinate: str | None = None, dim: str = "used source"
+) -> xr.Dataset:
+    """Which sources were used for each data point, determined from the processing
+    information. See :py:meth:`xarray.Dataset.pr.used_sources`."""
+    if not has_processing_info(ds):
+        raise ValueError("The dataset has no processing information.")
+    ensure_complete_processing_info(ds)
+
+    def label(step: ProcessingStepDescription) -> typing.Hashable:
+        value = step.source if coordinate is None else (step.coords or {}).get(coordinate)
+        if value is None:
+            what = "source" if coordinate is None else f"{coordinate!r} coordinate"
+            raise ValueError(f"The processing step {step} created data, but has no {what}.")
+        return value
+
+    times = ds["time"].values
+    position = {t: i for i, t in enumerate(times.astype(np.int64))}
+    changed_cache: dict[tuple[TimeRange, ...], int] = {}
+
+    def changed_bits(step: ProcessingStepDescription) -> int:
+        if step.time not in changed_cache:
+            points = step.time_points().astype(times.dtype).astype(np.int64)
+            changed_cache[step.time] = sum(1 << position[t] for t in points if t in position)
+        return changed_cache[step.time]
+
+    usages: dict[int, _Usage] = {}
+
+    def usage_of(last_step: ProcessingStepDescription) -> _Usage:
+        # depth-first search without recursion, see ProcessingStepDescription.history
+        stack = [(last_step, False)]
+        while stack:
+            step, expanded = stack.pop()
+            if id(step) in usages:
+                continue
+            if expanded:
+                usages[id(step)] = _step_usage(
+                    step, [usages[id(p)] for p in step.parents], changed_bits(step), label
+                )
+                continue
+            stack.append((step, True))
+            stack.extend((p, False) for p in step.parents if id(p) not in usages)
+        return usages[id(last_step)]
+
+    variables = [var for var in ds.data_vars if not is_processing_variable(var)]
+    cell_usages = {}
+    keys: set[typing.Hashable] = set()
+    for var in variables:
+        processing = ds[processing_variable_name(var)]
+        cell_usages[var] = [
+            None if step is None else usage_of(step) for step in processing.values.flat
+        ]
+        keys.update(key for usage in cell_usages[var] if usage for key in usage)
+    keys_sorted = sorted(keys, key=str)
+    key_index = {key: i for i, key in enumerate(keys_sorted)}
+
+    result = xr.Dataset(attrs=ds.attrs)
+    for var in variables:
+        processing = ds[processing_variable_name(var)]
+        levels = np.zeros((processing.size, len(times), len(keys_sorted)), dtype=np.int8)
+        for cell, usage in enumerate(cell_usages[var]):
+            for key, (same, other) in (usage or {}).items():
+                column = levels[cell, :, key_index[key]]
+                column[_bits_to_array(other, len(times))] = _USED_AT_OTHER_TIMES
+                column[_bits_to_array(same, len(times))] = _USED_AT_SAME_TIME
+        levels = levels.reshape((*processing.shape, len(times), len(keys_sorted)))
+        # data points without data used no sources
+        levels *= ds[var].notnull().transpose(*processing.dims, "time").values[..., np.newaxis]
+        da = xr.DataArray(
+            levels,
+            dims=(*processing.dims, "time", dim),
+            coords={**processing.coords, "time": ds["time"], dim: keys_sorted},
+        )
+        result[var] = da.transpose(*ds[var].dims, dim).assign_attrs(
+            flag_values=[0, _USED_AT_OTHER_TIMES, _USED_AT_SAME_TIME],
+            flag_meanings="not_used used_at_other_time_points used_at_this_time_point",
+        )
+    return result

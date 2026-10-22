@@ -15,6 +15,7 @@ import attrs
 import xarray as xr
 
 from . import _accessor_base
+from ._processing_info import is_processing_variable, processing_variable_name
 from ._types import DimOrDimsT, FunctionT, KeyT
 
 
@@ -306,10 +307,22 @@ class DatasetAliasSelectionAccessor(_accessor_base.BaseDatasetAccessor):
     @typing.overload
     def __getitem__(self, item: typing.Mapping[str, typing.Any]) -> xr.Dataset: ...
 
+    @typing.overload
+    def __getitem__(self, item: list[typing.Hashable]) -> xr.Dataset: ...
+
     def __getitem__(self, item):
         """Like ds[], but translates short aliases like "area" into the long names
         including the corresponding category-set.
+
+        Selecting a list of variables also selects their processing information.
         """
+        if isinstance(item, list):
+            processing = [
+                processing_variable_name(name)
+                for name in item
+                if not is_processing_variable(name) and processing_variable_name(name) in self._ds
+            ]
+            return self._ds[list(dict.fromkeys(item + processing))]
         return self._ds[translate(item, self.dim_alias_translations)]
 
     @property

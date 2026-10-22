@@ -7,6 +7,7 @@ import pytest
 import xarray as xr
 
 import primap2
+import primap2.csg
 from primap2._processing_info import (
     ProcessingStepDescription,
     _label,
@@ -610,9 +611,12 @@ def test_set_processing_info():
     ds = processing_ds()
     value = ds.pr.loc[{"area": "COL"}]
 
-    # new timeseries take the history of the value
+    # new timeseries are copied to new coordinates, which is recorded
     result = ds.pr.set("area", "BOL", value)
-    assert result["Processing of CO2"].pr.loc[{"area": "BOL"}].item() == step("a")
+    bol = result["Processing of CO2"].pr.loc[{"area": "BOL"}].item()
+    assert bol.function == "set"
+    assert bol.coords == {"area (ISO3)": "BOL"}
+    assert bol.parents == (step("a"),)
 
     # changed timeseries combine both histories
     result = ds.pr.set("area", "ARG", value, existing="overwrite")
@@ -1027,3 +1031,118 @@ def test_remove_processing_info_deprecated():
     with pytest.warns(DeprecationWarning, match="use without_processing_info"):
         result = ds.pr.remove_processing_info()
     xr.testing.assert_identical(result, ds.pr.without_processing_info())
+
+
+def sources_ds(data=((1.0, np.nan, 3.0), (1.0, 2.0, 3.0)), areas=("COL", "ARG"), source="A"):
+    """CO2 for 2000 to 2002 created from a single source."""
+    ds = xr.Dataset(
+        {
+            "CO2": xr.DataArray(
+                np.array(data),
+                dims=["area (ISO3)", "time"],
+                coords={
+                    "area (ISO3)": list(areas),
+                    "time": pd.date_range("2000", "2002", freq="YS"),
+                },
+                attrs={"entity": "CO2", "units": "Gg CO2 / year"},
+            )
+        },
+        attrs={"area": "area (ISO3)"},
+    ).pr.quantify()
+    return ds.pr.with_creation_step(function="read", description="read", source=source)
+
+
+def used_levels(used: xr.Dataset, area: str = "COL") -> dict[str, list[int]]:
+    da = used["CO2"].pr.loc[{"area": area}]
+    return {str(s): da.sel({"used source": s}).values.tolist() for s in da["used source"].values}
+
+
+def test_used_sources_creation():
+    used = sources_ds().pr.used_sources()
+
+    assert used["CO2"].dims == ("area (ISO3)", "time", "used source")
+    # data points without data used no source
+    assert used_levels(used) == {"A": [2, 0, 2]}
+    assert used_levels(used, "ARG") == {"A": [2, 2, 2]}
+
+
+def test_used_sources_fillna():
+    other = sources_ds(data=[[5.0, 5.0, 5.0]], areas=["COL"], source="B")
+
+    used = sources_ds().pr.fillna(other).pr.used_sources()
+
+    assert used_levels(used) == {"A": [2, 0, 2], "B": [0, 2, 0]}
+    assert used_levels(used, "ARG") == {"A": [2, 2, 2], "B": [0, 0, 0]}
+
+
+def test_used_sources_derived_from_other_times():
+    with sources_ds().pr.processing_step(function="interpolate_na", description="d") as step:
+        step.ds = step.ds.pint.interpolate_na("time")
+
+    assert used_levels(step.result.pr.used_sources()) == {"A": [2, 1, 2]}
+
+
+def test_used_sources_aggregate():
+    ds = sources_ds(data=[[1.0, np.nan, 3.0]], areas=["COL"], source="A").pr.merge(
+        sources_ds(data=[[1.0, 2.0, 3.0]], areas=["ARG"], source="B")
+    )
+
+    aggregated = ds.pr.add_aggregates_coordinates(
+        {"area (ISO3)": {"LATAM": {"sources": ["COL", "ARG"]}}}
+    )
+
+    used = aggregated.pr.used_sources()
+    assert used_levels(used, "LATAM") == {"A": [2, 0, 2], "B": [2, 2, 2]}
+    assert used_levels(used, "ARG") == {"A": [0, 0, 0], "B": [2, 2, 2]}
+
+
+def test_used_sources_coordinate():
+    used = sources_ds().pr.used_sources("area", dim="origin")
+
+    da = used["CO2"].pr.loc[{"area": "COL"}]
+    assert list(da["origin"].values) == ["ARG", "COL"]
+    assert da.sel(origin="COL").values.tolist() == [2, 0, 2]
+    assert da.sel(origin="ARG").values.tolist() == [0, 0, 0]
+
+
+def test_used_sources_errors():
+    with pytest.raises(ValueError, match="has no processing information"):
+        sources_ds().pr.without_processing_info().pr.used_sources()
+    without_source = sources_ds().pr.without_processing_info()
+    without_source = without_source.pr.with_creation_step(function="f", description="d")
+    with pytest.raises(ValueError, match="created data, but has no source"):
+        without_source.pr.used_sources()
+
+
+def test_used_sources_compose():
+    input_data = xr.Dataset(
+        {
+            "CO2": xr.DataArray(
+                [[[1.0, np.nan, 3.0]], [[5.0, 5.0, 5.0]]],
+                dims=["source", "area (ISO3)", "time"],
+                coords={
+                    "source": ["A", "B"],
+                    "area (ISO3)": ["COL"],
+                    "time": pd.date_range("2000", "2002", freq="YS"),
+                },
+                attrs={"entity": "CO2", "units": "Gg CO2 / year"},
+            )
+        },
+        attrs={"area": "area (ISO3)"},
+    ).pr.quantify()
+    input_data = input_data.pr.with_creation_step(function="read", description="read")
+
+    result = primap2.csg.compose(
+        input_data=input_data,
+        priority_definition=primap2.csg.PriorityDefinition(
+            priority_dimensions=["source"], priorities=[{"source": "A"}, {"source": "B"}]
+        ),
+        strategy_definition=primap2.csg.StrategyDefinition(
+            strategies=[({"source": ["A", "B"]}, primap2.csg.SubstitutionStrategy())]
+        ),
+        progress_bar=None,
+    )
+
+    used = result.pr.used_sources("source")["CO2"].pr.loc[{"area": "COL"}]
+    assert used.sel({"used source": "A"}).values.tolist() == [2, 0, 2]
+    assert used.sel({"used source": "B"}).values.tolist() == [0, 2, 0]
