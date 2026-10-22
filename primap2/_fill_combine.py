@@ -137,7 +137,7 @@ class DatasetFillAccessor(BaseDatasetAccessor):
     @records_processing_step(
         "self",
         function="fillna",
-        description_template="filled missing values with {value} (<var>; <coords>)",
+        description="filled missing values with {value}",
     )
     def _fillna_value(self, value: float | pint.Quantity) -> xr.Dataset:
         return self._ds.fillna(value)
@@ -146,7 +146,7 @@ class DatasetFillAccessor(BaseDatasetAccessor):
         "self",
         other="ds_fill",
         function="fillna",
-        description_template="filled missing values (<var>; <coords>)",
+        description="filled missing values",
     )
     def _fillna(self, ds_fill: xr.Dataset | xr.DataArray) -> xr.Dataset:
         ds_start = self._ds
@@ -176,7 +176,7 @@ class DatasetFillAccessor(BaseDatasetAccessor):
         "self",
         other="ds_combine",
         function="combine_first",
-        description_template="combined with other data (<var>; <coords>)",
+        description="combined with other data",
     )
     def combine_first(
         self,

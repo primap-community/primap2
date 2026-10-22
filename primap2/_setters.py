@@ -373,7 +373,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         "self",
         other="value",
         function="set",
-        description_template="set values for {dim}={key!r} (<var>; <coords>)",
+        description="set values for {dim}={key!r}",
     )
     def set(
         self,

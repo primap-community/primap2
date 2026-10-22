@@ -175,7 +175,7 @@ class DatasetMergeAccessor(BaseDatasetAccessor):
         "self",
         other="ds_merge",
         function="merge",
-        description_template="merged with other data (<var>; <coords>)",
+        description="merged with other data",
     )
     def merge(
         self,

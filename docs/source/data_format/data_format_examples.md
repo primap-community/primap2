@@ -243,11 +243,18 @@ This example shows a dataset with detailed processing step information.
 
 time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
 area_iso3 = np.array(["COL", "ARG"])
-invented = primap2.ProcessingStepDescription(
-    time=primap2.TimeRange("2000", "2020"),
-    function="rand",
-    description="invented from thin air",
-)
+
+
+def invented(area: str) -> primap2.ProcessingStepDescription:
+    return primap2.ProcessingStepDescription(
+        time=primap2.TimeRange("2000", "2020"),
+        function="rand",
+        description="invented from thin air",
+        variable="CO2",
+        coords={"area (ISO3)": area, "source": "RAND2020"},
+    )
+
+
 with_processing = xr.Dataset(
     {
         "CO2": xr.DataArray(
@@ -269,9 +276,11 @@ with_processing = xr.Dataset(
                             function="replace",
                             description="use other data which is also invented, but better",
                             source="betterData2024",
-                            parents=(invented,),
+                            variable="CO2",
+                            coords={"area (ISO3)": "COL", "source": "RAND2020"},
+                            parents=(invented("COL"),),
                         ),
-                        invented,
+                        invented("ARG"),
                     ]
                 ],
                 dtype=object,

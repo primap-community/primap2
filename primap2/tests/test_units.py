@@ -139,8 +139,12 @@ class TestDatasetConvertToGWP:
         converted = opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
 
         before = opulent_processing_ds["Processing of CH4"].values.flat[0]
-        step = converted["Processing of CH4 (AR4GWP100)"].values.flat[0]
+        processing = converted["Processing of CH4 (AR4GWP100)"]
+        first = processing.isel({dim: 0 for dim in processing.dims})
+        step = first.item()
         assert step.function == "convert_to_gwp"
+        assert step.variable == "CH4 (AR4GWP100)"
+        assert step.coords == {dim: first[dim].item() for dim in processing.dims}
         assert step.time == (TimeRange("2000", "2020"),)
         assert step.description == (
             "converted from mass in CH4 * gigagram / year to the global warming "

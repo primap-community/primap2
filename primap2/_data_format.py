@@ -290,7 +290,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         self,
         *,
         function: str,
-        description_template: str,
+        description: str,
         source: str | None = None,
         other_ds: xr.Dataset | None = None,
     ) -> ProcessingStepRecorder:
@@ -315,7 +315,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         >>> # xdoctest: +SKIP
         >>> with ds.pr.processing_step(
         ...     function="interpolate_na",
-        ...     description_template="interpolated <var> for <coords>",
+        ...     description="interpolated linearly",
         ... ) as step:
         ...     step.ds = step.ds.interpolate_na(dim="time")
         >>> ds = step.result
@@ -324,10 +324,8 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         ----------
         function
             The name of the function which does the processing.
-        description_template
-            Human-readable description of the processing step, in which "<coords>" is
-            replaced by the coordinates of each changed timeseries and "<var>" by the
-            name of its data variable.
+        description
+            Human-readable description of the processing step.
         source
             Optional: a short identifier for the source of the data which is used for the
             processing.
@@ -338,7 +336,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         return ProcessingStepRecorder(
             self._ds,
             function=function,
-            description_template=description_template,
+            description=description,
             source=source,
             other_ds=other_ds,
         )
@@ -360,9 +358,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         function
             The name of the function which created the data.
         description
-            Human-readable description of how the data was created, in which "<coords>"
-            is replaced by the coordinates of each timeseries and "<var>" by the name of
-            its data variable.
+            Human-readable description of how the data was created.
         source
             Optional: a short identifier for the source of the data.
 
@@ -383,7 +379,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             result[processing_variable_name(var)] = record_step(
                 self._ds[var],
                 function=function,
-                description_template=description.replace("<var>", str(var)),
+                description=description,
                 source=source,
             )
         return result

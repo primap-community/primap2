@@ -1,5 +1,6 @@
 """Tests for _processing_info.py"""
 
+import attrs
 import numpy as np
 import pandas as pd
 import pytest
@@ -8,6 +9,7 @@ import xarray as xr
 import primap2
 from primap2._processing_info import (
     ProcessingStepDescription,
+    _label,
     add_processing_step,
     combine_histories,
     record_step,
@@ -68,10 +70,89 @@ def test_history_long_chain():
 
 def test_format_history():
     assert diamond().format_history() == (
-        "[1] Using function=a for times=2000 to 2020: step a\n"
-        "[2] (from [1]) Using function=b for times=2000 to 2020: step b\n"
-        "[3] (from [1]) Using function=c for times=2000 to 2020: step c\n"
-        "[4] (from [2], [3]) Using function=d for times=2000 to 2020: step d"
+        "d for 2000 to 2020: step d\n"
+        "├─ b for 2000 to 2020: step b\n"
+        "│  ↑ (a) a for 2000 to 2020: step a\n"
+        "└─ c for 2000 to 2020: step c\n"
+        "   ↑ see (a)"
+    )
+
+
+def test_format_history_chain_and_repeated_ancestor():
+    x = step("x", step("a"))
+    y = step("y", step("b", x), step("c", x))
+    assert step("z", y).format_history() == (
+        "z for 2000 to 2020: step z\n"
+        "↑ y for 2000 to 2020: step y\n"
+        "  ├─ b for 2000 to 2020: step b\n"
+        "  │  ↑ (a) x for 2000 to 2020: step x\n"
+        "  │  ↑ a for 2000 to 2020: step a\n"
+        "  └─ c for 2000 to 2020: step c\n"
+        "     ↑ see (a)"
+    )
+
+
+def test_format_history_split_within_branch():
+    shared = step("s1")
+    m = step("m", shared, step("s2"))
+    r = step("r", step("p", m), step("q", shared))
+    assert r.format_history() == (
+        "r for 2000 to 2020: step r\n"
+        "├─ p for 2000 to 2020: step p\n"
+        "│  ↑ m for 2000 to 2020: step m\n"
+        "│    ├─ (a) s1 for 2000 to 2020: step s1\n"
+        "│    └─ s2 for 2000 to 2020: step s2\n"
+        "└─ q for 2000 to 2020: step q\n"
+        "   ↑ see (a)"
+    )
+
+
+@pytest.mark.parametrize(
+    ("index", "label"),
+    [
+        (0, "a"),
+        (1, "b"),
+        (25, "z"),
+        (26, "aa"),
+        (27, "ab"),
+        (51, "az"),
+        (52, "ba"),
+        (701, "zz"),
+        (702, "aaa"),
+        (703, "aab"),
+        (18_277, "zzz"),
+        (18_278, "aaaa"),
+    ],
+)
+def test_label(index, label):
+    assert _label(index) == label
+
+
+def test_label_unique_and_ordered():
+    labels = [_label(i) for i in range(20_000)]
+    assert len(set(labels)) == len(labels)
+    assert labels == sorted(labels, key=lambda x: (len(x), x))
+
+
+def test_format_history_deep_branches():
+    s = step("leaf")
+    for i in range(5000):
+        s = step(str(i), s, step(f"other {i}"))
+    assert len(s.format_history().splitlines()) == 10001
+
+
+def test_str_timeseries_and_source():
+    s = ProcessingStepDescription(
+        time=TimeRange("2000", "2002"),
+        function="estimate",
+        description="expert estimate",
+        source="expert",
+        variable="CO2",
+        coords={"area (ISO3)": "COL", "source": "RAND2020"},
+    )
+    assert str(s) == (
+        "CO2 area (ISO3)='COL', source='RAND2020': estimate (data source: expert) for "
+        "2000 to 2002: expert estimate"
     )
 
 
@@ -95,6 +176,8 @@ def test_serialize_round_trip_times():
         function="a",
         description="step a",
         source="source",
+        variable="CO2",
+        coords={"area (ISO3)": "COL", "category": "1"},
     )
     b = step("b", a)
 
@@ -122,11 +205,13 @@ def test_serialize_optional_missing():
 
 def test_add_processing_step():
     a = step("a")
-    da = xr.DataArray(np.array([a, None], dtype=object), dims=["area"])
+    da = xr.DataArray(
+        np.array([a, None], dtype=object), dims=["area"], coords={"area": ["COL", "ARG"]}
+    )
 
-    result = add_processing_step(da, step("b"))
+    result = add_processing_step(da, step("b"), variable="CO2")
 
-    assert result.values[0] == step("b", a)
+    assert result.values[0] == attrs.evolve(step("b", a), variable="CO2", coords={"area": "COL"})
     assert result.values[0].parents[0] is a
     assert result.values[1] is None
     # the input is not modified
@@ -169,7 +254,7 @@ def processing_ds() -> xr.Dataset:
 def test_processing_step_records_changes():
     ds = processing_ds()
 
-    with ds.pr.processing_step(function="fill", description_template="filled <coords>") as s:
+    with ds.pr.processing_step(function="fill", description="filled") as s:
         assert not s.ds.pr.has_processing_info()
         s.ds = s.ds.fillna(0)
 
@@ -179,7 +264,9 @@ def test_processing_step_records_changes():
     assert col == ProcessingStepDescription(
         time=TimeRange("2001", "2001"),
         function="fill",
-        description="filled area (ISO3)='COL'",
+        description="filled",
+        variable="CO2",
+        coords={"area (ISO3)": "COL"},
         parents=(step("a"),),
     )
     # ARG was not changed
@@ -191,7 +278,7 @@ def test_processing_step_shares_history():
     ds = processing_ds()
     col_before, arg_before = ds["Processing of CO2"].values
 
-    with ds.pr.processing_step(function="fill", description_template="filled") as s:
+    with ds.pr.processing_step(function="fill", description="filled") as s:
         s.ds = s.ds.fillna(0)
 
     col, arg = s.result["Processing of CO2"].values
@@ -204,7 +291,7 @@ def test_processing_step_shares_history():
 def test_processing_step_in_place_changes():
     ds = processing_ds()
 
-    with ds.pr.processing_step(function="set", description_template="set") as s:
+    with ds.pr.processing_step(function="set", description="set") as s:
         s.ds["CO2"].loc[{"area (ISO3)": "ARG", "time": "2000"}] = 5.0
 
     assert s.result["Processing of CO2"].pr.loc[{"area": "ARG"}].item().function == "set"
@@ -215,7 +302,7 @@ def test_processing_step_in_place_changes():
 def test_processing_step_no_change_logged(caplog):
     ds = processing_ds()
 
-    with ds.pr.processing_step(function="nothing", description_template="nothing") as s:
+    with ds.pr.processing_step(function="nothing", description="nothing") as s:
         pass
 
     xr.testing.assert_identical(s.result, ds)
@@ -227,7 +314,7 @@ def test_processing_step_exception():
 
     with (
         pytest.raises(KeyError),
-        ds.pr.processing_step(function="f", description_template="d") as s,
+        ds.pr.processing_step(function="f", description="d") as s,
     ):
         raise KeyError("error")
 
@@ -239,7 +326,7 @@ def test_processing_step_result_within_block():
     ds = processing_ds()
 
     with (
-        ds.pr.processing_step(function="f", description_template="d") as s,
+        ds.pr.processing_step(function="f", description="d") as s,
         pytest.raises(RuntimeError),
     ):
         _ = s.result
@@ -250,7 +337,7 @@ def test_processing_step_changed_dimensions():
 
     with (
         pytest.raises(ValueError, match="Dimensions of 'CO2' changed"),
-        ds.pr.processing_step(function="f", description_template="d") as s,
+        ds.pr.processing_step(function="f", description="d") as s,
     ):
         s.ds = s.ds.sum("area (ISO3)")
 
@@ -258,7 +345,7 @@ def test_processing_step_changed_dimensions():
 def test_processing_step_selection():
     ds = processing_ds()
 
-    with ds.pr.processing_step(function="f", description_template="d") as s:
+    with ds.pr.processing_step(function="f", description="d") as s:
         s.ds = s.ds.pr.loc[{"area": ["COL"]}]
 
     assert list(s.result["Processing of CO2"].values) == [step("a")]
@@ -312,9 +399,7 @@ def test_processing_step_other_ds():
     ds = processing_ds()
     other = other_ds()
 
-    with ds.pr.processing_step(
-        function="combine", description_template="combined", other_ds=other
-    ) as s:
+    with ds.pr.processing_step(function="combine", description="combined", other_ds=other) as s:
         s.ds = s.ds.combine_first(other.pr.remove_processing_info())
 
     processing = s.result["Processing of CO2"]
@@ -323,6 +408,8 @@ def test_processing_step_other_ds():
         time=TimeRange("2001", "2001"),
         function="combine",
         description="combined",
+        variable="CO2",
+        coords={"area (ISO3)": "COL"},
         parents=(step("a"), step("c")),
     )
     # unchanged: the history of ds
@@ -338,7 +425,7 @@ def test_processing_step_other_ds_broadcast():
     ds = processing_ds()
     other = other_ds(dims=())
 
-    with ds.pr.processing_step(function="fill", description_template="filled", other_ds=other) as s:
+    with ds.pr.processing_step(function="fill", description="filled", other_ds=other) as s:
         s.ds = s.ds.fillna(other[["CO2"]])
 
     col = s.result["Processing of CO2"].pr.loc[{"area": "COL"}].item()
@@ -350,7 +437,7 @@ def test_processing_step_other_ds_without_processing_info():
     with pytest.raises(ValueError, match="the data it is combined with has none"):
         processing_ds().pr.processing_step(
             function="f",
-            description_template="d",
+            description="d",
             other_ds=other_ds(with_processing_info=False),
         )
 
@@ -359,12 +446,12 @@ def test_processing_step_new_timeseries():
     ds = processing_ds()
 
     # timeseries without data have no history
-    with ds.pr.processing_step(function="f", description_template="d") as s:
+    with ds.pr.processing_step(function="f", description="d") as s:
         s.ds = s.ds.reindex({"area (ISO3)": ["COL", "ARG", "BOL"]})
     assert s.result["Processing of CO2"].pr.loc[{"area": "BOL"}].item() is None
 
     # timeseries with data are created by the processing step
-    with ds.pr.processing_step(function="f", description_template="d") as s:
+    with ds.pr.processing_step(function="f", description="d") as s:
         s.ds = s.ds.reindex({"area (ISO3)": ["COL", "ARG", "BOL"]}, fill_value=1.0)
     bol = s.result["Processing of CO2"].pr.loc[{"area": "BOL"}].item()
     assert bol.function == "f"
@@ -374,7 +461,7 @@ def test_processing_step_new_timeseries():
 def test_processing_step_new_variable():
     ds = processing_ds()
 
-    with ds.pr.processing_step(function="f", description_template="d") as s:
+    with ds.pr.processing_step(function="f", description="d") as s:
         s.ds["CH4"] = s.ds["CO2"]
 
     col = s.result["Processing of CH4"].pr.loc[{"area": "COL"}].item()
@@ -388,12 +475,12 @@ def test_processing_step_incomplete_processing_info():
     ds["Processing of CO2"].pr.loc[{"area": "COL"}] = None
 
     with pytest.raises(ValueError, match="contain data, but have no processing information"):
-        ds.pr.processing_step(function="f", description_template="d")
+        ds.pr.processing_step(function="f", description="d")
 
     ds = processing_ds()
     ds["CH4"] = ds["CO2"]
     with pytest.raises(ValueError, match="has processing information, but not for 'CH4'"):
-        ds.pr.processing_step(function="f", description_template="d")
+        ds.pr.processing_step(function="f", description="d")
 
 
 def test_fillna_processing_info():
@@ -431,7 +518,9 @@ def test_fillna_value_processing_info():
     assert col == ProcessingStepDescription(
         time=TimeRange("2001", "2001"),
         function="fillna",
-        description="filled missing values with 0 (CO2; area (ISO3)='COL')",
+        description="filled missing values with 0",
+        variable="CO2",
+        coords={"area (ISO3)": "COL"},
         parents=(step("a"),),
     )
     assert result["Processing of CO2"].pr.loc[{"area": "ARG"}].item() == step("b")
@@ -446,9 +535,7 @@ def test_with_creation_step():
         name="CO2",
     )
 
-    ds = da.pr.with_creation_step(
-        function="estimate", description="estimated (<coords>)", source="expert"
-    )
+    ds = da.pr.with_creation_step(function="estimate", description="estimated", source="expert")
 
     xr.testing.assert_identical(ds["CO2"], da)
     assert ds["Processing of CO2"].attrs == {
@@ -458,8 +545,10 @@ def test_with_creation_step():
     assert ds["Processing of CO2"].loc["COL"].item() == ProcessingStepDescription(
         time=time.values,
         function="estimate",
-        description="estimated (area (ISO3)='COL')",
+        description="estimated",
         source="expert",
+        variable="CO2",
+        coords={"area (ISO3)": "COL"},
     )
     # timeseries without data have no processing information
     assert ds["Processing of CO2"].loc["ARG"].item() is None
@@ -591,14 +680,19 @@ def test_record_step():
         previous=[(old, old_infos)],
         parents=[parents],
         function="f",
-        description_template="d <coords>",
+        description="d",
     )
 
     assert result.name == "Processing of CO2"
     assert result.attrs == {"entity": "Processing of CO2", "described_variable": "CO2"}
     # changed
     assert result.loc["COL"].item() == ProcessingStepDescription(
-        time=TimeRange("2001", "2001"), function="f", description="d area='COL'", parents=(a, c)
+        time=TimeRange("2001", "2001"),
+        function="f",
+        description="d",
+        variable="CO2",
+        coords={"area": "COL"},
+        parents=(a, c),
     )
     # unchanged
     assert result.loc["ARG"].item() is b
@@ -609,7 +703,7 @@ def test_record_step():
     assert result.loc["BOL"].item() is None
 
     # new with data, without parents
-    result = record_step(new, previous=[(old, old_infos)], function="f", description_template="d")
+    result = record_step(new, previous=[(old, old_infos)], function="f", description="d")
     assert result.loc["MEX"].item().parents == ()
 
 
@@ -747,17 +841,17 @@ def test_other_with_incomplete_processing_info():
 def test_dataset_with_creation_step(basket_processing_ds):
     ds = basket_processing_ds.pr.remove_processing_info()
 
-    result = ds.pr.with_creation_step(
-        function="read", description="read <var> (<coords>)", source="RAND2020"
-    )
+    result = ds.pr.with_creation_step(function="read", description="read", source="RAND2020")
 
     result.pr.ensure_valid()
     co2 = result["Processing of CO2"].pr.loc[{"area": "COL"}].item()
     assert co2 == ProcessingStepDescription(
         time=[np.datetime64("2000"), np.datetime64("2004")],
         function="read",
-        description="read CO2 (area (ISO3)='COL', source='RAND2020')",
+        description="read",
         source="RAND2020",
+        variable="CO2",
+        coords={"area (ISO3)": "COL", "source": "RAND2020"},
     )
     # the input is not modified
     assert not ds.pr.has_processing_info()
@@ -766,9 +860,7 @@ def test_dataset_with_creation_step(basket_processing_ds):
         result.pr.with_creation_step(function="read", description="read")
 
 
-@primap2.records_processing_step(
-    "ds", description_template="filled with {value} (<var>; <coords>)", source="{source}"
-)
+@primap2.records_processing_step("ds", description="filled with {value}", source="{source}")
 def fill_value(ds: xr.Dataset, value: float = 0.0, source: str = "default") -> xr.Dataset:
     assert not ds.pr.has_processing_info()
     return ds.fillna(value)
@@ -784,8 +876,10 @@ def test_records_processing_step():
     assert processing.pr.loc[{"area": "COL"}].item() == ProcessingStepDescription(
         time=TimeRange("2001", "2001"),
         function="fill_value",
-        description="filled with 0.0 (CO2; area (ISO3)='COL')",
+        description="filled with 0.0",
         source="test",
+        variable="CO2",
+        coords={"area (ISO3)": "COL"},
         parents=(step("a"),),
     )
     assert processing.pr.loc[{"area": "ARG"}].item() == step("b")
@@ -803,7 +897,7 @@ def test_records_processing_step_without_processing_info():
 
 
 def test_records_processing_step_in_place_changes():
-    @primap2.records_processing_step("ds", function="set", description_template="set")
+    @primap2.records_processing_step("ds", function="set", description="set")
     def set_in_place(ds: xr.Dataset) -> xr.Dataset:
         ds["CO2"].loc[{"area (ISO3)": "ARG", "time": "2000"}] = 5.0
         return ds
@@ -817,9 +911,7 @@ def test_records_processing_step_in_place_changes():
 
 
 class FillAccessor(primap2._accessor_base.BaseDatasetAccessor):
-    @primap2.records_processing_step(
-        "self", other="other", description_template="filled (<var>; <coords>)"
-    )
+    @primap2.records_processing_step("self", other="other", description="filled")
     def fill(self, other: xr.Dataset | xr.DataArray | float) -> xr.Dataset:
         assert isinstance(self, FillAccessor)
         assert not self._ds.pr.has_processing_info()
@@ -855,12 +947,12 @@ def test_records_processing_step_other_invalid():
 
 def test_records_processing_step_invalid():
     with pytest.raises(ValueError, match="has no argument 'da'"):
-        primap2.records_processing_step("da", description_template="d")(fill_value.__wrapped__)
+        primap2.records_processing_step("da", description="d")(fill_value.__wrapped__)
 
     with pytest.raises(TypeError, match="has to be a Dataset, not DataArray"):
         fill_value(processing_ds()["CO2"])
 
-    @primap2.records_processing_step("ds", description_template="d")
+    @primap2.records_processing_step("ds", description="d")
     def to_array(ds: xr.Dataset) -> xr.Dataset:
         return ds["CO2"]
 

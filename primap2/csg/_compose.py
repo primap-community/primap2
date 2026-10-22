@@ -233,18 +233,21 @@ def iterate_next_fixed_dimension(
     result_processing_da: xr.DataArray,
     progress_bar: tqdm.tqdm | None,
     input_processing_da: xr.DataArray | None = None,
+    coords: dict[str, typing.Any] | None = None,
 ) -> None:
     """Recursively iterate over dimensions in group_by_dimensions.
 
     If there is only one dimension left, actually compute results and store
     them in the result_da and the result_processing_da. Otherwise, iterate over one
     dimension and recursively call iterate_next_fixed_dimension again.
-    input_processing_da is the optional processing information of input_da.
+    input_processing_da is the optional processing information of input_da, coords are
+    the values of the dimensions already iterated over.
     """
     my_dim = group_by_dimensions[0]
     new_group_by_dimensions = group_by_dimensions[1:]
     for val_array in input_da[my_dim]:
         val = val_array.item()
+        fixed_coords = {**(coords or {}), str(my_dim): val}
         limited_strategy_definition = strategy_definition.limit(dim=my_dim, value=val)
         limited_priority_definition = priority_definition.limit(dim=my_dim, value=val)
         if new_group_by_dimensions:
@@ -258,6 +261,7 @@ def iterate_next_fixed_dimension(
                 result_processing_da=result_processing_da.loc[{my_dim: val}],
                 progress_bar=progress_bar,
                 input_processing_da=_select(input_processing_da, {my_dim: val}),
+                coords=fixed_coords,
             )
         else:
             # Result exclusions are handled here (per definition, we don't do any
@@ -274,6 +278,7 @@ def iterate_next_fixed_dimension(
                     priority_definition=limited_priority_definition,
                     strategy_definition=limited_strategy_definition,
                     input_processing=_select(input_processing_da, {my_dim: val}),
+                    coords=fixed_coords,
                 )
             if progress_bar is not None:
                 progress_bar.update()
@@ -285,6 +290,7 @@ def compose_timeseries(
     priority_definition: _models.PriorityDefinition,
     strategy_definition: _models.StrategyDefinition,
     input_processing: xr.DataArray | None = None,
+    coords: dict[str, typing.Any] | None = None,
 ) -> tuple[xr.DataArray, ProcessingStepDescription | None]:
     """
     Compute a single timeseries from given input data, priorities, and strategies.
@@ -297,6 +303,9 @@ def compose_timeseries(
     input_processing
         Optional: the processing information of input_data. The processing steps of the
         result have the histories of the input timeseries used as parents.
+    coords
+        Optional: the coordinates of the result, which are recorded in its processing
+        steps.
     priority_definition
         The definition of priorities within input_data. Each priority selects a single
         timeseries (i.e. an array with only time as the dimension), so has to specify
@@ -330,7 +339,7 @@ def compose_timeseries(
         """Record step as the next step in the processing of the result."""
         nonlocal last_step
         parents = tuple(x for x in (last_step, fill_history) if not pd.isnull(x))
-        last_step = attrs.evolve(step, parents=parents)
+        last_step = attrs.evolve(step, variable=input_data.name, coords=coords, parents=parents)
 
     for selector in priority_definition.priorities:
         try:

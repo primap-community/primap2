@@ -64,12 +64,7 @@ def ensure_complete_processing_info(ds: xr.Dataset) -> None:
         missing = (has_data & processing_infos.isnull()).transpose(*processing_infos.dims)
         if missing.any():
             index = tuple(np.argwhere(missing.values)[0])
-            coordinates = _coordinates_repr(
-                {
-                    str(dim): _coordinate_value(processing_infos[dim], i)
-                    for dim, i in zip(processing_infos.dims, index, strict=True)
-                }
-            )
+            coordinates = _coordinates_repr(_index_coordinates(processing_infos, index))
             raise ValueError(
                 f"{int(missing.sum())} timeseries of {var!r} contain data, but have no "
                 f"processing information, e.g. {coordinates}."
@@ -178,6 +173,11 @@ class ProcessingStepDescription:
     source
         Optional: a short identifier for the source of the data which was used for the
         processing.
+    variable
+        Optional: the name of the data variable of the processed timeseries.
+    coords
+        Optional: the coordinates of the processed timeseries at the time of the
+        processing, apart from "time".
     parents
         The last processing steps of the timeseries which were the input of this
         processing step. Empty if the step created the timeseries.
@@ -187,17 +187,27 @@ class ProcessingStepDescription:
     function: str
     description: str
     source: str | None = None
+    variable: str | None = None
+    coords: dict[str, typing.Any] | None = field(
+        default=None, converter=lambda x: None if x is None else dict(x), hash=False
+    )
     parents: tuple["ProcessingStepDescription", ...] = field(default=(), converter=tuple)
 
     def __str__(self) -> str:
         times = ", ".join(str(time_range) for time_range in self.time) or "none"
-        if self.source is None:
-            return f"Using function={self.function} for times={times}: {self.description}"
-        else:
-            return (
-                f"Using function={self.function} with source={self.source} for "
-                f"times={times}: {self.description}"
+        text = self.function
+        if self.source is not None:
+            text += f" (data source: {self.source})"
+        text += f" for {times}: {self.description}"
+        timeseries = " ".join(
+            x
+            for x in (
+                self.variable,
+                None if not self.coords else _coordinates_repr(self.coords),
             )
+            if x is not None
+        )
+        return f"{timeseries}: {text}" if timeseries else text
 
     def time_points(self) -> np.ndarray:
         """All time points for which data was changed during the processing step."""
@@ -225,16 +235,52 @@ class ProcessingStepDescription:
         return ordered
 
     def format_history(self) -> str:
-        """Human-readable description of all processing steps which led to this step."""
-        history = self.history()
-        numbers = {id(step): i for i, step in enumerate(history, start=1)}
+        """Human-readable tree of all processing steps which led to this step.
+
+        The first line is this step, followed by its parents. A single parent follows
+        marked with "↑" and without indentation, several parents are shown as indented
+        branches. Steps which are reached via several branches are labelled like "(a)"
+        at their first occurrence, later occurrences only refer to the label like
+        "see (a)".
+        """
+        references: dict[int, int] = {}
+        for step in self.history():
+            for parent in step.parents:
+                references[id(parent)] = references.get(id(parent), 0) + 1
+        labels: dict[int, str] = {}
+
         lines = []
-        for step in history:
-            line = f"[{numbers[id(step)]}] "
-            if step.parents:
-                parent_numbers = ", ".join(f"[{numbers[id(parent)]}]" for parent in step.parents)
-                line += f"(from {parent_numbers}) "
-            lines.append(line + str(step))
+        # depth-first search without recursion, see history(). Besides the step, the
+        # stack holds the prefix of its line, the prefix for a single parent and the
+        # prefix for branches, which start below the text of the step.
+        stack: list[tuple[ProcessingStepDescription, str, str, str]] = [(self, "", "", "")]
+        while stack:
+            step, prefix, chain_prefix, branch_prefix = stack.pop()
+            if id(step) in labels:
+                lines.append(f"{prefix}see ({labels[id(step)]})")
+                continue
+            if references.get(id(step), 0) > 1:
+                labels[id(step)] = _label(len(labels))
+                prefix += f"({labels[id(step)]}) "
+            lines.append(f"{prefix}{step}")
+            if len(step.parents) == 1:
+                stack.append(
+                    (step.parents[0], chain_prefix + "↑ ", chain_prefix, chain_prefix + "  ")
+                )
+                continue
+            branches = []
+            for i, parent in enumerate(step.parents):
+                last = i == len(step.parents) - 1
+                continuation = branch_prefix + ("   " if last else "│  ")
+                branches.append(
+                    (
+                        parent,
+                        branch_prefix + ("└─ " if last else "├─ "),
+                        continuation,
+                        continuation,
+                    )
+                )
+            stack.extend(reversed(branches))
         return "\n".join(lines)
 
     def unstructure(self) -> dict[str, typing.Any]:
@@ -244,6 +290,8 @@ class ProcessingStepDescription:
             "description": self.description,
             "function": self.function,
             "source": self.source,
+            "variable": self.variable,
+            "coords": self.coords,
         }
 
     @classmethod
@@ -266,6 +314,8 @@ class ProcessingStepDescription:
             function=u["function"],
             description=u["description"],
             source=u["source"],
+            variable=u["variable"],
+            coords=u["coords"],
             parents=parents,
         )
 
@@ -335,8 +385,22 @@ class ProcessingStepDescription:
         return steps[-1]
 
 
+def _label(index: int) -> str:
+    """The label with the given index in "a" to "z", "aa" to "zz", "aaa" and so on."""
+    # skip the labels which are shorter than the result
+    length = 1
+    while index >= 26**length:
+        index -= 26**length
+        length += 1
+    letters = []
+    for _ in range(length):
+        index, remainder = divmod(index, 26)
+        letters.append(chr(ord("a") + remainder))
+    return "".join(reversed(letters))
+
+
 def add_processing_step(
-    processing_infos: xr.DataArray, step: ProcessingStepDescription
+    processing_infos: xr.DataArray, step: ProcessingStepDescription, *, variable: str
 ) -> xr.DataArray:
     """Append a processing step to every timeseries of the input.
 
@@ -348,7 +412,10 @@ def add_processing_step(
         The processing information variable to add the step to. It is not modified.
     step
         The processing step to append. Its parents are replaced by the last processing
-        step of each timeseries.
+        step of each timeseries, its variable by ``variable`` and its coordinates by
+        those of each timeseries.
+    variable
+        The name of the data variable after the processing step.
 
     Returns
     -------
@@ -361,13 +428,18 @@ def add_processing_step(
             "is invalid. (Ensure the passed step has no parents!)"
         )
 
-    def append(processing: ProcessingStepDescription | None):
-        if pd.isnull(processing):
-            return processing
-        return evolve(step, parents=(processing,))
-
+    values = processing_infos.values.copy()
+    for index in np.ndindex(values.shape):
+        if pd.isnull(values[index]):
+            continue
+        values[index] = evolve(
+            step,
+            variable=variable,
+            coords=_index_coordinates(processing_infos, index),
+            parents=(values[index],),
+        )
     result = processing_infos.copy(deep=False)
-    result.data = np.vectorize(append, otypes=[object])(processing_infos.data)
+    result.data = values
     return result
 
 
@@ -399,6 +471,11 @@ def _coordinate_value(coords: xr.DataArray, index: int) -> typing.Any:
     """A single coordinate value as a plain python object."""
     value = coords.data[index]
     return value.item() if isinstance(value, np.generic) else value
+
+
+def _index_coordinates(da: xr.DataArray, index: tuple[int, ...]) -> dict[str, typing.Any]:
+    """The coordinates of the value of ``da`` at ``index`` as plain python objects."""
+    return {str(dim): _coordinate_value(da[dim], i) for dim, i in zip(da.dims, index, strict=True)}
 
 
 def _coordinates_repr(coordinates: dict[str, typing.Any]) -> str:
@@ -516,7 +593,7 @@ def record_step(
     previous: typing.Sequence[tuple[xr.DataArray, xr.DataArray]] = (),
     parents: typing.Sequence[xr.DataArray] = (),
     function: str,
-    description_template: str,
+    description: str,
     source: str | None = None,
 ) -> xr.DataArray:
     """Processing information of ``new_da`` after a processing step.
@@ -546,9 +623,8 @@ def record_step(
         dimensions or timeseries of ``new_da``.
     function
         The name of the function which did the processing.
-    description_template
-        Human-readable description of the processing step, in which "<coords>" is
-        replaced by the coordinates of the timeseries.
+    description
+        Human-readable description of the processing step.
     source
         Optional: a short identifier for the source of the data which was used for the
         processing.
@@ -556,7 +632,8 @@ def record_step(
     Returns
     -------
     : xr.DataArray
-        The processing information of ``new_da``.
+        The processing information of ``new_da``. The new steps record the name of
+        ``new_da`` as their variable and the coordinates of their timeseries.
 
     Raises
     ------
@@ -593,17 +670,13 @@ def record_step(
                 step_parents.extend(value[index])
             elif not pd.isnull(value[index]):
                 step_parents.append(value[index])
-        coordinates = _coordinates_repr(
-            {
-                str(dim): _coordinate_value(template[dim], i)
-                for dim, i in zip(dims, index, strict=True)
-            }
-        )
         result[index] = ProcessingStepDescription(
             time=times[changed[index]],
             function=function,
-            description=description_template.replace("<coords>", coordinates),
+            description=description,
             source=source,
+            variable=new_da.name,
+            coords=_index_coordinates(template, index),
             parents=_unique(step_parents),
         )
 
@@ -629,8 +702,7 @@ class DataArrayProcessingInfoAccessor(BaseDataArrayAccessor):
         function
             The name of the function which created the data.
         description
-            Human-readable description of how the data was created, in which "<coords>"
-            is replaced by the coordinates of each timeseries.
+            Human-readable description of how the data was created.
         source
             Optional: a short identifier for the source of the data.
 
@@ -646,7 +718,7 @@ class DataArrayProcessingInfoAccessor(BaseDataArrayAccessor):
             {
                 self._da.name: self._da,
                 processing_variable_name(self._da.name): record_step(
-                    self._da, function=function, description_template=description, source=source
+                    self._da, function=function, description=description, source=source
                 ),
             }
         )
@@ -659,7 +731,7 @@ def _processing_infos_on_change(
     new_da: xr.DataArray,
     other_ds: xr.Dataset | None,
     function: str,
-    description_template: str,
+    description: str,
     source: str | None,
 ) -> xr.DataArray:
     """The processing information of ``new_da``, see add_processing_step_on_change_ds."""
@@ -683,7 +755,7 @@ def _processing_infos_on_change(
         previous=previous,
         parents=parents,
         function=function,
-        description_template=description_template,
+        description=description,
         source=source,
     )
 
@@ -694,7 +766,7 @@ def _add_processing_step_on_change_ds(
     new_ds: xr.Dataset,
     other_ds: xr.Dataset | None = None,
     function: str,
-    description_template: str,
+    description: str,
     source: str | None = None,
 ) -> xr.Dataset:
     """Determine the processing information of ``new_ds``, which was derived from
@@ -707,10 +779,8 @@ def _add_processing_step_on_change_ds(
     * the processing information of ``other_ds``, if the timeseries does not exist in
       ``old_ds``, but in ``other_ds``, and is unchanged compared to ``other_ds``.
     * a new processing step otherwise. Its parents are the processing information of
-      ``old_ds`` and of ``other_ds`` at the same coordinates, if available.
-      ``description_template`` is used as a template for its description, in which
-      "<coords>" is replaced by the coordinates of the timeseries and "<var>" by the name
-      of its data variable. Its times are the changed time points.
+      ``old_ds`` and of ``other_ds`` at the same coordinates, if available. Its times
+      are the changed time points.
 
     If ``old_ds`` has no processing information, the result has none either.
 
@@ -726,9 +796,8 @@ def _add_processing_step_on_change_ds(
         in ``new_ds`` were taken. It may lack dimensions of ``new_ds``.
     function
         The name of the function which did the processing.
-    description_template
-        Human-readable description of the processing step, optionally including the "<coords>"
-        and "<var>" placeholders.
+    description
+        Human-readable description of the processing step.
     source
         Optional: a short identifier for the source of the data which was used for the
         processing.
@@ -755,7 +824,7 @@ def _add_processing_step_on_change_ds(
             new_da=new_ds[var],
             other_ds=other_ds,
             function=function,
-            description_template=description_template.replace("<var>", str(var)),
+            description=description,
             source=source,
         )
 
@@ -783,7 +852,7 @@ class ProcessingStepRecorder:
         ds: xr.Dataset,
         *,
         function: str,
-        description_template: str,
+        description: str,
         source: str | None = None,
         other_ds: xr.Dataset | None = None,
     ):
@@ -793,7 +862,7 @@ class ProcessingStepRecorder:
         self._original = ds
         self._other_ds = other_ds
         self._function = function
-        self._description_template = description_template
+        self._description = description
         self._source = source
         self._result: xr.Dataset | None = None
         self.ds = _without_processing_info(ds).copy(deep=True)
@@ -809,7 +878,7 @@ class ProcessingStepRecorder:
             new_ds=self.ds,
             other_ds=self._other_ds,
             function=self._function,
-            description_template=self._description_template,
+            description=self._description,
             source=self._source,
         )
         if self.ds.equals(_without_processing_info(self._original)):
@@ -834,7 +903,7 @@ F = typing.TypeVar("F", bound=typing.Callable[..., xr.Dataset])
 def records_processing_step(
     input_ds: str,
     *,
-    description_template: str,
+    description: str,
     function: str | None = None,
     source: str | None = None,
     other: str | None = None,
@@ -850,9 +919,7 @@ def records_processing_step(
     Examples
     --------
     >>> # xdoctest: +SKIP
-    >>> @records_processing_step(
-    ...     "ds", description_template="interpolated with {method} (<var>; <coords>)"
-    ... )
+    >>> @records_processing_step("ds", description="interpolated with {method}")
     ... def interpolate(ds: xr.Dataset, method: str = "linear") -> xr.Dataset:
     ...     return ds.interpolate_na(dim="time", method=method)
 
@@ -861,17 +928,15 @@ def records_processing_step(
     input_ds
         The name of the argument holding the input dataset. For methods of dataset
         accessors, use "self" to take the accessor's dataset as input.
-    description_template
+    description
         Human-readable description of the processing step. "{name}" fields are replaced
-        by the arguments of the call using :py:meth:`str.format_map`, "<coords>" by the
-        coordinates of each changed timeseries and "<var>" by the name of its data
-        variable.
+        by the arguments of the call using :py:meth:`str.format_map`.
     function
         Optional: the name of the function which does the processing. Defaults to the
         qualified name of the decorated function.
     source
         Optional: a short identifier for the source of the data which is used for the
-        processing, with "{name}" fields replaced like in ``description_template``.
+        processing, with "{name}" fields replaced like in ``description``.
     other
         Optional: the name of the argument holding a dataset from which data is taken.
         The decorated function receives it without processing information. If the input
@@ -913,7 +978,7 @@ def records_processing_step(
             with ProcessingStepRecorder(
                 ds,
                 function=function_name,
-                description_template=description_template.format_map(arguments),
+                description=description.format_map(arguments),
                 source=None if source is None else source.format_map(arguments),
                 other_ds=other_ds,
             ) as step:

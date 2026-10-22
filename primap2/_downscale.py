@@ -381,7 +381,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                     ),
                 ],
                 function="downscale_timeseries",
-                description_template=f"downscaled from {dim}={basket!r} (<coords>)",
+                description=f"downscaled from {dim}={basket!r}",
             )
 
         return downscaled
@@ -569,7 +569,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                     previous=[(data[var], processing[var])],
                     parents=parents,
                     function="downscale_gas_timeseries",
-                    description_template=f"downscaled from {basket!r} (<coords>)",
+                    description=f"downscaled from {basket!r}",
                 )
             result[processing_variable_name(var)] = processing[var]
         return result
@@ -648,7 +648,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                     ),
                 ],
                 function="downscale_timeseries_by_shares",
-                description_template=f"downscaled from {dim}={basket!r} using shares (<coords>)",
+                description=f"downscaled from {dim}={basket!r} using shares",
             )
         return result
 

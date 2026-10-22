@@ -172,13 +172,16 @@ Each `ProcessingStepDescription` contains the following information:
 | function    | str                                  | Name of the function which did the operation                                           |
 | description | str                                  | Long-form description of the operation which was performed                             |
 | source      | str or `None`                        | If applicable, identifier for the data source which was used in the operation          |
+| variable    | str or `None`                        | The name of the data variable of the processed timeseries                              |
+| coords      | dict or `None`                       | The coordinates of the processed timeseries at the time of the operation, apart from "time" |
 | parents     | tuple of `ProcessingStepDescription` | The last processing steps of the timeseries which were the input of the operation      |
 
 Operations which combine several timeseries, like sums, have several parents, so the
 processing history of a timeseries is a directed acyclic graph rather than a list.
 `ProcessingStepDescription.history()` returns all steps of the history in an order in
 which every step comes after its parents, and
-`ProcessingStepDescription.format_history()` describes them in human-readable form.
+`ProcessingStepDescription.format_history()` shows them as a tree, starting with the
+last step.
 
 A `TimeRange` describes equally spaced time points with both ends included, e.g.
 `TimeRange("1970", "2015")` for every year from 1970 to 2015 or

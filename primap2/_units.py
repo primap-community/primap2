@@ -451,7 +451,9 @@ class DatasetUnitAccessor(_accessor_base.BaseDatasetAccessor):
 
             step = processing_steps.get(described_variable)
             if step is not None:
-                da = add_processing_step(da, step)
+                da = add_processing_step(
+                    da, step, variable=renames.get(described_variable, described_variable)
+                )
 
             if described_variable not in renames:
                 result[name] = da

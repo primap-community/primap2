@@ -803,6 +803,11 @@ def test_compose_input_processing(opulent_processing_ds):
     assert co2_step.parents[1] is input_step
     ch4_step = result["Processing of CH4"].pr.loc[{"area": "COL"}].values.flat[0]
     assert ch4_step.parents == (input_step,)
+    processing = result["Processing of CO2"]
+    first = processing.isel({dim: 0 for dim in processing.dims})
+    for step in first.item().history()[1:]:
+        assert step.variable == "CO2"
+        assert step.coords == {dim: first[dim].item() for dim in processing.dims}
 
 
 def test_compose_timeseries_priorities_wrong():

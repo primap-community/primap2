@@ -370,8 +370,8 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
         ``on_rule`` is called after each applied rule with the keyword arguments
         ``before`` and ``after`` (the dequantified data), ``dim``, ``value`` (the
-        aggregated value along ``dim``) and ``selection`` (the selection of the summed
-        data).
+        aggregated value along ``dim``), ``selection`` (the selection of the summed
+        data) and ``sources`` (the summed values along ``dim``).
         """
         # dequantify for improved speed. Unit handling is not necessary as we
         # work with one DataArray and thus the unit is the same for all
@@ -465,6 +465,7 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                                 dim=full_coord_name,
                                 value=value_to_aggregate,
                                 selection=sel,
+                                sources=source_values_present,
                             )
                     else:
                         logger.info(
@@ -502,14 +503,14 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
     @records_processing_step(
         "self",
         function="fill_all_na",
-        description_template="all values along {dim!r} were NA, filled with {value} (<coords>)",
+        description="all values along {dim!r} were NA, filled with {value}",
     )
     def fill_all_na(self, dim: DimOrDimsT, value=0) -> xr.Dataset:
         """Fill NA values only where all values along the specified dimension(s) are NA.
 
         Example: if you have a Dataset with dimensions ``time``, ``positions`` and ``sector``,
-        filling it along ``time`` will only fill those combinations of ``postiion`` and ``sector``
-        for which all ``time``s are NA.
+        filling it along ``time`` will only fill those combinations of ``positions`` and
+        ``sector`` for which all values along ``time`` are NA.
 
         Parameters
         ----------
@@ -743,7 +744,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 summed[var],
                 parents=[combine_histories(self._ds[name], summed_dims, data=self._ds[var])],
                 function="sum",
-                description_template=f"sum along {summed_dims!r} (<coords>)",
+                description=f"sum along {summed_dims!r}",
             )
         return summed
 
@@ -1002,16 +1003,16 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         # the processing information of each variable after the last applied rule
         processing_infos: dict[Hashable, xr.DataArray] = {}
 
-        def record_rule(var, *, before, after, dim, value, selection):
-            sources = combine_histories(
+        def record_rule(var, *, before, after, dim, value, selection, sources):
+            histories = combine_histories(
                 processing_infos[var].pr.loc[selection], dim, data=before.pr.loc[selection]
             )
             processing_infos[var] = record_step(
                 after,
                 previous=[(before, processing_infos[var])],
-                parents=[sources.expand_dims({dim: [value]})],
+                parents=[histories.expand_dims({dim: [value]})],
                 function="add_aggregates_coordinates",
-                description_template=f"aggregated {dim}={value!r} (<coords>)",
+                description=f"aggregated from {dim}={list(sources)!r}",
             )
 
         for var in data.data_vars:
@@ -1206,5 +1207,5 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             previous=[] if before is None else [(before, processing_infos[basket])],
             parents=[contents],
             function="add_aggregates_variables",
-            description_template=f"aggregated {basket} from {list(basket_contents)!r} (<coords>)",
+            description=f"aggregated {basket} from {list(basket_contents)!r}",
         )
