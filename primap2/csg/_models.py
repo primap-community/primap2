@@ -4,12 +4,12 @@ import typing
 from collections.abc import Hashable
 
 import attrs
+import numpy as np
 import xarray as xr
 from attr import define
 
 import primap2
 from primap2._dim_names import dim_names
-from primap2._processing_info import ProcessingStepDescription
 
 
 def equal_or_in(a, b):
@@ -155,6 +155,48 @@ class PriorityDefinition:
                     )
 
 
+def _times(values) -> np.ndarray:
+    return np.asarray(values, dtype="datetime64[ns]")
+
+
+@define(frozen=True, kw_only=True)
+class StrategyStep:
+    """A processing step done by a strategy, with the time points it changed and used.
+
+    The inputs of the value of the result at a changed time point ``t`` are the values
+    of ``fill_ts`` at ``t``, of ``ts`` at ``ts_time`` and of ``fill_ts`` at
+    ``fill_ts_time``. If a step used ``ts`` at ``t``, it has to include ``t`` in
+    ``ts_time``. If the inputs differ between changed time points, return one step for
+    each group of time points.
+
+    Attributes
+    ----------
+    function
+        The name of the function which did the processing.
+    description
+        Human-readable description of the processing step.
+    source
+        Optional: a short identifier for the source of the data which was used for the
+        processing.
+    time
+        The time points at which the step changed the value, i.e. the new value differs
+        from the value in ``ts``.
+    ts_time
+        Time points of ``ts`` (the result so far) from which the new values were also
+        computed, e.g. a window used for a fit.
+    fill_ts_time
+        Time points of ``fill_ts`` from which the new values were also computed, in
+        addition to ``fill_ts`` at the same time point.
+    """
+
+    function: str
+    description: str
+    source: str | None = None
+    time: np.ndarray = attrs.field(converter=_times, eq=False)
+    ts_time: np.ndarray = attrs.field(factory=lambda: _times([]), converter=_times, eq=False)
+    fill_ts_time: np.ndarray = attrs.field(factory=lambda: _times([]), converter=_times, eq=False)
+
+
 class FillingStrategyModel(typing.Protocol, Hashable):
     """
     Fill missing data in a timeseries using another timeseries.
@@ -184,7 +226,7 @@ class FillingStrategyModel(typing.Protocol, Hashable):
         ts: xr.DataArray,
         fill_ts: xr.DataArray,
         fill_ts_repr: str,
-    ) -> tuple[xr.DataArray, list[ProcessingStepDescription]]:
+    ) -> tuple[xr.DataArray, list[StrategyStep]]:
         """Fill gaps in ts using data from the fill_ts.
 
         Using two input timeseries, this builds a composite timeseries and a description
@@ -213,14 +255,15 @@ class FillingStrategyModel(typing.Protocol, Hashable):
 
         Returns
         -------
-            filled_ts, descriptions. filled_ts contains the result, where missing
+            filled_ts, steps. filled_ts contains the result, where missing
             data in ts is (partly) filled using information from fill_ts or other
             processing is done using ts and fill_ts.
-            descriptions contains human-readable, structured descriptions of how the
-            data was processed, grouped by years for which the same processing steps
-            were taken. Every year for which data in filled_ts is different from data
-            in ts has to be described and no year for which data was not changed is
-            allowed to be described.
+            steps are the :py:class:`StrategyStep` s done, which describe how the data
+            was processed and which time points of ts and fill_ts the changed values
+            were computed from. Every time point for which data in filled_ts is
+            different from data in ts has to be in exactly one step and no time point
+            for which data was not changed is allowed to be in a step. Steps without
+            time points are only logged.
 
         Raises
         ------

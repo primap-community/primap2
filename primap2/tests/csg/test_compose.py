@@ -1,5 +1,6 @@
 """Tests for csg/_compose.py"""
 
+import attrs
 import numpy as np
 import pandas as pd
 import pytest
@@ -7,6 +8,12 @@ import xarray as xr
 
 import primap2.csg
 from primap2.tests.csg.utils import get_single_ts
+
+
+def nodes_of(da: xr.DataArray, **selector) -> list:
+    """The processing steps over time of the first timeseries of da matching selector."""
+    da = da.pr.loc[selector]
+    return da.isel({dim: 0 for dim in da.dims if dim != "time"}).transpose("time").values.tolist()
 
 
 def assert_copied_from_input_data(
@@ -91,45 +98,47 @@ def test_compose_simple(opulent_ds):
         input_data["CH4"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "highpop"}],
         {"area": "COL"},
     )
-    result_col_proc = (
-        result["Processing of CH4"].loc[{"area (ISO3)": "COL"}].values.flat[0].history()
-    )
-    assert len(result_col_proc) == 1
-    assert result_col_proc[0].time == (primap2.TimeRange("2000", "2020"),)
-    assert result_col_proc[0].function == "substitution"
-    assert "'source': 'RAND2020'" in result_col_proc[0].description
-    assert "'scenario (FAOSTAT)': 'highpop'" in result_col_proc[0].description
+    result_col_proc = nodes_of(result["Processing of CH4"], **{"area (ISO3)": "COL"})
+    assert len(result_col_proc) == 21
+    for node in result_col_proc:
+        # untracked input: the parent is a leaf naming the source
+        (leaf,) = node.parents
+        assert leaf.parents == ()
+        assert leaf.time == node.time
+        assert leaf.description.function == "compose"
+        assert leaf.description.source == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'highpop'}"
+        assert node.description.function == "substitution"
+        assert "'source': 'RAND2020'" in node.description.description
+        assert "'scenario (FAOSTAT)': 'highpop'" in node.description.description
+    assert [node.time for node in result_col_proc] == list(result["time"].values)
+    # one description for all data points set by the step
+    assert len({id(node.description) for node in result_col_proc}) == 1
 
     assert_copied_from_input_data(
         result["CH4"],
         input_data["CH4"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
         {"area": "ARG"},
     )
-    result_arg_proc = (
-        result["Processing of CH4"].loc[{"area (ISO3)": "ARG"}].values.flat[0].history()
-    )
-    assert len(result_arg_proc) == 1
-    assert result_arg_proc[0].time == (primap2.TimeRange("2000", "2020"),)
-    assert result_arg_proc[0].function == "substitution"
-    assert result_arg_proc[0].source == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'}"
+    result_arg_proc = nodes_of(result["Processing of CH4"], **{"area (ISO3)": "ARG"})
+    assert len(result_arg_proc) == 21
+    for node in result_arg_proc:
+        assert node.description.function == "substitution"
+        assert node.description.source == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'}"
 
     assert_copied_from_input_data(
         result["CO2"],
         input_data["CO2"].loc[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
         {"area": "COL", "time": slice("2002", None)},
     )
-    result_col_co2_proc = (
-        result["Processing of CO2"].loc[{"area (ISO3)": "COL"}].values.flat[0].history()
-    )
-    assert len(result_col_co2_proc) == 2
-    assert result_col_co2_proc[0].function == "substitution"
-    np.testing.assert_array_equal(
-        result_col_co2_proc[1].time_points(),
-        np.array(["2000", "2001"], dtype=np.datetime64),
-    )
-    assert result_col_co2_proc[1].function == "substitution"
-    assert "'source': 'RAND2020'" in result_col_co2_proc[0].description
-    assert "'scenario (FAOSTAT)': 'lowpop'" in result_col_co2_proc[0].description
+    result_col_co2_proc = nodes_of(result["Processing of CO2"], **{"area (ISO3)": "COL"})
+    assert len(result_col_co2_proc) == 21
+    for i, node in enumerate(result_col_co2_proc):
+        assert node.description.function == "substitution"
+        # the first two years are missing in the highest priority source
+        scenario = "highpop" if i < 2 else "lowpop"
+        source = "RAND2021" if i < 2 else "RAND2020"
+        assert f"'source': '{source}'" in node.description.description
+        assert f"'scenario (FAOSTAT)': '{scenario}'" in node.description.description
 
 
 def test_compose_exclude_result(opulent_ds):
@@ -385,12 +394,13 @@ def test_compose_skip_source(opulent_ds):
         {"category": "1"},
     )
 
-    tpd: primap2.ProcessingStepDescription = (
-        result["Processing of CH4"].pr.loc[{"area": "COL", "category": "0"}].item()
-    )
-    assert len(tpd.history()) == 1
-    assert tpd.function == "substitution"
-    assert tpd.source == ("{'source': 'RAND2021', 'scenario (FAOSTAT)': 'highpop'}")
+    nodes = nodes_of(result["Processing of CH4"], area="COL", category="0")
+    for node in nodes:
+        assert len(node.history()) == 2
+        assert node.description.function == "substitution"
+        assert node.description.source == (
+            "{'source': 'RAND2021', 'scenario (FAOSTAT)': 'highpop'}"
+        )
 
 
 def test_compose_skip_variable(opulent_ds):
@@ -617,7 +627,7 @@ def test_compose_timeseries_trivial():
 
     input_data = xr.concat((da_a, da_b), dim="source", join="exact")
 
-    result_ts, result_step = primap2.csg._compose.compose_timeseries(
+    result_ts, result_steps = primap2.csg._compose.compose_timeseries(
         input_data=input_data,
         priority_definition=priority_definition,
         strategy_definition=strategy_definition,
@@ -630,14 +640,31 @@ def test_compose_timeseries_trivial():
 
     xr.testing.assert_identical(result_ts, expected_ts)
 
-    result_description = result_step.history()
-    assert len(result_description) == 2
-    assert result_description[0].time == (primap2.TimeRange("1852", "2022"),)
-    assert result_description[0].function == "substitution"
-    assert result_description[0].description == "substituted with corresponding values from 'A'"
-    assert result_description[1].time == (primap2.TimeRange("1850", "1850"),)
-    assert result_description[1].function == "substitution"
-    assert result_description[1].description == "substituted with corresponding values from 'B'"
+    assert result_steps.shape == (len(time),)
+    # filled from B, untracked input: the parent is a leaf with the source
+    (leaf,) = result_steps[0].parents
+    assert leaf.parents == ()
+    assert leaf.time == time[0]
+    assert leaf.description.source == "'B'"
+    assert result_steps[0].time == time[0]
+    assert result_steps[0].description.function == "substitution"
+    assert (
+        result_steps[0].description.description == "substituted with corresponding values from 'B'"
+    )
+    assert result_steps[0].description.source == "'B'"
+    # no data in A and B
+    assert result_steps[1] is None
+    for i in range(2, len(time)):
+        (leaf,) = result_steps[i].parents
+        assert leaf.parents == ()
+        assert leaf.description.source == "'A'"
+        assert result_steps[i].time == time[i]
+        assert result_steps[i].description.source == "'A'"
+        assert result_steps[i].description is result_steps[2].description
+    assert result_steps[2].description.variable == "CH4"
+    assert (
+        result_steps[2].description.description == "substituted with corresponding values from 'A'"
+    )
 
 
 def test_compose_timeseries_no_match(caplog):
@@ -689,15 +716,26 @@ def test_compose_timeseries_all_null(caplog):
     )
     input_data = xr.concat((da_a, da_b), dim="source", join="exact")
 
-    _, result_step = primap2.csg._compose.compose_timeseries(
+    _, result_steps = primap2.csg._compose.compose_timeseries(
         input_data=input_data,
         priority_definition=priority_definition,
         strategy_definition=strategy_definition,
     )
 
-    assert len(result_step.history()) == 1
-    assert result_step.source == "'A'"
+    assert result_steps[0] is None
+    assert all(step.description.source == "'A'" for step in result_steps[1:])
     assert "'B' is fully NaN, skipped." in caplog.text
+
+
+def _read_steps(time, description: str, has_data: np.ndarray | None = None):
+    """Input processing of a timeseries: a step per time point with data."""
+    desc = primap2.ProcessingStepDescription(function="read", description=description)
+    if has_data is None:
+        has_data = np.ones(len(time), dtype=bool)
+    steps = np.full(len(time), None, dtype=object)
+    for i in np.flatnonzero(has_data):
+        steps[i] = primap2.ProcessingStep(desc, time[i])
+    return steps
 
 
 def test_compose_timeseries_input_processing():
@@ -712,26 +750,31 @@ def test_compose_timeseries_input_processing():
     da_a[0] = np.nan
     da_b = get_single_ts(coords={"source": "B"})
     input_data = xr.concat((da_a, da_b), dim="source", join="exact")
-    step_a = primap2.ProcessingStepDescription(time=(), function="read", description="A")
-    step_b = primap2.ProcessingStepDescription(time=(), function="read", description="B")
+    time = input_data["time"].values
+    steps_a = _read_steps(time, "A", input_data.sel(source="A").notnull().values)
+    steps_b = _read_steps(time, "B")
     input_processing = xr.DataArray(
-        np.array([step_a, step_b], dtype=object),
-        dims=["source"],
-        coords={"source": ["A", "B"]},
+        np.stack([steps_a, steps_b]),
+        dims=["source", "time"],
+        coords={"source": ["A", "B"], "time": time},
     )
 
-    _, result_step = primap2.csg._compose.compose_timeseries(
+    _, result_steps = primap2.csg._compose.compose_timeseries(
         input_data=input_data,
         priority_definition=priority_definition,
         strategy_definition=strategy_definition,
         input_processing=input_processing,
     )
 
-    first, second = result_step.parents
-    assert first.parents == (step_a,)
-    assert first.source == "'A'"
-    assert second is step_b
-    assert result_step.source == "'B'"
+    # the input steps are the parents at the same time point
+    assert len(result_steps[0].parents) == 1
+    assert result_steps[0].parents[0] is steps_b[0]
+    assert result_steps[0].description.source == "'B'"
+    for i in range(1, len(time)):
+        assert len(result_steps[i].parents) == 1
+        assert result_steps[i].parents[0] is steps_a[i]
+        assert result_steps[i].description.source == "'A'"
+        assert result_steps[i].time == time[i]
 
 
 def test_compose_timeseries_input_processing_unused(caplog):
@@ -747,24 +790,176 @@ def test_compose_timeseries_input_processing_unused(caplog):
     da_b = get_single_ts(coords={"source": "B"})
     da_c = get_single_ts(coords={"source": "C"})
     input_data = xr.concat((da_a, da_b, da_c), dim="source", join="exact")
-    steps = [
-        primap2.ProcessingStepDescription(time=(), function="read", description=source)
-        for source in "ABC"
-    ]
+    time = input_data["time"].values
+    steps = [_read_steps(time, source) for source in "ABC"]
     input_processing = xr.DataArray(
-        np.array(steps, dtype=object), dims=["source"], coords={"source": ["A", "B", "C"]}
+        np.stack(steps),
+        dims=["source", "time"],
+        coords={"source": ["A", "B", "C"], "time": time},
     )
 
-    _, result_step = primap2.csg._compose.compose_timeseries(
+    _, result_steps = primap2.csg._compose.compose_timeseries(
         input_data=input_data,
         priority_definition=priority_definition,
         strategy_definition=strategy_definition,
         input_processing=input_processing,
     )
 
-    assert result_step.history() == [steps[1], result_step]
+    for i, step in enumerate(result_steps):
+        assert step.parents == (steps[1][i],)
     assert "'A' is excluded from processing, skipped." in caplog.text
     assert "Strategy globalLS unable to process 'B' (No overlap" in caplog.text
+
+
+def _ab_input():
+    """Timeseries A (NaN at 0, 1 and 5) and a full B with tracked processing."""
+    da_a = get_single_ts(coords={"source": "A"})
+    da_a[[0, 1, 5]] = np.nan
+    da_a[2:5] = np.array([1.0, 2.0, 3.0])
+    da_b = get_single_ts(coords={"source": "B"})
+    da_b[:] = np.linspace(10.0, 20.0, len(da_b))
+    input_data = xr.concat((da_a, da_b), dim="source", join="exact")
+    time = input_data["time"].values
+    steps_a = _read_steps(time, "A", input_data.sel(source="A").notnull().values)
+    steps_b = _read_steps(time, "B")
+    input_processing = xr.DataArray(
+        np.stack([steps_a, steps_b]),
+        dims=["source", "time"],
+        coords={"source": ["A", "B"], "time": time},
+    )
+    priority_definition = primap2.csg.PriorityDefinition(
+        priority_dimensions=["source"], priorities=[{"source": "A"}, {"source": "B"}]
+    )
+    return input_data, input_processing, priority_definition, steps_a, steps_b
+
+
+def test_compose_timeseries_global_ls_parents():
+    input_data, input_processing, priority_definition, steps_a, steps_b = _ab_input()
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            ({"source": "A"}, primap2.csg.SubstitutionStrategy()),
+            ({"source": "B"}, primap2.csg.GlobalLSStrategy()),
+        ]
+    )
+
+    result_ts, result_steps = primap2.csg._compose.compose_timeseries(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+        input_processing=input_processing,
+    )
+
+    assert result_ts.notnull().all()
+    # the values from A are not changed by the fill
+    for i in range(2, 5):
+        assert result_steps[i].parents == (steps_a[i],)
+    overlap = [i for i in range(len(steps_a)) if i not in (0, 1, 5)]
+    # the fit used the overlap of the result so far (A) and B
+    expected_common = [result_steps[i] for i in overlap] + [steps_b[i] for i in overlap]
+    for i in (0, 1, 5):
+        parents = result_steps[i].parents
+        assert parents[0] is steps_b[i]
+        assert len(parents) == 1 + len(expected_common)
+        assert all(x is y for x, y in zip(parents[1:], expected_common, strict=True))
+        assert result_steps[i].description.function == "globalLS"
+    # the steps of the result from A are the ones in the parents, not their inputs
+    assert result_steps[overlap[0]].parents == (steps_a[overlap[0]],)
+
+
+def test_compose_timeseries_global_ls_untracked():
+    input_data, _, priority_definition, _, _ = _ab_input()
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            ({"source": "A"}, primap2.csg.SubstitutionStrategy()),
+            ({"source": "B"}, primap2.csg.GlobalLSStrategy()),
+        ]
+    )
+
+    _, result_steps = primap2.csg._compose.compose_timeseries(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+    )
+
+    # the fill from B is reachable as leaves of B, also for the fit points
+    for i in (0, 1, 5):
+        leaves = [step for step in result_steps[i].history() if not step.parents]
+        sources = {leaf.description.source for leaf in leaves}
+        assert sources == {"'A'", "'B'"}
+        b_times = {leaf.time for leaf in leaves if leaf.description.source == "'B'"}
+        # the leaves of B are at the changed time point and the fit points
+        assert result_steps[i].time in b_times
+        assert len(b_times) == 1 + 3 + (len(result_steps) - 6)
+
+
+@attrs.frozen
+class ReplaceStrategy:
+    """Replace the value at the 4th time point, declaring the inputs as configured."""
+
+    ts_time_self: bool = False
+    fill_ts_time_self: bool = False
+    discard: bool = False
+    type = "replace"
+
+    def fill(self, *, ts, fill_ts, fill_ts_repr):
+        time = ts["time"].values[3:4]
+        result = ts.copy()
+        result.loc[{"time": time}] = np.nan if self.discard else fill_ts.loc[{"time": time}]
+        step = primap2.csg.StrategyStep(
+            function="replace",
+            description="replace",
+            source=fill_ts_repr,
+            time=time,
+            ts_time=time if self.ts_time_self else [],
+            fill_ts_time=time if self.fill_ts_time_self else [],
+        )
+        return result, [step]
+
+
+@pytest.mark.parametrize(
+    ("strategy", "old_value_is_parent"),
+    [
+        # replaced values drop their history
+        (ReplaceStrategy(), False),
+        # unless the old value is an input
+        (ReplaceStrategy(ts_time_self=True), True),
+        # inputs are not duplicated
+        (ReplaceStrategy(fill_ts_time_self=True), False),
+        (ReplaceStrategy(ts_time_self=True, fill_ts_time_self=True), True),
+        # no data, no step
+        (ReplaceStrategy(discard=True), None),
+    ],
+)
+def test_compose_timeseries_replaced_values(strategy, old_value_is_parent):
+    input_data, input_processing, priority_definition, steps_a, steps_b = _ab_input()
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            ({"source": "A"}, primap2.csg.SubstitutionStrategy()),
+            ({"source": "B"}, strategy),
+        ]
+    )
+
+    _, result_steps = primap2.csg._compose.compose_timeseries(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+        input_processing=input_processing,
+    )
+
+    # only the 4th value was changed, the others keep their steps
+    assert result_steps[0] is None
+    assert result_steps[2].parents == (steps_a[2],)
+    if old_value_is_parent is None:
+        assert result_steps[3] is None
+        return
+    parents = result_steps[3].parents
+    assert parents[0] is steps_b[3]
+    if old_value_is_parent:
+        assert len(parents) == 2
+        assert parents[1].description.function == "substitution"
+        assert parents[1].parents == (steps_a[3],)
+    else:
+        assert len(parents) == 1
 
 
 def test_compose_input_processing(opulent_processing_ds):
@@ -773,6 +968,7 @@ def test_compose_input_processing(opulent_processing_ds):
     input_data["CO2"].loc[{"source": "RAND2020", "time": ["2000", "2001"]}] = np.nan * primap2.ureg(
         "Mt CO2 / year"
     )
+    input_data["Processing of CO2"].loc[{"source": "RAND2020", "time": ["2000", "2001"]}] = None
     priority_definition = primap2.csg.PriorityDefinition(
         priority_dimensions=["source", "scenario (FAOSTAT)"],
         priorities=[
@@ -792,22 +988,33 @@ def test_compose_input_processing(opulent_processing_ds):
     )
 
     result.expand_dims(dim={"source": ["composed"]}).pr.ensure_valid()
-    input_step = input_data["Processing of CO2"].values.flat[0]
-    co2_step = result["Processing of CO2"].pr.loc[{"area": "COL"}].values.flat[0]
-    # all input timeseries share the same step
-    assert [step.function for step in co2_step.history()] == [
-        "random",
-        "substitution",
-        "substitution",
-    ]
-    assert co2_step.parents[1] is input_step
-    ch4_step = result["Processing of CH4"].pr.loc[{"area": "COL"}].values.flat[0]
-    assert ch4_step.parents == (input_step,)
-    processing = result["Processing of CO2"]
-    first = processing.isel({dim: 0 for dim in processing.dims})
-    for step in first.item().history()[1:]:
-        assert step.variable == "CO2"
-        assert step.coords == {dim: first[dim].item() for dim in processing.dims}
+    assert result["Processing of CO2"].dims == result["CO2"].dims
+    fixed = {
+        dim: input_data["CO2"][dim].values[0].item() for dim in result["CO2"].dims if dim != "time"
+    }
+
+    def input_nodes(variable, source, scenario):
+        da = input_data[f"Processing of {variable}"].loc[
+            {"source": source, "scenario (FAOSTAT)": scenario, **fixed}
+        ]
+        return da.transpose("time").values
+
+    lowpop = input_nodes("CO2", "RAND2020", "lowpop")
+    highpop = input_nodes("CO2", "RAND2021", "highpop")
+    co2 = result["Processing of CO2"].loc[fixed].transpose("time").values
+    for i, step in enumerate(co2):
+        # the first two years are missing in the highest priority source
+        expected = highpop[i] if i < 2 else lowpop[i]
+        assert len(step.parents) == 1
+        assert step.parents[0] is expected
+        assert step.time == result["time"].values[i]
+        assert step.description.function == "substitution"
+        assert step.description.variable == "CO2"
+        assert step.description.coords == fixed
+    assert [step.description.function for step in co2[0].history()] == ["random", "substitution"]
+    ch4 = result["Processing of CH4"].loc[fixed].transpose("time").values
+    for step, expected in zip(ch4, input_nodes("CH4", "RAND2020", "lowpop"), strict=True):
+        assert step.parents == (expected,)
 
 
 def test_compose_timeseries_priorities_wrong():
