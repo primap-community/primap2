@@ -374,6 +374,7 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         other="value",
         function="set",
         description="set values for {dim}={key!r}",
+        replaces=True,
     )
     def set(
         self,

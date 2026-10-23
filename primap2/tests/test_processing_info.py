@@ -1,5 +1,7 @@
 """Tests for _processing_info.py"""
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -309,7 +311,7 @@ def test_record_step_dimension_order_kept():
         name="CO2",
     )
 
-    result = record_step(da, function="f", description="d")
+    result = record_step(da, function="f", description="d", source="s")
 
     assert result.dims == ("time", "area")
     assert result.loc["2001", "ARG"].item().time == np.datetime64("2001")
@@ -360,7 +362,7 @@ def test_record_step_replaces():
 
     kept = record_step(new, previous=[(old, old_infos)], function="f", description="d")
     replaced = record_step(
-        new, previous=[(old, old_infos)], replaces=True, function="f", description="d"
+        new, previous=[(old, old_infos)], replaces=True, function="f", description="d", source="s"
     )
 
     assert kept.loc["COL"].values[0].parents == (old_infos.loc["COL"].values[0],)
@@ -385,7 +387,9 @@ def test_record_step_new_timeseries_and_padding():
     new = old.reindex(area=areas)
     new.loc[{"area": "MEX"}] = 7.0
 
-    result = record_step(new, previous=[(old, old_infos)], function="f", description="d")
+    result = record_step(
+        new, previous=[(old, old_infos)], function="f", description="d", source="s"
+    )
 
     mex = result.loc["MEX"].values
     assert [x.parents for x in mex] == [(), ()]
@@ -404,7 +408,7 @@ def test_record_step_first_previous_wins():
     new.loc[{"area": "MEX"}] = 1.0
     both = [(old.sel(area=["COL"]), old_infos.sel(area=["COL"])), (other, other_infos)]
 
-    result = record_step(new, previous=both, function="f", description="d")
+    result = record_step(new, previous=both, function="f", description="d", source="s")
 
     # COL is found in the first entry, ARG only in the second
     assert result.loc["COL"].values[0].parents == (old_infos.loc["COL"].values[0],)
@@ -486,7 +490,7 @@ def test_record_step_nan_parents_ignored():
         np.array([np.nan, step("p")], dtype=object), dims=["area"], coords={"area": ["COL", "ARG"]}
     )
 
-    result = record_step(old, parents=[parents], function="f", description="d")
+    result = record_step(old, parents=[parents], function="f", description="d", source="s")
 
     assert result.loc["COL"].values[0].parents == ()
     assert result.loc["ARG"].values[0].parents[0].description.function == "p"
@@ -921,7 +925,7 @@ def test_netcdf_missing_version(opulent_processing_ds, tmp_path):
 def test_processing_step_records_changes():
     ds = processing_ds()
 
-    with ds.pr.processing_step(function="fill", description="filled") as s:
+    with ds.pr.processing_step(function="fill", description="filled", source="s") as s:
         assert not s.ds.pr.has_processing_info()
         s.ds = s.ds.fillna(0)
 
@@ -1029,7 +1033,7 @@ def test_processing_step_new_timeseries():
     assert (s.result["Processing of CO2"].pr.loc[{"area": "BOL"}].values == None).all()  # noqa: E711
 
     # timeseries with data are created by the processing step
-    with ds.pr.processing_step(function="f", description="d") as s:
+    with ds.pr.processing_step(function="f", description="d", source="s") as s:
         s.ds = s.ds.reindex({"area (ISO3)": ["COL", "ARG", "BOL"]}, fill_value=1.0)
     bol = node_at(s.result, "BOL", "2000")
     assert bol.description.function == "f"
@@ -1039,7 +1043,7 @@ def test_processing_step_new_timeseries():
 def test_processing_step_new_variable():
     ds = processing_ds()
 
-    with ds.pr.processing_step(function="f", description="d") as s:
+    with ds.pr.processing_step(function="f", description="d", source="s") as s:
         s.ds["CH4"] = s.ds["CO2"]
 
     node = node_at(s.result, "ARG", "2000", var="CH4")
@@ -1172,3 +1176,176 @@ def test_remove_processing_info_deprecated():
     with pytest.warns(DeprecationWarning, match="use without_processing_info"):
         result = ds.pr.remove_processing_info()
     xr.testing.assert_identical(result, ds.pr.without_processing_info())
+
+
+# --- replaces, missing inputs
+
+
+def test_processing_step_replaces():
+    ds = processing_ds()
+
+    with ds.pr.processing_step(function="set", description="set", source="s", replaces=True) as s:
+        s.ds["CO2"] = s.ds["CO2"] * 2
+
+    new = node_at(s.result, "ARG", "2001")
+    assert new.parents == ()
+    assert new.description.source == "s"
+    # the NaN stays without node
+    assert node_at(s.result, "COL", "2001") is None
+
+
+def test_processing_step_without_inputs():
+    ds = processing_ds()
+
+    with (
+        pytest.raises(ValueError, match="1 values of 'CO2' were set without inputs"),
+        ds.pr.processing_step(function="fill", description="filled") as s,
+    ):
+        s.ds = s.ds.fillna(0)
+
+    # replacing a value without a source leaves the new value without inputs
+    with (
+        pytest.raises(
+            ValueError, match=re.escape("were set without inputs, e.g. area (ISO3)='COL'")
+        ),
+        ds.pr.processing_step(function="fill", description="filled", replaces=True) as s,
+    ):
+        s.ds = s.ds * 2
+    # a value computed from the old value has an input
+    with ds.pr.processing_step(function="scale", description="scaled") as s:
+        s.ds = s.ds * 2
+
+
+def test_processing_step_other_is_input():
+    ds = processing_ds()
+    other = ds["CO2"].fillna(5.0).to_dataset()
+    other = xr.Dataset({"CO2": other["CO2"]}, attrs=ds.attrs)
+    other = other["CO2"].pr.with_creation_step(function="read", description="read", source="o")
+
+    with ds.pr.processing_step(function="fill", description="filled", other_ds=other) as s:
+        s.ds = s.ds.fillna(other.pr.without_processing_info())
+
+    assert node_at(s.result, "COL", "2001").parents == (node_at(other, "COL", "2001"),)
+
+
+@primap2.records_processing_step("ds", description="replaced", source="s", replaces=True)
+def replace_all(ds: xr.Dataset) -> xr.Dataset:
+    return ds * 2
+
+
+@primap2.records_processing_step("ds", description="no inputs", replaces=True)
+def replace_without_source(ds: xr.Dataset) -> xr.Dataset:
+    return ds * 2
+
+
+def test_records_processing_step_replaces():
+    ds = processing_ds()
+
+    result = replace_all(ds)
+
+    assert node_at(result, "ARG", "2001").parents == ()
+    assert node_at(result, "ARG", "2001").description.source == "s"
+    assert node_at(fill_value(ds), "COL", "2001").parents == ()
+
+
+def test_records_processing_step_without_inputs():
+    with pytest.raises(ValueError, match="were set without inputs"):
+        replace_without_source(processing_ds())
+
+
+def test_record_step_without_inputs():
+    old, old_infos = previous_state()
+    new = old * 2
+
+    with pytest.raises(ValueError, match="4 values of 'CO2' were set without inputs"):
+        record_step(new, previous=[(old, old_infos)], replaces=True, function="f", description="d")
+    with pytest.raises(ValueError, match=re.escape("e.g. area='COL', time='2000'")):
+        record_step(new, function="f", description="d")
+    # a source or a parent is enough
+    record_step(new, function="f", description="d", source="s")
+    record_step(new, parents=[old_infos.isel(time=0, drop=True)], function="f", description="d")
+
+
+def test_with_creation_step_without_source():
+    da = xr.DataArray(
+        [1.0, 2.0], dims=["time"], coords={"time": TIME[:2]}, name="CO2", attrs={"entity": "CO2"}
+    )
+    ds = da.pr.with_creation_step(function="read", description="read")
+    assert ds["Processing of CO2"].values[0].parents == ()
+    assert ds["Processing of CO2"].values[0].description.source is None
+
+    ds = xr.Dataset({"CO2": da}).pr.with_creation_step(function="read", description="read")
+    assert ds["Processing of CO2"].values[1].description.source is None
+
+
+# --- fill, combine, merge, set
+
+
+def other_ds() -> xr.Dataset:
+    """Data for all years and areas, and an additional area, created by a leaf step."""
+    da = xr.DataArray(
+        [[1.0, 11.0, 3.0], [1.0, 2.0, 3.0], [10.0, 11.0, 12.0]],
+        dims=["area (ISO3)", "time"],
+        coords={"area (ISO3)": ["COL", "ARG", "MEX"], "time": TIME},
+        attrs={"entity": "CO2", "units": "Gg CO2 / year"},
+        name="CO2",
+    )
+    return xr.Dataset({"CO2": da}, attrs={"area": "area (ISO3)"}).pr.with_creation_step(
+        function="read", description="read", source="other"
+    )
+
+
+@pytest.mark.parametrize("function", ["fillna", "combine_first", "merge"])
+def test_fill_combine_merge_processing_info(function):
+    ds = processing_ds()
+    other = other_ds()
+
+    result = getattr(ds.pr, function)(other)
+
+    # a gap is filled from the other node at the same point, there is no old node
+    filled = node_at(result, "COL", "2001")
+    assert len(filled.parents) == 1
+    assert filled.parents[0] is node_at(other, "COL", "2001")
+    assert filled.description.function == function
+    assert filled.time == np.datetime64("2001")
+    # existing values keep their nodes, new timeseries are taken from other unchanged
+    assert node_at(result, "COL", "2000") is node_at(ds, "COL", "2000")
+    assert node_at(result, "ARG", "2001") is node_at(ds, "ARG", "2001")
+    if function != "fillna":
+        assert node_at(result, "MEX", "2001") is node_at(other, "MEX", "2001")
+    ensure_complete_processing_info(result)
+
+
+def test_fillna_value_processing_info():
+    result = processing_ds().pr.fillna(0)
+
+    filled = node_at(result, "COL", "2001")
+    assert filled.parents == ()
+    assert filled.description.source == "constant(0)"
+
+
+def test_fillna_requires_processing_info_of_other():
+    with pytest.raises(ValueError, match="has none"):
+        processing_ds().pr.fillna(other_ds().pr.without_processing_info())
+
+
+def test_set_processing_info():
+    ds = processing_ds()
+    other = other_ds().pr.loc[{"area": ["COL"]}]
+    other["CO2"] = other["CO2"] * 2
+
+    result = ds.pr.set("area", ["COL"], other, existing="overwrite")
+
+    # overwritten values replace the old values: the old node is no parent
+    for year in ["2000", "2001", "2002"]:
+        new = node_at(result, "COL", year)
+        assert len(new.parents) == 1
+        assert new.parents[0] is node_at(other, "COL", year)
+        assert new.description.function == "set"
+    assert node_at(result, "ARG", "2000") is node_at(ds, "ARG", "2000")
+    ensure_complete_processing_info(result)
+
+    # a new timeseries is taken from the other dataset
+    new_series = other_ds().pr.loc[{"area": ["MEX"]}]
+    result = ds.pr.set("area", ["MEX"], new_series)
+    assert node_at(result, "MEX", "2001") is node_at(new_series, "MEX", "2001")

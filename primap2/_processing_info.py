@@ -379,14 +379,18 @@ def _create_nodes(
     shape: tuple[int, ...],
     times: np.ndarray,
     replaces: bool,
+    leaves_allowed: bool = True,
 ) -> None:
     """Set a new node with a new description per timeseries for the changed data points.
 
     All arrays have the layout (timeseries, time). ``nodes`` is modified in place, its old
-    nodes are parents of the new nodes unless ``replaces``.
+    nodes are parents of the new nodes unless ``replaces``. Unless ``leaves_allowed``,
+    raises if a new node has neither parents nor a source.
     """
     time_points = list(times)
     names = [str(dim) for dim in dims]
+    n_leaves = 0
+    example = None
     for ts in np.flatnonzero(changed.any(axis=1)):
         index = np.unravel_index(ts, shape)
         coords = {n: values[i] for n, values, i in zip(names, coord_lists, index, strict=True)}
@@ -407,8 +411,17 @@ def _create_nodes(
                     step_parents.append(value)
             if len(step_parents) > 1:
                 step_parents = _unique(step_parents)
+            elif not step_parents and not leaves_allowed and description.source is None:
+                n_leaves += 1
+                if example is None:
+                    example = _coordinates_repr({**coords, "time": _format_time(time_points[t])})
             new_nodes.append(ProcessingStep(description, time_points[t], step_parents))
         nodes[ts, columns] = new_nodes
+    if n_leaves:
+        raise ValueError(
+            f"{n_leaves} values of {description.variable!r} were set without inputs, e.g. "
+            f"{example}: declare a source, or the data they were computed from."
+        )
 
 
 def _layout(da: xr.DataArray) -> tuple[list[typing.Hashable], xr.DataArray]:
@@ -624,6 +637,7 @@ def record_step(
     function: str,
     description: str,
     source: str | None = None,
+    _creation: bool = False,
 ) -> xr.DataArray:
     """Processing information of ``new_da`` after a processing step.
 
@@ -670,7 +684,8 @@ def record_step(
     Raises
     ------
     ValueError
-        If processing information doesn't match the data it describes.
+        If processing information doesn't match the data it describes, or if changed
+        values have neither parents nor a source.
     """
     dims, template = _layout(new_da)
     ts_template = _described(template)
@@ -716,6 +731,7 @@ def record_step(
         shape=shape[:-1],
         times=template["time"].values,
         replaces=replaces,
+        leaves_allowed=_creation,
     )
     layout = [*dims, "time"]
     return _new_processing_infos(
@@ -936,7 +952,11 @@ class DataArrayProcessingInfoAccessor(BaseDataArrayAccessor):
             {
                 self._da.name: self._da,
                 processing_variable_name(self._da.name): record_step(
-                    self._da, function=function, description=description, source=source
+                    self._da,
+                    function=function,
+                    description=description,
+                    source=source,
+                    _creation=True,
                 ),
             }
         )
@@ -948,6 +968,7 @@ def _processing_infos_on_change(
     old_ds: xr.Dataset,
     new_da: xr.DataArray,
     other_ds: xr.Dataset | None,
+    replaces: bool,
     function: str,
     description: str,
     source: str | None,
@@ -974,6 +995,7 @@ def _processing_infos_on_change(
         new_da,
         previous=previous,
         parents=parents,
+        replaces=replaces,
         function=function,
         description=description,
         source=source,
@@ -985,6 +1007,7 @@ def _add_processing_step_on_change_ds(
     old_ds: xr.Dataset,
     new_ds: xr.Dataset,
     other_ds: xr.Dataset | None = None,
+    replaces: bool = False,
     function: str,
     description: str,
     source: str | None = None,
@@ -1001,8 +1024,8 @@ def _add_processing_step_on_change_ds(
       ``other_ds`` lacks dimensions of the timeseries, it was broadcast and gets a new
       step.
     * a new processing step otherwise. Its parents are the processing information of
-      ``old_ds`` and of ``other_ds`` at the same coordinates, if available. Its times
-      are the changed time points.
+      ``old_ds`` (unless ``replaces``) and of ``other_ds`` at the same coordinates and
+      time, if available.
 
     If ``old_ds`` has no processing information, the result has none either.
 
@@ -1016,6 +1039,8 @@ def _add_processing_step_on_change_ds(
     other_ds
         Optional: dataset including processing information from which the changed values
         in ``new_ds`` were taken. It may lack dimensions of ``new_ds``.
+    replaces
+        If True, changed values replace the old values instead of being computed from them.
     function
         The name of the function which did the processing.
     description
@@ -1045,6 +1070,7 @@ def _add_processing_step_on_change_ds(
             old_ds=old_ds,
             new_da=new_ds[var],
             other_ds=other_ds,
+            replaces=replaces,
             function=function,
             description=description,
             source=source,
@@ -1065,7 +1091,9 @@ class ProcessingStepRecorder:
     processing has to be assigned to ``ds``. After the block, ``result`` is the processed
     dataset including the updated processing information.
 
-    How the processing information is determined is described in
+    A changed value is computed from the old value (the old step is its parent), unless
+    ``replaces``. A changed value needs a parent or a ``source``, else this raises. How
+    the processing information is determined is described in
     add_processing_step_on_change_ds.
     """
 
@@ -1077,6 +1105,7 @@ class ProcessingStepRecorder:
         description: str,
         source: str | None = None,
         other_ds: xr.Dataset | None = None,
+        replaces: bool = False,
     ):
         ensure_complete_processing_info(ds)
         if other_ds is not None:
@@ -1086,6 +1115,7 @@ class ProcessingStepRecorder:
         self._function = function
         self._description = description
         self._source = source
+        self._replaces = replaces
         self._result: xr.Dataset | None = None
         self.ds = _without_processing_info(ds).copy(deep=True)
 
@@ -1099,6 +1129,7 @@ class ProcessingStepRecorder:
             old_ds=self._original,
             new_ds=self.ds,
             other_ds=self._other_ds,
+            replaces=self._replaces,
             function=self._function,
             description=self._description,
             source=self._source,
@@ -1129,6 +1160,7 @@ def records_processing_step(
     function: str | None = None,
     source: str | None = None,
     other: str | None = None,
+    replaces: bool = False,
 ) -> typing.Callable[[F], F]:
     """Decorator which records a processing step for every timeseries changed by the
     decorated function.
@@ -1166,6 +1198,10 @@ def records_processing_step(
         The decorated function receives it without processing information. If the input
         dataset has processing information, a Dataset passed as ``other`` needs it as
         well and a DataArray is not allowed.
+    replaces
+        If True, changed values replace the old values, which are then not parents of the
+        new steps. By default, a changed value is computed from the old value. Changed
+        values need a parent (``other``) or a ``source``, else the call raises.
     """
 
     def decorator(func: F) -> F:
@@ -1205,6 +1241,7 @@ def records_processing_step(
                 description=description.format_map(arguments),
                 source=None if source is None else source.format_map(arguments),
                 other_ds=other_ds,
+                replaces=replaces,
             ) as step:
                 bound.arguments[input_ds] = type(value)(step.ds) if is_accessor else step.ds
                 result = func(*bound.args, **bound.kwargs)
