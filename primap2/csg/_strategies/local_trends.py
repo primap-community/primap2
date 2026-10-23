@@ -242,7 +242,6 @@ class LocalTrendsStrategy:
                                 f"{'filled' if filled_gap else 'not filled'} with local trend "
                                 f"matched data from {fill_ts_repr}.{gap_description}"
                             ),
-                            source=fill_ts_repr,
                             time=time_filled_gap if filled_gap else [],
                             ts_time=get_fit_times(ts, gap, self.fit_params) if filled_gap else [],
                             fill_ts_time=(
@@ -263,7 +262,6 @@ class LocalTrendsStrategy:
                 StrategyStep(
                     function=self.type,
                     description=f"no additional data in {fill_ts_repr}",
-                    source=fill_ts_repr,
                     time=[],
                 )
             ]

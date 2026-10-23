@@ -366,7 +366,6 @@ def compose_timeseries(
         description = ProcessingStepDescription(
             function=step.function,
             description=step.description,
-            source=step.source,
             variable=input_data.name,
             coords=coords,
         )

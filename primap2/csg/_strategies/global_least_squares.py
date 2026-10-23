@@ -144,7 +144,6 @@ class GlobalLSStrategy:
         step = StrategyStep(
             function=self.type,
             description=description,
-            source=fill_ts_repr,
             time=time_filled,
             ts_time=time_overlap,
             fill_ts_time=time_overlap,

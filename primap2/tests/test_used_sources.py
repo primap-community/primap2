@@ -1112,9 +1112,9 @@ def test_decorator_default_old_value_is_used(step_pair):
     start, _ = step_pair
     result = change_two_values(start)
     got = used(result, "CO2", {AREA: "COL"})
-    # no old value: the source of the step; with old value: computed from it
+    # no old value: the source of the step; with old value: computed from it and the source
     assert got[2001] == {"const"}
-    assert got[2002] == {"CO2/COL/2002"}
+    assert got[2002] == {"CO2/COL/2002", "const"}
     assert got[2000] == {"CO2/COL/2000"}
     assert used(result, "CO2", {AREA: "MEX"}) == used(start, "CO2", {AREA: "MEX"})
 
@@ -1165,7 +1165,21 @@ def test_processing_step_default(step_pair):
         step.ds = change_two_values.__wrapped__(step.ds)
     got = used(step.result, "CO2", {AREA: "COL"})
     assert got[2001] == {"const"}
-    assert got[2002] == {"CO2/COL/2002"}
+    assert got[2002] == {"CO2/COL/2002", "const"}
+
+
+def test_processing_step_source_at_the_changed_points(step_pair):
+    start, _ = step_pair
+    with start.pr.processing_step(function="change", description="changed", source="X") as step:
+        step.ds["CO2"].loc[{AREA: "COL", "time": ["2001", "2002"]}] = 7 * primap2.ureg(
+            "Gg CO2 / year"
+        )
+    got = used(step.result, "CO2", {AREA: "COL"})
+    assert got[2000] == {"CO2/COL/2000"}
+    assert "X" in got[2001]
+    assert "X" in got[2002]
+    assert all("X" not in v for y, v in got.items() if y not in (2001, 2002))
+    assert all("X" not in v for v in used(step.result, "CO2", {AREA: "MEX"}).values())
 
 
 def test_processing_step_replaces(step_pair):
@@ -1189,6 +1203,15 @@ def test_processing_step_other(step_pair):
     got = used(step.result, "CO2", {AREA: "COL"})
     assert got[2001] == {"o:CO2/COL/2001"}
     assert got[2002] == {"CO2/COL/2002", "o:CO2/COL/2002"}
+    with start.pr.processing_step(
+        function="take", description="taken", other_ds=other, source="X"
+    ) as step:
+        step.ds["CO2"].loc[{AREA: "COL", "time": ["2001", "2002"]}] = other["CO2"].loc[
+            {AREA: "COL", "time": ["2001", "2002"]}
+        ]
+    got = used(step.result, "CO2", {AREA: "COL"})
+    assert got[2001] == {"o:CO2/COL/2001", "X"}
+    assert got[2002] == {"CO2/COL/2002", "o:CO2/COL/2002", "X"}
     with start.pr.processing_step(
         function="take", description="taken", other_ds=other, replaces=True
     ) as step:

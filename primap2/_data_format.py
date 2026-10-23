@@ -392,9 +392,9 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         """Which sources were used for each data point, determined from the processing
         information.
 
-        A source was used for a data point if a step with this ``source`` which created
-        data (a leaf of the history, without parents) is reachable from the data point's
-        step, at any time point. This includes sources only used to derive values at
+        A source was used for a data point if a step with this ``source``, i.e. a step
+        where untracked data entered, is reachable from the data point's step in its
+        history, at any time point. This includes sources only used to derive values at
         other time points, e.g. for a fit. Data points without data used no source.
 
         Parameters

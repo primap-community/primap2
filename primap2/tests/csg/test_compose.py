@@ -123,7 +123,7 @@ def test_compose_simple(opulent_ds):
     assert len(result_arg_proc) == 21
     for node in result_arg_proc:
         assert node.description.function == "substitution"
-        assert node.description.source == "{'source': 'RAND2020', 'scenario (FAOSTAT)': 'lowpop'}"
+        assert node.description.source is None
 
     assert_copied_from_input_data(
         result["CO2"],
@@ -398,9 +398,7 @@ def test_compose_skip_source(opulent_ds):
     for node in nodes:
         assert len(node.history()) == 2
         assert node.description.function == "substitution"
-        assert node.description.source == (
-            "{'source': 'RAND2021', 'scenario (FAOSTAT)': 'highpop'}"
-        )
+        assert node.description.source is None
 
 
 def test_compose_skip_variable(opulent_ds):
@@ -651,7 +649,7 @@ def test_compose_timeseries_trivial():
     assert (
         result_steps[0].description.description == "substituted with corresponding values from 'B'"
     )
-    assert result_steps[0].description.source == "'B'"
+    assert result_steps[0].description.source is None
     # no data in A and B
     assert result_steps[1] is None
     for i in range(2, len(time)):
@@ -659,7 +657,7 @@ def test_compose_timeseries_trivial():
         assert leaf.parents == ()
         assert leaf.description.source == "'A'"
         assert result_steps[i].time == time[i]
-        assert result_steps[i].description.source == "'A'"
+        assert result_steps[i].description.source is None
         assert result_steps[i].description is result_steps[2].description
     assert result_steps[2].description.variable == "CH4"
     assert (
@@ -723,7 +721,7 @@ def test_compose_timeseries_all_null(caplog):
     )
 
     assert result_steps[0] is None
-    assert all(step.description.source == "'A'" for step in result_steps[1:])
+    assert all(step.description.source is None for step in result_steps[1:])
     assert "'B' is fully NaN, skipped." in caplog.text
 
 
@@ -771,11 +769,11 @@ def test_compose_timeseries_input_processing():
     # the input steps are the parents at the same time point
     assert len(result_steps[0].parents) == 1
     assert result_steps[0].parents[0] is steps_b[0]
-    assert result_steps[0].description.source == "'B'"
+    assert result_steps[0].description.source is None
     for i in range(1, len(time)):
         assert len(result_steps[i].parents) == 1
         assert result_steps[i].parents[0] is steps_a[i]
-        assert result_steps[i].description.source == "'A'"
+        assert result_steps[i].description.source is None
         assert result_steps[i].time == time[i]
 
 
@@ -946,7 +944,6 @@ class ReplaceStrategy:
         step = primap2.csg.StrategyStep(
             function="replace",
             description="replace",
-            source=fill_ts_repr,
             time=time,
             ts_time=time if self.ts_time_self else [],
             fill_ts_time=time if self.fill_ts_time_self else [],

@@ -200,7 +200,7 @@ class ProcessingStepDescription:
     description
         Human-readable description of the processing step.
     source
-        Optional: a short identifier for the source of the data which was used for the
+        Optional: a short identifier for untracked data which entered in the
         processing.
     variable
         Optional: the name of the data variable of the processed timeseries.
@@ -686,7 +686,7 @@ def record_step(
     description
         Human-readable description of the processing step.
     source
-        Optional: a short identifier for the source of the data which was used for the
+        Optional: a short identifier for untracked data which entered in the
         processing.
 
     Returns
@@ -1063,7 +1063,7 @@ def _add_processing_step_on_change_ds(
     description
         Human-readable description of the processing step.
     source
-        Optional: a short identifier for the source of the data which was used for the
+        Optional: a short identifier for untracked data which entered in the
         processing.
 
     Returns
@@ -1208,7 +1208,7 @@ def records_processing_step(
         Optional: the name of the function which does the processing. Defaults to the
         qualified name of the decorated function.
     source
-        Optional: a short identifier for the source of the data which is used for the
+        Optional: a short identifier for untracked data which entered in the
         processing, with "{name}" fields replaced like in ``description``.
     other
         Optional: the name of the argument holding a dataset from which data is taken.
@@ -1276,7 +1276,8 @@ def records_processing_step(
 
 def used_sources(ds: xr.Dataset, dim: str = "used source") -> xr.Dataset:
     """Which sources were used for each data point, determined from the processing
-    information. See :py:meth:`xarray.Dataset.pr.used_sources`."""
+    information: the ``source`` of any step in its history. See
+    :py:meth:`xarray.Dataset.pr.used_sources`."""
     if not has_processing_info(ds):
         raise ValueError("The dataset has no processing information.")
     ensure_complete_processing_info(ds)
@@ -1287,23 +1288,18 @@ def used_sources(ds: xr.Dataset, dim: str = "used source") -> xr.Dataset:
     }
     # nodes are shared between data points and variables, so work on the nodes
     nodes, counts, parents = _collect_nodes(arrays.values())
-    sources = sorted(
-        {node.description.source for node, n in zip(nodes, counts, strict=True) if not n} - {None},
-        key=str,
-    )
+    sources = sorted({node.description.source for node in nodes} - {None}, key=str)
     bit = {source: 1 << i for i, source in enumerate(sources)}
     masks: list[int] = []
     position = 0
     for node, n in zip(nodes, counts, strict=True):
-        if n:
-            mask = 0
-            for parent in parents[position : position + n]:
-                mask |= masks[parent]
-            position += n
-        elif node.description.source is None:
+        source = node.description.source
+        if not n and source is None:
             raise ValueError(f"The leaf of the processing information has no source: {node}")
-        else:
-            mask = bit[node.description.source]
+        mask = 0 if source is None else bit[source]
+        for parent in parents[position : position + n]:
+            mask |= masks[parent]
+        position += n
         masks.append(mask)
     # one more mask for data points without data
     masks.append(0)

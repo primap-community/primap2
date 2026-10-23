@@ -177,7 +177,7 @@ A `ProcessingStepDescription` contains the following information:
 |-------------|---------------|---------------------------------------------------------------------------------------------|
 | function    | str           | Name of the function which did the operation                                                |
 | description | str           | Long-form description of the operation which was performed                                  |
-| source      | str or `None` | If applicable, identifier for the data source which was used in the operation               |
+| source      | str or `None` | If applicable, identifier for untracked data which entered in the operation               |
 | variable    | str or `None` | The name of the data variable of the processed timeseries                                   |
 | coords      | dict or `None`| The coordinates of the processed timeseries at the time of the operation, apart from "time" |
 
