@@ -729,7 +729,9 @@ def test_compose_timeseries_all_null(caplog):
 
 def _read_steps(time, description: str, has_data: np.ndarray | None = None):
     """Input processing of a timeseries: a step per time point with data."""
-    desc = primap2.ProcessingStepDescription(function="read", description=description)
+    desc = primap2.ProcessingStepDescription(
+        function="read", description=description, source=description
+    )
     if has_data is None:
         has_data = np.ones(len(time), dtype=bool)
     steps = np.full(len(time), None, dtype=object)
@@ -864,6 +866,42 @@ def test_compose_timeseries_global_ls_parents():
         assert result_steps[i].description.function == "globalLS"
     # the steps of the result from A are the ones in the parents, not their inputs
     assert result_steps[overlap[0]].parents == (steps_a[overlap[0]],)
+
+
+def test_compose_timeseries_global_ls_used_sources():
+    input_data, input_processing, priority_definition, _, _ = _ab_input()
+    strategy_definition = primap2.csg.StrategyDefinition(
+        strategies=[
+            ({"source": "A"}, primap2.csg.SubstitutionStrategy()),
+            ({"source": "B"}, primap2.csg.GlobalLSStrategy()),
+        ]
+    )
+    result_ts, result_steps = primap2.csg._compose.compose_timeseries(
+        input_data=input_data,
+        priority_definition=priority_definition,
+        strategy_definition=strategy_definition,
+        input_processing=input_processing,
+    )
+    time = input_data["time"]
+    ds = xr.Dataset(
+        {
+            "CO2": xr.DataArray(result_ts.values, dims=["time"], coords={"time": time}),
+            "Processing of CO2": xr.DataArray(
+                result_steps,
+                dims=["time"],
+                coords={"time": time},
+                attrs={"described_variable": "CO2"},
+            ),
+        }
+    )
+
+    used = ds.pr.used_sources()["CO2"]
+
+    assert list(used["used source"].values) == ["A", "B"]
+    # where B fills the gaps of A, A is only used through the fit
+    expected = np.tile([1, 0], (len(time), 1))
+    expected[[0, 1, 5], 1] = 1
+    assert (used.values == expected).all()
 
 
 def test_compose_timeseries_global_ls_untracked():
