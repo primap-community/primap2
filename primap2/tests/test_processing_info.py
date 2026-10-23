@@ -520,6 +520,7 @@ def test_fillna_value_processing_info():
         time=TimeRange("2001", "2001"),
         function="fillna",
         description="filled missing values with 0",
+        source="constant(0)",
         variable="CO2",
         coords={"area (ISO3)": "COL"},
         parents=(step("a"),),
@@ -1096,15 +1097,6 @@ def test_used_sources_aggregate():
     assert used_levels(used, "ARG") == {"A": [0, 0, 0], "B": [2, 2, 2]}
 
 
-def test_used_sources_coordinate():
-    used = sources_ds().pr.used_sources("area", dim="origin")
-
-    da = used["CO2"].pr.loc[{"area": "COL"}]
-    assert list(da["origin"].values) == ["ARG", "COL"]
-    assert da.sel(origin="COL").values.tolist() == [2, 0, 2]
-    assert da.sel(origin="ARG").values.tolist() == [0, 0, 0]
-
-
 def test_used_sources_errors():
     with pytest.raises(ValueError, match="has no processing information"):
         sources_ds().pr.without_processing_info().pr.used_sources()
@@ -1130,7 +1122,15 @@ def test_used_sources_compose():
         },
         attrs={"area": "area (ISO3)"},
     ).pr.quantify()
-    input_data = input_data.pr.with_creation_step(function="read", description="read")
+    input_data = xr.concat(
+        [
+            input_data.pr.loc[{"source": [source]}].pr.with_creation_step(
+                function="read", description="read", source=source
+            )
+            for source in ("A", "B")
+        ],
+        dim="source",
+    )
 
     result = primap2.csg.compose(
         input_data=input_data,
@@ -1143,6 +1143,12 @@ def test_used_sources_compose():
         progress_bar=None,
     )
 
-    used = result.pr.used_sources("source")["CO2"].pr.loc[{"area": "COL"}]
+    used = result.pr.used_sources()["CO2"].pr.loc[{"area": "COL"}]
     assert used.sel({"used source": "A"}).values.tolist() == [2, 0, 2]
     assert used.sel({"used source": "B"}).values.tolist() == [0, 2, 0]
+
+
+def test_used_sources_fillna_value():
+    used = sources_ds().pr.fillna(0).pr.used_sources()
+
+    assert used_levels(used) == {"A": [2, 0, 2], "constant(0)": [0, 2, 0]}

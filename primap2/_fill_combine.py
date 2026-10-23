@@ -138,6 +138,7 @@ class DatasetFillAccessor(BaseDatasetAccessor):
         "self",
         function="fillna",
         description="filled missing values with {value}",
+        source="constant({value})",
     )
     def _fillna_value(self, value: float | pint.Quantity) -> xr.Dataset:
         return self._ds.fillna(value)

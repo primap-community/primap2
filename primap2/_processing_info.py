@@ -1022,13 +1022,12 @@ def _is_previous_state(step: ProcessingStepDescription, parent: ProcessingStepDe
 
 
 def _step_usage(
-    step: ProcessingStepDescription,
-    parent_usages: list[_Usage],
-    changed: int,
-    label: typing.Callable[[ProcessingStepDescription], typing.Hashable],
+    step: ProcessingStepDescription, parent_usages: list[_Usage], changed: int
 ) -> _Usage:
     if not step.parents:
-        return {label(step): (changed, 0)} if changed else {}
+        if step.source is None:
+            raise ValueError(f"The processing step {step} created data, but has no source.")
+        return {step.source: (changed, 0)} if changed else {}
     usage: _Usage = {}
 
     def add(key: typing.Hashable, same: int, other: int) -> None:
@@ -1045,10 +1044,12 @@ def _step_usage(
             if (same | other) & changed:
                 add(key, same & changed, other & changed)
                 covered |= (same | other) & changed
-    # values not derived from any parent at the same time point were derived from other
-    # time points, e.g. by extrapolation
+    # values not derived from any parent at the same time point come from the step's own
+    # source, or were derived from other time points, e.g. by extrapolation
     uncovered = changed & ~covered
-    if uncovered:
+    if uncovered and step.source is not None:
+        add(step.source, uncovered, 0)
+    elif uncovered:
         for parent_usage in parent_usages:
             for key, (same, other) in parent_usage.items():
                 if same | other:
@@ -1061,21 +1062,12 @@ def _bits_to_array(bits: int, length: int) -> np.ndarray:
     return np.unpackbits(as_bytes, bitorder="little")[:length].astype(bool)
 
 
-def used_sources(
-    ds: xr.Dataset, coordinate: str | None = None, dim: str = "used source"
-) -> xr.Dataset:
+def used_sources(ds: xr.Dataset, dim: str = "used source") -> xr.Dataset:
     """Which sources were used for each data point, determined from the processing
     information. See :py:meth:`xarray.Dataset.pr.used_sources`."""
     if not has_processing_info(ds):
         raise ValueError("The dataset has no processing information.")
     ensure_complete_processing_info(ds)
-
-    def label(step: ProcessingStepDescription) -> typing.Hashable:
-        value = step.source if coordinate is None else (step.coords or {}).get(coordinate)
-        if value is None:
-            what = "source" if coordinate is None else f"{coordinate!r} coordinate"
-            raise ValueError(f"The processing step {step} created data, but has no {what}.")
-        return value
 
     times = ds["time"].values
     position = {t: i for i, t in enumerate(times.astype(np.int64))}
@@ -1098,7 +1090,7 @@ def used_sources(
                 continue
             if expanded:
                 usages[id(step)] = _step_usage(
-                    step, [usages[id(p)] for p in step.parents], changed_bits(step), label
+                    step, [usages[id(p)] for p in step.parents], changed_bits(step)
                 )
                 continue
             stack.append((step, True))
