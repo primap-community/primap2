@@ -52,7 +52,6 @@ class SubstitutionStrategy:
         step = StrategyStep(
             function=self.type,
             description=f"substituted with corresponding values from {fill_ts_repr}",
-            source=fill_ts_repr,
             time=filled_mask["time"][filled_mask].to_numpy(),
         )
         return filled_ts, [step]

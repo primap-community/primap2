@@ -243,6 +243,8 @@ except ValueError as err:
 ```
 
 Pass the `source` of the values, e.g. `source="constant(1)"`, to record them as new data.
+In general, `source` names data used by the step which isn't tracked in the dataset, also
+if the changed values have parents.
 
 For processing which doesn't need a function of its own, e.g. a single xarray call, use
 a {py:meth}`xarray.Dataset.pr.processing_step` block, which records steps in the same
@@ -296,9 +298,9 @@ processing information, use {py:meth}`xarray.Dataset.pr.without_processing_info`
 {py:meth}`xarray.Dataset.pr.used_sources` determines from the processing information
 which sources were used for each data point. The result has an additional dimension
 listing the sources, with the value 1 if the source was used and 0 otherwise. The
-sources are the `source` of the steps which created the data (the leaves of the
-history). A source counts as used if its data was used at any time point, also if it
-only went into a fit for other time points.
+sources are the `source` of all steps in the history of a data point, i.e. the steps where
+data entered. A source counts as used if its step is in the history at any time point,
+also if it only went into a fit for other time points.
 
 ```{code-cell} ipython3
 used = filled.pr.used_sources()

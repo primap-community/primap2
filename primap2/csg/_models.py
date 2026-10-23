@@ -175,9 +175,6 @@ class StrategyStep:
         The name of the function which did the processing.
     description
         Human-readable description of the processing step.
-    source
-        Optional: a short identifier for the source of the data which was used for the
-        processing.
     time
         The time points at which the step changed the value, i.e. the new value differs
         from the value in ``ts``.
@@ -191,7 +188,6 @@ class StrategyStep:
 
     function: str
     description: str
-    source: str | None = None
     time: np.ndarray = attrs.field(converter=_times, eq=False)
     ts_time: np.ndarray = attrs.field(factory=lambda: _times([]), converter=_times, eq=False)
     fill_ts_time: np.ndarray = attrs.field(factory=lambda: _times([]), converter=_times, eq=False)

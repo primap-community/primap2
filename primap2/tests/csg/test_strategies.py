@@ -66,7 +66,6 @@ def test_substitution_strategy():
     assert len(result_descriptions) == 1
     assert_times(result_descriptions[0], years(1850, 1850))
     assert result_descriptions[0].description == ("substituted with corresponding values from B")
-    assert result_descriptions[0].source == "B"
     assert "source" not in result_ts.coords
 
 
