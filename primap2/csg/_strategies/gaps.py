@@ -163,19 +163,23 @@ def get_gaps(ts: xr.DataArray) -> list[Gap]:
     return gaps
 
 
-def calculate_boundary_trend_with_fallback(
+def calculate_boundary_trends_with_fallback(
     ts: xr.DataArray,
+    fill_ts: xr.DataArray,
     gap: Gap,
     fit_params: FitParameters,
-) -> np.array:
+) -> tuple[np.ndarray, np.ndarray]:
     """
-    Calculate trend values for boundary points. Uses fallback if not enough fit points
-    available.
+    Calculate trend values for boundary points for both timeseries. Uses the fallback
+    for both timeseries and both boundaries if the default trend is not available for
+    any of them, so that the trends are always comparable.
 
     Parameters
     ----------
     ts :
-        Time-series to calculate trend for
+        Time-series with the gap
+    fill_ts :
+        Time-series to fill the gap with
     gap :
         Gap definition
     fit_params :
@@ -183,35 +187,33 @@ def calculate_boundary_trend_with_fallback(
 
     Returns
     -------
-        Tuple with calculated trend values for left and right boundary of the gap. If trend
-        calculation is not possible, `None` is returned so the calling strategy can
-        raise the StrategyUnableToProcess error.
+        Tuple with arrays of the trend values for the left and right boundary of the gap
+        for `ts` and `fill_ts`. If a boundary has no trend value for one of the
+        timeseries, the value of the other boundary is used for both. If no boundary has
+        trend values for both, all values are nan.
     """
-    trend_ts = calculate_boundary_trend(
-        ts,
-        gap=gap,
-        fit_params=fit_params,
-    )
-    if any(np.isnan(trend_ts)):
-        trend_ts = calculate_boundary_trend(
-            ts,
-            gap=gap,
-            fit_params=fit_params.get_fallback(),
-        )
-        if all(np.isnan(trend_ts)):
+    trends = [
+        calculate_boundary_trend(series, gap=gap, fit_params=fit_params) for series in (ts, fill_ts)
+    ]
+    if np.isnan(trends).any():
+        trends = [
+            calculate_boundary_trend(series, gap=gap, fit_params=fit_params.get_fallback())
+            for series in (ts, fill_ts)
+        ]
+        valid = ~np.isnan(trends).any(axis=0)
+        if not valid.any():
             logger.info(
                 f"Not enough values to calculate fit for ts and gap:"
                 f"{gap.type}, [{gap.left}:{gap.right}].\n"
                 f"{fit_params.log_string(fallback=True)}"
                 f"Timeseries info: {timeseries_coord_repr(ts)}"
             )
-        # fill nan from other boundary
-        if np.isnan(trend_ts[0]):
-            trend_ts[0] = trend_ts[1]
-        elif np.isnan(trend_ts[1]):
-            trend_ts[1] = trend_ts[0]
+            return np.full(2, np.nan), np.full(2, np.nan)
+        # fill missing boundary from the other boundary
+        if not valid.all():
+            trends = [np.full(2, t[valid][0]) for t in trends]
 
-    return trend_ts
+    return trends[0], trends[1]
 
 
 def calculate_boundary_trend(
@@ -391,22 +393,13 @@ def calculate_scaling_factor(
         tuple with left and right scaling factors. For a start and end boundary one of
         the elements is None
     """
-    trend_ts = calculate_boundary_trend_with_fallback(
+    trend_ts, trend_fill = calculate_boundary_trends_with_fallback(
         ts,
-        gap=gap,
-        fit_params=fit_params,
-    )
-    if any(np.isnan(trend_ts)):
-        # logging has been done already
-        return np.array([np.nan, np.nan])
-
-    # trend values for fill_ts
-    trend_fill = calculate_boundary_trend_with_fallback(
         fill_ts,
         gap=gap,
         fit_params=fit_params,
     )
-    if any(np.isnan(trend_fill)):
+    if np.isnan(trend_ts).any():
         # logging has been done already
         return np.array([np.nan, np.nan])
 
