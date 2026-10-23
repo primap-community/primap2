@@ -15,6 +15,7 @@ from attr import define, evolve, field
 from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
+from ._time_range import time_ranges
 
 PROCESSING_PREFIX = "Processing of "
 
@@ -258,36 +259,11 @@ class ProcessingStep:
     parents: tuple["ProcessingStep", ...] = field(default=(), converter=tuple, eq=False, repr=False)
 
     def __str__(self) -> str:
-        d = self.description
-        text = d.function
-        if d.source is not None:
-            text += f" (data source: {d.source})"
-        text += f" for {_format_time(self.time)}: {d.description}"
-        timeseries = " ".join(
-            x
-            for x in (d.variable, None if not d.coords else _coordinates_repr(d.coords))
-            if x is not None
-        )
-        return f"{timeseries}: {text}" if timeseries else text
+        return _step_text(self.description, _format_time(self.time))
 
     def history(self) -> list["ProcessingStep"]:
         """All processing steps which led to this step, including the step itself."""
-        ordered: list[ProcessingStep] = []
-        visited: set[int] = set()
-        # depth-first search without recursion, so that long histories don't exhaust
-        # the stack. Steps are marked as "expanded" once their parents are on the stack.
-        stack: list[tuple[ProcessingStep, bool]] = [(self, False)]
-        while stack:
-            step, expanded = stack.pop()
-            if expanded:
-                ordered.append(step)
-                continue
-            if id(step) in visited:
-                continue
-            visited.add(id(step))
-            stack.append((step, True))
-            stack.extend((parent, False) for parent in reversed(step.parents))
-        return ordered
+        return _reachable([self], operator.attrgetter("parents"))
 
     def format_history(self) -> str:
         """Human-readable tree of all processing steps which led to this step.
@@ -298,45 +274,87 @@ class ProcessingStep:
         at their first occurrence, later occurrences only refer to the label like
         "see (a)".
         """
-        references: dict[int, int] = {}
-        for step in self.history():
-            for parent in step.parents:
-                references[id(parent)] = references.get(id(parent), 0) + 1
-        labels: dict[int, str] = {}
+        return _format_tree([self], operator.attrgetter("parents"), str)
 
-        lines = []
-        # depth-first search without recursion, see history(). Besides the step, the
-        # stack holds the prefix of its line, the prefix for a single parent and the
-        # prefix for branches, which start below the text of the step.
-        stack: list[tuple[ProcessingStep, str, str, str]] = [(self, "", "", "")]
-        while stack:
-            step, prefix, chain_prefix, branch_prefix = stack.pop()
-            if id(step) in labels:
-                lines.append(f"{prefix}see ({labels[id(step)]})")
-                continue
-            if references.get(id(step), 0) > 1:
-                labels[id(step)] = _label(len(labels))
-                prefix += f"({labels[id(step)]}) "
-            lines.append(f"{prefix}{step}")
-            if len(step.parents) == 1:
-                stack.append(
-                    (step.parents[0], chain_prefix + "↑ ", chain_prefix, chain_prefix + "  ")
-                )
-                continue
-            branches = []
-            for i, parent in enumerate(step.parents):
-                last = i == len(step.parents) - 1
-                continuation = branch_prefix + ("   " if last else "│  ")
-                branches.append(
-                    (
-                        parent,
-                        branch_prefix + ("└─ " if last else "├─ "),
-                        continuation,
-                        continuation,
-                    )
-                )
-            stack.extend(reversed(branches))
-        return "\n".join(lines)
+
+def _step_text(description: ProcessingStepDescription, time: str) -> str:
+    """The line describing a step of the description at the time (points)."""
+    text = description.function
+    if description.source is not None:
+        text += f" (data source: {description.source})"
+    text += f" for {time}: {description.description}"
+    timeseries = " ".join(
+        x
+        for x in (
+            description.variable,
+            None if not description.coords else _coordinates_repr(description.coords),
+        )
+        if x is not None
+    )
+    return f"{timeseries}: {text}" if timeseries else text
+
+
+def _reachable(roots: list, parents_of: typing.Callable[[typing.Any], typing.Iterable]) -> list:
+    """All items reachable from the roots including the roots, parents first."""
+    ordered: list = []
+    visited: set[int] = set()
+    # depth-first search without recursion, so that long histories don't exhaust
+    # the stack. Items are marked as "expanded" once their parents are on the stack.
+    stack = [(root, False) for root in reversed(roots)]
+    while stack:
+        item, expanded = stack.pop()
+        if expanded:
+            ordered.append(item)
+            continue
+        if id(item) in visited:
+            continue
+        visited.add(id(item))
+        stack.append((item, True))
+        stack.extend((parent, False) for parent in reversed(list(parents_of(item))))
+    return ordered
+
+
+def _format_tree(
+    roots: list,
+    parents_of: typing.Callable[[typing.Any], typing.Sequence],
+    text_of: typing.Callable[[typing.Any], str],
+) -> str:
+    """Tree of the roots and everything reachable from them, see
+    :py:meth:`ProcessingStep.format_history` for the format. The items have to be
+    identical objects to be recognized as the same."""
+    references: dict[int, int] = {}
+    referenced = [*roots, *(p for item in _reachable(roots, parents_of) for p in parents_of(item))]
+    for item in referenced:
+        references[id(item)] = references.get(id(item), 0) + 1
+    labels: dict[int, str] = {}
+
+    lines = []
+    # depth-first search without recursion, see _reachable. Besides the item, the
+    # stack holds the prefix of its line, the prefix for a single parent and the
+    # prefix for branches, which start below the text of the item.
+    stack: list[tuple[typing.Any, str, str, str]] = [(root, "", "", "") for root in reversed(roots)]
+    while stack:
+        item, prefix, chain_prefix, branch_prefix = stack.pop()
+        if id(item) in labels:
+            lines.append(f"{prefix}see ({labels[id(item)]})")
+            continue
+        if references.get(id(item), 0) > 1:
+            labels[id(item)] = _label(len(labels))
+            prefix += f"({labels[id(item)]}) "
+        lines.append(f"{prefix}{text_of(item)}")
+        parents = list(parents_of(item))
+        if len(parents) == 1:
+            stack.append((parents[0], chain_prefix + "↑ ", chain_prefix, chain_prefix + "  "))
+            continue
+        branches = []
+        for i, parent in enumerate(parents):
+            last = i == len(parents) - 1
+            continuation = branch_prefix + ("   " if last else "│  ")
+            branches.append(
+                (parent, branch_prefix + ("└─ " if last else "├─ "), continuation, continuation)
+            )
+        stack.extend(reversed(branches))
+    return "\n".join(lines)
 
 
 def _label(index: int) -> str:
@@ -1260,4 +1278,105 @@ def records_processing_step(
 def used_sources(ds: xr.Dataset, dim: str = "used source") -> xr.Dataset:
     """Which sources were used for each data point, determined from the processing
     information. See :py:meth:`xarray.Dataset.pr.used_sources`."""
-    raise NotImplementedError("being reworked")
+    if not has_processing_info(ds):
+        raise ValueError("The dataset has no processing information.")
+    ensure_complete_processing_info(ds)
+
+    variables = [var for var in ds.data_vars if not is_processing_variable(var)]
+    arrays = {
+        var: ds[processing_variable_name(var)].transpose(*ds[var].dims).values for var in variables
+    }
+    # nodes are shared between data points and variables, so work on the nodes
+    nodes, counts, parents = _collect_nodes(arrays.values())
+    sources = sorted(
+        {node.description.source for node, n in zip(nodes, counts, strict=True) if not n} - {None},
+        key=str,
+    )
+    bit = {source: 1 << i for i, source in enumerate(sources)}
+    masks: list[int] = []
+    position = 0
+    for node, n in zip(nodes, counts, strict=True):
+        if n:
+            mask = 0
+            for parent in parents[position : position + n]:
+                mask |= masks[parent]
+            position += n
+        elif node.description.source is None:
+            raise ValueError(f"The leaf of the processing information has no source: {node}")
+        else:
+            mask = bit[node.description.source]
+        masks.append(mask)
+    # one more mask for data points without data
+    masks.append(0)
+    index = {id(node): i for i, node in enumerate(nodes)}
+
+    # numpy handles up to 63 bits per integer
+    chunks = [
+        np.array([(mask >> shift) & (2**63 - 1) for mask in masks], dtype=np.int64)
+        for shift in range(0, max(len(sources), 1), 63)
+    ]
+    result = xr.Dataset(attrs=ds.attrs)
+    for var in variables:
+        values = arrays[var]
+        ids = np.fromiter(
+            (index[id(node)] if node is not None else -1 for node in values.ravel().tolist()),
+            dtype=np.int64,
+            count=values.size,
+        )
+        used = np.zeros((values.size, len(sources)), dtype=np.int8)
+        for i, chunk in enumerate(chunks):
+            gathered = chunk[ids]
+            for j in range(63 * i, min(63 * (i + 1), len(sources))):
+                used[:, j] = (gathered >> (j - 63 * i)) & 1
+        result[var] = xr.DataArray(
+            used.reshape((*values.shape, len(sources))),
+            dims=(*ds[var].dims, dim),
+            coords={**ds[var].coords, dim: sources},
+        )
+    return result
+
+
+def format_timeseries_history(steps: typing.Any) -> str:
+    """Human-readable history of a whole timeseries.
+
+    Instead of one tree per data point, the steps of all time points are grouped by
+    their description. Each description is shown once, with the time ranges of its
+    steps, and its parents are the descriptions of the parents of its steps. Otherwise
+    the format is the one of :py:meth:`ProcessingStep.format_history`. The trees start
+    with the descriptions of the given steps in the order of their first time point.
+
+    Parameters
+    ----------
+    steps
+        The processing steps of the data points of one timeseries, e.g. the selection
+        of all coordinates but "time" from the processing information. Data points
+        without a step (None or NaN) are ignored.
+
+    Examples
+    --------
+    >>> # xdoctest: +SKIP
+    >>> processing = ds.pr.processing_info()["CO2"]
+    >>> print(primap2.format_timeseries_history(processing.pr.loc[{"area": "COL"}]))
+    """
+    values = steps.values if isinstance(steps, xr.DataArray) else np.asarray(steps, dtype=object)
+    if values.ndim > 1:
+        raise ValueError(f"Expected the steps of one timeseries, got {values.ndim} dimensions.")
+    given = sorted(
+        (step for step in np.atleast_1d(values).tolist() if not pd.isnull(step)),
+        key=lambda step: step.time,
+    )
+    times: dict[ProcessingStepDescription, list[np.datetime64]] = {}
+    description_parents: dict[ProcessingStepDescription, dict[ProcessingStepDescription, None]] = {}
+    for node in _reachable(given, operator.attrgetter("parents")):
+        times.setdefault(node.description, []).append(node.time)
+        description_parents.setdefault(node.description, {}).update(
+            dict.fromkeys(p.description for p in node.parents)
+        )
+    # the keys are the canonical objects, the tree needs identical ones
+    canonical = {d: d for d in times}
+    roots = list({id(canonical[s.description]): canonical[s.description] for s in given}.values())
+    return _format_tree(
+        roots,
+        lambda d: [canonical[p] for p in description_parents[d]],
+        lambda d: _step_text(d, ", ".join(str(r) for r in time_ranges(times[d]))),
+    )

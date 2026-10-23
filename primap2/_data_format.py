@@ -384,14 +384,10 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         """Which sources were used for each data point, determined from the processing
         information.
 
-        The sources are the ``source`` of the steps which created data, e.g. by reading
-        it, and of steps which set values without data of their parents at the same time
-        point, e.g. "constant(0)" for ``fillna(0)``. A source was used for a data
-        point if its data at the same time point was used. Data points derived from
-        other time points, e.g. by extrapolation, used all sources of the timeseries
-        they were derived from, as the processing information doesn't record which time
-        points were used. Sources whose data was only used to adjust values,
-        e.g. for least squares matching, are not included.
+        A source was used for a data point if a step with this ``source`` which created
+        data (a leaf of the history, without parents) is reachable from the data point's
+        step, at any time point. This includes sources only used to derive values at
+        other time points, e.g. for a fit. Data points without data used no source.
 
         Parameters
         ----------
@@ -402,14 +398,13 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         -------
         : xr.Dataset
             A dataset with the data variables of this dataset, with ``dim`` as additional
-            dimension. Each value is 2 if the source's data at the same time point was
-            used, 1 if only its data at other time points was used, and 0 otherwise.
+            dimension. Each value is 1 if the source was used and 0 otherwise.
 
         Raises
         ------
         ValueError
-            If the dataset has no processing information, or a creation step has no
-            source.
+            If the dataset has no processing information, or a step which created data
+            has no source.
         """
         return used_sources(self._ds, dim=dim)
 

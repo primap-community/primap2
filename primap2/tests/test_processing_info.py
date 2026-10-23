@@ -17,11 +17,12 @@ from primap2._processing_info import (
     combine_histories,
     ensure_complete_processing_info,
     record_step,
+    used_sources,
 )
 
 
-def desc(name: str) -> ProcessingStepDescription:
-    return ProcessingStepDescription(function=name, description=f"step {name}")
+def desc(name: str, source: str | None = None) -> ProcessingStepDescription:
+    return ProcessingStepDescription(function=name, description=f"step {name}", source=source)
 
 
 def step(name: str, *parents: ProcessingStep, time: str = "2000") -> ProcessingStep:
@@ -235,8 +236,11 @@ def test_str_timeseries_and_source():
 TIME = pd.date_range("2000", "2002", freq="YS")
 
 
-def leaves(da: xr.DataArray, names: dict, area_dim: str = "area (ISO3)") -> xr.DataArray:
-    """A node per data point with data; the description is named by the area."""
+def leaves(
+    da: xr.DataArray, names: dict, area_dim: str = "area (ISO3)", sources: bool = False
+) -> xr.DataArray:
+    """A node per data point with data; the description is named by the area, which is
+    also the source if ``sources``."""
     values = np.full(da.shape, None, dtype=object)
     descriptions: dict[str, ProcessingStepDescription] = {}
     for index in np.ndindex(da.shape):
@@ -244,7 +248,9 @@ def leaves(da: xr.DataArray, names: dict, area_dim: str = "area (ISO3)") -> xr.D
             continue
         coords = {dim: da[dim].values[i] for dim, i in zip(da.dims, index, strict=True)}
         name = names[coords.get(area_dim)]
-        values[index] = ProcessingStep(descriptions.setdefault(name, desc(name)), coords["time"])
+        values[index] = ProcessingStep(
+            descriptions.setdefault(name, desc(name, name if sources else None)), coords["time"]
+        )
     processing = f"Processing of {da.name}"
     return xr.DataArray(
         values,
@@ -255,7 +261,7 @@ def leaves(da: xr.DataArray, names: dict, area_dim: str = "area (ISO3)") -> xr.D
     )
 
 
-def processing_ds() -> xr.Dataset:
+def processing_ds(sources: bool = False) -> xr.Dataset:
     """CO2 in COL (no data in 2001) and ARG, each area created by its own step."""
     ds = xr.Dataset(
         {
@@ -268,7 +274,7 @@ def processing_ds() -> xr.Dataset:
         },
         attrs={"area": "area (ISO3)"},
     )
-    ds["Processing of CO2"] = leaves(ds["CO2"], {"COL": "a", "ARG": "b"})
+    ds["Processing of CO2"] = leaves(ds["CO2"], {"COL": "a", "ARG": "b"}, sources=sources)
     return ds
 
 
@@ -1349,3 +1355,193 @@ def test_set_processing_info():
     new_series = other_ds().pr.loc[{"area": ["MEX"]}]
     result = ds.pr.set("area", ["MEX"], new_series)
     assert node_at(result, "MEX", "2001") is node_at(new_series, "MEX", "2001")
+
+
+def test_used_sources_leaves():
+    result = processing_ds(sources=True).pr.used_sources()
+
+    da = result["CO2"]
+    assert da.dtype == np.int8
+    assert da.dims == ("area (ISO3)", "time", "used source")
+    assert list(da["used source"].values) == ["a", "b"]
+    assert result.attrs == {"area": "area (ISO3)"}
+    assert "flag_values" not in da.attrs
+    # no data, no source
+    assert da.sel({"area (ISO3)": "COL"}).values.tolist() == [[1, 0], [0, 0], [1, 0]]
+    assert da.sel({"area (ISO3)": "ARG"}).values.tolist() == [[0, 1]] * 3
+
+
+def test_used_sources_fillna():
+    ds = processing_ds(sources=True)
+    ds["Processing of CO2"] = leaves(ds["CO2"], {"COL": "own", "ARG": "own"}, sources=True)
+
+    result = ds.pr.fillna(other_ds()).pr.used_sources()["CO2"]
+
+    col = result.sel({"area (ISO3)": "COL"})
+    assert list(col["used source"].values) == ["other", "own"]
+    # the filled value is from the other dataset, the others are unchanged
+    assert col.values.tolist() == [[0, 1], [1, 0], [0, 1]]
+    assert result.sel({"area (ISO3)": "ARG"}).values.tolist() == [[0, 1]] * 3
+
+
+def test_used_sources_aggregation():
+    result = processing_ds(sources=True).pr.sum(dim="area").pr.used_sources()["CO2"]
+
+    assert list(result["used source"].values) == ["a", "b"]
+    # COL (a) has no data in 2001
+    assert result.values.tolist() == [[1, 1], [0, 1], [1, 1]]
+
+
+def test_used_sources_dim_name():
+    result = processing_ds(sources=True).pr.used_sources(dim="src")
+
+    assert result["CO2"].dims[-1] == "src"
+
+
+def test_used_sources_leaf_without_source():
+    ds = processing_ds()
+    leaf = node_at(ds, "COL", "2000")
+
+    with pytest.raises(ValueError, match=re.escape(str(leaf))):
+        ds.pr.used_sources()
+
+
+def test_used_sources_no_processing_info():
+    with pytest.raises(ValueError, match="no processing information"):
+        processing_ds().pr.without_processing_info().pr.used_sources()
+
+
+def test_used_sources_shared_nodes_across_variables():
+    ds = processing_ds(sources=True)
+    ds["CH4"] = ds["CO2"] * 2
+    ds["Processing of CH4"] = ds["Processing of CO2"].rename("Processing of CH4")
+    ds["Processing of CH4"].attrs["described_variable"] = "CH4"
+    ds["CH4"].attrs["entity"] = "CH4"
+
+    result = ds.pr.used_sources()
+
+    xr.testing.assert_equal(result["CO2"], result["CH4"])
+
+
+def test_used_sources_many_sources():
+    """More sources than the bits of one integer."""
+    n = 130
+    time = pd.date_range("2000", periods=3, freq="YS")
+    da = xr.DataArray(
+        np.ones((n, 3)),
+        dims=["area", "time"],
+        coords={"area": [f"A{i:03d}" for i in range(n)], "time": time},
+        name="CO2",
+    )
+    descriptions = [desc(f"s{i}", f"S{i:03d}") for i in range(n)]
+    nodes = np.array(
+        [[ProcessingStep(d, t) for t in time.values] for d in descriptions], dtype=object
+    )
+    # the last timeseries builds on all others at the first time point
+    nodes[-1, 0] = ProcessingStep(desc("all"), time.values[0], tuple(nodes[:-1, 0]))
+    ds = xr.Dataset({"CO2": da}, attrs={"area": "area"})
+    ds["Processing of CO2"] = xr.DataArray(
+        nodes, dims=da.dims, coords=da.coords, attrs={"described_variable": "CO2"}
+    )
+
+    result = used_sources(ds)["CO2"]
+
+    expected = np.broadcast_to(np.eye(n, dtype=np.int8)[:, np.newaxis], (n, 3, n)).copy()
+    expected[-1, 0, :] = 1
+    expected[-1, 0, -1] = 0
+    assert (result.values == expected).all()
+
+
+def test_used_sources_from_file(tmp_path):
+    ds = processing_ds(sources=True)
+    ds.pr.to_netcdf(tmp_path / "ds.nc")
+
+    loaded = primap2.open_dataset(tmp_path / "ds.nc")
+
+    xr.testing.assert_equal(loaded.pr.used_sources()["CO2"], ds.pr.used_sources()["CO2"])
+
+
+def timeseries(name: str, years: range, *parents: ProcessingStep) -> list[ProcessingStep]:
+    """Steps of one description for each year, each with the parents of the same year."""
+    d = desc(name)
+    return [
+        ProcessingStep(d, np.datetime64(str(year)), tuple(p[year - years.start] for p in parents))
+        for year in years
+    ]
+
+
+def test_format_timeseries_history_chain():
+    a = timeseries("a", range(2000, 2004))
+    b = timeseries("b", range(2000, 2004), a)
+
+    assert primap2.format_timeseries_history(b) == (
+        "b for 2000 to 2003: step b\n↑ a for 2000 to 2003: step a"
+    )
+
+
+def test_format_timeseries_history_branches():
+    a = timeseries("a", range(2000, 2003))
+    b = timeseries("b", range(2000, 2003), a)
+    c = timeseries("c", range(2000, 2003), a)
+    d = timeseries("d", range(2000, 2003), b, c)
+
+    assert primap2.format_timeseries_history(d) == (
+        "d for 2000 to 2002: step d\n"
+        "├─ b for 2000 to 2002: step b\n"
+        "│  ↑ (a) a for 2000 to 2002: step a\n"
+        "└─ c for 2000 to 2002: step c\n"
+        "   ↑ see (a)"
+    )
+
+
+def test_format_timeseries_history_other_time_points():
+    fit = timeseries("fit", range(2000, 2003))
+    extrapolated = ProcessingStep(desc("extrapolate"), np.datetime64("2005"), tuple(fit))
+    early = [ProcessingStep(fit[0].description, np.datetime64(f"{y}")) for y in (1990, 1991)]
+
+    assert primap2.format_timeseries_history([extrapolated]) == (
+        "extrapolate for 2005: step extrapolate\n↑ fit for 2000 to 2002: step fit"
+    )
+    # steps of one description at several time points are grouped, with their parents
+    other = ProcessingStep(extrapolated.description, np.datetime64("2007"), tuple(early))
+    assert primap2.format_timeseries_history([extrapolated, other]) == (
+        "extrapolate for 2005, 2007: step extrapolate\n↑ fit for 1990, 1991, 2000 to 2002: step fit"
+    )
+
+
+def test_format_timeseries_history_given_descriptions_reachable():
+    a = timeseries("a", range(2000, 2003))
+    b = timeseries("b", range(2000, 2003), a)
+
+    # "a" is given as well and reached from "b"
+    assert primap2.format_timeseries_history([*a, *b]) == (
+        "(a) a for 2000 to 2002: step a\nb for 2000 to 2002: step b\n↑ see (a)"
+    )
+
+
+def test_format_timeseries_history_data_array():
+    a = timeseries("a", range(2000, 2003))
+    da = xr.DataArray(
+        np.array([None, *a, np.nan], dtype=object),
+        dims=["time"],
+        coords={"time": pd.date_range("1999", periods=5, freq="YS")},
+    )
+
+    assert primap2.format_timeseries_history(da) == "a for 2000 to 2002: step a"
+    assert primap2.format_timeseries_history([]) == ""
+
+
+def test_format_timeseries_history_two_dimensional():
+    with pytest.raises(ValueError, match="one timeseries"):
+        primap2.format_timeseries_history(np.array([[None]], dtype=object))
+
+
+def test_format_timeseries_history_processing_info():
+    ds = processing_ds(sources=True).pr.fillna(other_ds())
+    steps = ds.pr.processing_info()["CO2"].pr.loc[{"area": "COL"}]
+
+    assert primap2.format_timeseries_history(steps) == (
+        "a (data source: a) for 2000, 2002: step a\n"
+        "CO2 area (ISO3)='COL': fillna for 2001: filled missing values\n"
+        "↑ CO2 area (ISO3)='COL': read (data source: other) for 2001: read"
+    )

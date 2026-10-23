@@ -13,6 +13,7 @@ from ._data_format import open_dataset
 from ._processing_info import (
     ProcessingStep,
     ProcessingStepDescription,
+    format_timeseries_history,
     records_processing_step,
 )
 from ._selection import Not
@@ -33,6 +34,7 @@ __all__ = [
     "ProcessingStepDescription",
     "TimeRange",
     "accessors",
+    "format_timeseries_history",
     "open_dataset",
     "pm2io",
     "records_processing_step",

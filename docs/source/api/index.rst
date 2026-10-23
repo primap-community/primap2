@@ -13,6 +13,7 @@ Top-level API
     ProcessingStepDescription
     TimeRange
     accessors
+    format_timeseries_history
     open_dataset
     records_processing_step
     ureg
