@@ -203,6 +203,8 @@ steps which are reachable from a data point are stored.
 * `Processing of {var}` has the same dimensions as `{var}` and holds, for each data
   point, the index of its node in the table of nodes, or -1 if the data point has no
   node.
+  The indices are `int32` (`int64` for more than 2**31-1 nodes), as are the integer
+  columns of the tables below, which `to_netcdf` always compresses.
 * Table of descriptions, dimension `processing step`, one entry per
   `ProcessingStepDescription`:
 

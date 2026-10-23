@@ -772,7 +772,7 @@ def _json_default(obj: typing.Any) -> typing.Any:
     raise TypeError(f"Can not store {obj!r} as a coordinate of processing information.")
 
 
-def _is_table_variable(name: typing.Hashable) -> bool:
+def is_table_variable(name: typing.Hashable) -> bool:
     return isinstance(name, str) and name.startswith((_STEP, _NODE, _PARENT))
 
 
@@ -826,12 +826,14 @@ def encode_processing_info(ds: xr.Dataset) -> xr.Dataset:
     description_list = list(descriptions.values())
     description_index = {id(d): i for i, d in enumerate(description_list)}
 
+    # int32 unless the tables are huge
+    int_dtype = np.int32 if max(len(nodes), len(parents)) <= np.iinfo(np.int32).max else np.int64
     result = ds.copy()
     for name in names:
         flat = values[name].ravel().tolist()
         indices = np.fromiter(
             (-1 if x is None else node_index[id(x)] for x in flat),
-            dtype=np.int64,
+            dtype=int_dtype,
             count=len(flat),
         )
         result[name] = ds[name].copy(data=indices.reshape(ds[name].shape))
@@ -857,10 +859,13 @@ def encode_processing_info(ds: xr.Dataset) -> xr.Dataset:
             step_dim,
             [json.dumps(d.coords, default=_json_default) for d in description_list],
         ),
-        _NODE + "step": (node_dim, [description_index[id(n.description)] for n in nodes]),
+        _NODE + "step": (
+            node_dim,
+            np.array([description_index[id(n.description)] for n in nodes], dtype=int_dtype),
+        ),
         _NODE + "time": (node_dim, np.array([n.time for n in nodes], dtype="datetime64[ns]")),
-        _NODE + "parents": (node_dim, np.frombuffer(counts, dtype=np.int64)),
-        _PARENT + "node": (parent_dim, np.frombuffer(parents, dtype=np.int64)),
+        _NODE + "parents": (node_dim, np.frombuffer(counts, dtype=np.int64).astype(int_dtype)),
+        _PARENT + "node": (parent_dim, np.frombuffer(parents, dtype=np.int64).astype(int_dtype)),
     }
     for name, (dim, data) in tables.items():
         data = np.asarray(data)
@@ -930,7 +935,7 @@ def decode_processing_info(ds: xr.Dataset) -> xr.Dataset:
         # index -1 selects the last element, which is None
         restored = node_array[ds[name].values]
         result = result.assign({name: ds[name].copy(data=restored)})
-    result = result.drop_vars([n for n in result.variables if _is_table_variable(n)])
+    result = result.drop_vars([n for n in result.variables if is_table_variable(n)])
     del result.attrs[FORMAT_ATTR]
     return result
 
