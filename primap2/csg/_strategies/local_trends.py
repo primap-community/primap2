@@ -214,12 +214,16 @@ class LocalTrendsStrategy:
                                 gap_description + " scaling factor is nan - failed to fill gap;"
                             )
                         else:
-                            any_filled = filled_gap = True
-
                             # fill nans (in the gap only)
                             filled_ts = fill_gap(
                                 ts=filled_ts, fill_ts=fill_ts, gap=gap, factor=factor
                             )
+                            # the scaled values can still be nan (e.g. inf * 0)
+                            time_filled_gap = time_filled_gap[
+                                filled_ts.sel(time=time_filled_gap).notnull().to_numpy()
+                            ]
+                            filled_gap = bool(time_filled_gap.size)
+                            any_filled = any_filled or filled_gap
 
                             if factor[0] == factor[1]:
                                 gap_description = (

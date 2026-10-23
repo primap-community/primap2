@@ -228,6 +228,24 @@ def test_localTrends_strategy():
         "times ['1870-01-01T00' '1871-01-01T00'] using factors 0.50 and 1.50;"
     )
 
+    # single point gap with differing left and right factors
+    ts = get_single_ts(data=1.0)
+    fill_ts = get_single_ts(data=2.0)
+    ts[:] = 1.0
+    ts[20:] = ts[20:] * 3
+    ts[20] = np.nan
+    result_ts, result_descriptions = primap2.csg.LocalTrendsStrategy(fit_params=fit_params).fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+    )
+    assert result_ts[20].item() == pytest.approx(2.0)
+    assert not result_ts.isnull().any()
+    assert_times(
+        result_descriptions[0],
+        years(1870, 1870),
+        result_descriptions[0].ts_time,
+        result_descriptions[0].fill_ts_time,
+    )
+
     ts[0:5] = np.nan
     fill_ts[5:] = np.nan
     with pytest.raises(StrategyUnableToProcess):
