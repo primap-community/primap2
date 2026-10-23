@@ -1,10 +1,13 @@
-"""Processing information for the timeseries of a data variable."""
+"""Processing information for the data points of a data variable."""
 
+import array
 import functools
 import inspect
+import json
+import operator
 import typing
+import uuid
 
-import msgpack
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -12,7 +15,6 @@ from attr import define, evolve, field
 from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
-from ._time_range import TimeRange, time_ranges
 
 PROCESSING_PREFIX = "Processing of "
 
@@ -39,16 +41,18 @@ def has_processing_info(ds: xr.Dataset) -> bool:
 
 
 def ensure_complete_processing_info(ds: xr.Dataset) -> None:
-    """Raise if the dataset has processing information, but not for every timeseries.
+    """Raise if the processing information of the dataset doesn't match its data.
 
     If a dataset has processing information, every data variable needs processing
-    information, which may only be missing for timeseries without any data.
+    information. A data point has a processing step if and only if it has data, and the
+    time of the step is the time of the data point.
 
     Raises
     ------
     ValueError
-        If processing information is missing for a data variable or for a timeseries
-        with data.
+        If processing information is missing for a data variable or for a data point
+        with data, if there is processing information for a data point without data, or
+        if the time of a step doesn't match the data point.
     """
     if not has_processing_info(ds):
         return
@@ -58,17 +62,59 @@ def ensure_complete_processing_info(ds: xr.Dataset) -> None:
         name = processing_variable_name(var)
         if name not in ds:
             raise ValueError(f"The dataset has processing information, but not for {var!r}.")
-        processing_infos = ds[name]
+        processing = ds[name]
         da = ds[var]
-        has_data = da.notnull().any("time") if "time" in da.dims else da.notnull()
-        missing = (has_data & processing_infos.isnull()).transpose(*processing_infos.dims)
-        if missing.any():
-            index = tuple(np.argwhere(missing.values)[0])
-            coordinates = _coordinates_repr(_index_coordinates(processing_infos, index))
+        if set(processing.dims) != set(da.dims):
             raise ValueError(
-                f"{int(missing.sum())} timeseries of {var!r} contain data, but have no "
+                f"The processing information of {var!r} has the dimensions "
+                f"{_dims_repr(processing.dims)}, but needs {_dims_repr(da.dims)}."
+            )
+        has_data = da.notnull().transpose(*processing.dims).values
+        has_node = ~pd.isnull(processing.values)
+        missing = has_data & ~has_node
+        if missing.any():
+            index = tuple(np.argwhere(missing)[0])
+            coordinates = _coordinates_repr(_index_coordinates(processing, index))
+            raise ValueError(
+                f"{int(missing.sum())} data points of {var!r} contain data, but have no "
                 f"processing information, e.g. {coordinates}."
             )
+        superfluous = has_node & ~has_data
+        if superfluous.any():
+            index = tuple(np.argwhere(superfluous)[0])
+            coordinates = _coordinates_repr(_index_coordinates(processing, index))
+            raise ValueError(
+                f"{int(superfluous.sum())} data points of {var!r} have processing information, "
+                f"but contain no data, e.g. {coordinates}."
+            )
+        _ensure_node_times(var, processing, has_node)
+
+
+def _ensure_node_times(var: typing.Hashable, processing: xr.DataArray, has_node: np.ndarray):
+    """Raise if the time of a step differs from the time of its data point."""
+    nodes = processing.values[has_node]
+    try:
+        node_times = np.fromiter(
+            map(operator.attrgetter("time"), nodes), dtype="datetime64[ns]", count=len(nodes)
+        )
+    except AttributeError as err:
+        raise ValueError(
+            f"The processing information of {var!r} contains something other than processing steps."
+        ) from err
+    axis = processing.dims.index("time")
+    times = processing["time"].values.astype("datetime64[ns]")
+    shape = [1] * processing.ndim
+    shape[axis] = -1
+    point_times = np.broadcast_to(times.reshape(shape), processing.shape)[has_node]
+    wrong = node_times != point_times
+    if wrong.any():
+        position = int(np.flatnonzero(wrong)[0])
+        index = tuple(np.argwhere(has_node)[position])
+        coordinates = _coordinates_repr(_index_coordinates(processing, index))
+        raise ValueError(
+            f"{int(wrong.sum())} processing steps of {var!r} have a different time than their "
+            f"data point, e.g. {coordinates}."
+        )
 
 
 _PROCESSING_STEP_HINT = (
@@ -140,32 +186,17 @@ def ensure_no_processing_info(ds: xr.Dataset) -> None:
         )
 
 
-def _to_time_ranges(value: typing.Any) -> tuple[TimeRange, ...]:
-    """Convert a TimeRange, an iterable of TimeRanges or of time points into TimeRanges."""
-    if isinstance(value, TimeRange):
-        return (value,)
-    if isinstance(value, str):
-        raise TypeError(f"time has to be a TimeRange or an iterable of time points, not {value!r}.")
-    if not isinstance(value, np.ndarray):
-        value = list(value)
-        if all(isinstance(x, TimeRange) for x in value):
-            return tuple(value)
-    return time_ranges(value)
-
-
 @define(frozen=True, kw_only=True)
 class ProcessingStepDescription:
-    """Structured description of a processing step done on a timeseries.
+    """Description of a processing step done on a timeseries.
 
-    Processing steps form the history of a timeseries: every step refers to the steps
-    which produced its input data as its parents.
+    One description is shared by all data points of a timeseries which were set by
+    the step, see :py:class:`ProcessingStep`.
 
     Attributes
     ----------
-    time
-        Time points for which data was changed during the processing step. Can be given
-        as a TimeRange, an iterable of TimeRanges or an iterable of time points, which
-        is converted to TimeRanges.
+    id
+        Unique identifier of the description.
     function
         The name of the function which did the processing.
     description
@@ -178,12 +209,9 @@ class ProcessingStepDescription:
     coords
         Optional: the coordinates of the processed timeseries at the time of the
         processing, apart from "time".
-    parents
-        The last processing steps of the timeseries which were the input of this
-        processing step. Empty if the step created the timeseries.
     """
 
-    time: tuple[TimeRange, ...] = field(converter=_to_time_ranges)
+    id: uuid.UUID = field(factory=uuid.uuid4)
     function: str
     description: str
     source: str | None = None
@@ -191,37 +219,64 @@ class ProcessingStepDescription:
     coords: dict[str, typing.Any] | None = field(
         default=None, converter=lambda x: None if x is None else dict(x), hash=False
     )
-    parents: tuple["ProcessingStepDescription", ...] = field(default=(), converter=tuple)
+
+
+def _format_time(time: np.datetime64) -> str:
+    """Year if the time is January 1st at midnight, else the date (or the full time)."""
+    day = time.astype("datetime64[D]")
+    if day.astype(time.dtype) != time:
+        return str(time)
+    if day == day.astype("datetime64[Y]").astype("datetime64[D]"):
+        return str(day.astype("datetime64[Y]"))
+    return str(day)
+
+
+@define(frozen=True)
+class ProcessingStep:
+    """A processing step which set the value of one data point.
+
+    Steps form the history of a data point: every step refers to the steps which set
+    the values it was computed from as its parents, which may be at other time points.
+
+    Equality and hash only consider ``description`` and ``time``, never the parents:
+    a description has exactly one set of parents per time point.
+
+    Attributes
+    ----------
+    description
+        The description of the step, shared with the other data points of the timeseries
+        set by the step.
+    time
+        The time point of the data point set by the step.
+    parents
+        The steps which set the values this value was computed from. Empty if the step
+        created the value.
+    """
+
+    description: ProcessingStepDescription
+    time: np.datetime64
+    parents: tuple["ProcessingStep", ...] = field(default=(), converter=tuple, eq=False, repr=False)
 
     def __str__(self) -> str:
-        times = ", ".join(str(time_range) for time_range in self.time) or "none"
-        text = self.function
-        if self.source is not None:
-            text += f" (data source: {self.source})"
-        text += f" for {times}: {self.description}"
+        d = self.description
+        text = d.function
+        if d.source is not None:
+            text += f" (data source: {d.source})"
+        text += f" for {_format_time(self.time)}: {d.description}"
         timeseries = " ".join(
             x
-            for x in (
-                self.variable,
-                None if not self.coords else _coordinates_repr(self.coords),
-            )
+            for x in (d.variable, None if not d.coords else _coordinates_repr(d.coords))
             if x is not None
         )
         return f"{timeseries}: {text}" if timeseries else text
 
-    def time_points(self) -> np.ndarray:
-        """All time points for which data was changed during the processing step."""
-        if not self.time:
-            return np.array([], dtype="datetime64")
-        return np.concatenate([time_range.time_points() for time_range in self.time])
-
-    def history(self) -> list["ProcessingStepDescription"]:
+    def history(self) -> list["ProcessingStep"]:
         """All processing steps which led to this step, including the step itself."""
-        ordered: list[ProcessingStepDescription] = []
+        ordered: list[ProcessingStep] = []
         visited: set[int] = set()
         # depth-first search without recursion, so that long histories don't exhaust
         # the stack. Steps are marked as "expanded" once their parents are on the stack.
-        stack: list[tuple[ProcessingStepDescription, bool]] = [(self, False)]
+        stack: list[tuple[ProcessingStep, bool]] = [(self, False)]
         while stack:
             step, expanded = stack.pop()
             if expanded:
@@ -253,7 +308,7 @@ class ProcessingStepDescription:
         # depth-first search without recursion, see history(). Besides the step, the
         # stack holds the prefix of its line, the prefix for a single parent and the
         # prefix for branches, which start below the text of the step.
-        stack: list[tuple[ProcessingStepDescription, str, str, str]] = [(self, "", "", "")]
+        stack: list[tuple[ProcessingStep, str, str, str]] = [(self, "", "", "")]
         while stack:
             step, prefix, chain_prefix, branch_prefix = stack.pop()
             if id(step) in labels:
@@ -283,107 +338,6 @@ class ProcessingStepDescription:
             stack.extend(reversed(branches))
         return "\n".join(lines)
 
-    def unstructure(self) -> dict[str, typing.Any]:
-        """Convert this step without its parents into basic python types."""
-        return {
-            "time": [time_range.unstructure() for time_range in self.time],
-            "description": self.description,
-            "function": self.function,
-            "source": self.source,
-            "variable": self.variable,
-            "coords": self.coords,
-        }
-
-    @classmethod
-    def structure(
-        cls,
-        u: dict[str, typing.Any],
-        parents: typing.Iterable["ProcessingStepDescription"] = (),
-    ) -> "ProcessingStepDescription":
-        """Initialize from basic python types as created by "unstructure".
-
-        Parameters
-        ----------
-        u
-            The step as created by "unstructure".
-        parents
-            The parents of the step, which are not part of ``u``.
-        """
-        return cls(
-            time=[TimeRange.structure(time_range) for time_range in u["time"]],
-            function=u["function"],
-            description=u["description"],
-            source=u["source"],
-            variable=u["variable"],
-            coords=u["coords"],
-            parents=parents,
-        )
-
-    def serialize(self) -> bytes:
-        """Convert this step and all steps which led to it into binary data, e.g. for
-        saving to disk.
-        """
-        history = self.history()
-        positions = {id(step): i for i, step in enumerate(history)}
-        # The parents have to come first: the binary data is saved as fixed-length byte
-        # strings, which lose trailing null bytes, and the parent position 0 is encoded
-        # as a null byte.
-        return msgpack.packb(
-            {
-                "steps": [
-                    {
-                        "parents": [positions[id(parent)] for parent in step.parents],
-                        **step.unstructure(),
-                    }
-                    for step in history
-                ]
-            },
-            use_bin_type=True,
-        )
-
-    @staticmethod
-    def serialize_optional(processing: "ProcessingStepDescription | None") -> bytes:
-        """Convert into binary data, also for missing processing information.
-
-        Processing information can be missing for individual timeseries, for example
-        if a dataset uses different categories for different variables. Missing
-        processing information is represented by empty binary data.
-
-        Parameters
-        ----------
-        processing
-            The last processing step of a timeseries, or a null value (``None`` or NaN)
-            if no processing information is available for the timeseries.
-        """
-        if pd.isnull(processing):
-            return b""
-        return processing.serialize()
-
-    @classmethod
-    def deserialize(cls, b: bytes) -> "ProcessingStepDescription | None":
-        """Parse from binary data as produced by "serialize" or "serialize_optional".
-
-        Parameters
-        ----------
-        b
-            Binary data representing the processing steps of a timeseries, or
-            empty binary data if no processing information is available for the
-            timeseries.
-
-        Returns
-        -------
-        processing : ProcessingStepDescription or None
-            The last processing step of the timeseries, which refers to the earlier
-            steps as its parents. ``None`` is returned for empty binary data.
-        """
-        if not b:
-            return None
-        ust = msgpack.unpackb(b, raw=False, use_list=False)
-        steps: list[ProcessingStepDescription] = []
-        for u in ust["steps"]:
-            steps.append(cls.structure(u, parents=[steps[i] for i in u["parents"]]))
-        return steps[-1]
-
 
 def _label(index: int) -> str:
     """The label with the given index in "a" to "z", "aa" to "zz", "aaa" and so on."""
@@ -399,60 +353,134 @@ def _label(index: int) -> str:
     return "".join(reversed(letters))
 
 
+def _coordinate_lists(template: xr.DataArray, dims: list[typing.Hashable]) -> list[list]:
+    """The coordinate values of the dimensions as lists of plain python objects."""
+    return [template[dim].values.tolist() for dim in dims]
+
+
+def _nodes_or_none(values: np.ndarray) -> np.ndarray:
+    """Object array with None instead of NaN, as a new array."""
+    return np.where(pd.isnull(values), None, values)
+
+
+def _unique(steps: typing.Iterable[ProcessingStep]) -> tuple:
+    """The steps without duplicates, keeping the order."""
+    return tuple({id(step): step for step in steps}.values())
+
+
+def _create_nodes(
+    nodes: np.ndarray,
+    changed: np.ndarray,
+    parents: list[np.ndarray],
+    *,
+    describe: typing.Callable[[dict[str, typing.Any]], ProcessingStepDescription],
+    dims: list[typing.Hashable],
+    coord_lists: list[list],
+    shape: tuple[int, ...],
+    times: np.ndarray,
+    replaces: bool,
+) -> None:
+    """Set a new node with a new description per timeseries for the changed data points.
+
+    All arrays have the layout (timeseries, time). ``nodes`` is modified in place, its old
+    nodes are parents of the new nodes unless ``replaces``.
+    """
+    time_points = list(times)
+    names = [str(dim) for dim in dims]
+    for ts in np.flatnonzero(changed.any(axis=1)):
+        index = np.unravel_index(ts, shape)
+        coords = {n: values[i] for n, values, i in zip(names, coord_lists, index, strict=True)}
+        description = describe(coords)
+        columns = np.flatnonzero(changed[ts])
+        old = [None] * len(columns) if replaces else nodes[ts, columns].tolist()
+        extra = [p[ts, columns].tolist() for p in parents]
+        new_nodes = []
+        for k, t in enumerate(columns.tolist()):
+            step_parents = [old[k]] if old[k] is not None else []
+            for values in extra:
+                value = values[k]
+                if value is None:
+                    continue
+                if type(value) is tuple:
+                    step_parents.extend(value)
+                else:
+                    step_parents.append(value)
+            if len(step_parents) > 1:
+                step_parents = _unique(step_parents)
+            new_nodes.append(ProcessingStep(description, time_points[t], step_parents))
+        nodes[ts, columns] = new_nodes
+
+
+def _layout(da: xr.DataArray) -> tuple[list[typing.Hashable], xr.DataArray]:
+    """The dimensions apart from "time", and the array with "time" as last dimension."""
+    if "time" not in da.dims:
+        raise ValueError(
+            f"{da.name!r} has no 'time' dimension, its dimensions are {_dims_repr(da.dims)}."
+        )
+    dims = [dim for dim in da.dims if dim != "time"]
+    return dims, da.transpose(*dims, "time")
+
+
 def add_processing_step(
     processing_infos: xr.DataArray, step: ProcessingStepDescription, *, variable: str
 ) -> xr.DataArray:
-    """Append a processing step to every timeseries of the input.
+    """Append a processing step to every data point of the input.
 
-    Timeseries whose processing information is missing are left untouched.
+    Data points without processing information are left untouched.
 
     Parameters
     ----------
     processing_infos
         The processing information variable to add the step to. It is not modified.
     step
-        The processing step to append. Its parents are replaced by the last processing
-        step of each timeseries, its variable by ``variable`` and its coordinates by
-        those of each timeseries.
+        The processing step to append. Its id is replaced by a new one for each
+        timeseries, its variable by ``variable`` and its coordinates by those of each
+        timeseries. The last step of each data point becomes the parent of the new step.
     variable
         The name of the data variable after the processing step.
 
     Returns
     -------
     with_step : xr.DataArray
-        A copy of ``da`` with ``step`` appended to each timeseries.
+        A copy of ``processing_infos`` with ``step`` appended to each data point.
     """
-    if len(step.parents) > 0:
-        raise ValueError(
-            "Calling add_processing_step with a history of steps instead  of an individual step "
-            "is invalid. (Ensure the passed step has no parents!)"
-        )
+    dims, template = _layout(processing_infos)
+    shape = template.shape
+    nodes = _nodes_or_none(template.values).reshape(-1, shape[-1])
+    result = nodes.copy()
+    _create_nodes(
+        result,
+        ~pd.isnull(nodes),
+        [],
+        describe=lambda coords: evolve(step, id=uuid.uuid4(), variable=variable, coords=coords),
+        dims=dims,
+        coord_lists=_coordinate_lists(template, dims),
+        shape=shape[:-1],
+        times=template["time"].values,
+        replaces=False,
+    )
+    return _from_layout(processing_infos, result.reshape(shape), dims)
 
-    values = processing_infos.values.copy()
-    for index in np.ndindex(values.shape):
-        if pd.isnull(values[index]):
-            continue
-        values[index] = evolve(
-            step,
-            variable=variable,
-            coords=_index_coordinates(processing_infos, index),
-            parents=(values[index],),
-        )
-    result = processing_infos.copy(deep=False)
-    result.data = values
+
+def _from_layout(
+    like: xr.DataArray, values: np.ndarray, dims: list[typing.Hashable]
+) -> xr.DataArray:
+    """The array with ``like``'s dimensions from values with the layout of _layout."""
+    layout = [*dims, "time"]
+    result = like.copy(deep=False)
+    result.data = np.ascontiguousarray(values.transpose([layout.index(d) for d in like.dims]))
     return result
 
 
 def _new_processing_infos(data: xr.DataArray, values: np.ndarray | None = None) -> xr.DataArray:
     """Processing information for ``data`` with the given values, by default empty."""
-    template = _described(data)
     if values is None:
-        values = np.full(template.shape, None, dtype=object)
+        values = np.full(data.shape, None, dtype=object)
     name = processing_variable_name(data.name)
     return xr.DataArray(
         values,
-        dims=template.dims,
-        coords=template.coords,
+        dims=data.dims,
+        coords=data.coords,
         name=name,
         attrs={"entity": name, "described_variable": data.name},
     )
@@ -467,15 +495,9 @@ def _changed_values(old_da: xr.DataArray, new_da: xr.DataArray) -> xr.DataArray:
     return (old_da != new_da) & ~(old_da.isnull() & new_da.isnull())
 
 
-def _coordinate_value(coords: xr.DataArray, index: int) -> typing.Any:
-    """A single coordinate value as a plain python object."""
-    value = coords.data[index]
-    return value.item() if isinstance(value, np.generic) else value
-
-
 def _index_coordinates(da: xr.DataArray, index: tuple[int, ...]) -> dict[str, typing.Any]:
     """The coordinates of the value of ``da`` at ``index`` as plain python objects."""
-    return {str(dim): _coordinate_value(da[dim], i) for dim, i in zip(da.dims, index, strict=True)}
+    return {str(dim): da[dim].values[i].tolist() for dim, i in zip(da.dims, index, strict=True)}
 
 
 def _coordinates_repr(coordinates: dict[str, typing.Any]) -> str:
@@ -497,7 +519,7 @@ def _described(da: xr.DataArray) -> xr.DataArray:
 
 
 def _on_template(da: xr.DataArray, template: xr.DataArray, fill_value) -> np.ndarray:
-    """The values of ``da`` for each timeseries of ``template``, broadcasting ``da`` along
+    """The values of ``da`` for each value of ``template``, broadcasting ``da`` along
     dimensions it doesn't have."""
     if not set(da.dims) <= set(template.dims):
         raise ValueError(
@@ -524,18 +546,23 @@ def _exists(da: xr.DataArray, template: xr.DataArray) -> np.ndarray:
     return _on_template(present, template, fill_value=False)
 
 
+def _nodes_on_template(da: xr.DataArray, template: xr.DataArray) -> np.ndarray:
+    """The nodes in ``da`` for each data point of ``template``, None where there are none."""
+    return _nodes_or_none(_on_template(da, template, fill_value=None))
+
+
 def _processing_infos_on_template(
     data: xr.DataArray, processing_infos: xr.DataArray, template: xr.DataArray
 ) -> np.ndarray:
-    """The processing information for each timeseries of ``template``."""
+    """The processing information for each data point of ``template``."""
     try:
-        xr.align(_described(data), processing_infos, join="exact")
+        xr.align(data, processing_infos, join="exact", copy=False)
     except ValueError as err:
         raise ValueError(
             f"Processing information {processing_infos.name!r} doesn't match the data it "
             f"describes: {err}"
         ) from err
-    return _on_template(processing_infos, template, fill_value=None)
+    return _nodes_on_template(processing_infos, template)
 
 
 def combine_histories(
@@ -544,7 +571,7 @@ def combine_histories(
     *,
     data: xr.DataArray | None = None,
 ) -> xr.DataArray:
-    """Combine the histories of all timeseries along ``dim``.
+    """Combine the histories of all data points along ``dim``.
 
     Parameters
     ----------
@@ -554,37 +581,38 @@ def combine_histories(
         The dimension or dimensions along which to combine.
     data
         Optional: the data described by ``processing_infos``. If given, the histories of
-        timeseries without any data are left out.
+        data points without data are left out.
 
     Returns
     -------
     : xr.DataArray
-        For each timeseries remaining after removing ``dim``, a tuple of the histories
-        along ``dim``, for use as ``parents`` in record_step. Missing histories are left
+        For each data point remaining after removing ``dim``, a tuple of the steps
+        along ``dim``, for use as ``parents`` in record_step. Missing steps are left
         out.
     """
     dims = dim if isinstance(dim, list) else [dim]
-    if data is not None:
-        has_data = data.notnull().any("time").reindex_like(processing_infos, fill_value=False)
-        processing_infos = processing_infos.where(has_data)
     remaining = [x for x in processing_infos.dims if x not in dims]
-    values = processing_infos.transpose(*remaining, *dims).values
+    values = _nodes_or_none(processing_infos.transpose(*remaining, *dims).values)
+    if data is not None:
+        has_data = (
+            data.notnull()
+            .reindex_like(processing_infos, fill_value=False)
+            .broadcast_like(processing_infos)
+            .transpose(*remaining, *dims)
+            .values
+        )
+        values = np.where(has_data, values, None)
     shape = values.shape[: len(remaining)]
-    values = values.reshape(*shape, -1)
-    result = np.empty(shape, dtype=object)
-    for index in np.ndindex(shape):
-        result[index] = _unique(x for x in values[index] if not pd.isnull(x))
+    rows = values.reshape(-1, int(np.prod(values.shape[len(remaining) :], dtype=int))).tolist()
+    result = np.empty(len(rows), dtype=object)
+    for i, row in enumerate(rows):
+        result[i] = _unique(x for x in row if x is not None)
     return xr.DataArray(
-        result,
+        result.reshape(shape),
         dims=remaining,
         coords={x: processing_infos[x] for x in remaining},
         name=processing_infos.name,
     )
-
-
-def _unique(steps: typing.Iterable[ProcessingStepDescription]) -> tuple:
-    """The steps without duplicates, keeping the order."""
-    return tuple({id(step): step for step in steps}.values())
 
 
 def record_step(
@@ -592,6 +620,7 @@ def record_step(
     *,
     previous: typing.Sequence[tuple[xr.DataArray, xr.DataArray]] = (),
     parents: typing.Sequence[xr.DataArray] = (),
+    replaces: bool = False,
     function: str,
     description: str,
     source: str | None = None,
@@ -599,16 +628,16 @@ def record_step(
     """Processing information of ``new_da`` after a processing step.
 
     The previous state of each timeseries of ``new_da`` is taken from the first entry of
-    ``previous`` which contains it. The processing information of the timeseries is:
+    ``previous`` which contains it. The processing information of a data point is:
 
-    * the previous processing information, if the timeseries is unchanged.
-    * a new processing step, if the timeseries was changed or did not exist before. Its
-      parents are the previous processing information, if available, and the values of
-      ``parents`` for the timeseries. Its times are the changed time points.
+    * the previous step, if the value is unchanged.
+    * None, if the value was changed to a missing value.
+    * a new step otherwise. Its parents are the previous step, unless ``replaces``, and
+      the values of ``parents`` for the data point.
 
-    Timeseries which did not exist before and contain no data have no processing
-    information. Previous timeseries without data and without processing information
-    count as not existing.
+    All new steps of a timeseries share one description. Timeseries which did not exist
+    before and contain no data have no processing information. Previous timeseries
+    without data and without processing information count as not existing.
 
     Parameters
     ----------
@@ -618,9 +647,12 @@ def record_step(
         Pairs of data before the processing step and its processing information. The data
         may lack dimensions of ``new_da``, it is broadcast along them.
     parents
-        Additional parents of the new steps, as processing information or as tuples of
-        processing information like returned by combine_histories. They may lack
-        dimensions or timeseries of ``new_da``.
+        Additional parents of the new steps. Each value is a step, None, or a tuple of
+        steps like returned by combine_histories, which can be steps of other time
+        points. They may lack dimensions (also "time") or coordinates of ``new_da``.
+    replaces
+        If True, the changed values replace the previous values instead of being
+        computed from them, so the previous steps are not parents of the new steps.
     function
         The name of the function which did the processing.
     description
@@ -632,7 +664,7 @@ def record_step(
     Returns
     -------
     : xr.DataArray
-        The processing information of ``new_da``. The new steps record the name of
+        The processing information of ``new_da``. The new descriptions record the name of
         ``new_da`` as their variable and the coordinates of their timeseries.
 
     Raises
@@ -640,47 +672,233 @@ def record_step(
     ValueError
         If processing information doesn't match the data it describes.
     """
-    template = _described(new_da)
-    dims = template.dims
+    dims, template = _layout(new_da)
+    ts_template = _described(template)
     shape = template.shape
+    n_times = shape[-1]
 
-    found = np.zeros(shape, dtype=bool)
-    result = np.full(shape, None, dtype=object)
-    # without a previous state, all time points with data are changed
-    changed = new_da.notnull().transpose(*dims, "time").values
+    found = np.zeros(ts_template.shape, dtype=bool)
+    nodes = np.full(shape, None, dtype=object)
+    has_value = template.notnull().values
+    # without a previous state, all data points with data are changed
+    changed = has_value.copy()
     for data, processing_infos in previous:
-        previous_infos = _processing_infos_on_template(data, processing_infos, template)
-        has_data = _on_template(data.notnull().any("time"), template, fill_value=False)
+        previous_nodes = _processing_infos_on_template(data, processing_infos, template)
+        has_data = _on_template(data.notnull().any("time"), ts_template, fill_value=False)
+        has_node = (~pd.isnull(previous_nodes)).any(axis=-1)
         # timeseries without data and processing information, e.g. added as padding when
         # aligning, carry no information
-        exists = _exists(data, template) & ~found & (has_data | ~pd.isnull(previous_infos))
-        result[exists] = previous_infos[exists]
+        exists = _exists(data, ts_template) & ~found & (has_data | has_node)
+        nodes[exists] = previous_nodes[exists]
         reindexed = data.reindex({x: new_da[x] for x in data.dims}, copy=False)
-        changed[exists] = _changed_values(reindexed, new_da).transpose(*dims, "time").values[exists]
+        changed[exists] = (
+            _changed_values(reindexed, template).transpose(*dims, "time").values[exists]
+        )
         found |= exists
-    result[pd.isnull(result)] = None
-    parent_values = [_on_template(x, template, fill_value=None) for x in parents]
+    changed_missing = changed & ~has_value
+    nodes[changed_missing] = None
+    changed &= has_value
 
-    times = new_da["time"].values
-    for flat_index in np.flatnonzero(changed.any(axis=-1)):
-        index = np.unravel_index(flat_index, shape)
-        step_parents = [] if result[index] is None else [result[index]]
-        for value in parent_values:
-            if isinstance(value[index], tuple):
-                step_parents.extend(value[index])
-            elif not pd.isnull(value[index]):
-                step_parents.append(value[index])
-        result[index] = ProcessingStepDescription(
-            time=times[changed[index]],
+    flat_nodes = nodes.reshape(-1, n_times)
+    _create_nodes(
+        flat_nodes,
+        changed.reshape(-1, n_times),
+        [_nodes_on_template(x, template).reshape(-1, n_times) for x in parents],
+        describe=lambda coords: ProcessingStepDescription(
             function=function,
             description=description,
             source=source,
             variable=new_da.name,
-            coords=_index_coordinates(template, index),
-            parents=_unique(step_parents),
+            coords=coords,
+        ),
+        dims=dims,
+        coord_lists=_coordinate_lists(template, dims),
+        shape=shape[:-1],
+        times=template["time"].values,
+        replaces=replaces,
+    )
+    layout = [*dims, "time"]
+    return _new_processing_infos(
+        new_da,
+        np.ascontiguousarray(nodes.transpose([layout.index(d) for d in new_da.dims])),
+    )
+
+
+# Storage format of processing information in netCDF files, see encode_processing_info.
+PROCESSING_INFO_FORMAT = 2
+FORMAT_ATTR = "processing_info_format"
+_STEP = "processing step "
+_NODE = "processing node "
+_PARENT = "processing parent "
+
+
+def _json_default(obj: typing.Any) -> typing.Any:
+    if isinstance(obj, np.generic):
+        return obj.item()
+    raise TypeError(f"Can not store {obj!r} as a coordinate of processing information.")
+
+
+def _is_table_variable(name: typing.Hashable) -> bool:
+    return isinstance(name, str) and name.startswith((_STEP, _NODE, _PARENT))
+
+
+def _collect_nodes(
+    values: typing.Iterable[np.ndarray],
+) -> tuple[list[ProcessingStep], array.array, array.array]:
+    """All nodes reachable from the arrays of nodes, parents first, and the parent table."""
+    index: dict[int, int] = {}
+    nodes: list[ProcessingStep] = []
+    counts = array.array("q")
+    parents = array.array("q")
+    for array_ in values:
+        for root in array_.ravel().tolist():
+            if root is None or id(root) in index:
+                continue
+            # depth-first search without recursion, see ProcessingStep.history
+            stack = [(root, False)]
+            while stack:
+                node, expanded = stack.pop()
+                if expanded:
+                    index[id(node)] = len(nodes)
+                    nodes.append(node)
+                    counts.append(len(node.parents))
+                    parents.extend(index[id(p)] for p in node.parents)
+                    continue
+                if id(node) in index:
+                    continue
+                stack.append((node, True))
+                stack.extend((p, False) for p in node.parents if id(p) not in index)
+    return nodes, counts, parents
+
+
+def encode_processing_info(ds: xr.Dataset) -> xr.Dataset:
+    """Replace the processing steps in the dataset by tables of steps for writing to a file.
+
+    The processing variables hold the index of the step of each data point in the table
+    of steps, or -1. Steps reachable from several data points, also of different
+    variables, are only stored once, steps not reachable from any data point are not
+    stored. The dataset is not modified.
+    """
+    names = [name for name in ds.data_vars if is_processing_variable(name)]
+    if not names:
+        return ds
+    values = {name: _nodes_or_none(ds[name].values) for name in names}
+    nodes, counts, parents = _collect_nodes(values.values())
+    node_index = {id(node): i for i, node in enumerate(nodes)}
+
+    descriptions: dict[int, ProcessingStepDescription] = {}
+    for node in nodes:
+        descriptions.setdefault(id(node.description), node.description)
+    description_list = list(descriptions.values())
+    description_index = {id(d): i for i, d in enumerate(description_list)}
+
+    result = ds.copy()
+    for name in names:
+        flat = values[name].ravel().tolist()
+        indices = np.fromiter(
+            (-1 if x is None else node_index[id(x)] for x in flat),
+            dtype=np.int64,
+            count=len(flat),
+        )
+        result[name] = ds[name].copy(data=indices.reshape(ds[name].shape))
+
+    def optional(attribute: str) -> list[str]:
+        return [getattr(d, attribute) or "" for d in description_list]
+
+    def null(attribute: str) -> np.ndarray:
+        return np.array([getattr(d, attribute) is None for d in description_list], dtype=np.int8)
+
+    step_dim = "processing step"
+    node_dim = "processing node"
+    parent_dim = "processing parent"
+    tables = {
+        _STEP + "id": (step_dim, [d.id.hex for d in description_list]),
+        _STEP + "function": (step_dim, [d.function for d in description_list]),
+        _STEP + "description": (step_dim, [d.description for d in description_list]),
+        _STEP + "source": (step_dim, optional("source")),
+        _STEP + "source is null": (step_dim, null("source")),
+        _STEP + "variable": (step_dim, optional("variable")),
+        _STEP + "variable is null": (step_dim, null("variable")),
+        _STEP + "coords": (
+            step_dim,
+            [json.dumps(d.coords, default=_json_default) for d in description_list],
+        ),
+        _NODE + "step": (node_dim, [description_index[id(n.description)] for n in nodes]),
+        _NODE + "time": (node_dim, np.array([n.time for n in nodes], dtype="datetime64[ns]")),
+        _NODE + "parents": (node_dim, np.frombuffer(counts, dtype=np.int64)),
+        _PARENT + "node": (parent_dim, np.frombuffer(parents, dtype=np.int64)),
+    }
+    for name, (dim, data) in tables.items():
+        data = np.asarray(data)
+        if data.dtype.kind == "U" and data.size == 0:
+            data = data.astype("<U1")
+        result[name] = xr.DataArray(data, dims=[dim])
+    result.attrs[FORMAT_ATTR] = PROCESSING_INFO_FORMAT
+    return result
+
+
+def decode_processing_info(ds: xr.Dataset) -> xr.Dataset:
+    """Rebuild processing steps from the tables written by encode_processing_info and
+    remove the tables.
+
+    Raises
+    ------
+    ValueError
+        If the dataset has processing variables in an unsupported format.
+    """
+    names = [name for name in ds.data_vars if is_processing_variable(name)]
+    version = ds.attrs.get(FORMAT_ATTR)
+    if not names:
+        return ds
+    if version != PROCESSING_INFO_FORMAT or any(ds[name].dtype.kind != "i" for name in names):
+        raise ValueError(
+            f"The file contains processing information in an unsupported format (version "
+            f"{version!r}, supported: {PROCESSING_INFO_FORMAT}). Files with processing "
+            f"information written by earlier development versions can not be read."
         )
 
-    return _new_processing_infos(new_da, result)
+    def column(name: str) -> np.ndarray:
+        return ds[_STEP + name].values
+
+    ids, functions, texts = column("id"), column("function"), column("description")
+    sources, variables, coords = column("source"), column("variable"), column("coords")
+    source_null, variable_null = column("source is null"), column("variable is null")
+    descriptions = [
+        ProcessingStepDescription(
+            id=uuid.UUID(ids[i]),
+            function=str(functions[i]),
+            description=str(texts[i]),
+            source=None if source_null[i] else str(sources[i]),
+            variable=None if variable_null[i] else str(variables[i]),
+            coords=json.loads(coords[i]),
+        )
+        for i in range(len(ids))
+    ]
+
+    node_steps = ds[_NODE + "step"].values.tolist()
+    node_times = list(ds[_NODE + "time"].values)
+    counts = ds[_NODE + "parents"].values.tolist()
+    parents = ds[_PARENT + "node"].values.tolist()
+    nodes: list[ProcessingStep] = []
+    position = 0
+    for step, time, count in zip(node_steps, node_times, counts, strict=True):
+        if count:
+            node_parents = tuple(map(nodes.__getitem__, parents[position : position + count]))
+            position += count
+        else:
+            node_parents = ()
+        nodes.append(ProcessingStep(descriptions[step], time, node_parents))
+
+    node_array = np.empty(len(nodes) + 1, dtype=object)
+    node_array[:-1] = nodes
+    result = ds
+    for name in names:
+        # index -1 selects the last element, which is None
+        restored = node_array[ds[name].values]
+        result = result.assign({name: ds[name].copy(data=restored)})
+    result = result.drop_vars([n for n in result.variables if _is_table_variable(n)])
+    del result.attrs[FORMAT_ATTR]
+    return result
 
 
 class DataArrayProcessingInfoAccessor(BaseDataArrayAccessor):
@@ -1002,132 +1220,7 @@ def records_processing_step(
     return decorator
 
 
-# levels of source usage in used_sources, chosen so that combining is taking the maximum
-_USED_AT_OTHER_TIMES = 1
-_USED_AT_SAME_TIME = 2
-
-# per step and label: bit masks over the time axis of the data used at the same time
-# point and of the data used only at other time points
-_Usage = dict[typing.Hashable, tuple[int, int]]
-
-
-def _is_previous_state(step: ProcessingStepDescription, parent: ProcessingStepDescription) -> bool:
-    """True if ``parent`` is the state of the timeseries of ``step`` before the step."""
-    if step.coords is None or parent.coords is None:
-        # without coordinates, rely on the convention to list the previous state first
-        return True
-    return parent.variable == step.variable and all(
-        dim in step.coords and step.coords[dim] == value for dim, value in parent.coords.items()
-    )
-
-
-def _step_usage(
-    step: ProcessingStepDescription, parent_usages: list[_Usage], changed: int
-) -> _Usage:
-    if not step.parents:
-        if step.source is None:
-            raise ValueError(f"The processing step {step} created data, but has no source.")
-        return {step.source: (changed, 0)} if changed else {}
-    usage: _Usage = {}
-
-    def add(key: typing.Hashable, same: int, other: int) -> None:
-        old_same, old_other = usage.get(key, (0, 0))
-        usage[key] = (old_same | same, old_other | other)
-
-    if _is_previous_state(step, step.parents[0]):
-        for key, (same, other) in parent_usages[0].items():
-            if (same | other) & ~changed:
-                add(key, same & ~changed, other & ~changed)
-    covered = 0
-    for parent_usage in parent_usages:
-        for key, (same, other) in parent_usage.items():
-            if (same | other) & changed:
-                add(key, same & changed, other & changed)
-                covered |= (same | other) & changed
-    # values not derived from any parent at the same time point come from the step's own
-    # source, or were derived from other time points, e.g. by extrapolation
-    uncovered = changed & ~covered
-    if uncovered and step.source is not None:
-        add(step.source, uncovered, 0)
-    elif uncovered:
-        for parent_usage in parent_usages:
-            for key, (same, other) in parent_usage.items():
-                if same | other:
-                    add(key, 0, uncovered)
-    return usage
-
-
-def _bits_to_array(bits: int, length: int) -> np.ndarray:
-    as_bytes = np.frombuffer(bits.to_bytes((length + 7) // 8, "little"), dtype=np.uint8)
-    return np.unpackbits(as_bytes, bitorder="little")[:length].astype(bool)
-
-
 def used_sources(ds: xr.Dataset, dim: str = "used source") -> xr.Dataset:
     """Which sources were used for each data point, determined from the processing
     information. See :py:meth:`xarray.Dataset.pr.used_sources`."""
-    if not has_processing_info(ds):
-        raise ValueError("The dataset has no processing information.")
-    ensure_complete_processing_info(ds)
-
-    times = ds["time"].values
-    position = {t: i for i, t in enumerate(times.astype(np.int64))}
-    changed_cache: dict[tuple[TimeRange, ...], int] = {}
-
-    def changed_bits(step: ProcessingStepDescription) -> int:
-        if step.time not in changed_cache:
-            points = step.time_points().astype(times.dtype).astype(np.int64)
-            changed_cache[step.time] = sum(1 << position[t] for t in points if t in position)
-        return changed_cache[step.time]
-
-    usages: dict[int, _Usage] = {}
-
-    def usage_of(last_step: ProcessingStepDescription) -> _Usage:
-        # depth-first search without recursion, see ProcessingStepDescription.history
-        stack = [(last_step, False)]
-        while stack:
-            step, expanded = stack.pop()
-            if id(step) in usages:
-                continue
-            if expanded:
-                usages[id(step)] = _step_usage(
-                    step, [usages[id(p)] for p in step.parents], changed_bits(step)
-                )
-                continue
-            stack.append((step, True))
-            stack.extend((p, False) for p in step.parents if id(p) not in usages)
-        return usages[id(last_step)]
-
-    variables = [var for var in ds.data_vars if not is_processing_variable(var)]
-    cell_usages = {}
-    keys: set[typing.Hashable] = set()
-    for var in variables:
-        processing = ds[processing_variable_name(var)]
-        cell_usages[var] = [
-            None if step is None else usage_of(step) for step in processing.values.flat
-        ]
-        keys.update(key for usage in cell_usages[var] if usage for key in usage)
-    keys_sorted = sorted(keys, key=str)
-    key_index = {key: i for i, key in enumerate(keys_sorted)}
-
-    result = xr.Dataset(attrs=ds.attrs)
-    for var in variables:
-        processing = ds[processing_variable_name(var)]
-        levels = np.zeros((processing.size, len(times), len(keys_sorted)), dtype=np.int8)
-        for cell, usage in enumerate(cell_usages[var]):
-            for key, (same, other) in (usage or {}).items():
-                column = levels[cell, :, key_index[key]]
-                column[_bits_to_array(other, len(times))] = _USED_AT_OTHER_TIMES
-                column[_bits_to_array(same, len(times))] = _USED_AT_SAME_TIME
-        levels = levels.reshape((*processing.shape, len(times), len(keys_sorted)))
-        # data points without data used no sources
-        levels *= ds[var].notnull().transpose(*processing.dims, "time").values[..., np.newaxis]
-        da = xr.DataArray(
-            levels,
-            dims=(*processing.dims, "time", dim),
-            coords={**processing.coords, "time": ds["time"], dim: keys_sorted},
-        )
-        result[var] = da.transpose(*ds[var].dims, dim).assign_attrs(
-            flag_values=[0, _USED_AT_OTHER_TIMES, _USED_AT_SAME_TIME],
-            flag_meanings="not_used used_at_other_time_points used_at_this_time_point",
-        )
-    return result
+    raise NotImplementedError("being reworked")

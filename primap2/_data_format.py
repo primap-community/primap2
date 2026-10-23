@@ -5,7 +5,6 @@ import warnings
 from collections.abc import Hashable, Iterable, Mapping
 from typing import IO
 
-import numpy as np
 import pandas as pd
 import pint
 import xarray as xr
@@ -13,10 +12,10 @@ from loguru import logger
 
 from . import _accessor_base, pm2io
 from ._processing_info import (
-    ProcessingStepDescription,
     ProcessingStepRecorder,
-    _described,
     _dims_repr,
+    decode_processing_info,
+    encode_processing_info,
     ensure_complete_processing_info,
     ensure_no_processing_info,
     is_processing_variable,
@@ -92,12 +91,7 @@ def open_dataset(
         del ds.attrs["sec_cats"]
     if "publication_date" in ds.attrs:
         ds.attrs["publication_date"] = datetime.date.fromisoformat(ds.attrs["publication_date"])
-    for entity in ds:
-        if is_processing_variable(entity):
-            ds[entity].data = np.vectorize(ProcessingStepDescription.deserialize, otypes=[object])(
-                ds[entity].data
-            )
-    return ds
+    return decode_processing_info(ds)
 
 
 class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
@@ -259,7 +253,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             will be dropped and the encoding specified will be applied. If you don't specify
             encoding, a default will be defined.
         """
-        ds = self._ds.pint.dequantify()
+        ds = encode_processing_info(self._ds.pint.dequantify())
 
         if encoding is None:
             # use the zlib compression algorithm and compression level 9,
@@ -270,11 +264,6 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
 
         if "publication_date" in ds.attrs:
             ds.attrs["publication_date"] = ds.attrs["publication_date"].isoformat()
-        for entity in ds:
-            if is_processing_variable(entity) and ds[entity].data.dtype == object:
-                ds[entity].data = np.vectorize(ProcessingStepDescription.serialize_optional)(
-                    ds[entity].data
-                )
 
         ds = ds.drop_encoding()
         return ds.to_netcdf(
@@ -315,7 +304,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         : xr.Dataset
             A dataset with the attributes of this dataset, which contains for every data
             variable with processing information a variable of the same name holding the
-            last processing step of each of its timeseries.
+            last processing step of each of its data points.
 
         See Also
         --------
@@ -370,7 +359,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
                     f"Processing information is given for {var!r}, which is not a data "
                     f"variable of the dataset."
                 )
-            described = _described(self._ds[var])
+            described = self._ds[var]
             if set(da.dims) != set(described.dims):
                 raise ValueError(
                     f"The processing information of {var!r} has the dimensions "
@@ -489,7 +478,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
     ) -> xr.Dataset:
         """Add processing information to a dataset without processing information.
 
-        Every timeseries with data gets a processing step without parents which describes
+        Every data point with data gets a processing step without parents which describes
         its creation, e.g. reading the data from its source.
 
         Parameters
@@ -717,9 +706,9 @@ def ensure_processing_variable_name(name: str, da: xr.DataArray) -> None:
 
 
 def ensure_complete_processing_information(ds: xr.Dataset) -> None:
-    """Ensure that a dataset with processing information has it for every timeseries.
+    """Ensure that a dataset with processing information has it for every data point.
 
-    Processing information may only be missing for timeseries without any data.
+    A data point has processing information if and only if it has data.
     """
     try:
         ensure_complete_processing_info(ds)
@@ -729,11 +718,10 @@ def ensure_complete_processing_information(ds: xr.Dataset) -> None:
 
 
 def ensure_processing_variable_dimensions(ds: xr.Dataset, name: str, da: xr.DataArray) -> None:
-    """Ensure processing information describes exactly the timeseries of its variable.
+    """Ensure processing information describes exactly the data points of its variable.
 
     The described variable has to be contained in the dataset and the processing
-    information has to have the same dimensions as the described variable, with the
-    exception of the "time" dimension, which it must not have.
+    information has to have the same dimensions as the described variable.
     """
     described_variable = da.attrs["described_variable"]
     if described_variable not in ds:
@@ -743,12 +731,12 @@ def ensure_processing_variable_dimensions(ds: xr.Dataset, name: str, da: xr.Data
         )
         raise ValueError(f"described_variable {described_variable!r} not in dataset for {name!r}")
 
-    described_dims = {dim for dim in ds[described_variable].dims if dim != "time"}
+    described_dims = set(ds[described_variable].dims)
     if described_dims != set(da.dims):
         logger.error(
             f"{name!r} has dimensions {sorted(str(dim) for dim in da.dims)!r}, but the "
             f"described variable {described_variable!r} has dimensions "
-            f"{sorted(str(dim) for dim in described_dims)!r} apart from 'time'."
+            f"{sorted(str(dim) for dim in described_dims)!r}."
         )
         raise ValueError(
             f"dimensions of {name!r} inconsistent with described_variable {described_variable!r}"
@@ -851,16 +839,11 @@ def ensure_valid_dimensions(ds: xr.Dataset):
             raise ValueError(f"{req_dim!r} not in dims")
 
         for var in ds:
-            if is_processing_variable(var) and req_dim == "time":
-                if req_dim in ds[var].dims:
-                    logger.error(f"{var!r} is a metadata variable, but 'time' is a dimension.")
-                    raise ValueError(f"{var!r} contains metadata, but carries 'time' dimension")
-            else:
-                if req_dim not in ds[var].dims:
-                    logger.error(
-                        f"{req_dim!r} not found in dims for variable {var!r}, but is required."
-                    )
-                    raise ValueError(f"{req_dim!r} not in dims for variable {var!r}")
+            if req_dim not in ds[var].dims:
+                logger.error(
+                    f"{req_dim!r} not found in dims for variable {var!r}, but is required."
+                )
+                raise ValueError(f"{req_dim!r} not in dims for variable {var!r}")
 
     required_indirect_dims_long = []
     for req_dim in required_indirect_dims:
