@@ -11,7 +11,7 @@ import primap2
 from primap2._processing_info import is_processing_variable
 from primap2._selection import translations_from_dims
 
-from .utils import assert_ds_aligned_equal
+from .utils import assert_ds_aligned_equal, assert_ds_identical, assert_steps_equal
 
 
 class TestToNetCDF:
@@ -23,8 +23,8 @@ class TestToNetCDF:
         nds = primap2.open_dataset(tmp_path / "temp.nc")
         nds.pr.ensure_valid()
         assert not caplog.records
-        xr.testing.assert_identical(ds, nds)
-        assert_ds_aligned_equal(ds, nds)
+        assert_ds_identical(ds, nds)
+        assert_ds_aligned_equal(ds.pr.without_processing_info(), nds.pr.without_processing_info())
         assert attrs_before == ds.attrs
         assert attrs_before == nds.attrs
 
@@ -71,9 +71,7 @@ class TestToNetCDF:
         assert processing.pr.loc[{"area": ["ARG", "MEX", "BOL"]}].isnull().all()
         assert processing.pr.loc[{"area": ["COL"]}].notnull().all()
         assert ds["Processing of CO2"].pr.loc[{"area": ["ARG"]}].isnull().all()
-        xr.testing.assert_identical(
-            ds.drop_vars("Processing of CO2"), nds.drop_vars("Processing of CO2")
-        )
+        assert_ds_identical(ds.drop_vars("Processing of CO2"), nds.drop_vars("Processing of CO2"))
 
     def test_processing_info_all_missing(self, opulent_processing_ds: xr.Dataset, tmp_path):
         """A variable without any processing info at all must round-trip as well."""
@@ -85,7 +83,7 @@ class TestToNetCDF:
         nds = primap2.open_dataset(tmp_path / "temp.nc")
         assert nds["Processing of CO2"].isnull().all()
         assert nds["Processing of CO2"].dtype == object
-        xr.testing.assert_identical(ds, nds)
+        assert_ds_identical(ds, nds)
 
     def test_processing_info_history(self, opulent_processing_ds: xr.Dataset, tmp_path):
         """Processing steps with parents must round-trip, including shared ancestors."""
@@ -111,8 +109,7 @@ class TestToNetCDF:
         ]
         nfilled, ncreated = summed.parents
         assert nfilled.parents[0] is ncreated
-        assert summed == ds["Processing of CO2"].values.flat[0]
-        assert summed.description.id == ds["Processing of CO2"].values.flat[0].description.id
+        assert_steps_equal(summed, ds["Processing of CO2"].values.flat[0])
 
 
 class TestEnsureValid:
