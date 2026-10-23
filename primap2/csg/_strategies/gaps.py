@@ -445,8 +445,9 @@ def fill_gap(
     factor: np.array
         Numpy array containing two floats, the scaling factor to use at the left side of the gap
         and the scaling factor to use at the right side of the gap. The data from fill_ts will be
-        multiplied with the factor before filling the gap in ts. If the factors differ, a linear
-        interpolation of the scaling factor between both values will be performed.
+        multiplied with the factor before filling the gap in ts. If the factors differ, the
+        factors are anchored at the known time points next to the gap (the one before
+        ``gap.left`` and the one after ``gap.right``) and linearly interpolated in time.
 
     Returns
     -----------
@@ -458,12 +459,10 @@ def fill_gap(
     if factor[0] == factor[1]:
         fill_gap_ts = gap_fill_ts * factor[0]
     else:
-        delta_t = gap.right - gap.left
-        if delta_t == 0:
-            # single point gap: no span to interpolate over, use the mean factor
-            weight = 0.5
-        else:
-            weight = (gap_fill_ts.coords["time"].data - gap.left) / delta_t
+        # the factors belong to the known points next to the gap
+        t_left = get_shifted_time_value(ts, original_value=gap.left, shift=-1)
+        t_right = get_shifted_time_value(ts, original_value=gap.right, shift=1)
+        weight = (gap_fill_ts.coords["time"].data - t_left) / (t_right - t_left)
         factor_ts = gap_fill_ts.copy()
         factor_ts.data = np.broadcast_to(
             factor[0] * (1 - weight) + factor[1] * weight, factor_ts.shape

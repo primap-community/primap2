@@ -63,7 +63,9 @@ def expected_ts(test_ts: xr.DataArray) -> xr.DataArray:
     expected_ts.pr.loc[{"time": pd.date_range("1952-01-01", "1955-01-01", freq="YS")}] = (
         np.linspace(7 / 3, 2, 4)
     )
-    factor_ts = np.linspace(1 / 3, 1, 6)
+    # factors 1/3 at the last known year 1966 and 1 at the first known year 1973,
+    # interpolated linearly: 1/3 + (2/3) * k / 7 for 1967 + k - 1, k = 1..6
+    factor_ts = 1 / 3 + (2 / 3) * np.arange(1, 7) / 7
     fill_ts_gap = np.linspace(35, 15, 6)
     expected_ts.pr.loc[{"time": pd.date_range("1967-01-01", "1972-01-01", freq="YS")}] = (
         factor_ts * fill_ts_gap

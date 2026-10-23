@@ -216,8 +216,9 @@ def test_localTrends_strategy():
         ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
     )
     expected_ts = ts.copy()
-    expected_ts[20] = 1
-    expected_ts[21] = 3
+    # factors 0.5 (1869) and 1.5 (1872), fill_ts = 2: factor 0.5 + k / 3 for k = 1, 2
+    expected_ts[20] = 2 * (0.5 + 1 / 3)
+    expected_ts[21] = 2 * (0.5 + 2 / 3)
     xr.testing.assert_allclose(expected_ts, result_ts)
     window = np.concatenate([years(1860, 1869), years(1872, 1881)])
     assert len(result_descriptions) == 1
