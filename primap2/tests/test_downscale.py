@@ -576,3 +576,85 @@ def test_with_realistic_dataset(caplog):
         .to_numpy()
         == (2.8372828 / 6.187519093) * 6190.0
     )
+
+
+def _step(ds: xr.Dataset, var: str, area: str) -> primap2.ProcessingStepDescription:
+    return ds[f"Processing of {var}"].pr.loc[{"area": area}].item()
+
+
+COUNTRIES = ["COL", "ARG", "MEX", "BOL"]
+
+
+def test_downscale_timeseries_processing_info(basket_processing_ds):
+    ds = basket_processing_ds
+
+    downscaled = ds.pr.downscale_timeseries(
+        dim="area (ISO3)", basket="CAMB", basket_contents=COUNTRIES
+    )
+
+    col = _step(downscaled, "CO2", "COL")
+    assert col.function == "downscale_timeseries"
+    assert col.time == (primap2.TimeRange("2001", "2003"),)
+    # the own history, the basket, and all other basket contents, which determine the shares
+    assert col.parents == tuple(_step(ds, "CO2", x) for x in ["COL", "CAMB", "ARG", "MEX", "BOL"])
+    # the basket is unchanged
+    assert _step(downscaled, "CO2", "CAMB") == _step(ds, "CO2", "CAMB")
+    # variables which are completely known are unchanged
+    basket = "KYOTOGHG (AR4GWP100)"
+    assert _step(downscaled, basket, "COL") == _step(ds, basket, "COL")
+
+
+def test_downscale_gas_timeseries_processing_info(basket_processing_ds):
+    ds = basket_processing_ds
+    basket = "KYOTOGHG (AR4GWP100)"
+
+    downscaled = ds.pr.downscale_gas_timeseries(
+        basket=basket, basket_contents=["CO2", "SF6", "CH4"]
+    )
+
+    co2 = _step(downscaled, "CO2", "COL")
+    assert co2.function == "downscale_gas_timeseries"
+    assert co2.time == (primap2.TimeRange("2001", "2003"),)
+    assert co2.parents == tuple(_step(ds, var, "COL") for var in ["CO2", basket, "SF6", "CH4"])
+    assert _step(downscaled, basket, "COL") == _step(ds, basket, "COL")
+    # timeseries which are completely known are unchanged
+    assert _step(downscaled, "CO2", "CAMB") == _step(ds, "CO2", "CAMB")
+
+
+def test_downscale_timeseries_by_shares_processing_info(basket_processing_ds):
+    reference = basket_processing_ds[["CO2", "Processing of CO2"]]
+    ds = reference.pr.loc[{"area": ["CAMB"]}]
+
+    downscaled = ds.pr.downscale_timeseries_by_shares(
+        dim="area (ISO3)",
+        basket="CAMB",
+        basket_contents=COUNTRIES,
+        basket_contents_shares=reference,
+    )
+
+    col = _step(downscaled, "CO2", "COL")
+    assert col.function == "downscale_timeseries_by_shares"
+    # the basket and the shares of all basket contents
+    assert col.parents == (
+        _step(ds, "CO2", "CAMB"),
+        *(_step(reference, "CO2", x) for x in COUNTRIES),
+    )
+
+
+def test_downscale_timeseries_by_shares_without_processing_info(basket_processing_ds):
+    """Shares without processing information can't be used with processing information."""
+    reference = basket_processing_ds[["CO2", "Processing of CO2"]]
+    ds = reference.pr.loc[{"area": ["CAMB"]}]
+
+    without_processing_info = reference.pr.without_processing_info()
+    for shares, error, match in (
+        (without_processing_info, ValueError, "the data it is combined with has none"),
+        (reference["CO2"], TypeError, "with_creation_step"),
+    ):
+        with pytest.raises(error, match=match):
+            ds.pr.downscale_timeseries_by_shares(
+                dim="area (ISO3)",
+                basket="CAMB",
+                basket_contents=COUNTRIES,
+                basket_contents_shares=shares,
+            )

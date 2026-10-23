@@ -18,5 +18,6 @@ merge
 skipna
 downscaling
 gas_baskets
+processing_info
 csg
 ```

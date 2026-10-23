@@ -5,6 +5,7 @@ import pandas as pd
 import xarray as xr
 
 from . import _accessor_base
+from ._processing_info import records_processing_step
 from ._selection import alias_dims
 
 
@@ -368,6 +369,12 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         return da.pr.set(dim=dim, key=key, value=value[da.name], existing=existing, new=new)
 
     @alias_dims(["dim"])
+    @records_processing_step(
+        "self",
+        other="value",
+        function="set",
+        description="set values for {dim}={key!r}",
+    )
     def set(
         self,
         dim: typing.Hashable,
@@ -573,12 +580,6 @@ class DatasetSettersAccessor(_accessor_base.BaseDatasetAccessor):
         """
         if not isinstance(value, xr.Dataset):
             raise TypeError(f"value must be a Dataset, not {type(value)}")
-
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
 
         return self._ds.map(
             self._set_apply,

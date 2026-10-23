@@ -5,6 +5,8 @@ import pandas as pd
 import tqdm
 import xarray as xr
 
+from primap2._processing_info import processing_variable_name
+
 from ._compose import compose
 from ._models import PriorityDefinition, StrategyDefinition
 
@@ -113,7 +115,13 @@ def create_composite_source(
     if limit_coords is not None:
         if "variable" in limit_coords:
             variable = limit_coords.pop("variable")
-            input_ds = input_ds[variable].pr.loc[limit_coords]
+            variables = [variable] if isinstance(variable, str) else list(variable)
+            variables += [
+                processing_variable_name(var)
+                for var in variables
+                if processing_variable_name(var) in input_ds
+            ]
+            input_ds = input_ds[variables].pr.loc[limit_coords]
         else:
             input_ds = input_ds.pr.loc[limit_coords]
 

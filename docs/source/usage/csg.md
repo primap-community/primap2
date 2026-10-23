@@ -132,9 +132,12 @@ result_ds = primap2.csg.compose(
 result_ds
 ```
 
-In the result, you can see that the priority dimensions have been removed, and there are
-new data variables "Processing of $entity" added which contain detailed information for
-each timeseries how it was derived.
+In the result, you can see that the priority dimensions have been removed, and that
+processing information was added which describes for each timeseries how it was derived.
+If the input data has processing information, the histories of the input timeseries
+are the parents of the composed timeseries, otherwise their history starts with the
+composition. Use {py:meth}`xarray.Dataset.pr.processing_info` to select it, see
+[processing information](processing_info.md).
 
 ```{code-cell}
 sel = {
@@ -149,13 +152,13 @@ result_ds["CH4"].pr.loc[sel]
 
 ```{code-cell}
 del sel["time"]
-result_ds["Processing of CH4"].pr.loc[sel]
+processing = result_ds.pr.processing_info()["CH4"].pr.loc[sel]
+processing
 ```
 
 ```{code-cell}
-for tpd in result_ds["Processing of CH4"].pr.loc[sel]:
-    print(f"category={tpd['category (IPCC 2006)'].item()}")
-    print(str(tpd.item()))
+for step in processing.values.flat:
+    print(step.format_history())
     print()
 ```
 

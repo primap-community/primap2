@@ -4,6 +4,7 @@ import pathlib
 import re
 
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 
@@ -65,6 +66,53 @@ def test_fill_all_na():
     dsf = ds.pr.fill_all_na(dim="b", value=0)
     assert np.allclose(dsf["1"], a_expected, equal_nan=True)
     assert np.allclose(dsf["2"], a_expected, equal_nan=True)
+
+
+def test_fill_all_na_processing_info():
+    time = pd.date_range("2000-01-01", "2002-01-01", freq="YS")
+    area = ["COL", "ARG"]
+    creation_step = primap2.ProcessingStepDescription(
+        time=time.values, function="random", description="Values created randomly."
+    )
+    ds = xr.Dataset(
+        {
+            "CO2": xr.DataArray(
+                data=[[np.nan, np.nan, np.nan], [np.nan, 1.0, 2.0]],
+                dims=["area (ISO3)", "time"],
+                coords={"area (ISO3)": area, "time": time},
+                attrs={"entity": "CO2", "units": "Gg CO2 / year"},
+            ),
+            "Processing of CO2": xr.DataArray(
+                data=np.array(
+                    [creation_step] * 2,
+                    dtype=object,
+                ),
+                dims=["area (ISO3)"],
+                coords={"area (ISO3)": area},
+                attrs={"entity": "Processing of CO2", "described_variable": "CO2"},
+            ),
+        },
+        attrs={"area": "area (ISO3)"},
+    )
+
+    filled = ds.pr.fill_all_na(dim="time", value=0)
+
+    assert np.allclose(filled["CO2"], [[0, 0, 0], [np.nan, 1, 2]], equal_nan=True)
+
+    processing = filled["Processing of CO2"]
+    assert processing.attrs == ds["Processing of CO2"].attrs
+    # ARG is not filled because not all of its values are NA
+    assert processing.pr.loc[{"area": "ARG"}].item() == creation_step
+
+    step = processing.pr.loc[{"area": "COL"}].item()
+    assert step.parents == (creation_step,)
+    assert step.function == "fill_all_na"
+    assert "all values along 'time' were NA, filled with 0" in step.description
+    assert step.source is None
+    assert step.time == (primap2.TimeRange("2000", "2002"),)
+
+    # the input is not modified
+    assert ds["Processing of CO2"].pr.loc[{"area": "COL"}].item() == creation_step
 
 
 class TestSum:
@@ -263,7 +311,25 @@ def test_any(opulent_ds_or_da):
     )
 
 
+def test_any_processing_info(opulent_processing_ds):
+    xr.testing.assert_identical(
+        opulent_processing_ds.pr.any(dim="area"),
+        opulent_processing_ds.pr.without_processing_info().any(dim="area (ISO3)"),
+    )
+
+
 class TestCount:
+    def test_processing_info(self, opulent_processing_ds):
+        ds = opulent_processing_ds[["CO2", "SF6", "Processing of CO2", "Processing of SF6"]]
+        xr.testing.assert_identical(
+            ds.pr.count(dim="area"),
+            ds.pr.without_processing_info().count(dim="area (ISO3)", keep_attrs=True),
+        )
+        xr.testing.assert_identical(
+            ds.pr.count(dim=["entity", "area"]),
+            ds.pr.without_processing_info().pr.count(dim=["entity", "area"]),
+        )
+
     def test_inhomogeneous_entity(self, opulent_ds):
         with pytest.raises(NotImplementedError):
             opulent_ds.pr.count("entity")
@@ -813,3 +879,41 @@ class TestAddAggregatesCoordinates:
         )
 
         assert "All Countries" in test_ds.coords["area_name"]
+
+
+def test_add_aggregates_variables_processing_info(basket_processing_ds):
+    ds = basket_processing_ds
+    basket = "KYOTOGHG (AR4GWP100)"
+    # the basket is missing in 2002, where its contents are known for the region
+    ds[basket] = ds[basket].where(ds["time"] != np.datetime64("2002-01-01"))
+
+    def step(ds, var):
+        return ds[f"Processing of {var}"].pr.loc[{"area": "CAMB"}].item()
+
+    result = ds.pr.add_aggregates_variables(
+        gas_baskets={
+            basket: ["CO2", "SF6", "CH4"],
+            "FGASES (AR4GWP100)": ["SF6"],
+            "TEST (AR4GWP100)": ["CO2", "FGASES (AR4GWP100)"],
+        }
+    )
+
+    # the existing basket is filled
+    filled = step(result, basket)
+    assert filled.function == "add_aggregates_variables"
+    assert filled.time == (primap2.TimeRange("2002", "2002"),)
+    assert filled.parents == tuple(step(ds, var) for var in [basket, "CO2", "SF6", "CH4"])
+    # new baskets are created from their contents, also from baskets created before
+    fgases = step(result, "FGASES (AR4GWP100)")
+    assert fgases.parents == (step(ds, "SF6"),)
+    assert step(result, "TEST (AR4GWP100)").parents == (step(ds, "CO2"), fgases)
+
+
+@pytest.mark.parametrize(
+    "function", ["gas_basket_contents_sum", "fill_na_gas_basket_from_contents"]
+)
+def test_gas_basket_data_array_result_processing_info(basket_processing_ds, function):
+    with pytest.raises(NotImplementedError, match="add_aggregates_variables"):
+        getattr(basket_processing_ds.pr, function)(
+            basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2"]
+        )

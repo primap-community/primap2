@@ -193,7 +193,7 @@ def test_create_composite_source(caplog):
     assert not [record for record in caplog.records if record.levelno >= logging.WARNING]
 
     # remove processing info, the comparison data was created without it
-    result = result.pr.remove_processing_info()
+    result = result.pr.without_processing_info()
 
     # assert results
     # load comparison data
@@ -202,3 +202,23 @@ def test_create_composite_source(caplog):
     data_comp = primap2.open_dataset(file_to_load)
 
     assert_ds_aligned_equal(data_comp, result, equal_nan=True)
+
+
+def test_create_composite_source_processing_info(opulent_processing_ds):
+    result = create_composite_source(
+        opulent_processing_ds,
+        priority_definition=primap2.csg.PriorityDefinition(
+            priority_dimensions=["source", "scenario (FAOSTAT)"],
+            priorities=[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
+        ),
+        strategy_definition=primap2.csg.StrategyDefinition(
+            strategies=[({}, primap2.csg.SubstitutionStrategy())]
+        ),
+        result_prio_coords={"source": {"value": "composed"}},
+        limit_coords={"variable": "CO2", "category": ["0", "1"]},
+        progress_bar=None,
+    )
+
+    assert set(result.data_vars) == {"CO2", "Processing of CO2"}
+    input_step = opulent_processing_ds["Processing of CO2"].values.flat[0]
+    assert result["Processing of CO2"].values.flat[0].parents == (input_step,)
