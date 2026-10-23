@@ -235,27 +235,14 @@ Compared to the minimal example, this data set has a lot more to unpack:
 
 ## Processing information example
 
-Processing information describes the processing steps done to arrive at the dataset at hand, as `primap2.ProcessingStepDescription` objects.
-This example shows a dataset with detailed processing step information.
+Processing information describes the processing steps done to arrive at the dataset at hand, as `primap2.ProcessingStep` objects, one for each data point.
+This example starts a dataset with a creation step and then replaces some values using another source.
 
 ```{code-cell} ipython3
-# we don't actually do the processing, but add corresponding metadata as if we did
-
-time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
+time = pd.date_range("2000-01-01", "2004-01-01", freq="YS")
 area_iso3 = np.array(["COL", "ARG"])
 
-
-def invented(area: str) -> primap2.ProcessingStepDescription:
-    return primap2.ProcessingStepDescription(
-        time=primap2.TimeRange("2000", "2020"),
-        function="rand",
-        description="invented from thin air",
-        variable="CO2",
-        coords={"area (ISO3)": area, "source": "RAND2020"},
-    )
-
-
-with_processing = xr.Dataset(
+created = xr.Dataset(
     {
         "CO2": xr.DataArray(
             data=np.random.default_rng().random((len(time), len(area_iso3), 1)),
@@ -267,45 +254,44 @@ with_processing = xr.Dataset(
             dims=["time", "area (ISO3)", "source"],
             attrs={"units": "CO2 Gg / year", "entity": "CO2"},
         ),
-        "Processing of CO2": xr.DataArray(
-            data=np.array(
-                [
-                    [
-                        primap2.ProcessingStepDescription(
-                            time=np.array(["2000", "2001"], dtype=np.datetime64),
-                            function="replace",
-                            description="use other data which is also invented, but better",
-                            source="betterData2024",
-                            variable="CO2",
-                            coords={"area (ISO3)": "COL", "source": "RAND2020"},
-                            parents=(invented("COL"),),
-                        ),
-                        invented("ARG"),
-                    ]
-                ],
-                dtype=object,
-            ).T,
-            dims=["area (ISO3)", "source"],
-            attrs={"entity": "Processing of CO2", "described_variable": "CO2"},
-        ),
     },
     attrs={"area": "area (ISO3)"},
 ).pr.quantify()
+created = created.pr.with_creation_step(
+    function="rand", description="invented from thin air", source="RAND2020"
+)
+
+# replace the values of Colombia in 2000 and 2001
+with created.pr.processing_step(
+    function="replace",
+    description="use other data which is also invented, but better",
+    source="betterData2024",
+    replaces=True,
+) as step:
+    step.ds["CO2"].pr.loc[{"area": "COL", "time": slice("2000", "2001")}] = (
+        np.full((2, 1), 2.0) * primap2.ureg("Gg CO2 / year")
+    )
+with_processing = step.result
 
 with_processing
 ```
 
 Note that the processing information in the data variable "Processing of CO2" has the same dimensions as the
-described variable "CO2", with the exception of the "time". The time information is included in the rich
-metadata object itself. For each timeseries, only the last processing step is stored, which refers to
-the earlier steps as its parents:
+described variable "CO2", including "time". For each data point, only the last processing step is stored, which refers to
+the earlier steps as its parents. All data points of a timeseries which were set by the same
+operation share one `ProcessingStepDescription`:
 
 ```{code-cell} ipython3
-print("COL processing:")
-print(with_processing["Processing of CO2"].pr.loc[{"area": "COL"}].item().format_history())
+processing = with_processing.pr.processing_info()["CO2"]
+col = processing.pr.loc[{"area": "COL", "source": "RAND2020"}]
+print("COL processing in 2000:")
+print(col.pr.loc[{"time": "2000"}].item().format_history())
 print()
-print("ARG processing:")
-print(with_processing["Processing of CO2"].pr.loc[{"area": "ARG"}].item().format_history())
+print("COL processing in 2004:")
+print(col.pr.loc[{"time": "2004"}].item().format_history())
+print()
+print("COL processing, all time points:")
+print(primap2.format_timeseries_history(col))
 ```
 
 ## Limitations

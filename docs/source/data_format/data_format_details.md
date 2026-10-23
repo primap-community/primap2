@@ -136,12 +136,10 @@ data variables' names and `entity` attributes.
 In `entity_terminology`, the name of the used terminology is stored and the
 terminology is defined elsewhere.
 
-## Timeseries-Level Processing Information
+## Processing Information
 
-How each timeseries was derived can be recorded as processing information, which is
+How each data point was derived can be recorded as processing information, which is
 stored in special data variables, one for each normal data variable it describes.
-For each timeseries in the normal data variable, the last processing step is kept,
-which refers to the earlier processing steps.
 The name of these variables is `Processing of {var}` where `{var}` is the
 full name of the data variable which is described. Additionally, the following
 attributes are defined:
@@ -153,36 +151,82 @@ attributes are defined:
 
 The `gwp_context` and `units` attributes must not be given.
 
-`time` must not be a dimension of the array, all other dimensions must be the same
-as the data variable which is described.
-The data array contains processing information as rich metadata types.
-Therefore, the data type is `object` and it contains
-`primap2.ProcessingStepDescription` objects, each describing the last processing step
-done on the timeseries.
+The array has the same dimensions as the data variable which is described, including
+`time`.
+It contains processing information as rich metadata types.
+Therefore, the data type is `object` and it contains `primap2.ProcessingStep` objects,
+the nodes of the processing history. A data point has a node if and only if it has data,
+and the time of the node is the time of the data point. Data points without data are
+marked by a null value (`None` or NaN), which is read back as `None`.
 If a dataset contains processing information, every data variable needs processing
-information. It can only be missing for timeseries without any data, for example if a
-dataset uses different categories for different variables. Missing processing
-information is marked by a null value (`None` or NaN) and is read back as `None`.
-Each `ProcessingStepDescription` contains the following information:
+information.
 
-| attribute   | type                                 | description                                                                            |
-|-------------|--------------------------------------|----------------------------------------------------------------------------------------|
-| time        | tuple of `primap2.TimeRange`         | Time points affected by the operation                                                  |
-| function    | str                                  | Name of the function which did the operation                                           |
-| description | str                                  | Long-form description of the operation which was performed                             |
-| source      | str or `None`                        | If applicable, identifier for the data source which was used in the operation          |
-| variable    | str or `None`                        | The name of the data variable of the processed timeseries                              |
-| coords      | dict or `None`                       | The coordinates of the processed timeseries at the time of the operation, apart from "time" |
-| parents     | tuple of `ProcessingStepDescription` | The last processing steps of the timeseries which were the input of the operation      |
+Each `ProcessingStep` contains the following information:
 
-Operations which combine several timeseries, like sums, have several parents, so the
-processing history of a timeseries is a directed acyclic graph rather than a list.
-`ProcessingStepDescription.history()` returns all steps of the history in an order in
+| attribute   | type                                | description                                                                  |
+|-------------|-------------------------------------|------------------------------------------------------------------------------|
+| description | `ProcessingStepDescription`         | What the step did, shared by the nodes of a timeseries which the step set    |
+| time        | `numpy.datetime64`                  | The time point of the data point which the step set                          |
+| parents     | tuple of `ProcessingStep`           | The steps which set the values this value was computed from, empty for a step which created the value |
+
+The parents can be at other time points than the node, e.g. the data points which were
+used for a least-squares fit.
+A `ProcessingStepDescription` contains the following information:
+
+| attribute   | type          | description                                                                                 |
+|-------------|---------------|---------------------------------------------------------------------------------------------|
+| id          | `uuid.UUID`   | Identifier of the description, unique across datasets                                       |
+| function    | str           | Name of the function which did the operation                                                |
+| description | str           | Long-form description of the operation which was performed                                  |
+| source      | str or `None` | If applicable, identifier for the data source which was used in the operation               |
+| variable    | str or `None` | The name of the data variable of the processed timeseries                                   |
+| coords      | dict or `None`| The coordinates of the processed timeseries at the time of the operation, apart from "time" |
+
+Operations which combine several data points, like sums, have several parents, so the
+processing history of a data point is a directed acyclic graph rather than a list.
+Nodes are shared: the node of a data point can be a parent of the nodes of several
+other data points, also in other variables.
+`ProcessingStep.history()` returns all steps of the history in an order in
 which every step comes after its parents, and
-`ProcessingStepDescription.format_history()` shows them as a tree, starting with the
-last step.
+`ProcessingStep.format_history()` shows them as a tree, starting with the
+last step. `primap2.format_timeseries_history` shows the histories of all data points
+of a timeseries together.
 
-A `TimeRange` describes equally spaced time points with both ends included, e.g.
-`TimeRange("1970", "2015")` for every year from 1970 to 2015 or
-`TimeRange("1990", "2020", np.timedelta64(5, "Y"))` for every fifth year.
-Time points given as an array are converted to `TimeRange`s automatically.
+### Storage of processing information in netCDF files
+
+netCDF files can't hold Python objects, so `to_netcdf` writes the processing information
+as tables of integers and strings, which `open_dataset` converts back.
+The global attribute `processing_info_format` holds the version of the format, currently
+`2`. The tables are one-dimensional variables with their own dimension, and only the
+steps which are reachable from a data point are stored.
+
+* `Processing of {var}` has the same dimensions as `{var}` and holds, for each data
+  point, the index of its node in the table of nodes, or -1 if the data point has no
+  node.
+* Table of descriptions, dimension `processing step`, one entry per
+  `ProcessingStepDescription`:
+
+  | variable                           | content                                                       |
+  |------------------------------------|---------------------------------------------------------------|
+  | `processing step id`               | the `id` as 32 hexadecimal digits                             |
+  | `processing step function`         | `function`                                                    |
+  | `processing step description`      | `description`                                                 |
+  | `processing step source`           | `source`, empty for `None`                                    |
+  | `processing step source is null`   | 1 if `source` is `None`, else 0                               |
+  | `processing step variable`         | `variable`, empty for `None`                                  |
+  | `processing step variable is null` | 1 if `variable` is `None`, else 0                             |
+  | `processing step coords`           | `coords` as a JSON object                                     |
+
+* Table of nodes, dimension `processing node`, one entry per `ProcessingStep`. A node
+  comes after its parents.
+
+  | variable                 | content                                                         |
+  |--------------------------|-----------------------------------------------------------------|
+  | `processing node step`   | index of the node's description in the table of descriptions    |
+  | `processing node time`   | `time`                                                          |
+  | `processing node parents`| number of parents                                               |
+
+* Table of parents, dimension `processing parent`: `processing parent node` holds the
+  indices of the parents in the table of nodes. The parents of all nodes are stored one
+  after the other in the order of the nodes, as many for each node as given by its
+  `processing node parents`.

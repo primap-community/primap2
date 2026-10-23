@@ -10,6 +10,7 @@ Top-level API
     :toctree: generated/
 
     Not
+    ProcessingStep
     ProcessingStepDescription
     TimeRange
     accessors
@@ -64,6 +65,7 @@ source priorities and matching algorithms.
     csg.LocalTrendsStrategy
     csg.PriorityDefinition
     csg.StrategyDefinition
+    csg.StrategyStep
     csg.StrategyUnableToProcess
     csg.SubstitutionStrategy
     csg.compose
