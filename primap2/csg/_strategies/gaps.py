@@ -277,6 +277,44 @@ def calculate_boundary_trend(
     return np.array([left, right])
 
 
+def _trend_window(
+    ts: xr.DataArray,
+    side: typing.Literal["left", "right"],
+    boundary: np.datetime64,
+    fit_params: FitParameters,
+) -> tuple[np.datetime64, xr.DataArray]:
+    """The first (right) or last (left) point next to the gap and the part of ts which
+    is the window for the trend."""
+    point_to_modify = get_shifted_time_value(
+        ts, original_value=boundary, shift=1 if side == "right" else -1
+    )
+    trend_index = pd.date_range(
+        start=point_to_modify if side == "right" else None,
+        end=point_to_modify if side == "left" else None,
+        periods=fit_params.trend_length,
+        freq=fit_params.trend_length_unit,
+    )
+    trend_index = trend_index.intersection(ts.coords["time"])
+    return point_to_modify, ts.pr.loc[{"time": trend_index}]
+
+
+def get_fit_times(ts: xr.DataArray, gap: Gap, fit_params: FitParameters) -> np.ndarray:
+    """Time points of the data in ts which are used to calculate the trends for the gap.
+
+    The fallback degree uses the same windows, so this holds for the fallback as well.
+    """
+    sides = {
+        "gap": (("left", gap.left), ("right", gap.right)),
+        "start": (("right", gap.right),),
+        "end": (("left", gap.left),),
+    }[gap.type]
+    times = []
+    for side, boundary in sides:
+        _, ts_fit = _trend_window(ts, side, boundary, fit_params)
+        times.append(ts_fit["time"].data[ts_fit.notnull().data])
+    return np.unique(np.concatenate(times))
+
+
 def calculate_boundary_trend_inner(
     ts: xr.DataArray,
     side: typing.Literal["left", "right"],
@@ -305,17 +343,7 @@ def calculate_boundary_trend_inner(
         calculation is not possible, `None` is returned so the calling strategy can
         raise the StrategyUnableToProcess error.
     """
-    point_to_modify = get_shifted_time_value(
-        ts, original_value=boundary, shift=1 if side == "right" else -1
-    )
-    trend_index = pd.date_range(
-        start=point_to_modify if side == "right" else None,
-        end=point_to_modify if side == "left" else None,
-        periods=fit_params.trend_length,
-        freq=fit_params.trend_length_unit,
-    )
-    trend_index = trend_index.intersection(ts.coords["time"])
-    ts_fit = ts.pr.loc[{"time": trend_index}]
+    point_to_modify, ts_fit = _trend_window(ts, side, boundary, fit_params)
 
     if len(ts_fit.where(ts_fit.notnull(), drop=True)) >= fit_params.min_trend_points:
         fit = ts_fit.polyfit(dim="time", deg=fit_params.fit_degree, skipna=True)

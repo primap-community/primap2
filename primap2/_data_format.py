@@ -552,7 +552,11 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             with_dim
                 dataset with added dimension and coordinate
         """
-        ds_out = self._ds.copy(deep=True)  # deep=True necessary to keep attrs of original ds
+        # deep=True necessary to keep attrs of original ds. The immutable processing steps
+        # are not copied, which would break their identity.
+        processing = [var for var in self._ds if is_processing_variable(var)]
+        ds_out = self._ds.drop_vars(processing).copy(deep=True)
+        ds_out = ds_out.assign({var: self._ds[var] for var in processing})
         if terminology is not None:
             # get the translation for the attrs (use the shortest key to get the right key for the
             # attrs)
