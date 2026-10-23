@@ -420,6 +420,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         description: str,
         source: str | None = None,
         other_ds: xr.Dataset | None = None,
+        replaces: bool = False,
     ) -> ProcessingStepRecorder:
         """Record a processing step for every timeseries changed within a ``with`` block.
 
@@ -429,9 +430,9 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         processing information. For each timeseries, it is:
 
         * the processing information of the dataset, if the timeseries was not changed.
-        * a new processing step, if the timeseries was changed. Its parents are the
-          processing information of the dataset and of ``other_ds`` at the same
-          coordinates.
+        * a new processing step for each changed value. Its parents are the old step
+          (unless ``replaces``) and the step of ``other_ds`` at the same coordinates and
+          time. Changed values without parents need a ``source``, else this raises.
         * the processing information of ``other_ds``, if the timeseries did not exist in
           the dataset and was taken unchanged from ``other_ds``, which has the same
           dimensions.
@@ -460,6 +461,9 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         other_ds
             Optional: dataset from which data is taken in the block. If the dataset has
             processing information, ``other_ds`` needs it as well.
+        replaces
+            If True, changed values replace the old values instead of being computed
+            from them, so the old steps are not parents.
         """
         return ProcessingStepRecorder(
             self._ds,
@@ -467,6 +471,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             description=description,
             source=source,
             other_ds=other_ds,
+            replaces=replaces,
         )
 
     def with_creation_step(
@@ -509,6 +514,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
                 function=function,
                 description=description,
                 source=source,
+                _creation=True,
             )
         return result
 

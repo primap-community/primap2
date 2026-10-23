@@ -71,28 +71,16 @@ def test_fill_all_na():
 def test_fill_all_na_processing_info():
     time = pd.date_range("2000-01-01", "2002-01-01", freq="YS")
     area = ["COL", "ARG"]
-    creation_step = primap2.ProcessingStepDescription(
-        time=time.values, function="random", description="Values created randomly."
+    data = xr.DataArray(
+        data=[[np.nan, np.nan, np.nan], [np.nan, 1.0, 2.0]],
+        dims=["area (ISO3)", "time"],
+        coords={"area (ISO3)": area, "time": time},
+        attrs={"entity": "CO2", "units": "Gg CO2 / year"},
+        name="CO2",
     )
-    ds = xr.Dataset(
-        {
-            "CO2": xr.DataArray(
-                data=[[np.nan, np.nan, np.nan], [np.nan, 1.0, 2.0]],
-                dims=["area (ISO3)", "time"],
-                coords={"area (ISO3)": area, "time": time},
-                attrs={"entity": "CO2", "units": "Gg CO2 / year"},
-            ),
-            "Processing of CO2": xr.DataArray(
-                data=np.array(
-                    [creation_step] * 2,
-                    dtype=object,
-                ),
-                dims=["area (ISO3)"],
-                coords={"area (ISO3)": area},
-                attrs={"entity": "Processing of CO2", "described_variable": "CO2"},
-            ),
-        },
-        attrs={"area": "area (ISO3)"},
+    ds = xr.Dataset({"CO2": data}, attrs={"area": "area (ISO3)"})
+    ds["Processing of CO2"] = primap2._processing_info.record_step(
+        data, function="random", description="Values created randomly.", _creation=True
     )
 
     filled = ds.pr.fill_all_na(dim="time", value=0)
@@ -102,17 +90,17 @@ def test_fill_all_na_processing_info():
     processing = filled["Processing of CO2"]
     assert processing.attrs == ds["Processing of CO2"].attrs
     # ARG is not filled because not all of its values are NA
-    assert processing.pr.loc[{"area": "ARG"}].item() == creation_step
+    for t in range(3):
+        assert processing.values[1, t] is ds["Processing of CO2"].values[1, t]
 
-    step = processing.pr.loc[{"area": "COL"}].item()
-    assert step.parents == (creation_step,)
-    assert step.function == "fill_all_na"
-    assert "all values along 'time' were NA, filled with 0" in step.description
-    assert step.source is None
-    assert step.time == (primap2.TimeRange("2000", "2002"),)
-
-    # the input is not modified
-    assert ds["Processing of CO2"].pr.loc[{"area": "COL"}].item() == creation_step
+    for t in range(3):
+        node = processing.values[0, t]
+        assert node.parents == ()
+        assert node.time == time.values[t]
+        assert node.description.function == "fill_all_na"
+        assert "all values along 'time' were NA, filled with 0" in node.description.description
+        assert node.description.source == "constant(0)"
+    primap2._processing_info.ensure_complete_processing_info(filled)
 
 
 class TestSum:
@@ -881,14 +869,56 @@ class TestAddAggregatesCoordinates:
         assert "All Countries" in test_ds.coords["area_name"]
 
 
+def node(ds, var, area, year):
+    return ds[f"Processing of {var}"].pr.loc[{"area": area, "time": year}].item()
+
+
+def test_sum_processing_info(basket_processing_ds):
+    ds = basket_processing_ds[["CO2", "Processing of CO2"]]
+
+    result = ds.pr.sum(dim="area")
+
+    for year in ["2000", "2004"]:
+        summed = result["Processing of CO2"].pr.loc[{"time": year}].item()
+        assert summed.description.function == "sum"
+        assert summed.time == np.datetime64(year)
+        assert {id(p) for p in summed.parents} == {
+            id(node(ds, "CO2", area, year)) for area in ["COL", "ARG", "MEX", "BOL", "CAMB"]
+        }
+    # the other time points have only the region
+    summed = result["Processing of CO2"].pr.loc[{"time": "2002"}].item()
+    assert summed.parents == (node(ds, "CO2", "CAMB", "2002"),)
+
+
+def test_add_aggregates_coordinates_processing_info(basket_processing_ds):
+    ds = basket_processing_ds[["CO2", "Processing of CO2"]]
+
+    result = ds.pr.add_aggregates_coordinates(
+        {"area (ISO3)": {"ALL": {"sources": ["COL", "ARG", "MEX", "BOL"]}}}
+    )
+
+    for year in ["2000", "2004"]:
+        aggregated = node(result, "CO2", "ALL", year)
+        assert aggregated.description.function == "add_aggregates_coordinates"
+        assert aggregated.time == np.datetime64(year)
+        assert {id(p) for p in aggregated.parents} == {
+            id(node(ds, "CO2", area, year)) for area in ["COL", "ARG", "MEX", "BOL"]
+        }
+    # no data in the other years, so no node
+    assert node(result, "CO2", "ALL", "2002") is None
+    # existing data points keep their nodes
+    assert node(result, "CO2", "CAMB", "2002") is node(ds, "CO2", "CAMB", "2002")
+    primap2._processing_info.ensure_complete_processing_info(result)
+
+
 def test_add_aggregates_variables_processing_info(basket_processing_ds):
     ds = basket_processing_ds
     basket = "KYOTOGHG (AR4GWP100)"
     # the basket is missing in 2002, where its contents are known for the region
     ds[basket] = ds[basket].where(ds["time"] != np.datetime64("2002-01-01"))
-
-    def step(ds, var):
-        return ds[f"Processing of {var}"].pr.loc[{"area": "CAMB"}].item()
+    ds[f"Processing of {basket}"] = ds[f"Processing of {basket}"].where(
+        ds["time"] != np.datetime64("2002-01-01")
+    )
 
     result = ds.pr.add_aggregates_variables(
         gas_baskets={
@@ -898,15 +928,23 @@ def test_add_aggregates_variables_processing_info(basket_processing_ds):
         }
     )
 
-    # the existing basket is filled
-    filled = step(result, basket)
-    assert filled.function == "add_aggregates_variables"
-    assert filled.time == (primap2.TimeRange("2002", "2002"),)
-    assert filled.parents == tuple(step(ds, var) for var in [basket, "CO2", "SF6", "CH4"])
+    # the gap of the basket is filled from the contents at the same time point
+    filled = node(result, basket, "CAMB", "2002")
+    assert filled.description.function == "add_aggregates_variables"
+    assert filled.time == np.datetime64("2002")
+    assert filled.parents == tuple(node(ds, var, "CAMB", "2002") for var in ["CO2", "SF6", "CH4"])
+    # existing values keep their nodes
+    assert node(result, basket, "CAMB", "2001") is node(ds, basket, "CAMB", "2001")
     # new baskets are created from their contents, also from baskets created before
-    fgases = step(result, "FGASES (AR4GWP100)")
-    assert fgases.parents == (step(ds, "SF6"),)
-    assert step(result, "TEST (AR4GWP100)").parents == (step(ds, "CO2"), fgases)
+    fgases = node(result, "FGASES (AR4GWP100)", "CAMB", "2000")
+    assert fgases.parents == (node(ds, "SF6", "CAMB", "2000"),)
+    assert node(result, "TEST (AR4GWP100)", "CAMB", "2000").parents == (
+        node(ds, "CO2", "CAMB", "2000"),
+        fgases,
+    )
+    # no data of the contents in 2001 for the countries, so no basket node
+    assert node(result, "FGASES (AR4GWP100)", "COL", "2001") is None
+    primap2._processing_info.ensure_complete_processing_info(result)
 
 
 @pytest.mark.parametrize(

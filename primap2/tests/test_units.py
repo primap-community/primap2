@@ -7,7 +7,7 @@ import pytest
 import xarray as xr
 import xarray.testing
 
-from primap2 import TimeRange, ureg
+from primap2 import ureg
 
 from .utils import allclose, assert_equal
 
@@ -138,21 +138,27 @@ class TestDatasetConvertToGWP:
     def test_processing_info_records_conversion(self, opulent_processing_ds: xr.Dataset):
         converted = opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
 
-        before = opulent_processing_ds["Processing of CH4"].values.flat[0]
+        before = opulent_processing_ds["Processing of CH4"]
         processing = converted["Processing of CH4 (AR4GWP100)"]
-        first = processing.isel({dim: 0 for dim in processing.dims})
-        step = first.item()
-        assert step.function == "convert_to_gwp"
-        assert step.variable == "CH4 (AR4GWP100)"
-        assert step.coords == {dim: first[dim].item() for dim in processing.dims}
-        assert step.time == (TimeRange("2000", "2020"),)
-        assert step.description == (
+        assert processing.dims == before.dims
+        index = tuple(0 for _ in processing.dims)
+        node = processing.values[index]
+        old = before.values[index]
+        first = processing.isel(dict(zip(processing.dims, index, strict=True)))
+        assert node.time == np.datetime64(first["time"].item(), "ns")
+        assert node.description.function == "convert_to_gwp"
+        assert node.description.variable == "CH4 (AR4GWP100)"
+        assert node.description.coords == {
+            dim: first[dim].item() for dim in processing.dims if dim != "time"
+        }
+        assert node.description.description == (
             "converted from mass in CH4 * gigagram / year to the global warming "
             "potential AR4GWP100 in CO2 * gigagram / year"
         )
-        # the existing steps are kept, and the input is not modified
-        assert step.parents == (before,)
-        assert opulent_processing_ds["Processing of CH4"].values.flat[0] == before
+        # the old value is the input, and the input is not modified
+        assert node.parents == (old,)
+        assert node.parents[0] is old
+        assert before.values[index] is old
 
     def test_processing_info_not_recorded_for_unconverted(self, opulent_processing_ds: xr.Dataset):
         """population is not converted, so nothing may be recorded for it."""
@@ -349,10 +355,14 @@ class TestDatasetConvertToMass:
 
         converted = ds.pr.convert_to_mass()
 
-        steps = converted["Processing of CH4"].values.flat[0].history()
-        assert [step.function for step in steps[-2:]] == ["convert_to_gwp", "convert_to_mass"]
-        assert steps[-1].time == (TimeRange("2000", "2020"),)
-        assert steps[-1].description == (
+        node = converted["Processing of CH4"].values.flat[0]
+        steps = node.history()
+        assert [step.description.function for step in steps[-2:]] == [
+            "convert_to_gwp",
+            "convert_to_mass",
+        ]
+        assert steps[-1] is node
+        assert node.description.description == (
             "converted from the global warming potential AR4GWP100 in CO2 * gigagram / "
             "year to mass in CH4 * gigagram / year"
         )
