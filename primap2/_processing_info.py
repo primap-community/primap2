@@ -6,7 +6,6 @@ import inspect
 import json
 import operator
 import typing
-import uuid
 
 import numpy as np
 import pandas as pd
@@ -187,17 +186,15 @@ def ensure_no_processing_info(ds: xr.Dataset) -> None:
         )
 
 
-@define(frozen=True, kw_only=True)
+@define(frozen=True, kw_only=True, eq=False)
 class ProcessingStepDescription:
     """Description of a processing step done on a timeseries.
 
     One description is shared by all data points of a timeseries which were set by
-    the step, see :py:class:`ProcessingStep`.
+    the step, see :py:class:`ProcessingStep`. Descriptions are compared by identity.
 
     Attributes
     ----------
-    id
-        Unique identifier of the description.
     function
         The name of the function which did the processing.
     description
@@ -212,7 +209,6 @@ class ProcessingStepDescription:
         processing, apart from "time".
     """
 
-    id: uuid.UUID = field(factory=uuid.uuid4)
     function: str
     description: str
     source: str | None = None
@@ -483,7 +479,7 @@ def add_processing_step(
         result,
         ~pd.isnull(nodes),
         [],
-        describe=lambda coords: evolve(step, id=uuid.uuid4(), variable=variable, coords=coords),
+        describe=lambda coords: evolve(step, variable=variable, coords=coords),
         dims=dims,
         coord_lists=_coordinate_lists(template, dims),
         shape=shape[:-1],
@@ -759,7 +755,7 @@ def record_step(
 
 
 # Storage format of processing information in netCDF files, see encode_processing_info.
-PROCESSING_INFO_FORMAT = 2
+PROCESSING_INFO_FORMAT = 3
 FORMAT_ATTR = "processing_info_format"
 _STEP = "processing step "
 _NODE = "processing node "
@@ -848,7 +844,6 @@ def encode_processing_info(ds: xr.Dataset) -> xr.Dataset:
     node_dim = "processing node"
     parent_dim = "processing parent"
     tables = {
-        _STEP + "id": (step_dim, [d.id.hex for d in description_list]),
         _STEP + "function": (step_dim, [d.function for d in description_list]),
         _STEP + "description": (step_dim, [d.description for d in description_list]),
         _STEP + "source": (step_dim, optional("source")),
@@ -899,19 +894,18 @@ def decode_processing_info(ds: xr.Dataset) -> xr.Dataset:
     def column(name: str) -> np.ndarray:
         return ds[_STEP + name].values
 
-    ids, functions, texts = column("id"), column("function"), column("description")
+    functions, texts = column("function"), column("description")
     sources, variables, coords = column("source"), column("variable"), column("coords")
     source_null, variable_null = column("source is null"), column("variable is null")
     descriptions = [
         ProcessingStepDescription(
-            id=uuid.UUID(ids[i]),
             function=str(functions[i]),
             description=str(texts[i]),
             source=None if source_null[i] else str(sources[i]),
             variable=None if variable_null[i] else str(variables[i]),
             coords=json.loads(coords[i]),
         )
-        for i in range(len(ids))
+        for i in range(len(functions))
     ]
 
     node_steps = ds[_NODE + "step"].values.tolist()
@@ -1377,11 +1371,9 @@ def format_timeseries_history(steps: typing.Any) -> str:
         description_parents.setdefault(node.description, {}).update(
             dict.fromkeys(p.description for p in node.parents)
         )
-    # the keys are the canonical objects, the tree needs identical ones
-    canonical = {d: d for d in times}
-    roots = list({id(canonical[s.description]): canonical[s.description] for s in given}.values())
+    roots = list(dict.fromkeys(s.description for s in given))
     return _format_tree(
         roots,
-        lambda d: [canonical[p] for p in description_parents[d]],
+        lambda d: list(description_parents[d]),
         lambda d: _step_text(d, ", ".join(str(r) for r in time_ranges(times[d]))),
     )

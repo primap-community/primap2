@@ -175,12 +175,13 @@ A `ProcessingStepDescription` contains the following information:
 
 | attribute   | type          | description                                                                                 |
 |-------------|---------------|---------------------------------------------------------------------------------------------|
-| id          | `uuid.UUID`   | Identifier of the description, unique across datasets                                       |
 | function    | str           | Name of the function which did the operation                                                |
 | description | str           | Long-form description of the operation which was performed                                  |
 | source      | str or `None` | If applicable, identifier for the data source which was used in the operation               |
 | variable    | str or `None` | The name of the data variable of the processed timeseries                                   |
 | coords      | dict or `None`| The coordinates of the processed timeseries at the time of the operation, apart from "time" |
+
+Descriptions are compared by identity, equal fields do not make descriptions equal.
 
 Operations which combine several data points, like sums, have several parents, so the
 processing history of a data point is a directed acyclic graph rather than a list.
@@ -210,7 +211,6 @@ steps which are reachable from a data point are stored.
 
   | variable                           | content                                                       |
   |------------------------------------|---------------------------------------------------------------|
-  | `processing step id`               | the `id` as 32 hexadecimal digits                             |
   | `processing step function`         | `function`                                                    |
   | `processing step description`      | `description`                                                 |
   | `processing step source`           | `source`, empty for `None`                                    |

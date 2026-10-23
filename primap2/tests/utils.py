@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pint
 import xarray as xr
 
@@ -46,3 +47,48 @@ def assert_ds_aligned_equal(a: xr.Dataset, b: xr.Dataset, *args, **kwargs):
     for key in a:
         assert_aligned_equal(a[key], b[key], *args, **kwargs)
     assert a.attrs == b.attrs, (a.attrs, b.attrs)
+
+
+def description_fields(description) -> tuple:
+    """The fields of a ProcessingStepDescription, which is compared by identity."""
+    return (
+        description.function,
+        description.description,
+        description.source,
+        description.variable,
+        None if description.coords is None else tuple(description.coords.items()),
+    )
+
+
+def step_fields(step, _memo: dict | None = None) -> tuple:
+    """The description fields, time and (recursively) parents of a ProcessingStep."""
+    memo = {} if _memo is None else _memo
+    if id(step) not in memo:
+        memo[id(step)] = (
+            description_fields(step.description),
+            step.time,
+            tuple(step_fields(p, memo) for p in step.parents),
+        )
+    return memo[id(step)]
+
+
+def assert_steps_equal(a, b):
+    """Assert that two processing steps have equal fields, time and parents."""
+    assert step_fields(a) == step_fields(b)
+
+
+def assert_ds_identical(a: xr.Dataset, b: xr.Dataset):
+    """Like xr.testing.assert_identical, comparing processing steps by their fields."""
+    names = [n for n in a.data_vars if str(n).startswith("Processing of ")]
+    assert names == [n for n in b.data_vars if str(n).startswith("Processing of ")]
+    xr.testing.assert_identical(a.drop_vars(names), b.drop_vars(names))
+    for name in names:
+        assert a[name].dims == b[name].dims
+        assert a[name].attrs == b[name].attrs
+        for x, y in zip(
+            a[name].values.ravel().tolist(), b[name].values.ravel().tolist(), strict=True
+        ):
+            if pd.isnull(x) or pd.isnull(y):
+                assert pd.isnull(x) and pd.isnull(y)
+            else:
+                assert_steps_equal(x, y)

@@ -20,6 +20,8 @@ from primap2._processing_info import (
     used_sources,
 )
 
+from .utils import assert_ds_identical, description_fields
+
 
 def desc(name: str, source: str | None = None) -> ProcessingStepDescription:
     return ProcessingStepDescription(function=name, description=f"step {name}", source=source)
@@ -35,9 +37,48 @@ def diamond() -> ProcessingStep:
     return step("d", step("b", a), step("c", a))
 
 
-def test_description_ids_are_unique():
-    assert desc("a").id != desc("a").id
+def test_descriptions_compared_by_identity():
+    d = desc("a")
+    assert len({d, d, desc("a")}) == 2
     assert desc("a") != desc("a")
+
+
+def test_identical_descriptions_stay_distinct(minimal_ds, tmp_path):
+    """The same step applied twice to a timeseries is shown and stored twice."""
+    ds = minimal_ds[["CO2"]].isel({"area (ISO3)": [0], "source": [0]})
+    times = ds["time"].values
+    first = ProcessingStepDescription(function="fillna", description="filled")
+    second = ProcessingStepDescription(function="fillna", description="filled")
+    assert first != second
+    nodes = np.full(ds["CO2"].shape, None, dtype=object)
+    assert ds["CO2"].dims[0] == "time"
+    flat = nodes.reshape(len(times), -1)
+    last = []
+    for i, t in enumerate(times):
+        base = ProcessingStep(desc("create", "src"), t)
+        last.append(ProcessingStep(second, t, (ProcessingStep(first, t, (base,)),)))
+        flat[i, :] = last[-1]
+    ds["Processing of CO2"] = ds["CO2"].copy(data=nodes).rename("Processing of CO2")
+    ds["Processing of CO2"].attrs = {"entity": "Processing of CO2", "described_variable": "CO2"}
+
+    def check(timeseries):
+        text = primap2.format_timeseries_history(timeseries)
+        assert text.count("fillna") == 2
+        assert [s.description.function for s in timeseries[0].history()] == [
+            "create",
+            "fillna",
+            "fillna",
+        ]
+        assert timeseries[0].history()[1].description is not timeseries[0].history()[2].description
+
+    check(last)
+    ds.pr.to_netcdf(tmp_path / "temp.nc")
+    nds = primap2.open_dataset(tmp_path / "temp.nc")
+    values = nds["Processing of CO2"].values.reshape(len(times), -1)[:, 0].tolist()
+    check(values)
+    assert len({id(v.description) for v in values}) == 1
+    assert len({id(p.description) for v in values for p in v.parents}) == 1
+    assert_ds_identical(ds, nds)
 
 
 def test_description_coords_copied():
@@ -616,13 +657,14 @@ def test_dataset_with_creation_step(basket_processing_ds):
     co2 = result["Processing of CO2"].pr.loc[{"area": "COL"}].values.squeeze()
     # data in 2000 and 2004 only
     assert [x is not None for x in co2] == [True, False, False, False, True]
-    assert co2[0].description == ProcessingStepDescription(
-        id=co2[0].description.id,
-        function="read",
-        description="read",
-        source="RAND2020",
-        variable="CO2",
-        coords={"area (ISO3)": "COL", "source": "RAND2020"},
+    assert description_fields(co2[0].description) == description_fields(
+        ProcessingStepDescription(
+            function="read",
+            description="read",
+            source="RAND2020",
+            variable="CO2",
+            coords={"area (ISO3)": "COL", "source": "RAND2020"},
+        )
     )
     assert co2[0].description is co2[4].description
     assert co2[4].time == np.datetime64("2004")
@@ -733,7 +775,7 @@ def test_netcdf_round_trip(opulent_processing_ds, tmp_path, caplog):
     nds = primap2.open_dataset(tmp_path / "temp.nc")
     nds.pr.ensure_valid()
     assert not caplog.records
-    xr.testing.assert_identical(ds, nds)
+    assert_ds_identical(ds, nds)
     assert "processing_info_format" not in nds.attrs
     assert set(nds.variables) == set(names)
     node = nds["Processing of SF6"].values.flat[0]
@@ -753,7 +795,7 @@ def test_netcdf_variables_dtypes(opulent_processing_ds, tmp_path):
         assert raw["Processing of CO2"].dtype == np.int32
         assert raw["Processing of CO2"].dims == opulent_processing_ds["CO2"].dims
         assert (raw["Processing of CO2"].values >= 0).all()
-        assert raw.attrs["processing_info_format"] == 2
+        assert raw.attrs["processing_info_format"] == 3
         assert raw["processing node time"].dtype == np.dtype("datetime64[ns]")
 
 
@@ -802,7 +844,9 @@ def test_netcdf_shared_nodes(tmp_path):
         for i in range(2)
     }
     assert len(descriptions) == 1
-    assert nds["Processing of CO2"].values[0, 0].description.id == shared_description.id
+    assert description_fields(nds["Processing of CO2"].values[0, 0].description) == (
+        description_fields(shared_description)
+    )
 
 
 def test_netcdf_unreachable_nodes_not_written(opulent_processing_ds, tmp_path):
@@ -822,7 +866,7 @@ def test_netcdf_unreachable_nodes_not_written(opulent_processing_ds, tmp_path):
 
     assert written_nodes(tmp_path / "selected.nc") == len(expected)
     assert written_nodes(tmp_path / "selected.nc") < written_nodes(tmp_path / "all.nc")
-    xr.testing.assert_identical(selected, primap2.open_dataset(tmp_path / "selected.nc"))
+    assert_ds_identical(selected, primap2.open_dataset(tmp_path / "selected.nc"))
 
 
 def test_netcdf_none_and_coords_round_trip(minimal_ds, tmp_path):
@@ -852,8 +896,7 @@ def test_netcdf_none_and_coords_round_trip(minimal_ds, tmp_path):
 
     for i, description in enumerate(descriptions):
         got = nds["Processing of CO2"].values[0, i, 0].description
-        assert got == description
-        assert got.id == description.id
+        assert description_fields(got) == description_fields(description)
         assert got.source == description.source
         assert got.variable == description.variable
         assert got.coords == description.coords
@@ -1561,4 +1604,4 @@ def test_tables_compressed_with_caller_encoding(tmp_path):
         assert raw["Processing of CO2"].dtype == np.int32
 
     loaded = primap2.open_dataset(tmp_path / "ds.nc")
-    xr.testing.assert_equal(loaded["Processing of CO2"], ds["Processing of CO2"])
+    assert_ds_identical(loaded[["Processing of CO2"]], ds[["Processing of CO2"]])
