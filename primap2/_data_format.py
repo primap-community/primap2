@@ -19,6 +19,7 @@ from ._processing_info import (
     ensure_complete_processing_info,
     ensure_no_processing_info,
     is_processing_variable,
+    is_table_variable,
     processing_variable_name,
     record_step,
     used_sources,
@@ -261,6 +262,13 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             # 9 (maximum compression) - smaller files, longer processing
             compression = {"zlib": True, "complevel": 9}
             encoding = {var: compression for var in ds.data_vars}
+        else:
+            # always compress the internal tables, whatever the caller passes
+            compression = {"zlib": True, "complevel": 9}
+            encoding = {
+                **encoding,
+                **{var: compression for var in ds.data_vars if is_table_variable(var)},
+            }
 
         if "publication_date" in ds.attrs:
             ds.attrs["publication_date"] = ds.attrs["publication_date"].isoformat()

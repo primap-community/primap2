@@ -750,7 +750,7 @@ def test_netcdf_round_trip(opulent_processing_ds, tmp_path, caplog):
 def test_netcdf_variables_dtypes(opulent_processing_ds, tmp_path):
     opulent_processing_ds.pr.to_netcdf(tmp_path / "temp.nc")
     with xr.open_dataset(tmp_path / "temp.nc", engine="h5netcdf") as raw:
-        assert raw["Processing of CO2"].dtype == np.int64
+        assert raw["Processing of CO2"].dtype == np.int32
         assert raw["Processing of CO2"].dims == opulent_processing_ds["CO2"].dims
         assert (raw["Processing of CO2"].values >= 0).all()
         assert raw.attrs["processing_info_format"] == 2
@@ -1545,3 +1545,20 @@ def test_format_timeseries_history_processing_info():
         "CO2 area (ISO3)='COL': fillna for 2001: filled missing values\n"
         "↑ CO2 area (ISO3)='COL': read (data source: other) for 2001: read"
     )
+
+
+def test_tables_compressed_with_caller_encoding(tmp_path):
+    ds = processing_ds()
+    encoding = {var: {"zlib": True, "complevel": 1} for var in ds.data_vars}
+    ds.pr.to_netcdf(tmp_path / "ds.nc", encoding=encoding)
+
+    with xr.open_dataset(tmp_path / "ds.nc", engine="h5netcdf", decode_times=False) as raw:
+        tables = [name for name in raw.variables if name.startswith("processing node ")]
+        assert tables
+        for name in tables:
+            assert raw[name].encoding.get("zlib") or raw[name].encoding.get("compression")
+        assert raw["processing node step"].dtype == np.int32
+        assert raw["Processing of CO2"].dtype == np.int32
+
+    loaded = primap2.open_dataset(tmp_path / "ds.nc")
+    xr.testing.assert_equal(loaded["Processing of CO2"], ds["Processing of CO2"])
