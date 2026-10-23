@@ -14,14 +14,16 @@ kernelspec:
 
 # Processing information
 
-Datasets can record for every timeseries how it was derived. This processing
+Datasets can record for every data point how it was derived. This processing
 information is stored in data variables named `Processing of {var}`, which hold the
-last {py:class}`primap2.ProcessingStepDescription` of each timeseries. Every step
-refers to the steps its input came from as its `parents`, so the full history of a
-timeseries can be traced back to the original data. Each step also records the variable
-and the coordinates of the timeseries it was done on, at the time it was done. The
-storage format is described in the
-[data format details](../data_format/data_format_details.md).
+last {py:class}`primap2.ProcessingStep` of each data point. A step refers to the steps
+which set the values it was computed from as its `parents`, so the full history of a
+data point can be traced back to the original data. The parents can be at other time
+points, e.g. the data points a least-squares fit used. The descriptive fields of a step
+(function, description, source, and the variable and coordinates of the timeseries) are
+stored in a {py:class}`primap2.ProcessingStepDescription`, which is shared by the data
+points of a timeseries which were set by the same step. The storage format is described
+in the [data format details](../data_format/data_format_details.md).
 
 ```{code-cell} ipython3
 ---
@@ -90,28 +92,46 @@ estimate = xr.Dataset(
 {py:meth}`xarray.Dataset.pr.has_processing_info` tells whether a dataset has
 processing information. {py:meth}`xarray.Dataset.pr.processing_info` returns it for all
 data variables as a dataset: it contains the `Processing of {var}` variables in which
-the processing information is stored, renamed to the variables they describe. The processing
-information of a single timeseries is a `ProcessingStepDescription`. Use `format_history()`
-to show all steps which led to it, or `history()` to get them as a list:
+the processing information is stored, renamed to the variables they describe. The
+processing information of a single data point is a `ProcessingStep`. Use
+`format_history()` to show all steps which led to it, or `history()` to get them as a
+list:
 
 ```{code-cell} ipython3
-col = ds.pr.processing_info()["CO2"].pr.loc[{"area": "COL"}]
+col = ds.pr.processing_info()["CO2"].pr.loc[{"area": "COL", "time": "2001"}]
 print(col.item().format_history())
 ```
 
-Each line starts with the variable and coordinates of the timeseries. The rest of this
-page uses a small helper to show histories:
+Each line starts with the variable and coordinates of the timeseries. To see the
+history of a whole timeseries, pass its processing information to
+{py:func}`primap2.format_timeseries_history`. It shows each description once, with the
+time points of the steps which share it, instead of one tree per data point:
 
 ```{code-cell} ipython3
-def show_history(ds: xr.Dataset, var: str = "CO2", area: str = "COL") -> None:
-    print(ds.pr.processing_info()[var].pr.loc[{"area": area}].item().format_history())
+col_ts = ds.pr.processing_info()["CO2"].pr.loc[{"area": "COL", "source": "RAND2020"}]
+print(primap2.format_timeseries_history(col_ts))
+```
+
+The rest of this page uses small helpers to show histories:
+
+```{code-cell} ipython3
+def show_history(
+    ds: xr.Dataset, var: str = "CO2", area: str = "COL", time: str = "2002"
+) -> None:
+    info = ds.pr.processing_info()[var].pr.loc[{"area": area, "time": time}]
+    print(info.item().format_history())
+
+
+def show_timeseries_history(ds: xr.Dataset, var: str = "CO2", area: str = "COL") -> None:
+    info = ds.pr.processing_info()[var].pr.loc[{"area": area, "source": "RAND2020"}]
+    print(primap2.format_timeseries_history(info))
 ```
 
 ## Processing with primap2 functions
 
-primap2 functions which change data record a processing step for every timeseries
-they change, with the timeseries the result was derived from as parents. Unchanged
-timeseries keep their processing information. The first line of a history is the last
+primap2 functions which change data record a processing step for every data point
+they change, with the data points the result was computed from as parents. Unchanged
+data points keep their processing information. The first line of a history is the last
 step, a step derived from a single parent is followed by that parent, marked with "↑":
 
 ```{code-cell} ipython3
@@ -128,7 +148,12 @@ show_history(aggregated, area="LATAM")
 ```
 
 A step which is reached via several branches is labelled like "(a)" where it first
-appears, later occurrences only show "see (a)".
+appears, later occurrences only show "see (a)". For the whole timeseries, the
+aggregate is shown once for all time points:
+
+```{code-cell} ipython3
+show_timeseries_history(aggregated, area="LATAM")
+```
 
 Functions whose result is not emissions data, like
 {py:meth}`xarray.Dataset.pr.coverage` or {py:meth}`xarray.Dataset.pr.count`, ignore
@@ -156,7 +181,8 @@ describes the creation of the data, e.g. after reading it.
 tracked_estimate = estimate.pr.with_creation_step(
     function="estimate", description="expert estimate", source="expert"
 )
-show_history(ds.pr.fillna(tracked_estimate))
+filled = ds.pr.fillna(tracked_estimate)
+show_history(filled)
 ```
 
 In the other direction, filling a dataset without processing information with data
@@ -171,7 +197,7 @@ argument holding the input dataset, and `{name}` fields in the description are r
 by the arguments of the call. The decorator removes the processing information from the
 input before your function is called, so your function only works with the data. It then
 adds the processing information to the dataset your function returns, including a new
-step for every changed timeseries:
+step for every changed data point:
 
 ```{code-cell} ipython3
 @primap2.records_processing_step("ds", description="scaled by {factor}")
@@ -182,20 +208,41 @@ def scale(ds: xr.Dataset, factor: float) -> xr.Dataset:
 show_history(scale(ds, factor=2), var="SF6")
 ```
 
-The timeseries of the result are matched to the timeseries of the input by their
-variable and coordinates:
+The result is matched to the input per data point, by the variable, coordinates and
+time:
 
-* Unchanged timeseries keep their processing information.
-* Changed timeseries get a new step, with their previous processing information as
-  parent. If data is taken from another dataset, pass the name of the argument
-  holding it as `other` to the decorator, so that its processing information at the
-  same variable and coordinates becomes a parent as well.
-* New variables and timeseries get a new step without parents. This includes renamed
-  coordinates and aggregates computed in the function, which therefore lose the history
-  of the timeseries they were computed from. Use the primap2 functions for aggregating
-  instead, which record all inputs as parents.
-* Removed variables and timeseries are removed from the processing information.
-* The dimensions of the variables can't change.
+* Unchanged data points keep their processing information.
+* A changed data point gets a new step. Its parent is the step of the old value, as
+  the new value is assumed to be computed from the old one, like `scale` does. If the
+  new value replaces the old one instead, pass `replaces=True` to the decorator: the
+  history of the old value is then dropped. If data is taken from another dataset,
+  pass the name of the argument holding it as `other` to the decorator, so that its
+  processing information at the same variable, coordinates and time becomes a parent
+  as well.
+* Data points which didn't have data before get a new step as well, with the parents
+  from `other` if there are any.
+* Data points changed to missing values lose their processing information.
+* The dimensions of the variables can't change. Removed variables and timeseries are
+  removed from the processing information.
+
+A step without parents doesn't tell where the values come from. If a changed value
+ends up with neither parents nor a `source`, recording raises an error:
+
+```{code-cell} ipython3
+@primap2.records_processing_step("ds", description="set to one", replaces=True)
+def set_to_one(ds: xr.Dataset) -> xr.Dataset:
+    ds = ds.copy()
+    ds["CO2"].pr.loc[{"area": "COL", "time": "2001"}] = 1 * primap2.ureg("Gg CO2 / year")
+    return ds
+
+
+try:
+    set_to_one(ds)
+except ValueError as err:
+    print(err)
+```
+
+Pass the `source` of the values, e.g. `source="constant(1)"`, to record them as new data.
 
 For processing which doesn't need a function of its own, e.g. a single xarray call, use
 a {py:meth}`xarray.Dataset.pr.processing_step` block, which records steps in the same
@@ -205,12 +252,13 @@ with its processing information. Data taken from another dataset is passed as
 `other_ds`.
 
 ```{code-cell} ipython3
-with ds.pr.processing_step(
-    function="interpolate_na", description="interpolated linearly"
-) as step:
-    step.ds = step.ds.pint.interpolate_na("time")
-show_history(step.result)
+with ds.pr.processing_step(function="round", description="rounded to one digit") as step:
+    step.ds = step.ds.round(1)
+show_history(step.result, time="2001")
 ```
+
+Values computed from other time points, e.g. by interpolation or extrapolation, can't be
+recorded with the decorator or the block yet.
 
 ## Separating data and processing information
 
@@ -225,10 +273,10 @@ recombined = data.pr.with_processing_info(processing)
 xr.testing.assert_identical(recombined, ds)
 ```
 
-`with_processing_info` only uses the processing information of the timeseries in the
-data, so you can also select from the data before recombining. It raises an error if
-the processing information lacks timeseries of the data. It has to describe the data as
-it is, though:
+`with_processing_info` only uses the processing information of the data points in the
+data, so you can also select from the data, including time, before recombining. It
+raises an error if the processing information lacks data points of the data. It has to
+describe the data as it is, though:
 `with_processing_info` can't notice if the data was changed in between. Change data
 with primap2 functions, the decorator or a `processing_step` block instead, which
 record the change. Usually, there is no need to separate the two at all, as selecting,
@@ -237,7 +285,8 @@ saving and all primap2 functions work on datasets with processing information.
 ## Storing processing information
 
 {py:meth}`xarray.Dataset.pr.to_netcdf` and {py:func}`primap2.open_dataset` save and
-read processing information. The interchange format does not support it yet:
+read processing information. Files with processing information written by earlier
+development versions can't be read. The interchange format does not support it yet:
 {py:meth}`xarray.Dataset.pr.to_interchange_format` raises an error for datasets with
 processing information, use {py:meth}`xarray.Dataset.pr.without_processing_info` first.
 {py:meth}`xarray.Dataset.pr.to_df` leaves the processing information out.
@@ -246,17 +295,15 @@ processing information, use {py:meth}`xarray.Dataset.pr.without_processing_info`
 
 {py:meth}`xarray.Dataset.pr.used_sources` determines from the processing information
 which sources were used for each data point. The result has an additional dimension
-listing the sources, with the value 2 if the source's data at the same time point was
-used, 1 if its data at other time points might have been used, e.g. for extrapolation, and 0
-otherwise. Note that this assignment is only as accurate as the ProcessingStepDescriptions that were created during calculation. For library functions it is exact.
+listing the sources, with the value 1 if the source was used and 0 otherwise. The
+sources are the `source` of the steps which created the data (the leaves of the
+history). A source counts as used if its data was used at any time point, also if it
+only went into a fit for other time points.
 
 ```{code-cell} ipython3
-filled = ds.pr.fillna(tracked_estimate)
 used = filled.pr.used_sources()
-used["CO2"].pr.loc[{"area": "COL"}].squeeze("source", drop=True).to_pandas()
+used["CO2"].pr.loc[{"area": "COL", "source": "RAND2020"}].to_pandas()
 ```
-
-The sources are identified by the `source` of the steps which created the data.
 
 ## Plain xarray operations
 
@@ -264,7 +311,7 @@ xarray doesn't know about processing information, so be careful when using its
 functions directly on a dataset with processing information:
 
 * Selecting, e.g. with `ds.pr.loc`, `ds.sel` or `ds.isel`, selects the data and its
-  processing information alike.
+  processing information alike, also when selecting time points.
 * Selecting a single variable, e.g. `ds["CO2"]`, gives a DataArray without its
   processing information. Use `ds.pr.processing_info()["CO2"]` to get it.
 * Selecting several variables with `ds[["CO2", "CH4"]]` drops their processing
