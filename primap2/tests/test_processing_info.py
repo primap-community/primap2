@@ -599,7 +599,7 @@ def test_combine_histories_no_nodes():
         dims=["area", "time"],
         coords={"area": ["COL", "ARG"], "time": TIME[:1]},
     )
-    assert combine_histories(infos, "area").values[0] == ()
+    assert combine_histories(infos, "area").values[0] is None
 
 
 def test_combine_histories_without_data():

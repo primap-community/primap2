@@ -474,10 +474,10 @@ def add_processing_step(
     dims, template = _layout(processing_infos)
     shape = template.shape
     nodes = _nodes_or_none(template.values).reshape(-1, shape[-1])
-    result = nodes.copy()
+    has_node = ~pd.isnull(nodes)
     _create_nodes(
-        result,
-        ~pd.isnull(nodes),
+        nodes,
+        has_node,
         [],
         describe=lambda coords: evolve(step, variable=variable, coords=coords),
         dims=dims,
@@ -486,7 +486,7 @@ def add_processing_step(
         times=template["time"].values,
         replaces=False,
     )
-    return _from_layout(processing_infos, result.reshape(shape), dims)
+    return _from_layout(processing_infos, nodes.reshape(shape), dims)
 
 
 def _from_layout(
@@ -495,7 +495,7 @@ def _from_layout(
     """The array with ``like``'s dimensions from values with the layout of _layout."""
     layout = [*dims, "time"]
     result = like.copy(deep=False)
-    result.data = np.ascontiguousarray(values.transpose([layout.index(d) for d in like.dims]))
+    result.data = values.transpose([layout.index(d) for d in like.dims])
     return result
 
 
@@ -614,26 +614,28 @@ def combine_histories(
     -------
     : xr.DataArray
         For each data point remaining after removing ``dim``, a tuple of the steps
-        along ``dim``, for use as ``parents`` in record_step. Missing steps are left
-        out.
+        along ``dim``, or None where there are none, for use as ``parents`` in
+        record_step. Missing steps are left out.
     """
     dims = dim if isinstance(dim, list) else [dim]
     remaining = [x for x in processing_infos.dims if x not in dims]
-    values = _nodes_or_none(processing_infos.transpose(*remaining, *dims).values)
+    values = processing_infos.transpose(*remaining, *dims).values
+    present = ~pd.isnull(values)
     if data is not None:
-        has_data = (
+        present &= (
             data.notnull()
             .reindex_like(processing_infos, fill_value=False)
             .broadcast_like(processing_infos)
             .transpose(*remaining, *dims)
             .values
         )
-        values = np.where(has_data, values, None)
     shape = values.shape[: len(remaining)]
-    rows = values.reshape(-1, int(np.prod(values.shape[len(remaining) :], dtype=int))).tolist()
-    result = np.empty(len(rows), dtype=object)
-    for i, row in enumerate(rows):
-        result[i] = _unique(x for x in row if x is not None)
+    width = int(np.prod(values.shape[len(remaining) :], dtype=int))
+    values = values.reshape(-1, width)
+    present = present.reshape(-1, width)
+    result = np.full(len(values), None, dtype=object)
+    for i in np.flatnonzero(present.any(axis=-1)):
+        result[i] = _unique(values[i][present[i]].tolist())
     return xr.DataArray(
         result.reshape(shape),
         dims=remaining,
@@ -748,10 +750,7 @@ def record_step(
         leaves_allowed=_creation,
     )
     layout = [*dims, "time"]
-    return _new_processing_infos(
-        new_da,
-        np.ascontiguousarray(nodes.transpose([layout.index(d) for d in new_da.dims])),
-    )
+    return _new_processing_infos(new_da, nodes.transpose([layout.index(d) for d in new_da.dims]))
 
 
 # Storage format of processing information in netCDF files, see encode_processing_info.
