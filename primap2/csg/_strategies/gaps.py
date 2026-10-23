@@ -454,16 +454,21 @@ def fill_gap(
             DataArray with the same size and shape as ts, but with the given gap filled
             from fill_ts.
     """
+    gap_fill_ts = fill_ts.pr.loc[gap.get_date_slice()]
     if factor[0] == factor[1]:
-        fill_gap_ts = fill_ts.pr.loc[gap.get_date_slice()] * factor[0]
+        fill_gap_ts = gap_fill_ts * factor[0]
     else:
         delta_t = gap.right - gap.left
-        factor_ts = fill_ts.pr.loc[gap.get_date_slice()].copy()
-        factor_ts.data = [
-            factor[0] * (gap.right - t) / delta_t + factor[1] * (t - gap.left) / delta_t
-            for t in fill_ts.coords["time"].pr.loc[gap.get_date_slice()]
-        ]
-        fill_gap_ts = fill_ts.pr.loc[gap.get_date_slice()] * factor_ts
+        if delta_t == 0:
+            # single point gap: no span to interpolate over, use the mean factor
+            weight = 0.5
+        else:
+            weight = (gap_fill_ts.coords["time"].data - gap.left) / delta_t
+        factor_ts = gap_fill_ts.copy()
+        factor_ts.data = np.broadcast_to(
+            factor[0] * (1 - weight) + factor[1] * weight, factor_ts.shape
+        )
+        fill_gap_ts = gap_fill_ts * factor_ts
 
     # fill nans (in the gap only)
     ts_aligned, fill_ts_aligned = xr.align(ts, fill_gap_ts, join="left")

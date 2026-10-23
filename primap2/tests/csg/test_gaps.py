@@ -451,6 +451,17 @@ def test_fill_gap(test_ts, fill_ts, expected_ts, fit_params_linear):
     assert_aligned_equal(expected_ts, filled_ts, rtol=1e-03, equal_nan=True)
 
 
+def test_fill_gap_single_point():
+    time = pd.date_range("2000-01-01", "2006-01-01", freq="YS")
+    ts = xr.DataArray(np.ones(len(time)), coords={"time": time}, dims="time")
+    ts[3] = np.nan
+    fill_ts = xr.full_like(ts, 10.0)
+    gap = Gap(type="gap", left=time[3].to_datetime64(), right=time[3].to_datetime64())
+    filled = fill_gap(ts=ts, fill_ts=fill_ts, gap=gap, factor=np.array([0.286, 0.455]))
+    assert filled[3].item() == pytest.approx(10 * (0.286 + 0.455) / 2)
+    assert not filled.isnull().any()
+
+
 def test_timeseries_coords_repr(test_ts):
     test_repr = timeseries_coord_repr(ts=test_ts)
     assert test_repr == "{'category': 'test'}"
