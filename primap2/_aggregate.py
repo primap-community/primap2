@@ -504,6 +504,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         "self",
         function="fill_all_na",
         description="all values along {dim!r} were NA, filled with {value}",
+        source="constant({value})",
     )
     def fill_all_na(self, dim: DimOrDimsT, value=0) -> xr.Dataset:
         """Fill NA values only where all values along the specified dimension(s) are NA.
@@ -1011,6 +1012,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 after,
                 previous=[(before, processing_infos[var])],
                 parents=[histories.expand_dims({dim: [value]})],
+                replaces=True,
                 function="add_aggregates_coordinates",
                 description=f"aggregated from {dim}={list(sources)!r}",
             )
@@ -1206,6 +1208,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             ds_out[basket],
             previous=[] if before is None else [(before, processing_infos[basket])],
             parents=[contents],
+            replaces=True,
             function="add_aggregates_variables",
             description=f"aggregated {basket} from {list(basket_contents)!r}",
         )

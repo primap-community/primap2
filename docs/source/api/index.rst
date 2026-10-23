@@ -10,9 +10,11 @@ Top-level API
     :toctree: generated/
 
     Not
+    ProcessingStep
     ProcessingStepDescription
     TimeRange
     accessors
+    format_timeseries_history
     open_dataset
     records_processing_step
     ureg
@@ -63,6 +65,7 @@ source priorities and matching algorithms.
     csg.LocalTrendsStrategy
     csg.PriorityDefinition
     csg.StrategyDefinition
+    csg.StrategyStep
     csg.StrategyUnableToProcess
     csg.SubstitutionStrategy
     csg.compose

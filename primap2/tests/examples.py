@@ -190,34 +190,9 @@ def opulent_processing_ds() -> xr.Dataset:
     """Like the opulent dataset, but additionally with processing information data
     variables.
     """
-    opulent = opulent_ds()
-
-    new_vars = {}
-    for var in opulent:
-        # processing information has the same dimensions as the variable it describes,
-        # with the exception of "time"
-        dims = [dim for dim in opulent[var].dims if dim != "time"]
-        shape = tuple(len(opulent[x]) for x in dims)
-        new_vars[processing_variable_name(var)] = xr.DataArray(
-            data=np.full(
-                shape=shape,
-                fill_value=primap2.ProcessingStepDescription(
-                    time=opulent["time"].values,
-                    function="random",
-                    description="Values created randomly.",
-                ),
-            ),
-            coords=opulent[dims],
-            dims=dims,
-            attrs={
-                "entity": processing_variable_name(var),
-                "described_variable": var,
-            },
-        )
-
-    opulent.update(new_vars)
-
-    return opulent
+    return opulent_ds().pr.with_creation_step(
+        function="random", description="Values created randomly."
+    )
 
 
 def empty_ds() -> xr.Dataset:
@@ -298,16 +273,19 @@ def basket_processing_ds() -> xr.Dataset:
         attrs={"units": "CO2 Gg / year", "entity": "KYOTOGHG", "gwp_context": "AR4GWP100"},
     )
     for var in list(ds.data_vars):
-        steps = np.empty((len(areas), 1), dtype=object)
+        has_data = ds[var].notnull().values
+        nodes = np.full(has_data.shape, None, dtype=object)
         for i, area in enumerate(areas):
-            steps[i, 0] = primap2.ProcessingStepDescription(
-                time=time.values, function="created", description=f"{var} for {area}"
+            description = primap2.ProcessingStepDescription(
+                function="created", description=f"{var} for {area}"
             )
+            for t in np.flatnonzero(has_data[:, i, 0]):
+                nodes[t, i, 0] = primap2.ProcessingStep(description, time.values[t])
         name = processing_variable_name(var)
         ds[name] = xr.DataArray(
-            steps,
-            coords={"area (ISO3)": areas, "source": ["RAND2020"]},
-            dims=["area (ISO3)", "source"],
+            nodes,
+            coords=coords,
+            dims=dims,
             attrs={"entity": name, "described_variable": var},
         )
 

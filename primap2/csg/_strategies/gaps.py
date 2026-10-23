@@ -163,19 +163,23 @@ def get_gaps(ts: xr.DataArray) -> list[Gap]:
     return gaps
 
 
-def calculate_boundary_trend_with_fallback(
+def calculate_boundary_trends_with_fallback(
     ts: xr.DataArray,
+    fill_ts: xr.DataArray,
     gap: Gap,
     fit_params: FitParameters,
-) -> np.array:
+) -> tuple[np.ndarray, np.ndarray]:
     """
-    Calculate trend values for boundary points. Uses fallback if not enough fit points
-    available.
+    Calculate trend values for boundary points for both timeseries. Uses the fallback
+    for both timeseries and both boundaries if the default trend is not available for
+    any of them, so that the trends are always comparable.
 
     Parameters
     ----------
     ts :
-        Time-series to calculate trend for
+        Time-series with the gap
+    fill_ts :
+        Time-series to fill the gap with
     gap :
         Gap definition
     fit_params :
@@ -183,35 +187,33 @@ def calculate_boundary_trend_with_fallback(
 
     Returns
     -------
-        Tuple with calculated trend values for left and right boundary of the gap. If trend
-        calculation is not possible, `None` is returned so the calling strategy can
-        raise the StrategyUnableToProcess error.
+        Tuple with arrays of the trend values for the left and right boundary of the gap
+        for `ts` and `fill_ts`. If a boundary has no trend value for one of the
+        timeseries, the value of the other boundary is used for both. If no boundary has
+        trend values for both, all values are nan.
     """
-    trend_ts = calculate_boundary_trend(
-        ts,
-        gap=gap,
-        fit_params=fit_params,
-    )
-    if any(np.isnan(trend_ts)):
-        trend_ts = calculate_boundary_trend(
-            ts,
-            gap=gap,
-            fit_params=fit_params.get_fallback(),
-        )
-        if all(np.isnan(trend_ts)):
+    trends = [
+        calculate_boundary_trend(series, gap=gap, fit_params=fit_params) for series in (ts, fill_ts)
+    ]
+    if np.isnan(trends).any():
+        trends = [
+            calculate_boundary_trend(series, gap=gap, fit_params=fit_params.get_fallback())
+            for series in (ts, fill_ts)
+        ]
+        valid = ~np.isnan(trends).any(axis=0)
+        if not valid.any():
             logger.info(
                 f"Not enough values to calculate fit for ts and gap:"
                 f"{gap.type}, [{gap.left}:{gap.right}].\n"
                 f"{fit_params.log_string(fallback=True)}"
                 f"Timeseries info: {timeseries_coord_repr(ts)}"
             )
-        # fill nan from other boundary
-        if np.isnan(trend_ts[0]):
-            trend_ts[0] = trend_ts[1]
-        elif np.isnan(trend_ts[1]):
-            trend_ts[1] = trend_ts[0]
+            return np.full(2, np.nan), np.full(2, np.nan)
+        # fill missing boundary from the other boundary
+        if not valid.all():
+            trends = [np.full(2, t[valid][0]) for t in trends]
 
-    return trend_ts
+    return trends[0], trends[1]
 
 
 def calculate_boundary_trend(
@@ -277,6 +279,44 @@ def calculate_boundary_trend(
     return np.array([left, right])
 
 
+def _trend_window(
+    ts: xr.DataArray,
+    side: typing.Literal["left", "right"],
+    boundary: np.datetime64,
+    fit_params: FitParameters,
+) -> tuple[np.datetime64, xr.DataArray]:
+    """The first (right) or last (left) point next to the gap and the part of ts which
+    is the window for the trend."""
+    point_to_modify = get_shifted_time_value(
+        ts, original_value=boundary, shift=1 if side == "right" else -1
+    )
+    trend_index = pd.date_range(
+        start=point_to_modify if side == "right" else None,
+        end=point_to_modify if side == "left" else None,
+        periods=fit_params.trend_length,
+        freq=fit_params.trend_length_unit,
+    )
+    trend_index = trend_index.intersection(ts.coords["time"])
+    return point_to_modify, ts.pr.loc[{"time": trend_index}]
+
+
+def get_fit_times(ts: xr.DataArray, gap: Gap, fit_params: FitParameters) -> np.ndarray:
+    """Time points of the data in ts which are used to calculate the trends for the gap.
+
+    The fallback degree uses the same windows, so this holds for the fallback as well.
+    """
+    sides = {
+        "gap": (("left", gap.left), ("right", gap.right)),
+        "start": (("right", gap.right),),
+        "end": (("left", gap.left),),
+    }[gap.type]
+    times = []
+    for side, boundary in sides:
+        _, ts_fit = _trend_window(ts, side, boundary, fit_params)
+        times.append(ts_fit["time"].data[ts_fit.notnull().data])
+    return np.unique(np.concatenate(times))
+
+
 def calculate_boundary_trend_inner(
     ts: xr.DataArray,
     side: typing.Literal["left", "right"],
@@ -305,17 +345,7 @@ def calculate_boundary_trend_inner(
         calculation is not possible, `None` is returned so the calling strategy can
         raise the StrategyUnableToProcess error.
     """
-    point_to_modify = get_shifted_time_value(
-        ts, original_value=boundary, shift=1 if side == "right" else -1
-    )
-    trend_index = pd.date_range(
-        start=point_to_modify if side == "right" else None,
-        end=point_to_modify if side == "left" else None,
-        periods=fit_params.trend_length,
-        freq=fit_params.trend_length_unit,
-    )
-    trend_index = trend_index.intersection(ts.coords["time"])
-    ts_fit = ts.pr.loc[{"time": trend_index}]
+    point_to_modify, ts_fit = _trend_window(ts, side, boundary, fit_params)
 
     if len(ts_fit.where(ts_fit.notnull(), drop=True)) >= fit_params.min_trend_points:
         fit = ts_fit.polyfit(dim="time", deg=fit_params.fit_degree, skipna=True)
@@ -363,22 +393,13 @@ def calculate_scaling_factor(
         tuple with left and right scaling factors. For a start and end boundary one of
         the elements is None
     """
-    trend_ts = calculate_boundary_trend_with_fallback(
+    trend_ts, trend_fill = calculate_boundary_trends_with_fallback(
         ts,
-        gap=gap,
-        fit_params=fit_params,
-    )
-    if any(np.isnan(trend_ts)):
-        # logging has been done already
-        return np.array([np.nan, np.nan])
-
-    # trend values for fill_ts
-    trend_fill = calculate_boundary_trend_with_fallback(
         fill_ts,
         gap=gap,
         fit_params=fit_params,
     )
-    if any(np.isnan(trend_fill)):
+    if np.isnan(trend_ts).any():
         # logging has been done already
         return np.array([np.nan, np.nan])
 
@@ -417,8 +438,9 @@ def fill_gap(
     factor: np.array
         Numpy array containing two floats, the scaling factor to use at the left side of the gap
         and the scaling factor to use at the right side of the gap. The data from fill_ts will be
-        multiplied with the factor before filling the gap in ts. If the factors differ, a linear
-        interpolation of the scaling factor between both values will be performed.
+        multiplied with the factor before filling the gap in ts. If the factors differ, the
+        factors are anchored at the known time points next to the gap (the one before
+        ``gap.left`` and the one after ``gap.right``) and linearly interpolated in time.
 
     Returns
     -----------
@@ -426,16 +448,19 @@ def fill_gap(
             DataArray with the same size and shape as ts, but with the given gap filled
             from fill_ts.
     """
+    gap_fill_ts = fill_ts.pr.loc[gap.get_date_slice()]
     if factor[0] == factor[1]:
-        fill_gap_ts = fill_ts.pr.loc[gap.get_date_slice()] * factor[0]
+        fill_gap_ts = gap_fill_ts * factor[0]
     else:
-        delta_t = gap.right - gap.left
-        factor_ts = fill_ts.pr.loc[gap.get_date_slice()].copy()
-        factor_ts.data = [
-            factor[0] * (gap.right - t) / delta_t + factor[1] * (t - gap.left) / delta_t
-            for t in fill_ts.coords["time"].pr.loc[gap.get_date_slice()]
-        ]
-        fill_gap_ts = fill_ts.pr.loc[gap.get_date_slice()] * factor_ts
+        # the factors belong to the known points next to the gap
+        t_left = get_shifted_time_value(ts, original_value=gap.left, shift=-1)
+        t_right = get_shifted_time_value(ts, original_value=gap.right, shift=1)
+        weight = (gap_fill_ts.coords["time"].data - t_left) / (t_right - t_left)
+        factor_ts = gap_fill_ts.copy()
+        factor_ts.data = np.broadcast_to(
+            factor[0] * (1 - weight) + factor[1] * weight, factor_ts.shape
+        )
+        fill_gap_ts = gap_fill_ts * factor_ts
 
     # fill nans (in the gap only)
     ts_aligned, fill_ts_aligned = xr.align(ts, fill_gap_ts, join="left")

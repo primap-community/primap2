@@ -3,7 +3,7 @@
 import attrs
 import xarray as xr
 
-import primap2
+from primap2.csg._models import StrategyStep
 
 
 @attrs.define(frozen=True)
@@ -22,7 +22,7 @@ class SubstitutionStrategy:
         ts: xr.DataArray,
         fill_ts: xr.DataArray,
         fill_ts_repr: str,
-    ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
+    ) -> tuple[xr.DataArray, list[StrategyStep]]:
         """Fill gaps in ts using data from the fill_ts.
 
         Parameters
@@ -40,18 +40,18 @@ class SubstitutionStrategy:
 
         Returns
         -------
-            filled_ts, descriptions. filled_ts contains the result, where missing
+            filled_ts, steps. filled_ts contains the result, where missing
             data in ts is (partly) filled using unmodified data from fill_ts.
-            descriptions contains information about which years were affected and
-            filled how.
+            steps contains information about which years were affected and
+            filled how. The filled values are computed from fill_ts at the same time
+            point only.
         """
         ts_aligned, fill_ts_aligned = xr.align(ts, fill_ts, join="exact")
         filled_ts = ts_aligned.fillna(fill_ts_aligned)
         filled_mask = ts.isnull() & ~fill_ts.isnull()
-        description = primap2.ProcessingStepDescription(
-            time=filled_mask["time"][filled_mask].to_numpy(),
-            description=f"substituted with corresponding values from {fill_ts_repr}",
+        step = StrategyStep(
             function=self.type,
-            source=fill_ts_repr,
+            description=f"substituted with corresponding values from {fill_ts_repr}",
+            time=filled_mask["time"][filled_mask].to_numpy(),
         )
-        return filled_ts, [description]
+        return filled_ts, [step]

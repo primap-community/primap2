@@ -578,47 +578,81 @@ def test_with_realistic_dataset(caplog):
     )
 
 
-def _step(ds: xr.Dataset, var: str, area: str) -> primap2.ProcessingStepDescription:
-    return ds[f"Processing of {var}"].pr.loc[{"area": area}].item()
+def _step(ds: xr.Dataset, var: str, area: str, year: str) -> primap2.ProcessingStep | None:
+    return ds[f"Processing of {var}"].pr.loc[{"area": area, "time": year}].item()
+
+
+def _ids(*steps: primap2.ProcessingStep | None) -> set[int]:
+    return {id(x) for x in steps if x is not None}
 
 
 COUNTRIES = ["COL", "ARG", "MEX", "BOL"]
 
 
 def test_downscale_timeseries_processing_info(basket_processing_ds):
-    ds = basket_processing_ds
+    ds = basket_processing_ds[["CO2", "Processing of CO2"]]
+    # COL is unknown in 2004, so its shares can only be determined in 2000
+    unknown = (ds["area (ISO3)"] == "COL") & (ds["time"] == np.datetime64("2004"))
+    ds["CO2"] = ds["CO2"].where(~unknown)
+    ds["Processing of CO2"] = ds["Processing of CO2"].where(~unknown)
 
+    downscaled = ds.pr.downscale_timeseries(
+        dim="area (ISO3)", basket="CAMB", basket_contents=COUNTRIES, check_consistency=False
+    )
+
+    def contents(year: str, areas: list[str] = COUNTRIES):
+        return [_step(ds, "CO2", x, year) for x in areas]
+
+    col = _step(downscaled, "CO2", "COL", "2002")
+    assert col.time == np.datetime64("2002")
+    assert col.description.function == "downscale_timeseries"
+    assert col.description.variable == "CO2"
+    # the basket at the same time, and all contents where the shares were determined: the
+    # shares of COL only exist in 2000, the others in 2000 and 2004
+    assert _ids(*col.parents) == _ids(_step(ds, "CO2", "CAMB", "2002"), *contents("2000"))
+    assert len(col.parents) == 5
+    arg = _step(downscaled, "CO2", "ARG", "2002")
+    assert _ids(*arg.parents) == _ids(
+        _step(ds, "CO2", "CAMB", "2002"), *contents("2000"), *contents("2004", COUNTRIES[1:])
+    )
+    # COL in 2004 is downscaled with shares from the end of the timeseries only
+    col_end = _step(downscaled, "CO2", "COL", "2004")
+    assert _ids(*col_end.parents) == _ids(_step(ds, "CO2", "CAMB", "2004"), *contents("2000"))
+    # replaced values are not parents, known values and the basket are unchanged
+    assert _step(downscaled, "CO2", "ARG", "2000") is _step(ds, "CO2", "ARG", "2000")
+    assert _step(downscaled, "CO2", "CAMB", "2002") is _step(ds, "CO2", "CAMB", "2002")
+    primap2._processing_info.ensure_complete_processing_info(downscaled)
+
+
+def test_downscale_timeseries_processing_info_unchanged_variables(basket_processing_ds):
+    ds = basket_processing_ds
     downscaled = ds.pr.downscale_timeseries(
         dim="area (ISO3)", basket="CAMB", basket_contents=COUNTRIES
     )
-
-    col = _step(downscaled, "CO2", "COL")
-    assert col.function == "downscale_timeseries"
-    assert col.time == (primap2.TimeRange("2001", "2003"),)
-    # the own history, the basket, and all other basket contents, which determine the shares
-    assert col.parents == tuple(_step(ds, "CO2", x) for x in ["COL", "CAMB", "ARG", "MEX", "BOL"])
-    # the basket is unchanged
-    assert _step(downscaled, "CO2", "CAMB") == _step(ds, "CO2", "CAMB")
     # variables which are completely known are unchanged
     basket = "KYOTOGHG (AR4GWP100)"
-    assert _step(downscaled, basket, "COL") == _step(ds, basket, "COL")
+    for year in ["2000", "2002"]:
+        assert _step(downscaled, basket, "COL", year) is _step(ds, basket, "COL", year)
 
 
 def test_downscale_gas_timeseries_processing_info(basket_processing_ds):
     ds = basket_processing_ds
     basket = "KYOTOGHG (AR4GWP100)"
+    gases = ["CO2", "SF6", "CH4"]
 
-    downscaled = ds.pr.downscale_gas_timeseries(
-        basket=basket, basket_contents=["CO2", "SF6", "CH4"]
+    downscaled = ds.pr.downscale_gas_timeseries(basket=basket, basket_contents=gases)
+
+    co2 = _step(downscaled, "CO2", "COL", "2002")
+    assert co2.description.function == "downscale_gas_timeseries"
+    assert co2.time == np.datetime64("2002")
+    assert _ids(*co2.parents) == _ids(
+        _step(ds, basket, "COL", "2002"),
+        *(_step(ds, var, "COL", year) for var in gases for year in ["2000", "2004"]),
     )
-
-    co2 = _step(downscaled, "CO2", "COL")
-    assert co2.function == "downscale_gas_timeseries"
-    assert co2.time == (primap2.TimeRange("2001", "2003"),)
-    assert co2.parents == tuple(_step(ds, var, "COL") for var in ["CO2", basket, "SF6", "CH4"])
-    assert _step(downscaled, basket, "COL") == _step(ds, basket, "COL")
+    assert _step(downscaled, basket, "COL", "2002") is _step(ds, basket, "COL", "2002")
     # timeseries which are completely known are unchanged
-    assert _step(downscaled, "CO2", "CAMB") == _step(ds, "CO2", "CAMB")
+    assert _step(downscaled, "CO2", "CAMB", "2002") is _step(ds, "CO2", "CAMB", "2002")
+    primap2._processing_info.ensure_complete_processing_info(downscaled)
 
 
 def test_downscale_timeseries_by_shares_processing_info(basket_processing_ds):
@@ -632,13 +666,14 @@ def test_downscale_timeseries_by_shares_processing_info(basket_processing_ds):
         basket_contents_shares=reference,
     )
 
-    col = _step(downscaled, "CO2", "COL")
-    assert col.function == "downscale_timeseries_by_shares"
-    # the basket and the shares of all basket contents
-    assert col.parents == (
-        _step(ds, "CO2", "CAMB"),
-        *(_step(reference, "CO2", x) for x in COUNTRIES),
+    col = _step(downscaled, "CO2", "COL", "2004")
+    assert col.description.function == "downscale_timeseries_by_shares"
+    assert col.time == np.datetime64("2004")
+    # the basket and the shares of all basket contents at the same time
+    assert _ids(*col.parents) == _ids(
+        _step(ds, "CO2", "CAMB", "2004"), *(_step(reference, "CO2", x, "2004") for x in COUNTRIES)
     )
+    assert len(col.parents) == 5
 
 
 def test_downscale_timeseries_by_shares_without_processing_info(basket_processing_ds):

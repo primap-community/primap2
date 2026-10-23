@@ -4,7 +4,6 @@ import math
 import typing
 from collections.abc import Hashable
 
-import attrs
 import numpy as np
 import pandas as pd
 import tqdm
@@ -12,7 +11,9 @@ import xarray as xr
 from loguru import logger
 
 from primap2._processing_info import (
+    ProcessingStep,
     ProcessingStepDescription,
+    _nodes_or_none,
     is_processing_variable,
     processing_variable_name,
 )
@@ -46,9 +47,11 @@ def compose(
     In addition to the harmonized data, also a description of the processing steps
     done for each timeseries is returned in the result dataset, where for each
     variable, a variable of the form "Processing of $variable" is returned, with the
-    same dimensions as the variable, apart from the time dimension. If input_data has
-    processing information, the histories of the input timeseries used are the parents
-    of the processing steps.
+    same dimensions as the variable. It holds the processing step of each data point. If
+    input_data has processing information, the steps of the input data points used are
+    the parents of the processing steps. Else, the parents are steps without parents
+    (function "compose") which name the source of the input timeseries and are created
+    for the input data points used.
 
     Parameters
     ----------
@@ -98,7 +101,7 @@ def compose(
             following changes: the data is composed and filled according to the rules,
             the priority dimensions are reduced and not included in the result, and
             additional variables of the form "Processing of $variable" are added which
-            describe the processing steps done for each timeseries.
+            describe the processing steps done for each data point.
     """
     input_data.pr.ensure_valid()
 
@@ -198,9 +201,9 @@ def preallocate_result_arrays(
         name=input_da.name,
     )
     processing_result_da = xr.DataArray(
-        data=np.empty([len(input_da.coords[dim]) for dim in group_by_dimensions], dtype=object),
-        dims=group_by_dimensions,
-        coords=[input_da.coords[dim] for dim in group_by_dimensions],
+        data=np.full(result_da.shape, None, dtype=object),
+        dims=result_da.dims,
+        coords=result_da.coords,
         attrs={
             "entity": processing_variable_name(input_da.name),
             "described_variable": input_da.name,
@@ -291,7 +294,7 @@ def compose_timeseries(
     strategy_definition: _models.StrategyDefinition,
     input_processing: xr.DataArray | None = None,
     coords: dict[str, typing.Any] | None = None,
-) -> tuple[xr.DataArray, ProcessingStepDescription | None]:
+) -> tuple[xr.DataArray, np.ndarray]:
     """
     Compute a single timeseries from given input data, priorities, and strategies.
 
@@ -302,7 +305,7 @@ def compose_timeseries(
         fixed coordinates are supplied as zero-dimensional coordinates.
     input_processing
         Optional: the processing information of input_data. The processing steps of the
-        result have the histories of the input timeseries used as parents.
+        result have the steps of the input data points used as parents.
     coords
         Optional: the coordinates of the result, which are recorded in its processing
         steps.
@@ -315,11 +318,10 @@ def compose_timeseries(
 
     Returns
     -------
-        result_ts, processing_description. In result_ts is the numerical result, with
+        result_ts, processing_steps. In result_ts is the numerical result, with
         the time as the only dimension.
-        processing_description is the last of the processing steps taken to derive the
-        result, the earlier steps are its ancestors. It is None if no processing steps
-        were taken.
+        processing_steps is an object array over time with the processing step which
+        set each data point of the result, or None for data points without data.
     """
     context_logger = logger.bind(
         fixed_coordinates={k: v for k, v in input_data.coords.items() if v.shape == ()},
@@ -331,15 +333,70 @@ def compose_timeseries(
     )
 
     result_ts: xr.DataArray | None = None
-    last_step: ProcessingStepDescription | None = None
+    time_values = input_data["time"].values
+    time_points = list(time_values)
+    time_index = pd.Index(time_values)
+    # the current processing step of each data point of the result
+    result_steps: list[ProcessingStep | None] = [None] * len(time_points)
 
-    def append_step(
-        step: ProcessingStepDescription, fill_history: ProcessingStepDescription | None
+    leaf_descriptions: dict[str, ProcessingStepDescription] = {}
+
+    def fill_step_at(i: int, fill_steps: list[ProcessingStep | None], fill_ts_repr: str):
+        """The processing step of the input data point, for untracked input a leaf which
+        is created when it is first used."""
+        if fill_steps[i] is None and input_processing is None:
+            if fill_ts_repr not in leaf_descriptions:
+                leaf_descriptions[fill_ts_repr] = ProcessingStepDescription(
+                    function="compose",
+                    description=f"input data {fill_ts_repr}",
+                    source=fill_ts_repr,
+                    variable=input_data.name,
+                    coords=coords,
+                )
+            fill_steps[i] = ProcessingStep(leaf_descriptions[fill_ts_repr], time_points[i])
+        return fill_steps[i]
+
+    def apply_step(
+        step: _models.StrategyStep,
+        new_values: np.ndarray,
+        fill_steps: list[ProcessingStep | None],
+        fill_ts_repr: str,
     ) -> None:
-        """Record step as the next step in the processing of the result."""
-        nonlocal last_step
-        parents = tuple(x for x in (last_step, fill_history) if not pd.isnull(x))
-        last_step = attrs.evolve(step, variable=input_data.name, coords=coords, parents=parents)
+        """Set the processing steps of the data points changed by the strategy step."""
+        description = ProcessingStepDescription(
+            function=step.function,
+            description=step.description,
+            variable=input_data.name,
+            coords=coords,
+        )
+        changed = time_index.get_indexer(step.time)
+        if (changed < 0).any():
+            raise ValueError(f"Strategy step {description.function!r} changed unknown time points.")
+        # steps of inputs which are the same for all changed data points
+        common = _unique_steps(
+            [result_steps[i] for i in time_index.get_indexer(step.ts_time)]
+            + [
+                fill_step_at(i, fill_steps, fill_ts_repr)
+                for i in time_index.get_indexer(step.fill_ts_time)
+            ]
+        )
+        common_ids = {id(x) for x in common}
+        new_steps: list[ProcessingStep | None] = []
+        for i in changed.tolist():
+            if np.isnan(new_values[i]):
+                new_steps.append(None)
+                continue
+            fill_step = fill_step_at(i, fill_steps, fill_ts_repr)
+            if fill_step is None:
+                parents = common
+            elif id(fill_step) in common_ids:
+                parents = (fill_step, *(x for x in common if x is not fill_step))
+            else:
+                parents = (fill_step, *common)
+            new_steps.append(ProcessingStep(description, time_points[i], parents))
+        # after calculating all, as the inputs are the steps before this step
+        for i, new_step in zip(changed.tolist(), new_steps, strict=True):
+            result_steps[i] = new_step
 
     for selector in priority_definition.priorities:
         try:
@@ -347,7 +404,10 @@ def compose_timeseries(
         except KeyError:
             context_logger.debug(f"{selector=} matched no input_data, skipping.")
             continue
-        fill_history = None if input_processing is None else input_processing.loc[selector].item()
+        if input_processing is None:
+            fill_steps = [None] * len(time_points)
+        else:
+            fill_steps = _nodes_or_none(input_processing.loc[selector].values).tolist()
 
         fill_ts_repr = priority_coordinates_repr(
             fill_ts=fill_ts,
@@ -371,17 +431,18 @@ def compose_timeseries(
 
         for strategy in strategy_definition.find_strategies(fill_ts):
             try:
-                result_ts, descriptions = strategy.fill(
+                result_ts, steps = strategy.fill(
                     ts=result_ts,
                     fill_ts=fill_ts_no_prio_dims,
                     fill_ts_repr=fill_ts_repr,
                 )
-                for description in descriptions:
-                    if description.time:
-                        append_step(description, fill_history)
+                new_values = result_ts.values
+                for step in steps:
+                    if len(step.time):
+                        apply_step(step, new_values, fill_steps, fill_ts_repr)
                     else:
                         context_logger.debug(
-                            f"No data changed using {fill_ts_repr}: {description.description}"
+                            f"No data changed using {fill_ts_repr}: {step.description}"
                         )
                 break
             except StrategyUnableToProcess as err:
@@ -409,4 +470,11 @@ def compose_timeseries(
             f"\n{input_data.coords}\n{input_data.attrs}\n{priority_definition=}"
         )
 
-    return result_ts, last_step
+    processing_steps = np.empty(len(result_steps), dtype=object)
+    processing_steps[:] = result_steps
+    return result_ts, processing_steps
+
+
+def _unique_steps(steps: list[ProcessingStep | None]) -> tuple[ProcessingStep, ...]:
+    """The steps which are not None without duplicates, keeping the order."""
+    return tuple({id(x): x for x in steps if x is not None}.values())
