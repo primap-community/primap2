@@ -742,11 +742,11 @@ def modified_ds(ds: xr.Dataset) -> xr.Dataset:
     variables."""
     ds = ds.copy()
     previous = [(ds["CO2"], ds["Processing of CO2"])]
-    ds["CO2"] = ds["CO2"] * 2
+    ds["CO2"] = (ds["CO2"] * 2).assign_attrs(ds["CO2"].attrs)
     ds["Processing of CO2"] = record_step(
         ds["CO2"], previous=previous, function="double", description="doubled"
     )
-    ds["SF6"] = ds["SF6"] * 3
+    ds["SF6"] = (ds["SF6"] * 3).assign_attrs(ds["SF6"].attrs)
     ds["Processing of SF6"] = record_step(
         ds["SF6"],
         previous=[(ds["SF6"] / 3, ds["Processing of SF6"])],
