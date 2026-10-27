@@ -277,8 +277,7 @@ with_processing
 ```
 
 Note that the processing information in the data variable "Processing of CO2" has the same dimensions as the
-described variable "CO2", including "time". For each data point, only the last processing step is stored, which refers to
-the earlier steps as its parents. All data points of a timeseries which were set by the same
+described variable "CO2". All data points of a timeseries which were set by the same
 operation share one `ProcessingStepDescription`:
 
 ```{code-cell} ipython3

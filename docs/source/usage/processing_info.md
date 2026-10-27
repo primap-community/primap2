@@ -14,12 +14,11 @@ kernelspec:
 
 # Processing information
 
-Datasets can record for every data point how it was derived. This processing
+Datasets can record how every data point was derived. This processing
 information is stored in data variables named `Processing of {var}`, which hold the
 last {py:class}`primap2.ProcessingStep` of each data point. A step refers to the steps
 which set the values it was computed from as its `parents`, so the full history of a
-data point can be traced back to the original data. The parents can be at other time
-points, e.g. the data points a least-squares fit used. The descriptive fields of a step
+data point can be traced back to the original data. The descriptive fields of a step
 (function, description, source, and the variable and coordinates of the timeseries) are
 stored in a {py:class}`primap2.ProcessingStepDescription`, which is shared by the data
 points of a timeseries which were set by the same step. The storage format is described
@@ -243,8 +242,7 @@ except ValueError as err:
 ```
 
 Pass the `source` of the values, e.g. `source="constant(1)"`, to record them as new data.
-In general, `source` names data used by the step which isn't tracked in the dataset, also
-if the changed values have parents.
+In general, `source` names data used by the step which isn't tracked in the dataset.
 
 For processing which doesn't need a function of its own, e.g. a single xarray call, use
 a {py:meth}`xarray.Dataset.pr.processing_step` block, which records steps in the same
@@ -281,14 +279,13 @@ raises an error if the processing information lacks data points of the data. It 
 describe the data as it is, though:
 `with_processing_info` can't notice if the data was changed in between. Change data
 with primap2 functions, the decorator or a `processing_step` block instead, which
-record the change. Usually, there is no need to separate the two at all, as selecting,
-saving and all primap2 functions work on datasets with processing information.
+record the change.
 
 ## Storing processing information
 
 {py:meth}`xarray.Dataset.pr.to_netcdf` and {py:func}`primap2.open_dataset` save and
 read processing information. Files with processing information written by earlier
-development versions can't be read. The interchange format does not support it yet:
+development versions can't be read. The interchange format does not support it:
 {py:meth}`xarray.Dataset.pr.to_interchange_format` raises an error for datasets with
 processing information, use {py:meth}`xarray.Dataset.pr.without_processing_info` first.
 {py:meth}`xarray.Dataset.pr.to_df` leaves the processing information out.
@@ -299,8 +296,7 @@ processing information, use {py:meth}`xarray.Dataset.pr.without_processing_info`
 which sources were used for each data point. The result has an additional dimension
 listing the sources, with the value 1 if the source was used and 0 otherwise. The
 sources are the `source` of all steps in the history of a data point, i.e. the steps where
-data entered. A source counts as used if its step is in the history at any time point,
-also if it only went into a fit for other time points.
+data entered. A source counts as used if its step is in the history at any time point.
 
 ```{code-cell} ipython3
 used = filled.pr.used_sources()

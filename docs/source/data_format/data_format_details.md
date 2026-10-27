@@ -138,11 +138,10 @@ terminology is defined elsewhere.
 
 ## Processing Information
 
-How each data point was derived can be recorded as processing information, which is
-stored in special data variables, one for each normal data variable it describes.
-The name of these variables is `Processing of {var}` where `{var}` is the
-full name of the data variable which is described. Additionally, the following
-attributes are defined:
+How each data point was derived can be recorded as processing information. It is stored
+in separate `DataArray`s (entities `Processing of {var}`) of the `DataSet`, one per
+described variable.
+The following attributes are defined for each processing information `DataArray`:
 
 | attribute          | content                                           | required |
 |--------------------|---------------------------------------------------|----------|
@@ -151,23 +150,22 @@ attributes are defined:
 
 The `gwp_context` and `units` attributes must not be given.
 
-The array has the same dimensions as the data variable which is described, including
-`time`.
+The array has the same dimensions as the data variable which is described.
 It contains processing information as rich metadata types.
 Therefore, the data type is `object` and it contains `primap2.ProcessingStep` objects,
-the nodes of the processing history. A data point has a node if and only if it has data,
-and the time of the node is the time of the data point. Data points without data are
-marked by a null value (`None` or NaN), which is read back as `None`.
-If a dataset contains processing information, every data variable needs processing
+the nodes of the processing history. A data point has a node if and only if it has data.
+Data points without data are marked by a null value (`None` or NaN), which is read
+back as `None`.
+If a dataset contains processing information, every data variable must have processing
 information.
 
 Each `ProcessingStep` contains the following information:
 
-| attribute   | type                                | description                                                                  |
-|-------------|-------------------------------------|------------------------------------------------------------------------------|
-| description | `ProcessingStepDescription`         | What the step did, shared by the nodes of a timeseries which the step set    |
-| time        | `numpy.datetime64`                  | The time point of the data point which the step set                          |
-| parents     | tuple of `ProcessingStep`           | The steps which set the values this value was computed from, empty for a step which created the value |
+| attribute   | type                        | description                                                                                           |
+|-------------|-----------------------------|-------------------------------------------------------------------------------------------------------|
+| description | `ProcessingStepDescription` | What the step did, shared by the nodes of a timeseries which the step set                             |
+| time        | `numpy.datetime64`          | The time point of the data point which the step set                                                   |
+| parents     | tuple of `ProcessingStep`   | The steps which set the values this value was computed from, empty for a step which created the value |
 
 The parents can be at other time points than the node, e.g. the data points which were
 used for a least-squares fit.
@@ -177,21 +175,14 @@ A `ProcessingStepDescription` contains the following information:
 |-------------|---------------|---------------------------------------------------------------------------------------------|
 | function    | str           | Name of the function which did the operation                                                |
 | description | str           | Long-form description of the operation which was performed                                  |
-| source      | str or `None` | If applicable, identifier for untracked data which entered in the operation               |
+| source      | str or `None` | If applicable, identifier for untracked data which entered in the operation                 |
 | variable    | str or `None` | The name of the data variable of the processed timeseries                                   |
 | coords      | dict or `None`| The coordinates of the processed timeseries at the time of the operation, apart from "time" |
 
-Descriptions are compared by identity, equal fields do not make descriptions equal.
-
 Operations which combine several data points, like sums, have several parents, so the
-processing history of a data point is a directed acyclic graph rather than a list.
+processing history of a data point is a directed acyclic graph.
 Nodes are shared: the node of a data point can be a parent of the nodes of several
 other data points, also in other variables.
-`ProcessingStep.history()` returns all steps of the history in an order in
-which every step comes after its parents, and
-`ProcessingStep.format_history()` shows them as a tree, starting with the
-last step. `primap2.format_timeseries_history` shows the histories of all data points
-of a timeseries together.
 
 ### Storage of processing information in netCDF files
 

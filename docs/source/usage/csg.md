@@ -133,12 +133,11 @@ result_ds
 ```
 
 In the result, you can see that the priority dimensions have been removed, and that
-processing information was added which describes for each data point how it was derived.
+processing information was added which describes how each data point was derived.
 If the input data has processing information, the histories of the input data points
 are the parents of the composed data points, otherwise their history starts with the
-composition. Steps also link to the input data points they used at other time points,
-e.g. the overlap used for a fit. Use {py:meth}`xarray.Dataset.pr.processing_info` to
-select it, see [processing information](processing_info.md).
+composition. Use {py:meth}`xarray.Dataset.pr.processing_info` to select it, see
+[processing information](processing_info.md).
 
 ```{code-cell}
 sel = {
