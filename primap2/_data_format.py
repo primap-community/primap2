@@ -440,6 +440,9 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
           the dataset and was taken unchanged from ``other_ds``, which has the same
           dimensions.
 
+        Values computed from other data points, e.g. other time points, can be declared
+        with :py:meth:`primap2.ProcessingStepRecorder.computed_from`.
+
         The dimensions of the data variables have to stay the same.
 
         Examples

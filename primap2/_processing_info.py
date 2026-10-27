@@ -662,8 +662,8 @@ def record_step(
 
     * the previous step, if the value is unchanged.
     * None, if the value was changed to a missing value.
-    * a new step otherwise. Its parents are the previous step, unless ``replaces``, and
-      the values of ``parents`` for the data point.
+    * a new step otherwise. Its parents are the previous step of the same data point,
+      unless ``replaces``, and the values of ``parents`` for the data point.
 
     All new steps of a timeseries share one description. Timeseries which did not exist
     before and contain no data have no processing information. Previous timeseries
@@ -674,8 +674,10 @@ def record_step(
     new_da
         The data after the processing step.
     previous
-        Pairs of data before the processing step and its processing information. The data
-        may lack dimensions of ``new_da``, it is broadcast along them.
+        Pairs of data before the processing step and its processing information, e.g.
+        ``[(old_da, old_processing)]``. Values are compared with ``new_da`` to find the
+        changed data points. The data may lack dimensions of ``new_da``, it is broadcast
+        along them.
     parents
         Additional parents of the new steps. Each value is a step, None, or a tuple of
         steps like returned by combine_histories, which can be steps of other time
@@ -978,6 +980,144 @@ class DataArrayProcessingInfoAccessor(BaseDataArrayAccessor):
         )
 
 
+@define
+class _ComputedFrom:
+    """A declaration of the data points which changed values were computed from."""
+
+    var: typing.Hashable
+    mask: xr.DataArray | typing.Callable[[np.datetime64], xr.DataArray] | None
+    variable: typing.Hashable
+    dataset: xr.Dataset | None
+
+
+_PARENT_DIM = "parent "
+
+
+def _is_parent_dim(dim: typing.Hashable) -> bool:
+    return isinstance(dim, str) and dim.startswith(_PARENT_DIM)
+
+
+def _parent_labels_error(dim: typing.Hashable, labels: np.ndarray) -> ValueError:
+    return ValueError(
+        f"Parents of changed values are missing in dimension {dim!r} of the parent "
+        f"variable: {pd.unique(labels).tolist()!r}."
+    )
+
+
+def _parents_from_mask(
+    new_da: xr.DataArray,
+    changed: np.ndarray,
+    mask: xr.DataArray | typing.Callable[[np.datetime64], xr.DataArray] | None,
+    parent_infos: xr.DataArray,
+) -> xr.DataArray:
+    """For each data point of ``new_da``, the steps of ``parent_infos`` it was computed
+    from according to ``mask``, see ProcessingStepRecorder.computed_from.
+
+    ``changed`` has the layout of _layout, only changed data points get parents.
+    """
+    dims, template = _layout(new_da)
+    shape = template.shape
+    n_times = shape[-1]
+    n_cells = int(np.prod(shape[:-1], dtype=int))
+    times = template["time"].values
+    parent_dims = list(parent_infos.dims)
+    parent_nodes = _nodes_or_none(parent_infos.values)
+    indexes = {dim: parent_infos.get_index(dim) for dim in parent_dims}
+
+    def nonzero(m: xr.DataArray) -> xr.DataArray:
+        return m.notnull() & (m != 0)
+
+    static = nonzero(mask) if isinstance(mask, xr.DataArray) else None
+    flat_changed = changed.reshape(n_cells, n_times)
+    out = np.full((n_cells, n_times), None, dtype=object)
+    for ti in np.flatnonzero(flat_changed.any(axis=0)):
+        t = times[ti]
+        if static is not None:
+            ok = static
+            if "time" in ok.dims:
+                ok = ok.reindex(time=[t], fill_value=False).isel(time=0, drop=True)
+        elif mask is None:
+            ok = xr.DataArray(True)
+        else:
+            computed = mask(t)
+            if "time" in computed.dims:
+                raise ValueError(
+                    "The mask returned for a time point must not have a 'time' dimension, "
+                    f"use '{_PARENT_DIM}time' for the time of the parents."
+                )
+            ok = nonzero(computed)
+
+        mapped = []
+        for dim in ok.dims:
+            if _is_parent_dim(dim):
+                if dim[len(_PARENT_DIM) :] not in parent_dims:
+                    raise ValueError(
+                        f"Mask dimension {dim!r} does not refer to a dimension of the parent "
+                        f"variable {_dims_repr(parent_dims)}."
+                    )
+                mapped.append(dim)
+            elif dim not in dims:
+                raise ValueError(
+                    f"Mask dimension {dim!r} is neither a dimension of the new values "
+                    f"{_dims_repr(dims)} nor '{_PARENT_DIM}<dimension>' of the parent variable."
+                )
+        for dim in parent_dims:
+            if dim != "time" and dim not in dims and f"{_PARENT_DIM}{dim}" not in mapped:
+                raise ValueError(
+                    f"The parent variable has dimension {dim!r}, which the new values lack. "
+                    f"Map it with a mask dimension '{_PARENT_DIM}{dim}'."
+                )
+        own = [dim for dim in ok.dims if dim in dims]
+        if own:
+            ok = ok.reindex({dim: new_da[dim].values for dim in own}, fill_value=False, copy=False)
+        ok = ok.transpose(*[d for d in [*dims, *mapped] if d in ok.dims])
+        values = ok.values.reshape(
+            [ok.sizes[d] if d in ok.dims else 1 for d in dims] + [ok.sizes[d] for d in mapped]
+        )
+        # the mask of the changed cells only, with the mapped dimensions
+        rows = np.flatnonzero(flat_changed[:, ti])
+        row_index = np.unravel_index(rows, shape[:-1])
+        selected = values[
+            tuple(index if values.shape[i] > 1 else 0 for i, index in enumerate(row_index))
+        ]
+        selected = np.broadcast_to(selected, (len(rows), *values.shape[len(dims) :]))
+        row, *mapped_positions = np.nonzero(selected)
+        if not len(row):
+            continue
+        cell = rows[row]
+
+        positions = []
+        for dim in parent_dims:
+            if f"{_PARENT_DIM}{dim}" in mapped:
+                k = mapped.index(f"{_PARENT_DIM}{dim}")
+                labels = ok[f"{_PARENT_DIM}{dim}"].values[mapped_positions[k]]
+            elif dim == "time":
+                labels = np.full(len(cell), t)
+            else:
+                labels = new_da[dim].values[row_index[dims.index(dim)][row]]
+            position = indexes[dim].get_indexer(labels)
+            if (position < 0).any():
+                raise _parent_labels_error(dim, labels[position < 0])
+            positions.append(position)
+
+        nodes = parent_nodes[tuple(positions)]
+        keep = ~pd.isnull(nodes)
+        if not keep.any():
+            continue
+        order = np.argsort(cell[keep], kind="stable")
+        cell, nodes = cell[keep][order], nodes[keep][order]
+        unique_cells, starts = np.unique(cell, return_index=True)
+        for c, group in zip(unique_cells, np.split(nodes, starts[1:]), strict=True):
+            out[c, ti] = _unique(group.tolist())
+    return _new_processing_infos(new_da, out.reshape(shape).transpose(_layout_axes(new_da, dims)))
+
+
+def _layout_axes(da: xr.DataArray, dims: list[typing.Hashable]) -> list[int]:
+    """The axes which transpose the layout of _layout to the dimension order of ``da``."""
+    layout = [*dims, "time"]
+    return [layout.index(d) for d in da.dims]
+
+
 def _processing_infos_on_change(
     *,
     var: typing.Hashable,
@@ -988,6 +1128,7 @@ def _processing_infos_on_change(
     function: str,
     description: str,
     source: str | None,
+    computed_from: typing.Sequence[_ComputedFrom] = (),
 ) -> xr.DataArray:
     """The processing information of ``new_da``, see add_processing_step_on_change_ds."""
     name = processing_variable_name(var)
@@ -1007,6 +1148,25 @@ def _processing_infos_on_change(
         if set(other_ds[var].dims) == set(new_da.dims):
             previous.append((other_ds[var], other_ds[name]))
         parents.append(other_ds[name])
+    if computed_from:
+        if var in old_ds:
+            reindexed = old_ds[var].reindex({d: new_da[d] for d in old_ds[var].dims}, copy=False)
+            changed = _changed_values(reindexed, new_da) & new_da.notnull()
+        else:
+            changed = new_da.notnull()
+        dims, _ = _layout(new_da)
+        changed_values = changed.transpose(*dims, "time").values
+        for declaration in computed_from:
+            parent_ds = old_ds if declaration.dataset is None else declaration.dataset
+            parent_name = processing_variable_name(declaration.variable)
+            if parent_name not in parent_ds:
+                raise ValueError(
+                    f"The parent dataset has no processing information for "
+                    f"{declaration.variable!r}."
+                )
+            parents.append(
+                _parents_from_mask(new_da, changed_values, declaration.mask, parent_ds[parent_name])
+            )
     return record_step(
         new_da,
         previous=previous,
@@ -1027,6 +1187,7 @@ def _add_processing_step_on_change_ds(
     function: str,
     description: str,
     source: str | None = None,
+    computed_from: typing.Sequence[_ComputedFrom] = (),
 ) -> xr.Dataset:
     """Determine the processing information of ``new_ds``, which was derived from
     ``old_ds`` and optionally ``other_ds``.
@@ -1040,8 +1201,8 @@ def _add_processing_step_on_change_ds(
       ``other_ds`` lacks dimensions of the timeseries, it was broadcast and gets a new
       step.
     * a new processing step otherwise. Its parents are the processing information of
-      ``old_ds`` (unless ``replaces``) and of ``other_ds`` at the same coordinates and
-      time, if available.
+      ``old_ds`` (unless ``replaces``), of ``other_ds`` at the same coordinates and
+      time, if available, and the data points given by ``computed_from``.
 
     If ``old_ds`` has no processing information, the result has none either.
 
@@ -1064,6 +1225,8 @@ def _add_processing_step_on_change_ds(
     source
         Optional: a short identifier for untracked data which entered in the
         processing.
+    computed_from
+        Declarations of the data points which changed values were computed from.
 
     Returns
     -------
@@ -1073,13 +1236,19 @@ def _add_processing_step_on_change_ds(
     Raises
     ------
     ValueError
-        If the dimensions of a data variable changed, or if the processing information
-        doesn't match the data it describes.
+        If the dimensions of a data variable changed, if the processing information
+        doesn't match the data it describes, or if a declaration is invalid.
     """
     new_ds = _without_processing_info(new_ds)
     result = new_ds.copy()
     if not has_processing_info(old_ds):
         return result
+    for declaration in computed_from:
+        if declaration.var not in new_ds.data_vars:
+            raise ValueError(
+                f"computed_from refers to {declaration.var!r}, which is not a variable "
+                f"of the processed dataset."
+            )
     for var in new_ds.data_vars:
         result[processing_variable_name(var)] = _processing_infos_on_change(
             var=var,
@@ -1090,6 +1259,7 @@ def _add_processing_step_on_change_ds(
             function=function,
             description=description,
             source=source,
+            computed_from=[d for d in computed_from if d.var == var],
         )
 
     return result
@@ -1108,8 +1278,9 @@ class ProcessingStepRecorder:
     dataset including the updated processing information.
 
     A changed value is computed from the old value (the old step is its parent), unless
-    ``replaces``. A changed value needs a parent or a ``source``, else this raises. How
-    the processing information is determined is described in
+    ``replaces``. A changed value needs a parent or a ``source``, else this raises. Use
+    :py:meth:`computed_from` to declare other data points a value was computed from.
+    How the processing information is determined is described in
     add_processing_step_on_change_ds.
     """
 
@@ -1133,12 +1304,81 @@ class ProcessingStepRecorder:
         self._source = source
         self._replaces = replaces
         self._result: xr.Dataset | None = None
+        self._computed_from: list[_ComputedFrom] = []
+        self._closed = False
         self.ds = _without_processing_info(ds).copy(deep=True)
 
     def __enter__(self) -> typing.Self:
         return self
 
+    def computed_from(
+        self,
+        var: typing.Hashable,
+        mask: xr.DataArray | typing.Callable[[np.datetime64], xr.DataArray] | None = None,
+        *,
+        variable: typing.Hashable | None = None,
+        dataset: xr.Dataset | None = None,
+    ) -> None:
+        """Declare the data points which the changed values of ``var`` were computed from.
+
+        Only changed values get these parents, in addition to the old step (unless
+        ``replaces``). Data points without processing information are ignored. The masks
+        are resolved at the end of the block. Calls accumulate.
+
+        Parameters
+        ----------
+        var
+            The variable with the changed values.
+        mask
+            Which data points are parents. A dimension named ``"parent <dim>"`` stands
+            for dimension ``<dim>`` of the parent variable, its coordinate values are
+            labels along it. Other dimensions must be dimensions of ``var``; labels of
+            ``var`` missing in the mask have no parents. Dimensions of the parent
+            variable without ``"parent <dim>"`` have the coordinate of the new value
+            (also "time"). Values of 0, False and NaN mean no parent, anything else a
+            parent. Can be:
+
+            * None: the data point at the same coordinates.
+            * a DataArray. If it has a "time" dimension, its slice at each time point of
+              a changed value is used.
+            * a function which gets the time (``np.datetime64``) of ``var`` and returns the
+              mask for the values at this time, without "time" dimension. It is only called
+              for time points with changed values, which avoids materialising a mask over
+              time and "parent time".
+        variable
+            The parent variable, defaults to ``var``.
+        dataset
+            The dataset with the parents, which needs processing information for
+            ``variable``. Defaults to the dataset before the block.
+
+        Raises
+        ------
+        ValueError
+            If the parent dataset lacks processing information for ``variable``. Invalid
+            masks and ``var`` missing in the result raise at the end of the block.
+        RuntimeError
+            If the block has ended.
+
+        Examples
+        --------
+        >>> # xdoctest: +SKIP
+        >>> with ds.pr.processing_step(function="fit", description="linear fit") as step:
+        ...     known = step.ds["CO2"].notnull()
+        ...     step.ds = fill_gaps_with_fit(step.ds)
+        ...     step.computed_from("CO2", known.rename(time="parent time"))
+        """
+        if self._closed:
+            raise RuntimeError("computed_from can only be called within the with block.")
+        variable = var if variable is None else variable
+        parent_ds = self._original if dataset is None else dataset
+        if (dataset is not None or has_processing_info(parent_ds)) and (
+            processing_variable_name(variable) not in parent_ds
+        ):
+            raise ValueError(f"The parent dataset has no processing information for {variable!r}.")
+        self._computed_from.append(_ComputedFrom(var, mask, variable, dataset))
+
     def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self._closed = True
         if exc_type is not None:
             return
         self._result = _add_processing_step_on_change_ds(
@@ -1149,6 +1389,7 @@ class ProcessingStepRecorder:
             function=self._function,
             description=self._description,
             source=self._source,
+            computed_from=self._computed_from,
         )
         if self.ds.equals(_without_processing_info(self._original)):
             logger.debug(

@@ -257,8 +257,110 @@ with ds.pr.processing_step(function="round", description="rounded to one digit")
 show_history(step.result, time="2001")
 ```
 
-Values computed from other time points, e.g. by interpolation or extrapolation, can't be
-recorded with the decorator or the block yet.
+## Recording values computed from other time points
+
+The decorator and the block link a changed value to the old value and to `other` at the
+same coordinates only. Values computed from other data points, e.g. by interpolation or
+extrapolation, need to declare them inside the block with
+{py:meth}`step.computed_from(var, mask) <primap2.ProcessingStepRecorder.computed_from>`.
+The declared data points become parents of the changed values of `var`, in addition to
+the old value. Prefer a block without `computed_from` when a value is computed from the
+same data point.
+
+The `mask` selects the parents. Dimensions of the mask are named in one of two ways:
+
+* `"parent <dim>"` stands for the dimension `<dim>` of the parent variable, its
+  coordinates are labels of the parent, e.g. `"parent time"` or `"parent source"`.
+* All other dimensions must be dimensions of `var`: the mask applies to the new values
+  with these coordinates. New values with coordinates absent from the mask have no
+  parents.
+
+A dimension of the parent variable which the mask doesn't map has the same coordinate as
+the new value, which for `time` means the same time point. Mask values of 0, False and
+NaN mean "not a parent", all other values (so weights as well) mean "parent". The mask
+can be:
+
+* None: the data point at the same coordinates, e.g.
+  `step.computed_from("CH4", variable="CO2")` for values computed from another variable.
+* a DataArray. If it has a `time` dimension, its slice at the time of each new value is
+  used.
+* a function which gets the time of the new values and returns the mask for them, without
+  `time` dimension. It is only called for time points with changed values. Use it
+  instead of a DataArray with `time` and `parent time` dimensions, which takes a lot of
+  memory for long timeseries.
+
+The parents are looked up in the dataset before the block, or in `dataset` if given, in
+the variable `variable` (default: `var`). Data points without data are ignored. Calls
+accumulate.
+
+The first example fills the gap with a linear fit to the whole timeseries. Every known
+value of the timeseries is a parent of every new value, so the mask has no `time`
+dimension, only `parent time`:
+
+```{code-cell} ipython3
+co2 = ds["CO2"]
+
+with ds.pr.processing_step(
+    function="interpolate_linear", description="filled gaps with a linear fit"
+) as step:
+    plain = step.ds["CO2"].pr.dequantify()
+    fit = plain.polyfit("time", 1).polyfit_coefficients
+    step.ds["CO2"] = plain.fillna(xr.polyval(plain["time"], fit)).pr.quantify()
+    step.computed_from("CO2", co2.notnull().rename(time="parent time"))
+interpolated = step.result
+show_history(interpolated)
+```
+
+Only the filled value got a new step, with all other values of the timeseries as
+parents. The other values of the timeseries keep their processing information:
+
+```{code-cell} ipython3
+show_timeseries_history(interpolated)
+```
+
+The second example fills the gap with the last value before it. The parent of a value at
+time `t` is the last known value up to `t`, which is the known value with the same
+running count of known values as `t`. This mask is computed for each time point by a
+function, instead of building a mask over `time` and `parent time`:
+
+```{code-cell} ipython3
+p = lambda da: da.rename(time="parent time")
+known = co2.notnull()
+count = known.cumsum("time")
+
+with ds.pr.processing_step(function="ffill", description="filled gaps with the last value") as step:
+    step.ds["CO2"] = step.ds["CO2"].pr.dequantify().ffill("time").pr.quantify()
+    step.computed_from("CO2", lambda t: p(known) & (p(count) == count.sel(time=t)))
+forward_filled = step.result
+show_history(forward_filled)
+```
+
+For linear interpolation, the next known value is a parent as well, so the condition
+on the count becomes
+`(p(count) == count.sel(time=t)) | (p(count) == count.sel(time=t) + 1)`.
+
+The filled value links to the step of the value of 2001. `used_sources` follows the
+parents, so the source of the filled value is the source of the data it was computed
+from:
+
+```{code-cell} ipython3
+used = forward_filled.pr.used_sources()
+used["CO2"].pr.loc[{"area": "COL", "source": "RAND2020"}].to_pandas()
+```
+
+Other dimensions are declared in the same way. This is a basket sum on a dataset with
+categories, where each total depends on its subcategories at the same time:
+
+```python
+mask = xr.DataArray(
+    [[True, True]],
+    dims=["category (IPCC2006)", "parent category (IPCC2006)"],
+    coords={"category (IPCC2006)": ["0"], "parent category (IPCC2006)": ["1", "2"]},
+)
+with ds.pr.processing_step(function="sum", description="summed subcategories") as step:
+    step.ds = sum_subcategories(step.ds)
+    step.computed_from("CO2", mask)
+```
 
 ## Separating data and processing information
 

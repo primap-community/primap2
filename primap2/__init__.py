@@ -13,6 +13,7 @@ from ._data_format import open_dataset
 from ._processing_info import (
     ProcessingStep,
     ProcessingStepDescription,
+    ProcessingStepRecorder,
     format_timeseries_history,
     records_processing_step,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "Not",
     "ProcessingStep",
     "ProcessingStepDescription",
+    "ProcessingStepRecorder",
     "TimeRange",
     "accessors",
     "format_timeseries_history",

@@ -12,6 +12,7 @@ Top-level API
     Not
     ProcessingStep
     ProcessingStepDescription
+    ProcessingStepRecorder
     TimeRange
     accessors
     format_timeseries_history
