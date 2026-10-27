@@ -139,23 +139,105 @@ class MatchParameters:
         Which weighting to use for the data points. 'constant' uses constant weights for
         all points while 'linear' uses weights that decline linearly from 1 at the
         boundary to 0 at the last point of the fit interval.
+    var_average_period :
+        Average period for the rolling mean which is subtracted from the
+        time-series before calculating the variance
+    allowed_res :
+        maximal allowed residual of the fit in terms of sigma. The raw residual is
+        divided by the number of data points so it can be compared to the variance.
+        The allowed residual is max(var(ts), var(fill_ts))*allowed_res**2. The
+        comparison is done in terms of variances while allowed_res is given in terms
+        of sigma = sqrt(var) for ease of use.
+    allowed_factor :
+        Maximal allowed factor `a` in `fill_ts_harmo=a*fill_ts+b`. Allowed factor
+        has to be larger than one as the inverse is used automatically.
+    allowed_shift :
+        Defines the maximal allowed constant `b` in `fill_ts_harmo=a*fill_ts+b`.
+        The allowed shift is defined relative to the mean of fill_ts in the
+        period to be filled: `b_max=mean(fill_ts)*allowed_shift.`
+    min_var :
+        A minimal assumed variance for comparison with residual. This is necessary
+        to avoid failing of the strategy due to rounding errors in the least squares
+        matching when variance of a time-series is zero or very small
+
+
     """
 
     fit_length: int = 20
     fit_length_unit: str = "YS"
     weighting: str = "constant"  # other options: linear
     # min_trend_points: int = 5
+    var_average_period: int = 11
+    allowed_res: float = 1.0
+    allowed_factor: float = 2.01
+    allowed_shift: float = 0.201
+    min_var: float = 0.001
+
+    def __attrs_post_init__(self):
+        if self.allowed_factor <= 1.0:
+            raise ValueError(f"allowed_factor ({self.allowed_factor}) has to be larger than 1.0.")
 
     def log_string(self) -> str:
         """Create a string with the classes parameters."""
         log_str = (
             f"fit_length: {self.fit_length}, "
             f"fit_length_unit: {self.fit_length_unit}, "
-            f"weighting: {self.weighting}.\n"
+            f"weighting: {self.weighting},"
+            f"var_average_period: {self.var_average_period},"
+            f"allowed_res: {self.allowed_res},"
+            f"allowed_factor: {self.allowed_factor},"
+            f"allowed_shift: {self.allowed_shift},"
+            f"min_var: {self.min_var}.\n"
         )
         return log_str
 
     # def calculate_weights
+
+
+def get_matching_index(
+    ts: xr.DataArray,
+    fill_ts: xr.DataArray,
+    side: typing.Literal["left", "right"],
+    boundary: np.datetime64,
+    match_params: MatchParameters,
+) -> pd.DatetimeIndex:
+    """
+    Get index used for matching for the given timeseries, boundary and parameters
+
+    Parameters
+    ----------
+    ts
+        Time series to use as basis for the index
+    side
+        "left" or "right" side of the gap / boundary
+    boundary
+        Date value for the boundary (gap side not data side)
+    match_params
+        Parameters for the matching, e.g. length of matching period
+
+    Returns
+    -------
+        pd.DatetimeIndex for the matching period
+
+    """
+    # left boundary
+    point_to_modify = get_shifted_time_value(
+        ts, original_value=boundary, shift=1 if side == "right" else -1
+    )
+    matching_index = pd.date_range(
+        start=point_to_modify if side == "right" else None,
+        end=point_to_modify if side == "left" else None,
+        periods=match_params.fit_length,
+        freq=match_params.fit_length_unit,
+    )
+    # only keep indices which are in ts and not nan
+    matching_index = matching_index.intersection(ts.coords["time"])
+    matching_index = matching_index[~ts.pr.loc[{"time": matching_index}].isnull()]
+    # only keep indices which are in fil_ts and not nan
+    matching_index = matching_index.intersection(fill_ts.coords["time"])
+    matching_index = matching_index[~fill_ts.pr.loc[{"time": matching_index}].isnull()]
+
+    return matching_index
 
 
 def get_gaps(ts: xr.DataArray) -> list[Gap]:
@@ -512,7 +594,13 @@ def get_shifted_time_value(
     # For actually getting the index of a value in an index, it is easiest to work with
     # the underlying numpy arrays.
     time_points = ts["time"].values
-    original_index = np.where(time_points == original_value)[0][0]
+    try:
+        original_index = np.where(time_points == original_value)[0][0]
+    except Exception as ex:
+        message = (
+            f"Index {pd.to_datetime(original_value).strftime('%Y-%m-%d')} not found in timeseries."
+        )
+        raise ValueError(message) from ex
     new_index = original_index + shift
     return time_points[new_index]
 
