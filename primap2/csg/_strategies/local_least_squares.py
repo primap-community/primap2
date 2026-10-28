@@ -97,7 +97,7 @@ class LocalLSStrategy:
         The allowed shift is defined relative to the mean of fill_ts in the
         period to be filled: `b_max=mean(fill_ts)*allowed_shift.` the default is
         slightly larger than 0.2 such that a shift of 0.2 is still allowed and not subject
-         to rounding uncertainty.
+        to rounding uncertainty.
     min_var :
         A minimal assumed variance for comparison with residual. This is necessary
         to avoid failing of the strategy due to rounding errors in the least squares
@@ -114,20 +114,10 @@ class LocalLSStrategy:
     ----------
     match_params
         Instance of the FitParameters class defining the parameters for the fits on the
-        boundaries of the time-series. The default values are
-            fit_length: int = 20
-            fit_length_unit: str = "YS"
-            weighting: str = "constant"
-            var_average_period: int = 11
-            allowed_res: float = 1.0
-            allowed_factor: float = 2.01
-            allowed_shift: float = 0.201
-            min_var: float = 0.001
-            trend_length=10,
-            min_trend_points=5,   # minimal data points necessary for trend calculation
-            trend_length_unit="YS",  # year start datapoint
-            fit_degree=1,  # linear trend by default
-            fallback_degree=0,  # constant
+        boundaries of the time-series.
+    allow_shift: bool, default True
+        Allow the filling time series to shift up and down using the additive constant
+        :math:`b \\neq 0`.
     allow_negative
         Allow the filling time series to contain negative data initially.
     """
