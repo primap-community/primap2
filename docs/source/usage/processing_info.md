@@ -57,6 +57,8 @@ import xarray as xr
 import primap2
 ```
 
+The inputs are created in the following cell, expand it to see the details:
+
 ```{code-cell} ipython3
 ---
 mystnb:
@@ -288,19 +290,17 @@ with ds.pr.processing_step(
     function="gas_basket_contents_sum", description="summed the gases"
 ) as step:
     step.ds[basket] = step.ds.pr.gas_basket_contents_sum(basket=basket, basket_contents=gases)
-    for gas in gases:
-        step.computed_from(basket, variable=gas)
+    step.computed_from(basket, variable=gases)
 show_history(step.result, var=basket, time="2001")
 ```
 
 In this example, {py:meth}`xarray.Dataset.pr.gas_basket_contents_sum` returns a
 DataArray, so it can't be used on a dataset with processing information directly (see
 "Processing with primap2 functions"), but it works on `step.ds`.
-`step.computed_from(basket, variable=gas)` declares that the derived values of `basket`
-were computed from the values of `gas` at the same coordinates and time, in the dataset
-before the block. Each call adds parents, so the basket has all three gases as parents.
-Without `computed_from`, the block raises an error, as the values of the basket would
-have neither parents nor a source.
+`step.computed_from(basket, variable=gases)` declares that the derived values of `basket`
+were computed from the values of the `gases` at the same coordinates and time, in the
+dataset before the block. Without `computed_from`, the block raises an error, as the
+values of the basket would have neither parents nor a source.
 
 As the CO2 of Colombia is missing in 2002, the basket of Colombia in 2002 only has SF6
 and CH4 as parents:
@@ -312,39 +312,12 @@ show_history(step.result, var=basket)
 ### Parents at other coordinates
 
 If the coordinates of the parents differ from those of the derived value, e.g. for a
-value computed from other time points, pass a mask as the second argument of
-`computed_from`. It relates the derived values to their parents:
+value computed from other time points, pass the parents' coordinates as `at`: a
+dictionary from dimension to the label or list of labels of the parents along it. Along
+dimensions missing in `at`, the parents have the coordinates of the derived value.
 
-* For each dimension along which the parents' coordinates can differ from those of the
-  derived value, the mask has a dimension `"parent <dim>"` with the coordinates of the
-  parents, e.g. `"parent time"`. Along their other dimensions, the parents have the
-  coordinates of the derived value.
-* The other dimensions of the mask are dimensions of the derived variable, with the
-  coordinates of the derived values, e.g. `time`. Derived values with coordinates
-  missing in the mask get no parents from it. Along dimensions which the mask lacks, it
-  applies to all derived values.
-* Each entry which is non-zero and not NaN marks a parent, so masks can be boolean or
-  hold weights.
-
-Assume we want to fill the gaps with a linear fit to the whole timeseries. All values
-with data are parents of the filled values in this case. The mask in `time` and
-`parent time` for the CO2 of Colombia could be the following:
-
-```{code-cell} ipython3
-colombia = {"area": "COL", "source": "RAND2020"}
-co2 = ds["CO2"]
-fit_mask = co2.notnull().rename(time="parent time").expand_dims(time=co2["time"].values)
-fit_mask.pr.loc[colombia].to_pandas()
-```
-
-Each row represents one new `time` coordinate, and all columns in which the row's value
-is `True` correspond to a parent's `time` coordinate (represented by the `parent time`
-dimension). The mask also has the dimensions `area (ISO3)` and `source` of `co2`, so
-each timeseries has its own rows. As it has no `parent area (ISO3)` or `parent source`
-dimension, the parents' coordinates in the `area (ISO3)` and `source` dimensions are
-assumed to be identical to those of the derived value.
-
-Using the mask to declare the parents is straightforward:
+Assume we want to fill the gaps with a linear fit to the whole timeseries. All values of
+the timeseries with data are parents of the filled values in this case:
 
 ```{code-cell} ipython3
 with ds.pr.processing_step(
@@ -353,36 +326,25 @@ with ds.pr.processing_step(
     plain = step.ds["CO2"].pr.dequantify()
     fit = plain.polyfit("time", 1).polyfit_coefficients
     step.ds["CO2"] = plain.fillna(xr.polyval(plain["time"], fit)).pr.quantify()
-    step.computed_from("CO2", fit_mask)
+    step.computed_from("CO2", at={"time": ds["time"].values})
 fitted = step.result
 show_history(fitted)
 ```
 
-Only the filled values of 2002 and 2004 are derived values, so only they got new
-processing steps, with all values of the timeseries which have data as parents. The
-other values of the timeseries keep their processing information:
+In this example, `at={"time": ds["time"].values}` declares that each derived value was
+computed from the values at all time points. As `area (ISO3)` and `source` are missing
+in `at`, these coordinates are assumed to be identical to the derived value. Of all
+matching coordinatesthem, only those with data become parents, which leaves out the gaps
+of 2002 and 2004. Only
+the filled values of 2002 and 2004 are changed, so only they get new processing
+steps. The other values of the timeseries keep their processing information:
 
 ```{code-cell} ipython3
 show_timeseries_history(fitted)
 ```
 
-All rows of the above mask are identical, so the `time` dimension can be left out:
-`co2.notnull().rename(time="parent time")` declares the same parents.
-
 Other dimensions work the same way, e.g. for summing the categories 1 and 2 of
 `by_category` into category 0:
-
-```{code-cell} ipython3
-in_total = xr.DataArray(
-    [[True, True]],
-    dims=["category (IPCC2006)", "parent category (IPCC2006)"],
-    coords={"category (IPCC2006)": ["0"], "parent category (IPCC2006)": ["1", "2"]},
-)
-in_total.to_pandas()
-```
-
-The mask only has entries for category 0, so only derived values in category 0 get
-parents from it: the values of the categories 1 and 2 at the same time and area.
 
 ```{code-cell} ipython3
 with by_category.pr.processing_step(
@@ -393,80 +355,107 @@ with by_category.pr.processing_step(
     step.ds = step.ds.pr.add_aggregates_coordinates(
         {"category (IPCC2006)": {"0": {"sources": ["1", "2"]}}}
     )
-    step.computed_from("CO2", in_total)
+    step.computed_from("CO2", at={"category (IPCC2006)": ["1", "2"]})
 show_history(step.result.pr.loc[{"category": "0"}], time="2001")
 ```
 
-### Non-trivial masks
+The values of category 0 are the only derived values. Their parents are the values of
+the categories 1 and 2 at the same time and area.
 
-In the examples above, the masks are the same for all time points of the derived
-values. Assume we want to fill the gaps with the last value before them instead. The
-parent of a filled value is then the last value with data before it, which differs
-between the gaps. The mask in `time` and `parent time` for the CO2 of Colombia could be
-built like this:
+### Labels for each derived value
+
+In the examples above, the labels in `at` are the same for all derived values. Assume
+we want to fill the gaps with the last value before them instead. The parent of a filled
+value is then the last value with data before it, which differs between the gaps. For
+this, `at` also takes a DataArray, which holds the labels of the parents for each
+derived value. Here, it holds the time point of the last value with data, shown for the
+CO2 of Colombia:
 
 ```{code-cell} ipython3
-# renames time to "parent time", for the time points of the parents
-p = lambda da: da.rename(time="parent time")
-# True for the values with data
-known = co2.notnull()
-# the number of values with data up to each time point
-count = known.cumsum("time")
-# the last known value in the parent p(known) for which the
-# running count of values is equal in parent and result
-ffill_mask = p(known) & (p(count) == count)
-ffill_mask.pr.loc[colombia].transpose("time", "parent time").to_pandas()
+colombia = {"area": "COL", "source": "RAND2020"}
+co2 = ds["CO2"]
+# the time point of each value with data, NaT for the gaps
+known_time = co2["time"].where(co2.notnull())
+# the latest time point with data up to each time point
+last_known = known_time.cumulative("time").max()
+last_known.pr.loc[colombia].to_pandas()
 ```
 
-The row of 2002 marks 2001 and the row of 2004 marks 2003, so the `time` dimension
-can't be left out as before. The rows of time points with data mark the time
-point itself, but these values are unchanged and get no parents regardless.
+For each time point, `last_known` holds the time point of the parent: 2001 for the
+filled value of 2002 and 2003 for the filled value of 2004. At time points with data,
+it holds the time point itself, but these values are unchanged and get no parents.
 
-This kind of mask has an entry for each pair of time points, so it gets large for long
-timeseries. Instead of a mask, `computed_from` also takes a function, which gets a time
-point `t` and returns the mask for the derived values at `t`, without `time` dimension.
-The function is only called for time points with derived values:
+With `last_known`, declaring the parents of the filled values is as simple as before:
 
 ```{code-cell} ipython3
 with ds.pr.processing_step(function="ffill", description="filled gaps with the last value") as step:
     step.ds["CO2"] = step.ds["CO2"].pr.dequantify().ffill("time").pr.quantify()
-    step.computed_from("CO2", lambda t: p(known) & (p(count) == count.sel(time=t)))
+    step.computed_from("CO2", at={"time": last_known})
 forward_filled = step.result
 show_history(forward_filled)
 show_history(forward_filled, time="2004")
 ```
 
-The function returns the same as `ffill_mask.sel(time=t)`, but without building the
-whole mask. The filled values of 2002 and 2004 link to the steps of the values of 2001
-and 2003.
+A DataArray in `at` is looked up at the coordinates of each derived value, along the
+dimensions it shares with the derived variable. In this example, these are `time`,
+`area (ISO3)` and `source`: for the filled value of Colombia from RAND2020 in 2002,
+`last_known` holds 2001, so its parent is the value of Colombia from RAND2020 in 2001.
+A derived value gets no parent from the DataArray if its coordinates are missing in the
+DataArray, or if the DataArray holds a missing value (NaT, NaN or None) there.
+
+A DataArray can also list several parents for each derived value, along any dimension
+which the derived variable doesn't have. For linear interpolation, the parents are the
+last value with data before a gap and the first one after it:
+
+```{code-cell} ipython3
+# the earliest time point with data from each time point on, i.e. last_known backwards
+next_known = (
+    known_time.isel(time=slice(None, None, -1)).cumulative("time").min().sortby("time")
+)
+neighbours = xr.concat([last_known, next_known], dim="neighbour")
+neighbours.pr.loc[colombia].transpose("time", "neighbour").to_pandas()
+```
+
+With this coordinate lookup the parents of the derived values can be defined in the same
+way as before:
+
+```{code-cell} ipython3
+with ds.pr.processing_step(function="interpolate", description="interpolated gaps") as step:
+    step.ds["CO2"] = step.ds["CO2"].pr.dequantify().interpolate_na("time").pr.quantify()
+    step.computed_from("CO2", at={"time": neighbours})
+show_history(step.result, time="2004")
+```
+
+Note how in this example, the `neighbour` dimension of the lookup isn't shared by `co2`,
+so all of its entries along this dimension become
+parents: the filled value of 2004 was computed from the values of 2003 and 2005.
 
 ### Parents in other datasets
 
-To look up the parents in another dataset, pass it as
-`dataset`. It needs to have processing information for the parent variable:
+To look up the parents in another dataset, pass it as `dataset`. It needs to have
+processing information for the parent variable:
 
 ```{code-cell} ipython3
-in_2001 = p(ds["time"].dt.year == 2001)
-
 with ds.pr.processing_step(
     function="fill_scaled", description="filled gaps with the estimate scaled to 2001"
 ) as step:
     co2 = step.ds["CO2"]
     factor = co2.sel(time="2001-01-01") / estimate["CO2"].sel(time="2001-01-01")
     step.ds["CO2"] = co2.fillna(estimate["CO2"] * factor)
-    step.computed_from("CO2", in_2001)  # ds in 2001
-    step.computed_from("CO2", dataset=tracked_estimate)  # the estimate at the same time
-    step.computed_from("CO2", in_2001, dataset=tracked_estimate)  # the estimate in 2001
+    # ds in 2001, the estimate at the same time and the estimate in 2001
+    step.computed_from("CO2", at={"time": "2001"})
+    step.computed_from("CO2", dataset=tracked_estimate)
+    step.computed_from("CO2", at={"time": "2001"}, dataset=tracked_estimate)
 show_history(step.result)
 ```
 
-In this example, the gaps are filled with the estimate, scaled to match `ds` in 2001, so
-the filled value of 2002 is computed from `ds` in 2001 and from the estimate in 2001 and
-2002.
-The estimate is passed as `tracked_estimate`, which has processing information. Its CO2
-has no `source` dimension, so the source isn't used to look up the parents. If the
-other dataset has other coordinates along a dimension, e.g. another source, map them
-with a mask dimension like `"parent source"`.
+In this example, the gaps are filled with the estimate, scaled to match `ds` in 2001.
+Each call of `computed_from` adds parents, so the filled value of 2002 is computed from
+`ds` in 2001 and from the estimate in 2001 and 2002. The estimate is passed as
+`tracked_estimate`, which has processing information. Its CO2 has no `source`
+dimension, so the source isn't used to look up the parents. If the other dataset has
+other labels along a dimension, e.g. another source, give them in `at`, like
+`at={"source": "EXPERT"}`.
 
 ### Without computed_from
 

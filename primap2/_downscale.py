@@ -9,13 +9,8 @@ from loguru import logger
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._aggregate import select_no_scalar_dimension
 from ._processing_info import (
-    _nodes_or_none,
-    combine_histories,
     ensure_complete_processing_info,
     ensure_complete_processing_info_of_other,
-    has_processing_info,
-    processing_variable_name,
-    record_step,
 )
 from ._types import DimOrDimsT
 from ._units import ureg
@@ -44,42 +39,23 @@ def _deprecated_skipna_false_with_evaluation_dims(
     return skipna
 
 
-def _downscaling_parents(
-    nodes: xr.DataArray, defined: xr.DataArray, changed: xr.DataArray, dim: Hashable
-) -> xr.DataArray:
-    """The parents of downscaled values: the nodes of all basket contents at the nearest
-    time points before and after where the shares were defined.
-
-    ``nodes`` are the processing steps of the basket contents, ``defined`` is True where a
-    share was determined from the data and ``changed`` where a value was downscaled. All
-    have the dimensions of the basket contents along ``dim`` and "time". The result has a
-    tuple of steps at each downscaled value and None elsewhere.
-    """
-    other = [d for d in defined.dims if d not in (dim, "time")]
-    order = [*other, dim, "time"]
-
-    def aligned(da: xr.DataArray, fill_value) -> np.ndarray:
-        return da.reindex_like(defined, fill_value=fill_value, copy=False).transpose(*order).values
-
-    shape = defined.transpose(*order).shape
-    n_rows, n_contents, n_times = int(np.prod(shape[:-2], dtype=int)), shape[-2], shape[-1]
-    is_defined = aligned(defined, False).reshape(n_rows, n_contents, n_times)
-    times = np.arange(n_times)
-    before = np.maximum.accumulate(np.where(is_defined, times, -1), axis=-1)
-    after = np.minimum.accumulate(np.where(is_defined, times, n_times)[..., ::-1], axis=-1)[
-        ..., ::-1
-    ]
-    content_nodes = _nodes_or_none(aligned(nodes, np.nan)).reshape(n_rows, n_contents, n_times)
-    result = np.full((n_rows, n_contents, n_times), None, dtype=object)
-    where = np.nonzero(aligned(changed, False).reshape(n_rows, n_contents, n_times))
-    rows = content_nodes.tolist()
-    for row, content, time in zip(*where, strict=True):
-        found = []
-        for t in (before[row, content, time], after[row, content, time]):
-            if 0 <= t < n_times:
-                found.extend(x[t] for x in rows[row] if x[t] is not None)
-        result[row, content, time] = tuple(found)
-    return defined.transpose(*order).copy(data=result.reshape(shape))
+def _nearest_defined(defined: xr.DataArray) -> xr.DataArray:
+    """Labels for computed_from: for each time point, the nearest time points before and
+    after where ``defined``, or the time point itself if it is defined, along a new
+    dimension "nearest"."""
+    defined = defined.transpose(..., "time")
+    values = defined.values
+    n = values.shape[-1]
+    positions = np.arange(n)
+    before = np.maximum.accumulate(np.where(values, positions, -1), axis=-1)
+    after = np.minimum.accumulate(np.where(values, positions, n)[..., ::-1], axis=-1)[..., ::-1]
+    # positions -1 and n, i.e. no defined time point before or after, are NaT
+    times = np.append(defined["time"].values, np.array("NaT", dtype=defined["time"].dtype))
+    return xr.DataArray(
+        np.stack([times[before], times[after]], axis=-1),
+        dims=[*defined.dims, "nearest"],
+        coords=defined.coords,
+    )
 
 
 class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
@@ -414,42 +390,33 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         """
         skipna = _deprecated_skipna_false_with_evaluation_dims(skipna, skipna_evaluation_dims)
 
-        tracked = has_processing_info(self._ds)
-        ensure_complete_processing_info(self._ds)
-        data = self._ds.pr.without_processing_info()
-        downscaled = self._ds.copy()
-        contents = {dim: list(basket_contents)}
-        for var in data.data_vars:
-            downscaled[var], defined = data[var].pr._downscale_timeseries(
-                dim=dim,
-                basket=basket,
-                basket_contents=basket_contents,
-                check_consistency=check_consistency,
-                sel=sel,
-                skipna_evaluation_dims=skipna_evaluation_dims,
-                skipna=skipna,
-                min_count=min_count,
-                tolerance=tolerance,
-            )
-            if not tracked:
-                continue
-            processing_infos = self._ds[processing_variable_name(var)]
-            changed = (data[var].isnull() & downscaled[var].notnull()).pr.loc[contents]
-            downscaled[processing_variable_name(var)] = record_step(
-                downscaled[var],
-                previous=[(data[var], processing_infos)],
-                parents=[
-                    processing_infos.pr.loc[{dim: basket}],
-                    _downscaling_parents(
-                        processing_infos.pr.loc[contents], defined, changed, dim=dim
-                    ),
-                ],
-                replaces=True,
-                function="downscale_timeseries",
-                description=f"downscaled from {dim}={basket!r}",
-            )
-
-        return downscaled
+        with self._ds.pr.processing_step(
+            function="downscale_timeseries",
+            description=f"downscaled from {dim}={basket!r}",
+            replaces=True,
+        ) as step:
+            data = self._ds.pr.without_processing_info()
+            downscaled = data.copy()
+            for var in data.data_vars:
+                downscaled[var], defined = data[var].pr._downscale_timeseries(
+                    dim=dim,
+                    basket=basket,
+                    basket_contents=basket_contents,
+                    check_consistency=check_consistency,
+                    sel=sel,
+                    skipna_evaluation_dims=skipna_evaluation_dims,
+                    skipna=skipna,
+                    min_count=min_count,
+                    tolerance=tolerance,
+                )
+                # the basket at the same time, and all basket contents at the nearest time
+                # points where the shares were defined
+                step.computed_from(var, at={dim: basket})
+                step.computed_from(
+                    var, at={dim: list(basket_contents), "time": _nearest_defined(defined)}
+                )
+            step.ds = downscaled
+        return step.result
 
     def downscale_gas_timeseries(
         self,
@@ -615,34 +582,22 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                     downscaled[var].pint.to(ds_sel[var].pint.units)
                 )
 
-        result = data.pr.fillna(downscaled_converted)
-        if not has_processing_info(self._ds):
-            return result
-
-        ensure_complete_processing_info(self._ds)
-        processing = {var: self._ds[processing_variable_name(var)] for var in data.data_vars}
-        contents = list(basket_contents)
-        share_parents = _downscaling_parents(
-            xr.concat([processing[var] for var in contents], "variable"),
-            defined.to_array("variable"),
-            xr.concat(
-                [(data[var].isnull() & result[var].notnull()).pr.dequantify() for var in contents],
-                "variable",
-            ),
-            dim="variable",
-        )
-        for var in result.data_vars:
-            if var in contents:
-                processing[var] = record_step(
-                    result[var],
-                    previous=[(data[var], processing[var])],
-                    parents=[processing[basket], share_parents.isel(variable=contents.index(var))],
-                    replaces=True,
-                    function="downscale_gas_timeseries",
-                    description=f"downscaled from {basket!r}",
+        with self._ds.pr.processing_step(
+            function="downscale_gas_timeseries",
+            description=f"downscaled from {basket!r}",
+            replaces=True,
+        ) as step:
+            step.ds = data.pr.fillna(downscaled_converted)
+            for var in basket_contents:
+                # the basket at the same coordinates, and all basket contents at the nearest
+                # time points where the shares were defined
+                step.computed_from(var, variable=basket)
+                step.computed_from(
+                    var,
+                    at={"time": _nearest_defined(defined[var])},
+                    variable=list(basket_contents),
                 )
-            result[processing_variable_name(var)] = processing[var]
-        return result
+        return step.result
 
     def downscale_timeseries_by_shares(
         self,
@@ -698,30 +653,20 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                 basket_contents_shares=basket_contents_shares_arr,
             )
 
-        result = xr.Dataset(downscaled_dict).assign_attrs(ds.attrs)
-        contents = {dim: list(basket_contents)}
-        if not has_processing_info(self._ds):
-            return result
-        for var in downscaled_dict:
-            name = processing_variable_name(var)
-            processing_infos = self._ds[name]
-            result[name] = record_step(
-                result[var],
-                previous=[(ds[var], processing_infos)],
-                parents=[
-                    processing_infos.pr.loc[{dim: basket}],
-                    # the shares are normalised over all basket contents
-                    combine_histories(
-                        basket_contents_shares[name].pr.loc[contents],
-                        dim,
-                        data=basket_contents_shares[var].pr.loc[contents],
-                    ),
-                ],
-                replaces=True,
-                function="downscale_timeseries_by_shares",
-                description=f"downscaled from {dim}={basket!r} using shares",
-            )
-        return result
+        with self._ds.pr.processing_step(
+            function="downscale_timeseries_by_shares",
+            description=f"downscaled from {dim}={basket!r} using shares",
+            replaces=True,
+        ) as step:
+            step.ds = xr.Dataset(downscaled_dict).assign_attrs(ds.attrs)
+            for var in downscaled_dict:
+                # the basket, and the shares of all basket contents, as the shares are
+                # normalised over them
+                step.computed_from(var, at={dim: basket})
+                step.computed_from(
+                    var, at={dim: list(basket_contents)}, dataset=basket_contents_shares
+                )
+        return step.result
 
 
 def generate_error_message(da_error: xr.DataArray) -> str:

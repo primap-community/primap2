@@ -45,14 +45,15 @@ def gap_ds() -> xr.Dataset:
     return make_ds({"COL": [1, np.nan, np.nan, 4, 5, 6], "ARG": [1, 2, 3, 4, 5, 6]})
 
 
+def known_times(da: xr.DataArray) -> xr.DataArray:
+    return da["time"].where(da.notnull())
+
+
 def ffill_declaration(step, ds, var="CO2"):
-    p = lambda da: da.rename(time="parent time")  # noqa: E731
-    known = ds[var].notnull()
-    count = known.cumsum("time")
-    step.computed_from(var, lambda t: p(known) & (p(count) == count.sel(time=t)))
+    step.computed_from(var, at={"time": known_times(ds[var]).cumulative("time").max()})
 
 
-def test_forward_fill_with_callable():
+def test_forward_fill():
     ds = gap_ds()
     with ds.pr.processing_step(function="ffill", description="filled") as step:
         step.ds["CO2"] = step.ds["CO2"].ffill("time")
@@ -99,31 +100,26 @@ def test_forward_fill_equals_manual_parents():
                 assert [p.time for p in a.parents] == [p.time for p in b.parents]
 
 
-def test_linear_interpolation_two_conditions():
+def test_linear_interpolation_two_parents():
     ds = gap_ds()
+    known = known_times(ds["CO2"])
+    before = known.cumulative("time").max()
+    after = known.isel(time=slice(None, None, -1)).cumulative("time").min().sortby("time")
     with ds.pr.processing_step(function="interp", description="interpolated") as step:
         step.ds["CO2"] = step.ds["CO2"].interpolate_na("time")
-        p = lambda da: da.rename(time="parent time")  # noqa: E731
-        known = ds["CO2"].notnull()
-        count = known.cumsum("time")
-        step.computed_from(
-            "CO2",
-            lambda t: (
-                p(known) & ((p(count) == count.sel(time=t)) | (p(count) == count.sel(time=t) + 1))
-            ),
-        )
+        step.computed_from("CO2", at={"time": xr.concat([before, after], dim="neighbour")})
     for year in (2001, 2002):
         new = at(step.result, "COL", year)
         assert {x.time for x in new.parents} == {np.datetime64("2000"), np.datetime64("2003")}
         assert len(new.parents) == 2
 
 
-def test_array_mask_without_time_is_fit():
+def test_list_of_times_is_fit():
     ds = gap_ds()
     with ds.pr.processing_step(function="fit", description="fit") as step:
         step.ds["CO2"] = step.ds["CO2"].fillna(0.0)
-        known = ds["CO2"].notnull()
-        step.computed_from("CO2", known.rename(time="parent time"))
+        # time points without data are skipped
+        step.computed_from("CO2", at={"time": TIMES})
     new = at(step.result, "COL", 2001)
     assert {x.time for x in new.parents} == {
         np.datetime64(f"{y}") for y in (2000, 2003, 2004, 2005)
@@ -132,23 +128,17 @@ def test_array_mask_without_time_is_fit():
     assert at(step.result, "ARG", 2001) is at(ds, "ARG", 2001)
 
 
-def test_array_mask_with_time():
+def test_labels_per_time():
     ds = gap_ds()
     with ds.pr.processing_step(function="f", description="d") as step:
         step.ds["CO2"] = step.ds["CO2"].fillna(0.0)
-        mask = xr.DataArray(
-            np.zeros((len(TIMES), len(TIMES)), dtype=bool),
-            dims=["time", "parent time"],
-            coords={"time": TIMES, "parent time": TIMES},
-        )
-        mask.loc[{"time": "2001", "parent time": "2005"}] = True
-        mask.loc[{"time": "2002", "parent time": "2000"}] = True
-        step.computed_from("CO2", mask)
+        labels = xr.DataArray([TIMES[5], TIMES[0]], dims="time", coords={"time": TIMES[1:3]})
+        step.computed_from("CO2", at={"time": labels})
     assert [x.time for x in at(step.result, "COL", 2001).parents] == [np.datetime64("2005")]
     assert [x.time for x in at(step.result, "COL", 2002).parents] == [np.datetime64("2000")]
 
 
-def test_mask_none_other_variable():
+def test_other_variable():
     ds = gap_ds()
     with ds.pr.processing_step(function="f", description="d") as step:
         step.ds["CO2"] = step.ds["CO2"].fillna(0.0)
@@ -157,20 +147,25 @@ def test_mask_none_other_variable():
     assert new.parents == (at(ds, "COL", 2001, var="CH4"),)
 
 
+def test_list_of_variables():
+    ds = gap_ds()
+    with ds.pr.processing_step(function="f", description="d") as step:
+        step.ds["CO2"] = step.ds["CO2"].fillna(0.0)
+        step.computed_from("CO2", at={"time": "2000"}, variable=["CO2", "CH4"])
+    new = at(step.result, "COL", 2001)
+    assert new.parents == (at(ds, "COL", 2000), at(ds, "COL", 2000, var="CH4"))
+
+
 def test_dataset_parent_with_source_mapping():
     ds = make_ds({"COL": [1, np.nan, 3, 4, 5, 6]}, sources=("A", "B"))
     other = make_ds({"COL": [7, 7, 7, 7, 7, 7]}, source="O", sources=("C",))
     with ds.pr.processing_step(function="f", description="d", source="X") as step:
         step.ds["CO2"] = step.ds["CO2"].fillna(0.0)
-        mask = xr.DataArray(
-            [[True]],
-            dims=["source", "parent source"],
-            coords={"source": ["A"], "parent source": ["C"]},
-        )
-        step.computed_from("CO2", mask, dataset=other)
+        labels = xr.DataArray(["C"], dims="source", coords={"source": ["A"]})
+        step.computed_from("CO2", at={"source": labels}, dataset=other)
     new = at(step.result, "COL", 2001, source="A")
     assert new.parents == (at(other, "COL", 2001, source="C"),)
-    # source B has no mask entry: no parents, changed but needs a source
+    # source B has no labels: no parents, changed but needs a source
     assert at(step.result, "COL", 2001, source="B").parents == ()
 
 
@@ -191,38 +186,42 @@ def test_category_basket_sum():
     with ds.pr.processing_step(function="sum", description="sum") as step:
         da = step.ds["CO2"]
         step.ds["CO2"] = xr.where(da[CAT] == "0", da.sel({CAT: ["1", "2"]}).sum(CAT), da)
-        mask = xr.DataArray(
-            [[False, True, True]],
-            dims=[CAT, f"parent {CAT}"],
-            coords={CAT: ["0"], f"parent {CAT}": cats},
-        )
-        step.computed_from("CO2", mask)
+        labels = xr.DataArray([["1", "2"]], dims=[CAT, "summand"], coords={CAT: ["0"]})
+        step.computed_from("CO2", at={CAT: labels})
     new = at(step.result, "COL", 2002, **{CAT: "0"})
     assert set(map(id, new.parents)) == {id(at(ds, "COL", 2002, **{CAT: c})) for c in cats}
     # category "1" unchanged
     assert at(step.result, "COL", 2002, **{CAT: "1"}) is at(ds, "COL", 2002, **{CAT: "1"})
 
 
-def test_calls_accumulate_and_weights():
+def test_calls_accumulate_and_missing_labels():
     ds = gap_ds()
     with ds.pr.processing_step(function="f", description="d") as step:
         step.ds["CO2"] = step.ds["CO2"].fillna(0.0)
-        weights = xr.DataArray(
-            [0.5, 0, np.nan, 2.0, 0, 0],
-            dims="parent time",
-            coords={"parent time": TIMES},
-        )
-        step.computed_from("CO2", weights)
-        step.computed_from(
-            "CO2",
-            xr.DataArray(
-                [False, False, False, False, True, False],
-                dims="parent time",
-                coords={"parent time": TIMES},
-            ),
-        )
+        step.computed_from("CO2", at={"time": [TIMES[0], pd.NaT, TIMES[3]]})
+        step.computed_from("CO2", at={"time": TIMES[4]})
     new = at(step.result, "COL", 2001)
-    assert {x.time for x in new.parents} == {np.datetime64(y) for y in ("2000", "2003", "2004")}
+    assert [x.time for x in new.parents] == [np.datetime64(y) for y in ("2000", "2003", "2004")]
+
+
+def test_lists_combine_and_shared_dimensions_match():
+    cats = ["0", "1", "2"]
+    ds = make_ds({"COL": [1, 2, 3, 4, 5, 6]}, cats=cats)
+
+    def parents(labels):
+        with ds.pr.processing_step(function="f", description="d", replaces=True) as step:
+            step.ds["CO2"] = step.ds["CO2"].where(step.ds[CAT] != "0", 0.0)
+            step.computed_from("CO2", at=labels)
+        new = at(step.result, "COL", 2003, **{CAT: "0"})
+        return {(x.description.coords[CAT], x.time) for x in new.parents}
+
+    times = [np.datetime64("2000"), np.datetime64("2001")]
+    assert parents({CAT: ["1", "2"], "time": times}) == {(c, t) for c in "12" for t in times}
+    shared = {
+        CAT: xr.DataArray(["1", "2"], dims="pair"),
+        "time": xr.DataArray(times, dims="pair"),
+    }
+    assert parents(shared) == {("1", times[0]), ("2", times[1])}
 
 
 def test_replaces_keeps_computed_from_parents():
@@ -230,61 +229,47 @@ def test_replaces_keeps_computed_from_parents():
     old = at(ds, "COL", 2000)
     with ds.pr.processing_step(function="f", description="d", replaces=True) as step:
         step.ds["CO2"] = step.ds["CO2"].where(step.ds["CO2"].time != TIMES[0], 10.0)
-        step.computed_from("CO2", xr.DataArray(True).expand_dims({"parent time": TIMES[3:4]}))
+        step.computed_from("CO2", at={"time": TIMES[3]})
     new = at(step.result, "COL", 2000)
     assert old not in new.parents
     assert [x.time for x in new.parents] == [np.datetime64("2003")]
 
 
-def test_callable_only_called_for_changed_times():
-    ds = gap_ds()
-    called = []
-    with ds.pr.processing_step(function="f", description="d", source="X") as step:
-        step.ds["CO2"] = step.ds["CO2"].ffill("time")
-
-        def mask(t):
-            called.append(t)
-            return xr.DataArray(True)
-
-        step.computed_from("CO2", mask)
-    assert called == [np.datetime64("2001"), np.datetime64("2002")]
-
-
-def test_no_changes_no_calls():
+def test_no_changes_no_lookup():
     ds = gap_ds()
     with ds.pr.processing_step(function="f", description="d") as step:
-        step.computed_from("CO2", lambda t: 1 / 0)
+        step.computed_from("CO2", at={"time": "1990"})
     assert at(step.result, "COL", 2000) is at(ds, "COL", 2000)
 
 
-def test_error_unknown_mask_dim():
+def test_error_unknown_dim():
     ds = gap_ds()
     with (
-        pytest.raises(ValueError, match=r"foo"),
+        pytest.raises(ValueError, match=r"'foo' is not a dimension"),
         ds.pr.processing_step(function="f", description="d") as step,
     ):
         step.ds["CO2"] = step.ds["CO2"].fillna(0.0)
-        step.computed_from("CO2", xr.DataArray([True], dims="foo"))
+        step.computed_from("CO2", at={"foo": 1})
 
 
-def test_error_parent_dim_not_in_parent():
+def test_error_nested_list():
     ds = gap_ds()
     with (
-        pytest.raises(ValueError, match=r"parent foo"),
+        pytest.raises(ValueError, match=r"list of labels"),
         ds.pr.processing_step(function="f", description="d") as step,
     ):
         step.ds["CO2"] = step.ds["CO2"].fillna(0.0)
-        step.computed_from("CO2", xr.DataArray([True], dims="parent foo"))
+        step.computed_from("CO2", at={"time": [TIMES[:2], TIMES[2:4]]})
 
 
-def test_error_callable_with_time():
+def test_error_labels_without_coordinates():
     ds = gap_ds()
     with (
-        pytest.raises(ValueError, match=r"time"),
+        pytest.raises(ValueError, match=r"coordinates along 'time'"),
         ds.pr.processing_step(function="f", description="d") as step,
     ):
         step.ds["CO2"] = step.ds["CO2"].fillna(0.0)
-        step.computed_from("CO2", lambda t: xr.DataArray([True], dims="time", coords={"time": [t]}))
+        step.computed_from("CO2", at={"time": xr.DataArray(TIMES.values, dims="time")})
 
 
 def test_error_after_block():
@@ -311,6 +296,8 @@ def test_error_parent_dataset_without_processing_info():
             step.computed_from("CO2", dataset=ds.pr.without_processing_info())
         with pytest.raises(ValueError, match="processing information"):
             step.computed_from("CO2", variable="NOPE")
+        with pytest.raises(ValueError, match="processing information"):
+            step.computed_from("CO2", variable=["CH4", "NOPE"])
 
 
 def test_error_unmapped_parent_dim_missing_in_new():
@@ -321,7 +308,7 @@ def test_error_unmapped_parent_dim_missing_in_new():
         .pr.with_creation_step(function="create", description="created", source="S")
     )
     with (
-        pytest.raises(ValueError, match=r"parent source"),
+        pytest.raises(ValueError, match=r"dimension 'source'.*'at'"),
         ds.pr.processing_step(function="f", description="d") as step,
     ):
         step.ds["CO2"] = step.ds["CO2"].fillna(0.0)
@@ -330,19 +317,21 @@ def test_error_unmapped_parent_dim_missing_in_new():
 
 def test_missing_parent_labels_only_needed_ones():
     ds = gap_ds()
-    labels = [*TIMES[:2], pd.Timestamp("1990")]
-    both = xr.DataArray([True, False, True], dims="parent time", coords={"parent time": labels})
-    unused = xr.DataArray([True, False, False], dims="parent time", coords={"parent time": labels})
+    # 2001 and 2002 are changed, 2003 is not
+    unused = xr.DataArray(
+        [TIMES[0], TIMES[0], pd.Timestamp("1990")], dims="time", coords={"time": TIMES[1:4]}
+    )
     with ds.pr.processing_step(function="f", description="d") as step:
         step.ds["CO2"] = step.ds["CO2"].fillna(0.0)
-        step.computed_from("CO2", unused)
+        step.computed_from("CO2", at={"time": unused})
     assert [x.time for x in at(step.result, "COL", 2001).parents] == [np.datetime64("2000")]
+    needed = unused.copy(data=[TIMES[0], pd.Timestamp("1990"), TIMES[0]])
     with (
         pytest.raises(ValueError, match=r"parent variable.*1990"),
         ds.pr.processing_step(function="f", description="d") as step,
     ):
         step.ds["CO2"] = step.ds["CO2"].fillna(0.0)
-        step.computed_from("CO2", both)
+        step.computed_from("CO2", at={"time": needed})
 
 
 def test_missing_parent_time_for_unmapped_time():
