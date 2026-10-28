@@ -1,8 +1,6 @@
 import numpy as np
 import xarray as xr
 from attrs import field, frozen
-from scipy.linalg import lstsq
-from scipy.optimize import least_squares
 
 import primap2
 from primap2.csg._strategies.gaps import (
@@ -11,10 +9,8 @@ from primap2.csg._strategies.gaps import (
     get_gaps,
     get_matching_index,
 )
-from primap2.csg._strategies.lls_functions import (
-    variance_detrend,
-)
 
+from .. import GlobalLSStrategy
 from .exceptions import StrategyUnableToProcess
 
 # TODO
@@ -22,11 +18,11 @@ from .exceptions import StrategyUnableToProcess
 # using the same harmonization for all gaps
 # optimization: adaptive area LS matching where areas with high overlap and a good fit
 # are identified and the matching is done using these areas ignoring other areas
-#
+# * add option to cap a and b at max allowed values instead of failing
 
 
 @frozen
-class LocalLSStrategy:
+class LocalLSStrategy(GlobalLSStrategy):
     """Fill missing data using local least square matching to calculate a scaling factor
     between the time-series.
 
@@ -46,7 +42,7 @@ class LocalLSStrategy:
     For the case ``allow_shift = False`` (:math:`b = 0`) :py:func:`scipy.optimize.least_squares`
     is used.
 
-    In contrast to the globalLS strategy this strategy only uses datapoint in the vicinity
+    In contrast to the globalLS strategy this strategy only uses datapoints in the vicinity
     of the gaps and borders for the matching. for each boundary a fit period is calculated.
     The length of the fit period (`match_params.fit_length) is defined in terms of
     `match_params.fit_length_unit`, e.g. years as taken as input by `pd.date_range`.
@@ -123,33 +119,15 @@ class LocalLSStrategy:
     """
 
     match_params: MatchParameters = field()
-    allow_shift: bool = field()  # True  # check if that works for ruff
-    allow_negative: bool = field()
     type = "localLS"
-
-    @allow_negative.default
-    def _set_allow_negative(self):
-        return False
 
     @match_params.default
     def _set_def_match_params(self):
         return MatchParameters(
-            fit_length=10,
+            fit_length=20,
             fit_length_unit="YS",
             weighting="constant",  # only option currently implemented
         )
-
-    @allow_shift.default
-    def _set_allow_shift(self):
-        return True
-
-    def _factor_mult(self, a, e, e_ref):
-        return a * e - e_ref
-
-    def _jac(self, a, e, e_ref):
-        J = np.empty((e.size, 1))
-        J[:, 0] = e
-        return J
 
     def fill(
         self,
@@ -277,104 +255,23 @@ class LocalLSStrategy:
             # gaps matching periods
             if len(gaps_to_fill) > 0:
                 if self.allow_shift:
-                    e = fill_ts.loc[{"time": index}].data
-                    A = np.vstack((e, np.ones_like(e))).transpose()
-                    e_ref = ts.loc[{"time": index}].data
-                    x, res, _rank, _s = lstsq(A, e_ref)
-                    # check if factor in allowed range
-                    if abs(x[0]) > self.match_params.allowed_factor:
-                        raise StrategyUnableToProcess(
-                            reason=f"Harmonization factor a is larger than allowed: "
-                            f"a={x[0]:.3f} > {self.match_params.allowed_factor:.3f}"
-                        )
-                    if abs(x[0]) < 1 / self.match_params.allowed_factor:
-                        raise StrategyUnableToProcess(
-                            reason=f"Harmonization factor a is smaller than allowed: "
-                            f"a={x[0]:.3f} < {1 / self.match_params.allowed_factor:.3f}"
-                        )
-                    # check if shift in allowed range
-                    if abs(x[1]) > self.match_params.allowed_shift * np.mean(e):
-                        raise StrategyUnableToProcess(
-                            reason=f"Harmonization shift a is larger than allowed: "
-                            f"|b|={abs(x[1]):.3f} > {self.match_params.allowed_shift:.3f}"
-                        )
-                    if not np.isnan(res):
-                        # make residual comparable to sigma
-                        res = res / len(e_ref)
-                        # calculate variance of detrended time-series
-                        var_ts = variance_detrend(
-                            ts.loc[{"time": index}],
-                            average_period=self.match_params.var_average_period,
-                        ).values.item()
-                        var_fill_ts = variance_detrend(
-                            fill_ts.loc[{"time": index}],
-                            average_period=self.match_params.var_average_period,
-                        ).values.item()
-                        max_var = max(var_fill_ts, var_ts)
-                        if res > (max_var * self.match_params.allowed_res**2):
-                            raise StrategyUnableToProcess(
-                                reason=f"Residual higher than allowed: "
-                                f"sqrt(normed residual)/max(sigma(ts), sigma(fill_ts) "
-                                f"= {np.sqrt(res / max_var):.3f} sigma > "
-                                f"{self.match_params.allowed_res} sigma."
-                            )
-
-                    fill_ts_harmo = fill_ts * x[0] + x[1]
-
-                    if any(fill_ts_harmo < 0) and not self.allow_negative:
-                        # fail, use next strategy defined in
-                        raise StrategyUnableToProcess(
-                            reason="Negative data after harmonization excluded by configuration"
-                        )
-                    else:
-                        fill_description = (
-                            f"Gaps filled with local least squares matched data "
-                            f"from {fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
-                            f"b={x[1]:0.3f}"
-                        )
+                    fill_ts_harmo, x = self._harmo_ls_shift(
+                        ts=ts,
+                        fill_ts=fill_ts,
+                        index=index,
+                    )
+                    fill_description = (
+                        f"Gaps filled with local least squares matched data "
+                        f"from {fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
+                        f"b={x[1]:0.3f}"
+                    )
 
                 else:
-                    e = fill_ts.loc[{"time": index}].data
-                    e_ref = ts.loc[{"time": index}].data
-                    a0 = [1]  #  start with 1 as scaling factor
-                    result = least_squares(self._factor_mult, a0, jac=self._jac, args=(e, e_ref))
-                    # check if factor in allowed range
-                    if abs(result["x"][0]) > self.match_params.allowed_factor:
-                        raise StrategyUnableToProcess(
-                            reason=f"Harmonization factor a is larger than allowed: "
-                            f"a={result['x'][0]:.3f} > "
-                            f"{self.match_params.allowed_factor}"
-                        )
-                    if abs(result["x"][0]) < 1 / self.match_params.allowed_factor:
-                        raise StrategyUnableToProcess(
-                            reason=f"Harmonization factor a is smaller than allowed: "
-                            f"a={result['x'][0]:.3f} < "
-                            f"{1 / self.match_params.allowed_factor:.3f}"
-                        )
-                    fun = result["fun"]
-                    res = fun @ fun
-                    if not np.isnan(res):
-                        # make residual comparable to sigma
-                        res = res / len(e_ref)
-                        # calculate variance of detrended time-series
-                        var_ts = variance_detrend(
-                            ts.loc[{"time": index}],
-                            average_period=self.match_params.var_average_period,
-                        ).values.item()
-                        var_fill_ts = variance_detrend(
-                            fill_ts.loc[{"time": index}],
-                            average_period=self.match_params.var_average_period,
-                        ).values.item()
-                        max_var = max(var_fill_ts, var_ts, self.match_params.min_var)
-                        if res > (max_var * self.match_params.allowed_res**2):
-                            raise StrategyUnableToProcess(
-                                reason=f"Residual higher than allowed: "
-                                f"sqrt(normed residual)/max(sigma(ts), sigma(fill_ts) "
-                                f"= {np.sqrt(res / max_var):.3f} sigma > "
-                                f"{self.match_params.allowed_res} sigma."
-                            )
-
-                    fill_ts_harmo = fill_ts * result["x"][0]
+                    fill_ts_harmo, result = self._harmo_ls_no_shift(
+                        ts=ts,
+                        fill_ts=fill_ts,
+                        index=index,
+                    )
 
                     fill_description = (
                         f"Gaps filled with local least squares matched data from "

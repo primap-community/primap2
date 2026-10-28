@@ -175,8 +175,10 @@ class MatchParameters:
     min_var: float = 0.001
 
     def __attrs_post_init__(self):
-        if self.allowed_factor <= 1.0:
-            raise ValueError(f"allowed_factor ({self.allowed_factor}) has to be larger than 1.0.")
+        if (self.allowed_factor <= 1.0) and (self.allowed_factor != 0):
+            raise ValueError(
+                f"allowed_factor ({self.allowed_factor}) has to be larger than 1.0 or equal to 0.0."
+            )
 
     def log_string(self) -> str:
         """Create a string with the classes parameters."""
@@ -236,7 +238,7 @@ def get_matching_index(
     # only keep indices which are in ts and not nan
     matching_index = matching_index.intersection(ts.coords["time"])
     matching_index = matching_index[~ts.pr.loc[{"time": matching_index}].isnull()]
-    # only keep indices which are in fil_ts and not nan
+    # only keep indices which are in fill_ts and not nan
     matching_index = matching_index.intersection(fill_ts.coords["time"])
     matching_index = matching_index[~fill_ts.pr.loc[{"time": matching_index}].isnull()]
 
