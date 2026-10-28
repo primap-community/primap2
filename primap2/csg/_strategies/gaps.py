@@ -50,8 +50,8 @@ class FitParameters:
     Note:
         Very unevenly distributed data points can lead to fit problems,
         e.g. if we use a 10 year period and have 5 data point all in one year. But as the
-        normal use case are evenly distributed data points, sometimes with gaps it's
-        currently not relevant
+        normal use case are evenly distributed data points, sometimes with gaps,
+        it's currently not relevant.
 
     Attributes
     ----------
@@ -114,18 +114,20 @@ class FitParameters:
 @frozen
 class MatchParameters:
     """
-    Class to represent parameters for a least squares matching.
+    Class to represent parameters for least squares matching.
 
-    TODO: adapt docstring when code finalized
-    While `min_data_points` refers
-    to the actual number of data points `trend_length` does not. `trend_length` and
-    `trend_length_unit` together define a time span which is independent of the actual
-    data points and their spacing.
+    The length of the fit period (`fit_length) is defined in terms of `fit_length_unit`,
+    e.g. years as taken as input by `pd.date_range`. Make sure the given parameters fit
+    the data you use.
+
+    Compared to the `FitParameters` for linear trend calculations we have additional
+    parameters that govern if the resulting fit can be used or not. See parameter
+    descriptions for details.
 
     Note:
         Very unevenly distributed data points can lead to fit problems,
         e.g. if we use a 10 year period and have 5 data point all in one year. But as the
-        normal use case are evenly distributed data points, sometimes with gaps it's
+        normal use case are evenly distributed data points, sometimes with gaps, it's
         currently not relevant
 
     Attributes
@@ -138,7 +140,8 @@ class MatchParameters:
     weighting :
         Which weighting to use for the data points. 'constant' uses constant weights for
         all points while 'linear' uses weights that decline linearly from 1 at the
-        boundary to 0 at the last point of the fit interval.
+        boundary to 0 at the last point of the fit interval. Currently only 'constant'
+        is implemented.
     var_average_period :
         Average period for the rolling mean which is subtracted from the
         time-series before calculating the variance
@@ -159,8 +162,6 @@ class MatchParameters:
         A minimal assumed variance for comparison with residual. This is necessary
         to avoid failing of the strategy due to rounding errors in the least squares
         matching when variance of a time-series is zero or very small
-
-
     """
 
     fit_length: int = 20
@@ -208,6 +209,8 @@ def get_matching_index(
     ----------
     ts
         Time series to use as basis for the index
+    fill_ts
+        Time series to use to fill gaps in ts
     side
         "left" or "right" side of the gap / boundary
     boundary
@@ -296,7 +299,7 @@ def calculate_boundary_trend_with_fallback(
     ts: xr.DataArray,
     gap: Gap,
     fit_params: FitParameters,
-) -> np.array:
+) -> np.ndarray:
     """
     Calculate trend values for boundary points. Uses fallback if not enough fit points
     available.
@@ -330,7 +333,8 @@ def calculate_boundary_trend_with_fallback(
         if all(np.isnan(trend_ts)):
             logger.info(
                 f"Not enough values to calculate fit for ts and gap:"
-                f"{gap.type}, [{gap.left}:{gap.right}].\n"
+                f"{gap.type}, [{pd.to_datetime(gap.left).strftime('%Y-%m-%d')}:"
+                f"{pd.to_datetime(gap.right).strftime('%Y-%m-%d')}].\n"
                 f"{fit_params.log_string(fallback=True)}"
                 f"Timeseries info: {timeseries_coord_repr(ts)}"
             )
@@ -347,7 +351,7 @@ def calculate_boundary_trend(
     ts: xr.DataArray,
     gap: Gap,
     fit_params: FitParameters,
-) -> np.array:
+) -> np.ndarray:
     """
     Calculate trend values for boundary points.
 
@@ -468,7 +472,7 @@ def calculate_scaling_factor_trend(
     fill_ts: xr.DataArray,
     gap: Gap,
     fit_params: FitParameters,
-) -> np.array:
+) -> np.ndarray:
     """
     Calculate scaling factor(s) to fill gaps
 
@@ -479,9 +483,9 @@ def calculate_scaling_factor_trend(
     Parameters
     ----------
     ts :
-        Timeseries ith gaps to fill
+        Time-series ith gaps to fill
     fill_ts :
-        Timeseries to fill gaps with
+        Time-series to fill gaps with
     gap :
         Definition of the gap
     fit_params :
@@ -531,7 +535,7 @@ def fill_gap(
     ts: xr.DataArray,
     fill_ts: xr.DataArray,
     gap: Gap,
-    factor: np.array,
+    factor: np.ndarray,
 ) -> xr.DataArray:
     """Fill a gap in a timeseries using data from another timeseries and factors.
 
@@ -543,7 +547,7 @@ def fill_gap(
         Timeseries from which to take the data to fill in the gap in ts.
     gap: Gap
         The gap that should be filled.
-    factor: np.array
+    factor: np.ndarray
         Numpy array containing two floats, the scaling factor to use at the left side of the gap
         and the scaling factor to use at the right side of the gap. The data from fill_ts will be
         multiplied with the factor before filling the gap in ts. If the factors differ, a linear
@@ -584,6 +588,8 @@ def get_shifted_time_value(
     ----------
     ts :
         time series to use (for time coordinate)
+    original_value :
+        original time value (basis for the shift)
     shift :
         position of the value to get relative to the `original_value`
 
@@ -602,6 +608,7 @@ def get_shifted_time_value(
         )
         raise ValueError(message) from ex
     new_index = original_index + shift
+
     return time_points[new_index]
 
 

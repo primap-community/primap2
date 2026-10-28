@@ -18,14 +18,8 @@ from primap2.csg._strategies.lls_functions import (
 from .exceptions import StrategyUnableToProcess
 
 # TODO
-# local matching with least squares instead of lineaer trends
-# * if more than one gap exists the default behaviour should be to fail because
-#   breaking a time-series into parts and use them individually seems hard to justify
-#   in most cases as it assumes internal inconsistency of the time-series.
-#   However this should be possible when explicitly allowed because some time-series
-#   actually are internally inconsistent.
-
-
+# * add parameter to fail if multiple gaps are present? currently they are filled
+# using the same harmonization for all gaps
 # optimization: adaptive area LS matching where areas with high overlap and a good fit
 # are identified and the matching is done using these areas ignoring other areas
 #
@@ -34,90 +28,102 @@ from .exceptions import StrategyUnableToProcess
 @frozen
 class LocalLSStrategy:
     """Fill missing data using local least square matching to calculate a scaling factor
-    between the time-series..
+    between the time-series.
 
     The NaNs in the first timeseries :math:`\\textrm{ts}(t)` are filled using harmonized data
-    from the lower priority timeseries :math:`\\textrm{fill_ts}(t)`.
-
-    For gaps in the data and missing data at the boundaries of time series different
-    treatments are used.
-
-    For boundaries the strategy uses
+    from the lower priority timeseries :math:`\\textrm{fill_ts}(t)`. For harmonization we use
 
     .. math::
 
-       \\textrm{fill_ts}_h(t) = \\textrm{fill_ts}(t) \\times a,
+       \\textrm{fill_ts}_h(t) = \\textrm{fill_ts}(t) \\times a + b,
 
-    where :math:`\\textrm{fill_ts}_h(t)` is the harmonized dataset and :math:`a` is determined
-    by
+    where :math:`\\textrm{fill_ts}_h(t)` is the harmonized dataset and :math:`a` and :math:`b` are
+    determined by minimizing the least squares distance between :math:`\\textrm{ts}(t)`
+    and :math:`\\textrm{fill_ts}_h(t)` for the time points selected for matching.
 
-    ---
-     TODO: adapt to LLS
-    .. math::
+    If the class is initialized with ``allow_shift = True`` the faster
+    :py:func:`scipy.linalg.lstsq` function is used and :math:`b` can be arbitrary.
+    For the case ``allow_shift = False`` (:math:`b = 0`) :py:func:`scipy.optimize.least_squares`
+    is used.
 
-        a = \\textrm{fill_ts}_t(t_b) / \\textrm{ts}_t(t_b),
+    In contrast to the globalLS strategy this strategy only uses datapoint in the vicinity
+    of the gaps and borders for the matching. for each boundary a fit period is calculated.
+    The length of the fit period (`match_params.fit_length) is defined in terms of
+    `match_params.fit_length_unit`, e.g. years as taken as input by `pd.date_range`.
+    Make sure the given parameters fit the data you use.
+    The time points used for matching are the points in the union of all fit periods
+    which have data for `ts` and `fill_ts`.
 
-    where :math:`\\textrm{fill_ts}_t(t_b)` is the trend value calculated for
-    :math:`\\textrm{fill_ts}(t_b)` and equally for :math:`\\textrm{ts}_t(t_b)`.
-    :math:`t_b` is the last (in case of a right boundary) or first (in case of a left
-    boundary) non-NaN data point in :math:`\\textrm{ts}`. The trend value is calculated
-    using a linear trend of length `trend_length` or less data points if a time-series
-    does not cover the full period. By setting `min_trend_points` a minimal number of
-    points necessary for the trend calculation can be set. If less points are available a
-    :py:class:`StrategyUnableToProcess` error will be raised. This enables the user to
-    define a fallback strategy, e.g. single point matching.
-    ---
+    In contrast to the localTrends strategy where each gap or boundary is filled individually,
+    we use a global harmonization for `fill_ts` to have a consistent treatment for all gaps and
+    boundaries.
 
-    For gaps the left (:math:`t_{bl}`) and right (:math:`t_{br}`) end have to be considered.
-    The data is harmonized using
-
-    ---
-    TODO: adapt to LLS using the period of both boundary windows
-    .. math::
-
-       \\textrm{fill_ts}_h(t) = \\textrm{fill_ts}(t) \\times
-       \\frac{a_l(t_{br}-t)+a_r(t-t_{bl})}{t_{br}-t_{bl}},
-
-    where
-
-    .. math::
-
-        a_l = \\textrm{fill_ts}_t(t_{bl}) / \\textrm{ts}_t(t_{bl}),
-
-    and
-
-    .. math::
-
-        a_r = \\textrm{fill_ts}_t(t_b) / \\textrm{ts}_t(t_b).
-
-    If only one of the ends of the gap has an overlap with :math:`\\textrm{fill_ts}(t)`,
-    we use the harmonization factor of this side for the whole gap (we treat the gap like
-    a boundary).
-
-    If there is no overlap in non-NaN data between :math:`\\textrm{ts}(t)` and
-    :math:`\\textrm{fill_ts}(t)` a :py:class:`StrategyUnableToProcess` error will be raised.
+    If the set is empty a :py:class:`StrategyUnableToProcess` error will be raised.
 
     If ``allow_negative = False`` and the harmonized time-series :math:`\\textrm{fill_ts}_h(t)`
     contains negative data a :py:class:`StrategyUnableToProcess` error will be raised.
-    ---
 
-    TODO: filling multiple gaps: two options
-     * fail
-     * fill with a matching time-span that covers all points from the first to the last
-       matching windows
+    The parameters of the matching and the acceptance of the result are controlled vie the
+    `match_params` attribute which is an instance of the `MatchParameters` class.
+    The following parameters are available:
 
-    # TODO: rewrite
-    Filling multiple gaps and boundaries with this function is scientifically questionable
-    as they will all use different scaling factors and thus don't use a consistent model to
-    harmonize one time-series :math:`\\textrm{fill_ts}(t)` to :math:`\\textrm{ts}(t)`.
-    Use with care.
+    fit_length (default=20) :
+        length of the trend in time steps (usually years)
+    fit_length_unit (default='YS') :
+        Unit for the length of the trend. String passed to the `freq` argument of
+        `pd.date_range`. Default is 'YS' (yearly at start of year)
+    weighting (default='constant') :
+        Which weighting to use for the data points. 'constant' uses constant weights for
+        all points while 'linear' uses weights that decline linearly from 1 at the
+        boundary to 0 at the last point of the fit interval. Currently only 'constant'
+        is implemented.
+    var_average_period (default=11) :
+        Average period for the rolling mean which is subtracted from the
+        time-series before calculating the variance
+    allowed_res (default=1) :
+        maximal allowed residual of the fit in terms of sigma. The raw residual is
+        divided by the number of data points so it can be compared to the variance.
+        The allowed residual is max(var(ts), var(fill_ts))*allowed_res**2. The
+        comparison is done in terms of variances while allowed_res is given in terms
+        of sigma = sqrt(var) for ease of use. The default value of 1 corresponds to
+        an allowed residual of one sigma, where `sigma=max(sigma(ts), sigma(fill_ts))`.
+    allowed_factor (2.01):
+        Maximal allowed factor `a` in `fill_ts_harmo=a*fill_ts+b`. Allowed factor
+        has to be larger than one as the inverse is used automatically. The default is
+        slightly larget than 2 such that a factor of 2 is still allowed and not subject
+        to rounding uncertainty.
+    allowed_shift :
+        Defines the maximal allowed constant `b` in `fill_ts_harmo=a*fill_ts+b`.
+        The allowed shift is defined relative to the mean of fill_ts in the
+        period to be filled: `b_max=mean(fill_ts)*allowed_shift.` the default is
+        slightly larger than 0.2 such that a shift of 0.2 is still allowed and not subject
+         to rounding uncertainty.
+    min_var :
+        A minimal assumed variance for comparison with residual. This is necessary
+        to avoid failing of the strategy due to rounding errors in the least squares
+        matching when variance of a time-series is zero or very small
+
+    Note:
+        Very unevenly distributed data points can lead to fit problems,
+        e.g. if we use a 10 year period and have 5 data point all in one year. But as the
+        normal use case are evenly distributed data points, sometimes with gaps, it's
+        currently not relevant
+
 
     Attributes
     ----------
     match_params
         Instance of the FitParameters class defining the parameters for the fits on the
         boundaries of the time-series. The default values are
-            trend_length=10,  # ten years if default unit for trend length is used)
+            fit_length: int = 20
+            fit_length_unit: str = "YS"
+            weighting: str = "constant"
+            var_average_period: int = 11
+            allowed_res: float = 1.0
+            allowed_factor: float = 2.01
+            allowed_shift: float = 0.201
+            min_var: float = 0.001
+            trend_length=10,
             min_trend_points=5,   # minimal data points necessary for trend calculation
             trend_length_unit="YS",  # year start datapoint
             fit_degree=1,  # linear trend by default
@@ -196,12 +202,6 @@ class LocalLSStrategy:
             # any_filled = False
             time_filled = np.array([], dtype=np.datetime64)
             gaps = get_gaps(ts)
-
-            # TODO: add area between matching regions to matching region!!!
-            #  For end and start gaps this would mean to use the full time-series
-            #  But makes more sense than just using the end and the beginning without
-            #  the middle of the time-series
-            # and also fill gaps which are in between the gaps which have fitting data?
 
             # boundary period finding code from trend fitting
             index = None
@@ -286,10 +286,6 @@ class LocalLSStrategy:
             # If we have gaps to fill calculate a transformation of fill_ts using the
             # gaps matching periods
             if len(gaps_to_fill) > 0:
-                # TODO: for the case that we have more than one gap also include
-                #  the relevant indices between the matching periods (make sure to
-                #  only fill values that have data in both datasets)
-                # TODO: also add max factor and max shift values
                 if self.allow_shift:
                     e = fill_ts.loc[{"time": index}].data
                     A = np.vstack((e, np.ones_like(e))).transpose()
@@ -307,7 +303,7 @@ class LocalLSStrategy:
                             f"a={x[0]:.3f} < {1 / self.match_params.allowed_factor:.3f}"
                         )
                     # check if shift in allowed range
-                    if abs(x[1]) > self.match_params.allowed_shift:
+                    if abs(x[1]) > self.match_params.allowed_shift * np.mean(e):
                         raise StrategyUnableToProcess(
                             reason=f"Harmonization shift a is larger than allowed: "
                             f"|b|={abs(x[1]):.3f} > {self.match_params.allowed_shift:.3f}"
