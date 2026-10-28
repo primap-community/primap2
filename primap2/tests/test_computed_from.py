@@ -180,6 +180,29 @@ def test_dataset_parent_unmapped_source_missing():
         step.computed_from("CO2", dataset=other)
 
 
+def test_changed_dimensions_all_values_new():
+    ds = make_ds({"COL": [1, np.nan, 3, 4, 5, 6]}, sources=("A", "B"))
+    with ds.pr.processing_step(function="sum", description="summed the sources") as step:
+        step.ds = step.ds.sum("source", min_count=1)
+        step.computed_from("CO2", at={"source": ["A", "B"]})
+        step.computed_from("CH4", at={"source": ["A", "B"]})
+    new = step_at(step.result, **{AREA: "COL", "time": "2000"})
+    assert new.description.function == "sum"
+    assert {id(p) for p in new.parents} == {id(at(ds, "COL", 2000, source=s)) for s in "AB"}
+    # no data, no step
+    assert step_at(step.result, **{AREA: "COL", "time": "2001"}) is None
+
+
+def test_changed_dimensions_without_computed_from():
+    ds = make_ds({"COL": [1, np.nan, 3, 4, 5, 6]}, sources=("A", "B"))
+    with (
+        pytest.raises(ValueError, match=r"Dimensions of 'CH4' changed.*computed_from"),
+        ds.pr.processing_step(function="sum", description="summed the sources") as step,
+    ):
+        step.ds = step.ds.sum("source", min_count=1)
+        step.computed_from("CO2", at={"source": ["A", "B"]})
+
+
 def test_category_basket_sum():
     cats = ["0", "1", "2"]
     ds = make_ds({"COL": [1, 2, 3, 4, 5, 6]}, cats=cats)

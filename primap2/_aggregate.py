@@ -12,6 +12,7 @@ from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._data_format import split_var_name
 from ._dim_names import dim_names
 from ._processing_info import (
+    ProcessingStepRecorder,
     combine_histories,
     ensure_complete_processing_info,
     has_processing_info,
@@ -369,9 +370,8 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
         """Implementation of add_aggregates_coordinates.
 
         ``on_rule`` is called after each applied rule with the keyword arguments
-        ``before`` and ``after`` (the dequantified data), ``dim``, ``value`` (the
-        aggregated value along ``dim``), ``selection`` (the selection of the summed
-        data) and ``sources`` (the summed values along ``dim``).
+        ``after`` (the dequantified data), ``dim`` and ``sources`` (the summed values
+        along ``dim``).
         """
         # dequantify for improved speed. Unit handling is not necessary as we
         # work with one DataArray and thus the unit is the same for all
@@ -456,16 +456,10 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                                         f"Additional coordinate {add_coord!r} specified but not "
                                         f"present in data"
                                     )
-                        da_before = da_out
                         da_out = da_out.pr.merge(data_agg, tolerance=rule_tolerance)
                         if on_rule is not None:
                             on_rule(
-                                before=da_before,
-                                after=da_out,
-                                dim=full_coord_name,
-                                value=value_to_aggregate,
-                                selection=sel,
-                                sources=source_values_present,
+                                after=da_out, dim=full_coord_name, sources=source_values_present
                             )
                     else:
                         logger.info(
@@ -728,26 +722,23 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         summed = ds.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count)
         if not has_processing_info(self._ds):
             return summed
-        ensure_complete_processing_info(self._ds)
-        for var in summed.data_vars:
-            name = processing_variable_name(var)
-            summed_dims = [x for x in self._ds[var].dims if dim is None or x in dim]
-            if not summed_dims:
-                summed[name] = self._ds[name]
-                continue
-            if "time" in summed_dims:
-                raise NotImplementedError(
-                    "Summing along 'time' gives values which are not timeseries, so they "
-                    "can not carry processing information. Use "
-                    "ds.pr.without_processing_info() first."
-                )
-            summed[name] = record_step(
-                summed[var],
-                parents=[combine_histories(self._ds[name], summed_dims, data=self._ds[var])],
-                function="sum",
-                description=f"sum along {summed_dims!r}",
+        # the dimensions summed along in any variable, in the order of the dataset
+        summed_dims = [x for x in self._ds.dims if dim is None or x in dim]
+        if "time" in summed_dims:
+            raise NotImplementedError(
+                "Summing along 'time' gives values which are not timeseries, so they "
+                "can not carry processing information. Use "
+                "ds.pr.without_processing_info() first."
             )
-        return summed
+        with self._ds.pr.processing_step(
+            function="sum", description=f"sum along {summed_dims!r}"
+        ) as step:
+            step.ds = summed
+            for var in summed.data_vars:
+                at = {x: self._ds[x].values for x in summed_dims if x in self._ds[var].dims}
+                if at:
+                    step.computed_from(var, at=at)
+        return step.result
 
     def gas_basket_contents_sum(
         self,
@@ -1001,25 +992,27 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         ds_out = data.copy(deep=True)
         tracked = has_processing_info(self._ds)
         ensure_complete_processing_info(self._ds)
-        # the processing information of each variable after the last applied rule
-        processing_infos: dict[Hashable, xr.DataArray] = {}
+        # each variable with its processing information after the last applied rule
+        results: dict[Hashable, xr.Dataset] = {}
 
-        def record_rule(var, *, before, after, dim, value, selection, sources):
-            histories = combine_histories(
-                processing_infos[var].pr.loc[selection], dim, data=before.pr.loc[selection]
-            )
-            processing_infos[var] = record_step(
-                after,
-                previous=[(before, processing_infos[var])],
-                parents=[histories.expand_dims({dim: [value]})],
-                replaces=True,
+        def record_rule(var, *, after, dim, sources):
+            # later rules can aggregate the aggregates of earlier rules, so each rule
+            # is a step of its own
+            with ProcessingStepRecorder(
+                results[var],
                 function="add_aggregates_coordinates",
                 description=f"aggregated from {dim}={list(sources)!r}",
-            )
+                replaces=True,
+                # checked above, and the result of a block is complete
+                _skip_completeness_check=True,
+            ) as step:
+                step.ds = after.pr.quantify().to_dataset(name=var)
+                step.computed_from(var, at={dim: list(sources)})
+            results[var] = step.result
 
         for var in data.data_vars:
             if tracked:
-                processing_infos[var] = self._ds[processing_variable_name(var)]
+                results[var] = self._ds.pr[[var]]
             ds_out = ds_out.pr.merge(
                 data[var].pr._add_aggregates_coordinates(
                     agg_info=agg_info,
@@ -1033,8 +1026,9 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
         # assigning aligns the processing information with coordinates added by merging
         # other variables
-        for var, var_processing_infos in processing_infos.items():
-            ds_out[processing_variable_name(var)] = var_processing_infos
+        for var, result in results.items():
+            name = processing_variable_name(var)
+            ds_out[name] = result[name]
 
         return ds_out
 

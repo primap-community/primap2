@@ -362,6 +362,24 @@ show_history(step.result.pr.loc[{"category": "0"}], time="2001")
 The values of category 0 are the only derived values. Their parents are the values of
 the categories 1 and 2 at the same time and area.
 
+The dimensions of a variable can change within the block if `computed_from` declares the
+parents of its values, e.g. when summing `by_category` over the categories:
+
+```{code-cell} ipython3
+with by_category.pr.processing_step(
+    function="sum", description="summed the categories"
+) as step:
+    # on a dataset with processing information, pr.sum would record the step on its own
+    step.ds = step.ds.pr.sum("category")
+    step.computed_from("CO2", at={"category (IPCC2006)": ["1", "2"]})
+show_history(step.result, time="2001")
+```
+
+In this example, the sum has no category dimension anymore, so its values can't be compared to
+the values before the block: all of them are derived values. The categories of the
+parents have to be given in `at`, as the derived values have no category to take them
+from.
+
 ### Labels for each derived value
 
 In the examples above, the labels in `at` are the same for all derived values. Assume

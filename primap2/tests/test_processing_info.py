@@ -1063,6 +1063,19 @@ def test_processing_step_changed_dimensions():
         s.ds = s.ds.sum("area (ISO3)")
 
 
+def test_processing_step_skip_completeness_check():
+    ds = processing_ds()
+    values = ds["Processing of CO2"].values.copy()
+    values.flat[np.flatnonzero(pd.notnull(values))[0]] = None
+    incomplete = ds.assign({"Processing of CO2": ds["Processing of CO2"].copy(data=values)})
+
+    with pytest.raises(ValueError, match="no processing information"):
+        primap2.ProcessingStepRecorder(incomplete, function="f", description="d")
+    primap2.ProcessingStepRecorder(
+        incomplete, function="f", description="d", _skip_completeness_check=True
+    )
+
+
 def test_processing_step_selection():
     ds = processing_ds()
 

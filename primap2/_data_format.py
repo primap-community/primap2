@@ -443,7 +443,8 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
         Values computed from other data points, e.g. other time points, can be declared
         with :py:meth:`primap2.ProcessingStepRecorder.computed_from`.
 
-        The dimensions of the data variables have to stay the same.
+        The dimensions of the data variables have to stay the same, unless the parents
+        of their values are declared with ``computed_from``.
 
         Examples
         --------

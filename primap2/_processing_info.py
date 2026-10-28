@@ -648,7 +648,7 @@ def record_step(
     new_da: xr.DataArray,
     *,
     previous: typing.Sequence[tuple[xr.DataArray, xr.DataArray]] = (),
-    parents: typing.Sequence[xr.DataArray] = (),
+    parents: typing.Sequence[xr.DataArray | typing.Callable[[np.ndarray], np.ndarray]] = (),
     replaces: bool = False,
     function: str,
     description: str,
@@ -682,6 +682,9 @@ def record_step(
         Additional parents of the new steps. Each value is a step, None, or a tuple of
         steps like returned by combine_histories, which can be steps of other time
         points. They may lack dimensions (also "time") or coordinates of ``new_da``.
+        Instead of a DataArray, an entry can be a function which gets the changed data
+        points with data (boolean, in the layout of _layout) and returns their parents
+        in the same layout.
     replaces
         If True, the changed values replace the previous values instead of being
         computed from them, so the previous steps are not parents of the new steps.
@@ -736,7 +739,10 @@ def record_step(
     _create_nodes(
         flat_nodes,
         changed.reshape(-1, n_times),
-        [_nodes_on_template(x, template).reshape(-1, n_times) for x in parents],
+        [
+            (x(changed) if callable(x) else _nodes_on_template(x, template)).reshape(-1, n_times)
+            for x in parents
+        ],
         describe=lambda coords: ProcessingStepDescription(
             function=function,
             description=description,
@@ -1043,11 +1049,12 @@ def _parents_at(
     changed: np.ndarray,
     at: typing.Mapping[typing.Hashable, typing.Any],
     parent_infos: xr.DataArray,
-) -> xr.DataArray:
+) -> np.ndarray:
     """For each data point of ``new_da``, the steps of ``parent_infos`` at the coordinates
     ``at``, see ProcessingStepRecorder.computed_from.
 
-    ``changed`` has the layout of _layout, only changed data points get parents.
+    ``changed`` and the result have the layout of _layout, only changed data points get
+    parents.
     """
     dims, _ = _layout(new_da)
     layout = [*dims, "time"]
@@ -1077,9 +1084,10 @@ def _parents_at(
     listed = [d for d in positions[0].dims if d not in layout]
 
     # the positions of the parents of each changed value, one column per parent
+    out = np.full(changed.shape, None, dtype=object)
     cell = np.flatnonzero(changed)
     if not len(cell):
-        return _new_processing_infos(new_da)
+        return out
     cell_index = np.unravel_index(cell, changed.shape)
     at_cell = tuple(cell_index[layout.index(d)] for d in selected)
     gathered = []
@@ -1093,7 +1101,7 @@ def _parents_at(
             raise _parent_labels_error(dim, unknown[-2 - values[values <= -2]])
         gathered.append(values)
 
-    out = np.full(changed.size, None, dtype=object)
+    flat_out = out.reshape(-1)
     nodes = parent_infos.values[tuple(gathered)]
     has_parent = np.logical_and.reduce([g >= 0 for g in gathered]) & pd.notnull(nodes)
     row, column = np.nonzero(has_parent)
@@ -1103,16 +1111,8 @@ def _parents_at(
         ends = [*starts[1:], len(nodes)]
         # duplicates are removed when the steps are created
         for c, start, end in zip(cell[row[starts]].tolist(), starts, ends, strict=True):
-            out[c] = tuple(nodes[start:end])
-    return _new_processing_infos(
-        new_da, out.reshape(changed.shape).transpose(_layout_axes(new_da, dims))
-    )
-
-
-def _layout_axes(da: xr.DataArray, dims: list[typing.Hashable]) -> list[int]:
-    """The axes which transpose the layout of _layout to the dimension order of ``da``."""
-    layout = [*dims, "time"]
-    return [layout.index(d) for d in da.dims]
+            flat_out[c] = tuple(nodes[start:end])
+    return out
 
 
 def _processing_infos_on_change(
@@ -1131,39 +1131,30 @@ def _processing_infos_on_change(
     name = processing_variable_name(var)
     previous = []
     parents = []
-    if var in old_ds:
-        old_da = old_ds[var]
-        if set(old_da.dims) != set(new_da.dims):
-            raise ValueError(
-                f"Dimensions of {var!r} changed from {_dims_repr(old_da.dims)} to "
-                f"{_dims_repr(new_da.dims)}."
-            )
-        previous.append((old_da, old_ds[name]))
+    # with other dimensions, the values can't be matched to the old ones, so all are new
+    matched = var in old_ds and set(old_ds[var].dims) == set(new_da.dims)
+    if var in old_ds and not matched and not computed_from:
+        raise ValueError(
+            f"Dimensions of {var!r} changed from {_dims_repr(old_ds[var].dims)} to "
+            f"{_dims_repr(new_da.dims)}, which needs declaring the parents with "
+            f"computed_from."
+        )
+    if matched:
+        previous.append((old_ds[var], old_ds[name]))
     if other_ds is not None and name in other_ds:
         # timeseries which only exist in other_ds were taken from it, unless it lacks
         # dimensions: then they were broadcast to new coordinates, which is a change
         if set(other_ds[var].dims) == set(new_da.dims):
             previous.append((other_ds[var], other_ds[name]))
         parents.append(other_ds[name])
-    if computed_from:
-        if var in old_ds:
-            reindexed = old_ds[var].reindex({d: new_da[d] for d in old_ds[var].dims}, copy=False)
-            changed = _changed_values(reindexed, new_da) & new_da.notnull()
-        else:
-            changed = new_da.notnull()
-        dims, _ = _layout(new_da)
-        changed_values = changed.transpose(*dims, "time").values
-        for declaration in computed_from:
-            parent_ds = old_ds if declaration.dataset is None else declaration.dataset
-            parent_name = processing_variable_name(declaration.variable)
-            if parent_name not in parent_ds:
-                raise ValueError(
-                    f"The parent dataset has no processing information for "
-                    f"{declaration.variable!r}."
-                )
-            parents.append(
-                _parents_at(new_da, changed_values, declaration.at, parent_ds[parent_name])
-            )
+    for declaration in computed_from:
+        # computed_from checked that the parent dataset has processing information
+        parent_ds = old_ds if declaration.dataset is None else declaration.dataset
+        parent_infos = parent_ds[processing_variable_name(declaration.variable)]
+        # record_step determines the changed values, which get the parents
+        parents.append(
+            functools.partial(_parents_at, new_da, at=declaration.at, parent_infos=parent_infos)
+        )
     return record_step(
         new_da,
         previous=previous,
@@ -1209,7 +1200,8 @@ def _add_processing_step_on_change_ds(
         Pre-modification dataset including processing information.
     new_ds
         Post-modification dataset. Its data variables have to have the same dimensions
-        as in ``old_ds``. Processing information contained in it is ignored.
+        as in ``old_ds``, unless ``computed_from`` declares parents for them: then all
+        their values are new. Processing information contained in it is ignored.
     other_ds
         Optional: dataset including processing information from which the changed values
         in ``new_ds`` were taken. It may lack dimensions of ``new_ds``.
@@ -1233,8 +1225,9 @@ def _add_processing_step_on_change_ds(
     Raises
     ------
     ValueError
-        If the dimensions of a data variable changed, if the processing information
-        doesn't match the data it describes, or if a declaration is invalid.
+        If the dimensions of a data variable changed without declared parents, if the
+        processing information doesn't match the data it describes, or if a declaration
+        is invalid.
     """
     new_ds = _without_processing_info(new_ds)
     result = new_ds.copy()
@@ -1290,8 +1283,12 @@ class ProcessingStepRecorder:
         source: str | None = None,
         other_ds: xr.Dataset | None = None,
         replaces: bool = False,
+        _skip_completeness_check: bool = False,
     ):
-        ensure_complete_processing_info(ds)
+        # internal: callers which already checked the dataset, e.g. when chaining blocks,
+        # skip the check of ds
+        if not _skip_completeness_check:
+            ensure_complete_processing_info(ds)
         if other_ds is not None:
             ensure_complete_processing_info_of_other(ds, other_ds)
         self._original = ds
