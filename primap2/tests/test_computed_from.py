@@ -6,6 +6,7 @@ import pytest
 import xarray as xr
 
 import primap2
+from primap2._downscale import _nearest_defined
 
 AREA = "area (ISO3)"
 CAT = "category (IPCC2006)"
@@ -45,12 +46,14 @@ def gap_ds() -> xr.Dataset:
     return make_ds({"COL": [1, np.nan, np.nan, 4, 5, 6], "ARG": [1, 2, 3, 4, 5, 6]})
 
 
-def known_times(da: xr.DataArray) -> xr.DataArray:
-    return da["time"].where(da.notnull())
+def nearest_known(da: xr.DataArray) -> xr.DataArray:
+    """The time points of the last and the next value with data, along "nearest"."""
+    # not xarray's cumulative max, which gives integers for nanosecond times (pandas 2)
+    return _nearest_defined(da.notnull())
 
 
 def ffill_declaration(step, ds, var="CO2"):
-    step.computed_from(var, at={"time": known_times(ds[var]).cumulative("time").max()})
+    step.computed_from(var, at={"time": nearest_known(ds[var]).isel(nearest=0)})
 
 
 def test_forward_fill():
@@ -102,12 +105,9 @@ def test_forward_fill_equals_manual_parents():
 
 def test_linear_interpolation_two_parents():
     ds = gap_ds()
-    known = known_times(ds["CO2"])
-    before = known.cumulative("time").max()
-    after = known.isel(time=slice(None, None, -1)).cumulative("time").min().sortby("time")
     with ds.pr.processing_step(function="interp", description="interpolated") as step:
         step.ds["CO2"] = step.ds["CO2"].interpolate_na("time")
-        step.computed_from("CO2", at={"time": xr.concat([before, after], dim="neighbour")})
+        step.computed_from("CO2", at={"time": nearest_known(ds["CO2"])})
     for year in (2001, 2002):
         new = at(step.result, "COL", year)
         assert {x.time for x in new.parents} == {np.datetime64("2000"), np.datetime64("2003")}

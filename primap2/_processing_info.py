@@ -999,7 +999,7 @@ class _ComputedFrom:
 def _parent_labels_error(dim: typing.Hashable, labels: np.ndarray) -> ValueError:
     return ValueError(
         f"Parents of changed values are missing in dimension {dim!r} of the parent "
-        f"variable: {pd.unique(labels).tolist()!r}."
+        f"variable: {pd.Index(pd.unique(labels)).tolist()!r}."
     )
 
 
