@@ -83,18 +83,21 @@ class LocalLSStrategy(GlobalLSStrategy):
         comparison is done in terms of variances while allowed_res is given in terms
         of sigma = sqrt(var) for ease of use. The default value of 1 corresponds to
         an allowed residual of one sigma, where `sigma=max(sigma(ts), sigma(fill_ts))`.
+        By setting `allowed_res = 0` the check can be disabled.
     allowed_factor (2.01):
         Maximal allowed factor `a` in `fill_ts_harmo=a*fill_ts+b`. Allowed factor
         has to be larger than one as the inverse is used automatically. The default is
         slightly larget than 2 such that a factor of 2 is still allowed and not subject
         to rounding uncertainty.
-    allowed_shift :
+        By setting `allowed_factor = 0` the check can be disabled.
+    allowed_shift (0.201):
         Defines the maximal allowed constant `b` in `fill_ts_harmo=a*fill_ts+b`.
         The allowed shift is defined relative to the mean of fill_ts in the
         period to be filled: `b_max=mean(fill_ts)*allowed_shift.` the default is
         slightly larger than 0.2 such that a shift of 0.2 is still allowed and not subject
         to rounding uncertainty.
-    min_var :
+        By setting `allowed_shift = 0` the check can be disabled.
+    min_var (0.001):
         A minimal assumed variance for comparison with residual. This is necessary
         to avoid failing of the strategy due to rounding errors in the least squares
         matching when variance of a time-series is zero or very small

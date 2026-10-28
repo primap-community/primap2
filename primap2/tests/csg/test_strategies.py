@@ -504,7 +504,10 @@ def test_localLS_strategy_residual():
     fill_ts = get_single_ts(data=2.0)
     ts[0] = np.nan
     ts[20:22] = np.nan
+    fill_ts[22:] = fill_ts[22:] * 2
+    ts[0:10] = ts[0:10] * 3
 
+    # test if strategy fails when residual is too high
     match_params = MatchParameters(
         fit_length=20,
         fit_length_unit="YS",
@@ -514,9 +517,6 @@ def test_localLS_strategy_residual():
         allowed_shift=3,
     )
 
-    #  test if strategy fails when residual is too high
-    fill_ts[22:] = fill_ts[22:] * 2
-    ts[0:10] = ts[0:10] * 3
     # with shift allowed
     expected_msg = (
         "Residual higher than allowed: "
@@ -544,6 +544,25 @@ def test_localLS_strategy_residual():
         primap2.csg.LocalLSStrategy(match_params=match_params, allow_shift=False).fill(
             ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
         )
+
+    # check if no error is raised when allowed_res=0
+    match_params = MatchParameters(
+        fit_length=20,
+        fit_length_unit="YS",
+        var_average_period=11,
+        allowed_res=0,
+        allowed_factor=3,
+        allowed_shift=3,
+    )
+
+    # with shift allowed
+    primap2.csg.LocalLSStrategy(match_params=match_params, allow_shift=True).fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+    )
+    # with shift not allowed
+    primap2.csg.LocalLSStrategy(match_params=match_params, allow_shift=False).fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+    )
 
 
 def test_localLS_strategy_factor():
@@ -623,6 +642,23 @@ def test_localLS_strategy_factor():
             ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
         )
 
+    # check if no error is raised when allowed_factor=0
+    match_params = MatchParameters(
+        fit_length=20,
+        fit_length_unit="YS",
+        var_average_period=11,
+        allowed_res=1,
+        allowed_factor=0,
+    )
+    # with shift allowed
+    primap2.csg.LocalLSStrategy(match_params=match_params, allow_shift=True).fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+    )
+    # with shift not allowed
+    primap2.csg.LocalLSStrategy(match_params=match_params, allow_shift=False).fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+    )
+
 
 def test_localLS_strategy_shift():
     #  test if strategy fails when factor is too high
@@ -653,6 +689,18 @@ def test_localLS_strategy_shift():
         primap2.csg.LocalLSStrategy(match_params=match_params, allow_shift=True).fill(
             ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
         )
+
+    # check that no error is raised when allowed_shift=0
+    match_params = MatchParameters(
+        fit_length=20,
+        fit_length_unit="YS",
+        var_average_period=11,
+        allowed_res=1,
+        allowed_shift=0,
+    )
+    primap2.csg.LocalLSStrategy(match_params=match_params, allow_shift=True).fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+    )
 
 
 def test_raises_error_substitution_strategy_missing_years():

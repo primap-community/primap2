@@ -37,8 +37,57 @@ class GlobalLSStrategy:
     If ``allow_negative = False`` and the harmonized time-series :math:`\\textrm{fill_ts}_h(t)`
     contains negative data a :py:class:`StrategyUnableToProcess` error will be raised.
 
+    The parameters of the matching and the acceptance of the result are controlled vie the
+    `match_params` attribute which is an instance of the `MatchParameters` class.
+    The following parameters are available:
+
+    fit_length (default=0) :
+        not used in globalLS strategy
+    fit_length_unit (default='YS') :
+        not used in globalLS strategy
+    weighting (default='constant') :
+        no other option for globalLS strategy
+    var_average_period (default=11) :
+        Average period for the rolling mean which is subtracted from the
+        time-series before calculating the variance
+    allowed_res (default=1) :
+        maximal allowed residual of the fit in terms of sigma. The raw residual is
+        divided by the number of data points so it can be compared to the variance.
+        The allowed residual is max(var(ts), var(fill_ts))*allowed_res**2. The
+        comparison is done in terms of variances while allowed_res is given in terms
+        of sigma = sqrt(var) for ease of use. The default value of 1 corresponds to
+        an allowed residual of one sigma, where `sigma=max(sigma(ts), sigma(fill_ts))`.
+        By setting `allowed_res = 0` the check can be disabled.
+    allowed_factor (2.01):
+        Maximal allowed factor `a` in `fill_ts_harmo=a*fill_ts+b`. Allowed factor
+        has to be larger than one as the inverse is used automatically. The default is
+        slightly larget than 2 such that a factor of 2 is still allowed and not subject
+        to rounding uncertainty.
+        By setting `allowed_factor = 0` the check can be disabled.
+    allowed_shift (0.201):
+        Defines the maximal allowed constant `b` in `fill_ts_harmo=a*fill_ts+b`.
+        The allowed shift is defined relative to the mean of fill_ts in the
+        period to be filled: `b_max=mean(fill_ts)*allowed_shift.` the default is
+        slightly larger than 0.2 such that a shift of 0.2 is still allowed and not subject
+        to rounding uncertainty.
+        By setting `allowed_shift = 0` the check can be disabled.
+    min_var (0.001):
+        A minimal assumed variance for comparison with residual. This is necessary
+        to avoid failing of the strategy due to rounding errors in the least squares
+        matching when variance of a time-series is zero or very small
+
+    Note:
+        Very unevenly distributed data points can lead to fit problems,
+        e.g. if we use a 10 year period and have 5 data point all in one year. But as the
+        normal use case are evenly distributed data points, sometimes with gaps, it's
+        currently not relevant
+
+
     Attributes
     ----------
+    match_params
+        Instance of the FitParameters class defining the parameters for the fits on the
+        boundaries of the time-series.
     allow_shift: bool, default True
         Allow the filling time series to shift up and down using the additive constant
         :math:`b \\neq 0`.
