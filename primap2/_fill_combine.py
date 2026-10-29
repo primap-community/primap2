@@ -15,6 +15,29 @@ from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._processing_info import records_processing_step
 
 
+def _readd_lost_coords(start, other, method: str):
+    """Call ``start.<method>(other)`` and re-add coordinates of ``start`` lost on the way."""
+    coords_start = start.coords
+    coords_other = other.coords
+    filled = getattr(start, method)(other)
+    # check if we lost a coordinate
+    missing_coords = set(coords_start).difference(set(filled.coords))
+    for coord in missing_coords:
+        try:
+            # merge and align the coordinate
+            logger.info(f"adding coord: {coord}")
+            coords_merged = getattr(coords_start[coord], method)(coords_other[coord])
+            aligned = xr.align(filled, coords_merged, join="outer")
+            # set the coordinate
+            filled = aligned[0].assign_coords({coord: (coords_start[coord].dims, aligned[1].data)})
+        except Exception as ex:
+            message = f"Could not re-add lost coordinate {coord}: {ex}"
+            logger.error(message)
+            raise ValueError(message) from ex
+
+    return filled
+
+
 class DataArrayFillAccessor(BaseDataArrayAccessor):
     def fillna(self: xr.DataArray, da_fill: xr.DataArray) -> xr.DataArray:
         """Fill missing information from other array.
@@ -35,29 +58,7 @@ class DataArrayFillAccessor(BaseDataArrayAccessor):
             filled
                 calling DataArray where nan values are filled from da_fill where possible
         """
-        da_start = self._da
-
-        coords_start = da_start.coords
-        coords_fill = da_fill.coords
-        filled = da_start.fillna(da_fill)
-        # check if we lost a coordinate
-        missing_coords = set(coords_start).difference(set(filled.coords))
-        for coord in missing_coords:
-            try:
-                # merge and align the coordinate
-                logger.info(f"adding coord: {coord}")
-                coords_merged = coords_start[coord].fillna(coords_fill[coord])
-                aligned = xr.align(filled, coords_merged, join="outer")
-                # set the coordinate
-                filled = aligned[0].assign_coords(
-                    {coord: (coords_start[coord].dims, aligned[1].data)}
-                )
-            except Exception as ex:
-                message = f"Could not re-add lost coordinate {coord}: {ex}"
-                logger.error(message)
-                raise ValueError(message) from ex
-
-        return filled
+        return _readd_lost_coords(self._da, da_fill, "fillna")
 
     def combine_first(self: xr.DataArray, da_combine: xr.DataArray) -> xr.DataArray:
         """Combine data from multiple arrays.
@@ -78,29 +79,7 @@ class DataArrayFillAccessor(BaseDataArrayAccessor):
             combined
                 calling DataArray combined with da_combine
         """
-        da_start = self._da
-
-        coords_start = da_start.coords
-        coords_fill = da_combine.coords
-        filled = da_start.combine_first(da_combine)
-        # check if we lost a coordinate
-        missing_coords = set(coords_start).difference(set(filled.coords))
-        for coord in missing_coords:
-            try:
-                # merge and align the coordinate
-                logger.info(f"adding coord: {coord}")
-                coords_merged = coords_start[coord].combine_first(coords_fill[coord])
-                aligned = xr.align(filled, coords_merged, join="outer")
-                # set the coordinate
-                filled = aligned[0].assign_coords(
-                    {coord: (coords_start[coord].dims, aligned[1].data)}
-                )
-            except Exception as ex:
-                message = f"Could not re-add lost coordinate {coord}: {ex}"
-                logger.error(message)
-                raise ValueError(message) from ex
-
-        return filled
+        return _readd_lost_coords(self._da, da_combine, "combine_first")
 
 
 class DatasetFillAccessor(BaseDatasetAccessor):
@@ -150,28 +129,7 @@ class DatasetFillAccessor(BaseDatasetAccessor):
         description="filled missing values",
     )
     def _fillna(self, ds_fill: xr.Dataset | xr.DataArray) -> xr.Dataset:
-        ds_start = self._ds
-        coords_start = ds_start.coords
-        coords_fill = ds_fill.coords
-        filled = ds_start.fillna(ds_fill)
-        # check if we lost a coordinate
-        missing_coords = set(coords_start).difference(set(filled.coords))
-        for coord in missing_coords:
-            try:
-                # merge and align the coordinate
-                logger.info(f"adding coord: {coord}")
-                coords_merged = coords_start[coord].fillna(coords_fill[coord])
-                aligned = xr.align(filled, coords_merged, join="outer")
-                # set the coordinate
-                filled = aligned[0].assign_coords(
-                    {coord: (coords_start[coord].dims, aligned[1].data)}
-                )
-            except Exception as ex:
-                message = f"Could not re-add lost coordinate {coord}: {ex}"
-                logger.error(message)
-                raise ValueError(message) from ex
-
-        return filled
+        return _readd_lost_coords(self._ds, ds_fill, "fillna")
 
     @records_processing_step(
         "self",
@@ -201,25 +159,4 @@ class DatasetFillAccessor(BaseDatasetAccessor):
             combined
                 calling Dataset calling DataArray combined with da_combine
         """
-        ds_start = self._ds
-        coords_start = ds_start.coords
-        coords_fill = ds_combine.coords
-        filled = ds_start.combine_first(ds_combine)
-        # check if we lost a coordinate
-        missing_coords = set(coords_start).difference(set(filled.coords))
-        for coord in missing_coords:
-            try:
-                # merge and align the coordinate
-                logger.info(f"adding coord: {coord}")
-                coords_merged = coords_start[coord].combine_first(coords_fill[coord])
-                aligned = xr.align(filled, coords_merged, join="outer")
-                # set the coordinate
-                filled = aligned[0].assign_coords(
-                    {coord: (coords_start[coord].dims, aligned[1].data)}
-                )
-            except Exception as ex:
-                message = f"Could not re-add lost coordinate {coord}: {ex}"
-                logger.error(message)
-                raise ValueError(message) from ex
-
-        return filled
+        return _readd_lost_coords(self._ds, ds_combine, "combine_first")

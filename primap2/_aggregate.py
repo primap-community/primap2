@@ -97,6 +97,33 @@ def resolve_skipna(
     return obj, skipna, min_count
 
 
+def _parse_aggregation_rule(
+    rule: list | dict, *, value_to_aggregate: Hashable, tolerance: float | None, da: xr.DataArray
+) -> tuple[list, dict, float | None, dict] | None:
+    """Split a rule of add_aggregates_coordinates into source values, selection,
+    tolerance and additional coordinates, or None if the rule does not apply to ``da``."""
+    if isinstance(rule, list):
+        return rule, {}, tolerance, {}
+    if not isinstance(rule, dict):
+        logger.error(f"Unrecognized aggregation definition for {value_to_aggregate!r}")
+        raise TypeError(f"Unrecognized aggregation definition for {value_to_aggregate!r}")
+
+    # the remaining keys are the additional coordinates
+    rule = deepcopy(rule)
+    source_values = rule.pop("sources")
+    rule_tolerance = rule.pop("tolerance", tolerance)
+    sel = rule.pop("sel", {})
+    if "variable" in sel:
+        if da.name not in sel["variable"]:
+            return None
+        sel.pop("variable")
+    if "entity" in sel:
+        if da.attrs["entity"] not in sel["entity"]:
+            return None
+        sel.pop("entity")
+    return source_values, sel, rule_tolerance, rule
+
+
 class DataArrayAggregationAccessor(BaseDataArrayAccessor):
     def _reduce_dim(
         self, dim: DimOrDimsT | None, reduce_to_dim: DimOrDimsT | None
@@ -380,98 +407,64 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
 
         for coordinate, aggregation_rules in agg_info.items():
             full_coord_name = da_out.pr.dim_alias_translations.get(coordinate, coordinate)
-            for value_to_aggregate in aggregation_rules:
-                rule = deepcopy(aggregation_rules[value_to_aggregate])
-                if isinstance(rule, dict):
-                    source_values = rule.pop("sources")
-                    if "tolerance" in rule:
-                        rule_tolerance = rule.pop("tolerance")
-                    else:
-                        rule_tolerance = tolerance
-                    if "sel" in rule:
-                        sel = rule.pop("sel")
-                        if "variable" in sel:
-                            if da_out.name in sel["variable"]:
-                                sel.pop("variable")
-                            else:
-                                continue
-                        if "entity" in sel:
-                            if da_out.attrs["entity"] in sel["entity"]:
-                                sel.pop("entity")
-                            else:
-                                continue
-                    else:
-                        sel = {}
-                elif isinstance(rule, list):
-                    source_values = rule
-                    sel = {}
-                    rule_tolerance = tolerance
-                else:
-                    logger.error(f"Unrecognized aggregation definition for {value_to_aggregate!r}")
-                    raise TypeError(
-                        f"Unrecognized aggregation definition for {value_to_aggregate!r}"
-                    )
+            for value_to_aggregate, rule in aggregation_rules.items():
+                parsed = _parse_aggregation_rule(
+                    rule, value_to_aggregate=value_to_aggregate, tolerance=tolerance, da=da_out
+                )
+                if parsed is None:
+                    continue
+                source_values, sel, rule_tolerance, additional_coords = parsed
 
                 # check if all source values present
                 values_present = list(da_out[full_coord_name].values)
                 source_values_present = [val for val in source_values if val in values_present]
                 missing_values = set(source_values) - set(source_values_present)
-                if source_values_present:
-                    if missing_values:
-                        logger.info(
-                            f"Not all source values present for "
-                            f"{value_to_aggregate!r} in coordinate {full_coord_name!r}. "
-                            f"Missing: {missing_values}. (variable: {da_out.name})"
-                        )
-                    sel.update({coordinate: source_values_present})
-                    data_agg = da_out.pr.loc[sel].pr.sum(
-                        dim=coordinate,
-                        skipna=skipna,
-                        skipna_evaluation_dims=skipna_evaluation_dims,
-                        min_count=min_count,
-                    )
-                    if not data_agg.isnull().all():
-                        data_agg = data_agg.expand_dims([full_coord_name])
-                        data_agg = data_agg.assign_coords(
-                            coords={full_coord_name: (full_coord_name, [value_to_aggregate])}
-                        )
-                        if isinstance(rule, dict):
-                            for add_coord in rule:
-                                if add_coord in da_out.coords:
-                                    add_coord_value = rule[add_coord]
-                                    data_agg = data_agg.assign_coords(
-                                        coords={
-                                            add_coord: (
-                                                full_coord_name,
-                                                [add_coord_value],
-                                            )
-                                        }
-                                    )
-                                else:
-                                    logger.error(
-                                        f"Additional coordinate {add_coord!r} specified "
-                                        "but not present in data"
-                                    )
-                                    raise ValueError(
-                                        f"Additional coordinate {add_coord!r} specified but not "
-                                        f"present in data"
-                                    )
-                        da_out = da_out.pr.merge(data_agg, tolerance=rule_tolerance)
-                        if on_rule is not None:
-                            on_rule(
-                                after=da_out, dim=full_coord_name, sources=source_values_present
-                            )
-                    else:
-                        logger.info(
-                            f"All input data nan for '{value_to_aggregate}' in "
-                            f"coordinate {full_coord_name!r}. (variable: {da_out.name})"
-                        )
-                else:
+                if not source_values_present:
                     logger.info(
                         f"No source value present for {value_to_aggregate!r} in "
                         f"coordinate {full_coord_name!r}. Missing: {missing_values}."
                         f" (variable: {da_out.name})"
                     )
+                    continue
+                if missing_values:
+                    logger.info(
+                        f"Not all source values present for "
+                        f"{value_to_aggregate!r} in coordinate {full_coord_name!r}. "
+                        f"Missing: {missing_values}. (variable: {da_out.name})"
+                    )
+
+                sel[coordinate] = source_values_present
+                data_agg = da_out.pr.loc[sel].pr.sum(
+                    dim=coordinate,
+                    skipna=skipna,
+                    skipna_evaluation_dims=skipna_evaluation_dims,
+                    min_count=min_count,
+                )
+                if data_agg.isnull().all():
+                    logger.info(
+                        f"All input data nan for '{value_to_aggregate}' in "
+                        f"coordinate {full_coord_name!r}. (variable: {da_out.name})"
+                    )
+                    continue
+
+                data_agg = data_agg.expand_dims([full_coord_name])
+                data_agg = data_agg.assign_coords(
+                    coords={full_coord_name: (full_coord_name, [value_to_aggregate])}
+                )
+                for add_coord, add_coord_value in additional_coords.items():
+                    if add_coord not in da_out.coords:
+                        logger.error(
+                            f"Additional coordinate {add_coord!r} specified but not present in data"
+                        )
+                        raise ValueError(
+                            f"Additional coordinate {add_coord!r} specified but not present in data"
+                        )
+                    data_agg = data_agg.assign_coords(
+                        coords={add_coord: (full_coord_name, [add_coord_value])}
+                    )
+                da_out = da_out.pr.merge(data_agg, tolerance=rule_tolerance)
+                if on_rule is not None:
+                    on_rule(after=da_out, dim=full_coord_name, sources=source_values_present)
 
         da_out = da_out.pr.quantify()
         return da_out

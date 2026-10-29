@@ -1,5 +1,6 @@
 import itertools
 import re
+import typing
 
 from loguru import logger
 
@@ -171,14 +172,12 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
     }
 
     if code[0:3] not in ["IPC", "CAT"]:
-        # prefix = ""
         pure_code = code
     elif len(code) < 4:
         return code_invalid_warn(
             code, "Too short to be a PRIMAP IPCC code after " + "removal of prefix."
         )
     else:
-        # prefix = code[0:3]
         pure_code = code[3:]
 
     # it's an IPCC code. convert it
@@ -191,104 +190,51 @@ def convert_ipcc_code_primap_to_primap2(code: str) -> str:
     if pure_code[0] in [".", " ", "_", "-"]:
         pure_code = pure_code[1:]
 
-    if pure_code[0] == "M":
-        code_remaining = pure_code
+    if pure_code.startswith("M"):
         if pure_code in code_mapping:
-            new_code = code_mapping[pure_code]
-            return new_code
-        else:
-            new_code = "M."
-            code_remaining = code_remaining[1:]
-            if len(code_remaining) == 0:
-                return code_invalid_warn(code, "Nothing follows the 'M' for an 'M'-code.")
+            return code_mapping[pure_code]
+        new_code = "M."
+        code_remaining = pure_code[1:]
+        if len(code_remaining) == 0:
+            return code_invalid_warn(code, "Nothing follows the 'M' for an 'M'-code.")
     else:
         new_code = ""
-        # only work with the part without 'IPC' or 'CAT'
         code_remaining = pure_code
 
-    # if the code ends with a dot remove it
-    if code_remaining[-1] == ".":
-        code_remaining = code_remaining[:-1]
+    # if the code ends with a dot remove it. Whenever we encounter dots as separators
+    # between levels, we ignore them.
+    code_remaining = code_remaining.removesuffix(".").removeprefix(".")
 
-    # whenever we encounter dots as separators between levels, we ignore them.
-    if code_remaining[0] == ".":
-        code_remaining = code_remaining[1:]
+    # the levels of the code: what is expected, the pattern and how to convert it
+    levels: tuple[tuple[str, str, str, typing.Callable[[str], str]], ...] = (
+        ("digit", "first", r"[0-9]", str),
+        ("letter", "second", r"[A-Za-z]", str),
+        ("number", "third", r"[0-9]+", str),
+        ("letter", "fourth", r"[A-Za-z]", str.lower),
+        # digit in PRIMAP1 format but roman numeral in IPCC and PRIMAP2
+        (
+            "digit or roman numeral",
+            "fifth",
+            r"[1-9]|[ivx]{1,4}",
+            lambda x: arabic_to_roman.get(x, x),
+        ),
+        ("number", "sixth", r"[0-9]+", str),
+    )
+    converted_levels = []
+    for i, (expected, level, pattern, convert) in enumerate(levels):
+        if i > 0:
+            if not code_remaining:
+                break
+            code_remaining = code_remaining.removeprefix(".")
+        match = re.match(pattern, code_remaining)
+        if match is None:
+            return code_invalid_warn(code, f"No {expected} found on {level} level.")
+        converted_levels.append(convert(match.group(0)))
+        code_remaining = code_remaining[match.end() :]
+    if code_remaining:
+        return code_invalid_warn(code, "Chars left after sixth level.")
 
-    # actual conversion happening here
-    # first level is a digit
-    if code_remaining[0].isdigit():
-        new_code = new_code + code_remaining[0]
-    else:
-        return code_invalid_warn(code, "No digit found on first level.")
-
-    # second level is a letter
-    if len(code_remaining) > 1:
-        code_remaining = code_remaining[1:]
-        if code_remaining[0] == ".":
-            code_remaining = code_remaining[1:]
-        # no need to check if code_remaining is emprty as we ensured that
-        # the last char is not a dot (same in the following steps)
-        if code_remaining[0].isalpha():
-            new_code = new_code + "." + code_remaining[0]
-        else:
-            return code_invalid_warn(code, "No letter found on second level.")
-
-        # third level is a number. might be more than one char, so use regexp
-        if len(code_remaining) > 1:
-            code_remaining = code_remaining[1:]
-            if code_remaining[0] == ".":
-                code_remaining = code_remaining[1:]
-            match = re.match("^[0-9]+", code_remaining)
-            if match is not None:
-                new_code = new_code + "." + match.group(0)
-            else:
-                return code_invalid_warn(code, "No number found on third level.")
-
-            # fourth level is a letter. has to be transformed to lower case
-            if len(code_remaining) > len(match.group(0)):
-                code_remaining = code_remaining[len(match.group(0)) :]
-                if code_remaining[0] == ".":
-                    code_remaining = code_remaining[1:]
-                if code_remaining[0].isalpha():
-                    new_code = new_code + "." + code_remaining[0].lower()
-                else:
-                    return code_invalid_warn(code, "No letter found on fourth level.")
-
-                # fifth level is digit in PRIMAP1 format but roman numeral in IPCC
-                # and PRIMAP2
-                if len(code_remaining) > 1:
-                    code_remaining = code_remaining[1:]
-                    if code_remaining[0] == ".":
-                        code_remaining = code_remaining[1:]
-                    if code_remaining[0].isdigit():
-                        new_code = new_code + "." + arabic_to_roman[code_remaining[0]]
-                        len_level_5 = 1
-                    else:
-                        # try to match a roman numeral
-                        match = re.match("^[ivx]{1,4}", code_remaining)
-                        if match is not None:
-                            new_code = new_code + "." + match.group(0)
-                            len_level_5 = len(match.group(0))
-                        else:
-                            return code_invalid_warn(
-                                code, "No digit or roman numeral found on fifth level."
-                            )
-
-                    # sixth and last level is a number.
-                    if len(code_remaining) > len_level_5:
-                        code_remaining = code_remaining[len_level_5:]
-                        if code_remaining[0] == ".":
-                            code_remaining = code_remaining[1:]
-                        match = re.match("^[0-9]+", code_remaining)
-                        if match is not None:
-                            new_code = new_code + "." + match.group(0)
-                            # check if anything left
-                            if code_remaining != match.group(0):
-                                return code_invalid_warn(code, "Chars left after sixth level.")
-                        else:
-                            return code_invalid_warn(code, "No number found on sixth level.")
-
-    return new_code
+    return new_code + ".".join(converted_levels)
 
 
 def convert_entity_gwp_primap_to_primap2(entity_pm1: str) -> str:

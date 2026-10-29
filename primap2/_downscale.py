@@ -2,12 +2,12 @@ import warnings
 from collections.abc import Hashable, Sequence
 
 import numpy as np
-import pandas as pd
 import xarray as xr
 from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._aggregate import select_no_scalar_dimension
+from ._dim_names import format_scalar_dims
 from ._processing_info import (
     ensure_complete_processing_info,
     ensure_complete_processing_info_of_other,
@@ -557,7 +557,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         # inter- and extrapolate
         raw_shares = (
             (basket_contents_converted / basket_sum)
-            .pint.to({x: "" for x in basket_contents_converted})
+            .pint.to(dict.fromkeys(basket_contents_converted, ""))
             .pint.dequantify()
         )
         defined = raw_shares.notnull()
@@ -678,20 +678,7 @@ def generate_error_message(da_error: xr.DataArray) -> str:
     * remove all length-1 dimensions and put them in description
     * convert the rest into a pandas dataframe for nice printing
     """
-    scalar_dims = [dim for dim in da_error.dims if len(da_error[dim]) == 1]
-    scalar_dims_format = []
-    for dim in scalar_dims:
-        if pd.api.types.is_datetime64_any_dtype(da_error[dim]):
-            ts = pd.Timestamp(da_error[dim][0].values)
-            # optimization for the common case where we have data on a yearly or
-            # more coarse basis
-            if ts == pd.Timestamp(year=ts.year, month=1, day=1):
-                scalar_dims_format.append(f"{dim}={ts.strftime('%Y')}")
-            else:
-                scalar_dims_format.append(f"{dim}={ts!s}")
-        else:
-            scalar_dims_format.append(f"{dim}={da_error[dim].item()}")
-    scalar_dims_str = ", ".join(scalar_dims_format)
+    scalar_dims_str = format_scalar_dims(da_error)
     da_error_dequ = da_error.squeeze(drop=True).pint.dequantify()
     if np.ndim(da_error_dequ.data) == 0:
         errors_str = ""
