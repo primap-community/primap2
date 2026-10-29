@@ -333,70 +333,7 @@ def compose_timeseries(
     )
 
     result_ts: xr.DataArray | None = None
-    time_values = input_data["time"].values
-    time_points = list(time_values)
-    time_index = pd.Index(time_values)
-    # the current processing step of each data point of the result
-    result_steps: list[ProcessingStep | None] = [None] * len(time_points)
-
-    leaf_descriptions: dict[str, ProcessingStepDescription] = {}
-
-    def fill_step_at(i: int, fill_steps: list[ProcessingStep | None], fill_ts_repr: str):
-        """The processing step of the input data point, for untracked input a leaf which
-        is created when it is first used."""
-        if fill_steps[i] is None and input_processing is None:
-            if fill_ts_repr not in leaf_descriptions:
-                leaf_descriptions[fill_ts_repr] = ProcessingStepDescription(
-                    function="compose",
-                    description=f"input data {fill_ts_repr}",
-                    source=fill_ts_repr,
-                    variable=input_data.name,
-                    coords=coords,
-                )
-            fill_steps[i] = ProcessingStep(leaf_descriptions[fill_ts_repr], time_points[i])
-        return fill_steps[i]
-
-    def apply_step(
-        step: _models.StrategyStep,
-        new_values: np.ndarray,
-        fill_steps: list[ProcessingStep | None],
-        fill_ts_repr: str,
-    ) -> None:
-        """Set the processing steps of the data points changed by the strategy step."""
-        description = ProcessingStepDescription(
-            function=step.function,
-            description=step.description,
-            variable=input_data.name,
-            coords=coords,
-        )
-        changed = time_index.get_indexer(step.time)
-        if (changed < 0).any():
-            raise ValueError(f"Strategy step {description.function!r} changed unknown time points.")
-        # steps of inputs which are the same for all changed data points
-        common = _unique_steps(
-            [result_steps[i] for i in time_index.get_indexer(step.ts_time)]
-            + [
-                fill_step_at(i, fill_steps, fill_ts_repr)
-                for i in time_index.get_indexer(step.fill_ts_time)
-            ]
-        )
-        common_ids = {id(x) for x in common}
-        new_steps: list[ProcessingStep | None] = []
-        for i in changed.tolist():
-            if np.isnan(new_values[i]):
-                new_steps.append(None)
-                continue
-            fill_step = fill_step_at(i, fill_steps, fill_ts_repr)
-            if fill_step is None:
-                parents = common
-            elif id(fill_step) in common_ids:
-                parents = (fill_step, *(x for x in common if x is not fill_step))
-            else:
-                parents = (fill_step, *common)
-            new_steps.append(ProcessingStep(description, time_points[i], parents))
-        # after calculating all, as the inputs are the steps before this step
-        for i, new_step in zip(changed.tolist(), new_steps, strict=True):
-            result_steps[i] = new_step
+    tracker = _StepTracker(input_data=input_data, input_processing=input_processing, coords=coords)
 
     for selector in priority_definition.priorities:
         try:
@@ -405,7 +342,7 @@ def compose_timeseries(
             context_logger.debug(f"{selector=} matched no input_data, skipping.")
             continue
         if input_processing is None:
-            fill_steps = [None] * len(time_points)
+            fill_steps = [None] * len(tracker.time_points)
         else:
             fill_steps = _nodes_or_none(input_processing.loc[selector].values).tolist()
 
@@ -439,7 +376,7 @@ def compose_timeseries(
                 new_values = result_ts.values
                 for step in steps:
                     if len(step.time):
-                        apply_step(step, new_values, fill_steps, fill_ts_repr)
+                        tracker.apply_step(step, new_values, fill_steps, fill_ts_repr)
                     else:
                         context_logger.debug(
                             f"No data changed using {fill_ts_repr}: {step.description}"
@@ -470,9 +407,90 @@ def compose_timeseries(
             f"\n{input_data.coords}\n{input_data.attrs}\n{priority_definition=}"
         )
 
-    processing_steps = np.empty(len(result_steps), dtype=object)
-    processing_steps[:] = result_steps
+    processing_steps = np.empty(len(tracker.result_steps), dtype=object)
+    processing_steps[:] = tracker.result_steps
     return result_ts, processing_steps
+
+
+class _StepTracker:
+    """The processing steps of the data points of a timeseries during composing."""
+
+    def __init__(
+        self,
+        *,
+        input_data: xr.DataArray,
+        input_processing: xr.DataArray | None,
+        coords: dict[str, typing.Any] | None,
+    ):
+        self.variable = input_data.name
+        self.coords = coords
+        self.untracked_input = input_processing is None
+        time_values = input_data["time"].values
+        self.time_points = list(time_values)
+        self.time_index = pd.Index(time_values)
+        # the current processing step of each data point of the result
+        self.result_steps: list[ProcessingStep | None] = [None] * len(self.time_points)
+        self.leaf_descriptions: dict[str, ProcessingStepDescription] = {}
+
+    def fill_step_at(self, i: int, fill_steps: list[ProcessingStep | None], fill_ts_repr: str):
+        """The processing step of the input data point, for untracked input a leaf which
+        is created when it is first used."""
+        if fill_steps[i] is None and self.untracked_input:
+            if fill_ts_repr not in self.leaf_descriptions:
+                self.leaf_descriptions[fill_ts_repr] = ProcessingStepDescription(
+                    function="compose",
+                    description=f"input data {fill_ts_repr}",
+                    source=fill_ts_repr,
+                    variable=self.variable,
+                    coords=self.coords,
+                )
+            fill_steps[i] = ProcessingStep(
+                self.leaf_descriptions[fill_ts_repr], self.time_points[i]
+            )
+        return fill_steps[i]
+
+    def apply_step(
+        self,
+        step: _models.StrategyStep,
+        new_values: np.ndarray,
+        fill_steps: list[ProcessingStep | None],
+        fill_ts_repr: str,
+    ) -> None:
+        """Set the processing steps of the data points changed by the strategy step."""
+        description = ProcessingStepDescription(
+            function=step.function,
+            description=step.description,
+            variable=self.variable,
+            coords=self.coords,
+        )
+        changed = self.time_index.get_indexer(step.time)
+        if (changed < 0).any():
+            raise ValueError(f"Strategy step {description.function!r} changed unknown time points.")
+        # steps of inputs which are the same for all changed data points
+        common = _unique_steps(
+            [self.result_steps[i] for i in self.time_index.get_indexer(step.ts_time)]
+            + [
+                self.fill_step_at(i, fill_steps, fill_ts_repr)
+                for i in self.time_index.get_indexer(step.fill_ts_time)
+            ]
+        )
+        common_ids = {id(x) for x in common}
+        new_steps: list[ProcessingStep | None] = []
+        for i in changed.tolist():
+            if np.isnan(new_values[i]):
+                new_steps.append(None)
+                continue
+            fill_step = self.fill_step_at(i, fill_steps, fill_ts_repr)
+            if fill_step is None:
+                parents = common
+            elif id(fill_step) in common_ids:
+                parents = (fill_step, *(x for x in common if x is not fill_step))
+            else:
+                parents = (fill_step, *common)
+            new_steps.append(ProcessingStep(description, self.time_points[i], parents))
+        # after calculating all, as the inputs are the steps before this step
+        for i, new_step in zip(changed.tolist(), new_steps, strict=True):
+            self.result_steps[i] = new_step
 
 
 def _unique_steps(steps: list[ProcessingStep | None]) -> tuple[ProcessingStep, ...]:

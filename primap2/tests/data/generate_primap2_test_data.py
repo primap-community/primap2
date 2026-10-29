@@ -109,7 +109,7 @@ def main() -> None:
 
     ds = generate(args.input_path)
     ds.pr.ensure_valid()
-    ds.pr.to_netcdf(args.output, encoding={var: COMPRESSION for var in ds.data_vars})
+    ds.pr.to_netcdf(args.output, encoding=dict.fromkeys(ds.data_vars, COMPRESSION))
 
 
 if __name__ == "__main__":

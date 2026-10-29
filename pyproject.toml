@@ -110,11 +110,14 @@ extend-exclude = [
   "docs/*"
 ]
 line-length = 100
-lint.extend-select = [ "E", "W", "I", "UP", "B", "YTT", "A", "NPY", "RUF", "FURB", "FLY", "PYI" ]
+lint.extend-select = [ "E", "W", "I", "UP", "B", "YTT", "A", "NPY", "RUF", "FURB", "FLY", "PYI", "C90", "C4" ]
 target-version = "py312"
 
 [tool.ruff.format]
 docstring-code-format = true
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
 
 [tool.ruff.lint.isort]
 known-first-party = ["primap2"]

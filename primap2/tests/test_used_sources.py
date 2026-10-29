@@ -883,9 +883,9 @@ def test_downscale_gas_timeseries_content_missing_at_a_share_year():
     )
     area = "COL"
     defined = {
-        "1.A": [y for y in KNOWN],
+        "1.A": list(KNOWN),
         "1.B": [y for y in KNOWN if y != 2005],
-        "1.C": [y for y in KNOWN],
+        "1.C": list(KNOWN),
     }
     to_gas = dict(zip(CONTENTS, gases, strict=True))
     to_cat = {g: c for c, g in to_gas.items()}
