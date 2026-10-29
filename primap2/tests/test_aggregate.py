@@ -4,6 +4,7 @@ import pathlib
 import re
 
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 
@@ -65,6 +66,41 @@ def test_fill_all_na():
     dsf = ds.pr.fill_all_na(dim="b", value=0)
     assert np.allclose(dsf["1"], a_expected, equal_nan=True)
     assert np.allclose(dsf["2"], a_expected, equal_nan=True)
+
+
+def test_fill_all_na_processing_info():
+    time = pd.date_range("2000-01-01", "2002-01-01", freq="YS")
+    area = ["COL", "ARG"]
+    data = xr.DataArray(
+        data=[[np.nan, np.nan, np.nan], [np.nan, 1.0, 2.0]],
+        dims=["area (ISO3)", "time"],
+        coords={"area (ISO3)": area, "time": time},
+        attrs={"entity": "CO2", "units": "Gg CO2 / year"},
+        name="CO2",
+    )
+    ds = xr.Dataset({"CO2": data}, attrs={"area": "area (ISO3)"})
+    ds["Processing of CO2"] = primap2._processing_info._record_step(
+        data, function="random", description="Values created randomly.", creation=True
+    )
+
+    filled = ds.pr.fill_all_na(dim="time", value=0)
+
+    assert np.allclose(filled["CO2"], [[0, 0, 0], [np.nan, 1, 2]], equal_nan=True)
+
+    processing = filled["Processing of CO2"]
+    assert processing.attrs == ds["Processing of CO2"].attrs
+    # ARG is not filled because not all of its values are NA
+    for t in range(3):
+        assert processing.values[1, t] is ds["Processing of CO2"].values[1, t]
+
+    for t in range(3):
+        node = processing.values[0, t]
+        assert node.parents == ()
+        assert node.time == time.values[t]
+        assert node.description.function == "fill_all_na"
+        assert "all values along 'time' were NA, filled with 0" in node.description.description
+        assert node.description.source == "constant(0)"
+    primap2._processing_info.ensure_complete_processing_info(filled)
 
 
 class TestSum:
@@ -263,7 +299,25 @@ def test_any(opulent_ds_or_da):
     )
 
 
+def test_any_processing_info(opulent_processing_ds):
+    xr.testing.assert_identical(
+        opulent_processing_ds.pr.any(dim="area"),
+        opulent_processing_ds.pr.without_processing_info().any(dim="area (ISO3)"),
+    )
+
+
 class TestCount:
+    def test_processing_info(self, opulent_processing_ds):
+        ds = opulent_processing_ds[["CO2", "SF6", "Processing of CO2", "Processing of SF6"]]
+        xr.testing.assert_identical(
+            ds.pr.count(dim="area"),
+            ds.pr.without_processing_info().count(dim="area (ISO3)", keep_attrs=True),
+        )
+        xr.testing.assert_identical(
+            ds.pr.count(dim=["entity", "area"]),
+            ds.pr.without_processing_info().pr.count(dim=["entity", "area"]),
+        )
+
     def test_inhomogeneous_entity(self, opulent_ds):
         with pytest.raises(NotImplementedError):
             opulent_ds.pr.count("entity")
@@ -813,3 +867,91 @@ class TestAddAggregatesCoordinates:
         )
 
         assert "All Countries" in test_ds.coords["area_name"]
+
+
+def node(ds, var, area, year):
+    return ds[f"Processing of {var}"].pr.loc[{"area": area, "time": year}].item()
+
+
+def test_sum_processing_info(basket_processing_ds):
+    ds = basket_processing_ds[["CO2", "Processing of CO2"]]
+
+    result = ds.pr.sum(dim="area")
+
+    for year in ["2000", "2004"]:
+        summed = result["Processing of CO2"].pr.loc[{"time": year}].item()
+        assert summed.description.function == "sum"
+        assert summed.time == np.datetime64(year)
+        assert {id(p) for p in summed.parents} == {
+            id(node(ds, "CO2", area, year)) for area in ["COL", "ARG", "MEX", "BOL", "CAMB"]
+        }
+    # the other time points have only the region
+    summed = result["Processing of CO2"].pr.loc[{"time": "2002"}].item()
+    assert summed.parents == (node(ds, "CO2", "CAMB", "2002"),)
+
+
+def test_add_aggregates_coordinates_processing_info(basket_processing_ds):
+    ds = basket_processing_ds[["CO2", "Processing of CO2"]]
+
+    result = ds.pr.add_aggregates_coordinates(
+        {"area (ISO3)": {"ALL": {"sources": ["COL", "ARG", "MEX", "BOL"]}}}
+    )
+
+    for year in ["2000", "2004"]:
+        aggregated = node(result, "CO2", "ALL", year)
+        assert aggregated.description.function == "add_aggregates_coordinates"
+        assert aggregated.time == np.datetime64(year)
+        assert {id(p) for p in aggregated.parents} == {
+            id(node(ds, "CO2", area, year)) for area in ["COL", "ARG", "MEX", "BOL"]
+        }
+    # no data in the other years, so no node
+    assert node(result, "CO2", "ALL", "2002") is None
+    # existing data points keep their nodes
+    assert node(result, "CO2", "CAMB", "2002") is node(ds, "CO2", "CAMB", "2002")
+    primap2._processing_info.ensure_complete_processing_info(result)
+
+
+def test_add_aggregates_variables_processing_info(basket_processing_ds):
+    ds = basket_processing_ds
+    basket = "KYOTOGHG (AR4GWP100)"
+    # the basket is missing in 2002, where its contents are known for the region
+    ds[basket] = ds[basket].where(ds["time"] != np.datetime64("2002-01-01"))
+    ds[f"Processing of {basket}"] = ds[f"Processing of {basket}"].where(
+        ds["time"] != np.datetime64("2002-01-01")
+    )
+
+    result = ds.pr.add_aggregates_variables(
+        gas_baskets={
+            basket: ["CO2", "SF6", "CH4"],
+            "FGASES (AR4GWP100)": ["SF6"],
+            "TEST (AR4GWP100)": ["CO2", "FGASES (AR4GWP100)"],
+        }
+    )
+
+    # the gap of the basket is filled from the contents at the same time point
+    filled = node(result, basket, "CAMB", "2002")
+    assert filled.description.function == "add_aggregates_variables"
+    assert filled.time == np.datetime64("2002")
+    assert filled.parents == tuple(node(ds, var, "CAMB", "2002") for var in ["CO2", "SF6", "CH4"])
+    # existing values keep their nodes
+    assert node(result, basket, "CAMB", "2001") is node(ds, basket, "CAMB", "2001")
+    # new baskets are created from their contents, also from baskets created before
+    fgases = node(result, "FGASES (AR4GWP100)", "CAMB", "2000")
+    assert fgases.parents == (node(ds, "SF6", "CAMB", "2000"),)
+    assert node(result, "TEST (AR4GWP100)", "CAMB", "2000").parents == (
+        node(ds, "CO2", "CAMB", "2000"),
+        fgases,
+    )
+    # no data of the contents in 2001 for the countries, so no basket node
+    assert node(result, "FGASES (AR4GWP100)", "COL", "2001") is None
+    primap2._processing_info.ensure_complete_processing_info(result)
+
+
+@pytest.mark.parametrize(
+    "function", ["gas_basket_contents_sum", "fill_na_gas_basket_from_contents"]
+)
+def test_gas_basket_data_array_result_processing_info(basket_processing_ds, function):
+    with pytest.raises(NotImplementedError, match="add_aggregates_variables"):
+        getattr(basket_processing_ds.pr, function)(
+            basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2"]
+        )

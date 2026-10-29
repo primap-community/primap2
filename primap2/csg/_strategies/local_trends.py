@@ -2,8 +2,14 @@ import numpy as np
 import xarray as xr
 from attrs import field, frozen
 
-import primap2
-from primap2.csg._strategies.gaps import FitParameters, calculate_scaling_factor, fill_gap, get_gaps
+from primap2.csg._models import StrategyStep
+from primap2.csg._strategies.gaps import (
+    FitParameters,
+    calculate_scaling_factor,
+    fill_gap,
+    get_fit_times,
+    get_gaps,
+)
 
 from .exceptions import StrategyUnableToProcess
 
@@ -121,7 +127,7 @@ class LocalTrendsStrategy:
         ts: xr.DataArray,
         fill_ts: xr.DataArray,
         fill_ts_repr: str,
-    ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
+    ) -> tuple[xr.DataArray, list[StrategyStep]]:
         """Fill missing data using matching of local trends on the boundaries.
 
         For a description of the algorithm, see the documentation of this class.
@@ -141,22 +147,20 @@ class LocalTrendsStrategy:
 
         Returns
         -------
-            filled_ts, descriptions.
+            filled_ts, steps.
                 filled_ts contains the result, where missing
                 data in ts is (partly) filled using scaled data from fill_ts.
-                descriptions contains information about which years were affected and
-                filled how.
+                steps contains one step for each filled gap with the years which were
+                affected and how they were filled. The filled values are computed from
+                fill_ts at the same time point and from ts and fill_ts in the windows
+                used to calculate the trends next to the gap.
         """
         filled_mask = ts.isnull() & ~fill_ts.isnull()
         time_fillable = filled_mask["time"][filled_mask].to_numpy()
 
         if time_fillable.any():
             any_filled = False
-            time_filled = np.array([], dtype=np.datetime64)
-            description = (
-                f"filled with local trend matched data from {fill_ts_repr}. "
-                f"The following gaps have been filled:"
-            )
+            steps = []
             gaps = get_gaps(ts)
             filled_ts = ts.copy()
             for gap in gaps:
@@ -169,6 +173,7 @@ class LocalTrendsStrategy:
                 time_filled_gap = filled_mask_gap["time"][filled_mask_gap].to_numpy()
 
                 if time_filled_gap.any():
+                    filled_gap = False
                     # get factor
                     factor = calculate_scaling_factor(
                         ts=ts,
@@ -209,13 +214,16 @@ class LocalTrendsStrategy:
                                 gap_description + " scaling factor is nan - failed to fill gap;"
                             )
                         else:
-                            any_filled = True
-                            time_filled = np.concatenate((time_filled, time_filled_gap))
-
                             # fill nans (in the gap only)
                             filled_ts = fill_gap(
                                 ts=filled_ts, fill_ts=fill_ts, gap=gap, factor=factor
                             )
+                            # the scaled values can still be nan (e.g. inf * 0)
+                            time_filled_gap = time_filled_gap[
+                                filled_ts.sel(time=time_filled_gap).notnull().to_numpy()
+                            ]
+                            filled_gap = bool(time_filled_gap.size)
+                            any_filled = any_filled or filled_gap
 
                             if factor[0] == factor[1]:
                                 gap_description = (
@@ -230,19 +238,23 @@ class LocalTrendsStrategy:
                                     f"using factors {factor[0]:.2f} and {factor[1]:.2f};"
                                 )
 
-                    # update description
-                    description = description + gap_description
-
-            if any_filled:
-                descriptions = [
-                    primap2.ProcessingStepDescription(
-                        time=time_filled,
-                        description=description,
-                        function=self.type,
-                        source=fill_ts_repr,
+                    # gaps which failed change no data, they are only logged
+                    steps.append(
+                        StrategyStep(
+                            function=self.type,
+                            description=(
+                                f"{'filled' if filled_gap else 'not filled'} with local trend "
+                                f"matched data from {fill_ts_repr}.{gap_description}"
+                            ),
+                            time=time_filled_gap if filled_gap else [],
+                            ts_time=get_fit_times(ts, gap, self.fit_params) if filled_gap else [],
+                            fill_ts_time=(
+                                get_fit_times(fill_ts, gap, self.fit_params) if filled_gap else []
+                            ),
+                        )
                     )
-                ]
-            else:
+
+            if not any_filled:
                 raise StrategyUnableToProcess(
                     reason="No overlap between timeseries for any gap. Can't match"
                 )
@@ -250,13 +262,12 @@ class LocalTrendsStrategy:
         else:
             # if we don't have anything to fill we don't need to calculate anything
             filled_ts = ts
-            descriptions = [
-                primap2.ProcessingStepDescription(
-                    time=np.array([], dtype=np.datetime64),
-                    description=f"no additional data in {fill_ts_repr}",
+            steps = [
+                StrategyStep(
                     function=self.type,
-                    source=fill_ts_repr,
+                    description=f"no additional data in {fill_ts_repr}",
+                    time=[],
                 )
             ]
 
-        return filled_ts, descriptions
+        return filled_ts, steps

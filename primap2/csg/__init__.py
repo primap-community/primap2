@@ -9,6 +9,7 @@ from ._compose import compose
 from ._models import (
     PriorityDefinition,
     StrategyDefinition,
+    StrategyStep,
 )
 from ._strategies.exceptions import StrategyUnableToProcess
 from ._strategies.gaps import FitParameters
@@ -23,6 +24,7 @@ __all__ = [
     "LocalTrendsStrategy",
     "PriorityDefinition",
     "StrategyDefinition",
+    "StrategyStep",
     "StrategyUnableToProcess",
     "SubstitutionStrategy",
     "compose",

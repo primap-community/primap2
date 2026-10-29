@@ -61,6 +61,13 @@ def opulent_processing_ds() -> xr.Dataset:
 
 
 @pytest.fixture
+def basket_processing_ds() -> xr.Dataset:
+    """A dataset with processing information in which totals are known for all years,
+    but their contents only for 2000 and 2004."""
+    return examples._cached_basket_processing_ds.copy(deep=True)
+
+
+@pytest.fixture
 def realistic_ds() -> xr.Dataset:
     """A dataset shaped like the data published by PRIMAP."""
     return examples._cached_realistic_ds.copy(deep=True)

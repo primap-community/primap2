@@ -135,6 +135,64 @@ class TestDatasetConvertToGWP:
         # processing info of variables which were not converted is left alone
         assert converted["Processing of population"].attrs["described_variable"] == "population"
 
+    def test_processing_info_records_conversion(self, opulent_processing_ds: xr.Dataset):
+        converted = opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
+
+        before = opulent_processing_ds["Processing of CH4"]
+        processing = converted["Processing of CH4 (AR4GWP100)"]
+        assert processing.dims == before.dims
+        index = tuple(0 for _ in processing.dims)
+        node = processing.values[index]
+        old = before.values[index]
+        first = processing.isel(dict(zip(processing.dims, index, strict=True)))
+        assert node.time == np.datetime64(first["time"].item(), "ns")
+        assert node.description.function == "convert_to_gwp"
+        assert node.description.variable == "CH4 (AR4GWP100)"
+        assert node.description.coords == {
+            dim: first[dim].item() for dim in processing.dims if dim != "time"
+        }
+        assert node.description.description == (
+            "converted from mass in CH4 * gigagram / year to the global warming "
+            "potential AR4GWP100 in CO2 * gigagram / year"
+        )
+        # the old value is the input, and the input is not modified
+        assert node.parents == (old,)
+        assert node.parents[0] is old
+        assert before.values[index] is old
+
+    def test_processing_info_not_recorded_for_unconverted(self, opulent_processing_ds: xr.Dataset):
+        """population is not converted, so nothing may be recorded for it."""
+        converted = opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
+
+        assert (
+            converted["Processing of population"].values.flat[0]
+            == opulent_processing_ds["Processing of population"].values.flat[0]
+        )
+
+    def test_processing_info_not_created(self, opulent_ds: xr.Dataset):
+        """Converting a dataset without processing information must not create any."""
+        converted = opulent_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
+
+        assert not converted.pr.has_processing_info()
+
+    def test_processing_info_incomplete(self, opulent_processing_ds: xr.Dataset):
+        """Timeseries with data need processing information."""
+        opulent_processing_ds["Processing of CH4"].data.flat[0] = None
+
+        with pytest.raises(ValueError, match="no processing information"):
+            opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
+
+    def test_processing_info_no_op_not_recorded(self, opulent_processing_ds: xr.Dataset):
+        """A conversion which changes nothing must not record a step."""
+        converted = opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
+
+        again = converted.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
+
+        assert (
+            again["Processing of CH4 (AR4GWP100)"].values.flat[0]
+            == converted["Processing of CH4 (AR4GWP100)"].values.flat[0]
+        )
+
     def test_gas_basket_same_context(self, empty_ds: xr.Dataset):
         """A gas basket can be converted within its own context, that is a unit change."""
         converted = empty_ds.pr.convert_to_gwp("AR4GWP100", "Mt CO2 / year")
@@ -290,6 +348,30 @@ class TestDatasetConvertToMass:
         assert converted["Processing of SF6"].attrs["described_variable"] == "SF6"
         assert converted["Processing of SF6"].attrs["entity"] == "Processing of SF6"
         converted.pr.ensure_valid()
+
+    def test_processing_info_records_conversion(self, opulent_processing_ds: xr.Dataset):
+        """A round trip records both conversions, in order."""
+        ds = opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
+
+        converted = ds.pr.convert_to_mass()
+
+        node = converted["Processing of CH4"].values.flat[0]
+        steps = node.history()
+        assert [step.description.function for step in steps[-2:]] == [
+            "convert_to_gwp",
+            "convert_to_mass",
+        ]
+        assert steps[-1] is node
+        assert node.description.description == (
+            "converted from the global warming potential AR4GWP100 in CO2 * gigagram / "
+            "year to mass in CH4 * gigagram / year"
+        )
+
+    def test_processing_info_not_created(self, minimal_ds_in_gwp: xr.Dataset):
+        """Converting a dataset without processing information must not create any."""
+        converted = minimal_ds_in_gwp.pr.convert_to_mass()
+
+        assert not converted.pr.has_processing_info()
 
     def test_not_a_gwp_kept(self, minimal_ds: xr.Dataset, caplog):
         converted = minimal_ds.pr.convert_to_mass()

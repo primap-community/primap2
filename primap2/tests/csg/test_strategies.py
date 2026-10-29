@@ -7,7 +7,21 @@ import xarray.testing
 
 import primap2.csg
 from primap2.csg import FitParameters, StrategyUnableToProcess
+from primap2.csg._models import StrategyStep
 from primap2.tests.csg.utils import get_single_ts
+
+
+def years(first: int, last: int) -> np.ndarray:
+    """The time points of the years first to last, both included."""
+    return np.arange(str(first), str(last + 1), dtype="datetime64[Y]").astype("datetime64[ns]")
+
+
+def assert_times(step: StrategyStep, time, ts_time=(), fill_ts_time=()):
+    np.testing.assert_array_equal(step.time, np.asarray(time, dtype="datetime64[ns]"))
+    np.testing.assert_array_equal(step.ts_time, np.asarray(ts_time, dtype="datetime64[ns]"))
+    np.testing.assert_array_equal(
+        step.fill_ts_time, np.asarray(fill_ts_time, dtype="datetime64[ns]")
+    )
 
 
 @pytest.mark.parametrize(
@@ -35,7 +49,8 @@ def test_strategies_conform(strategy):
 
     assert isinstance(res, xr.DataArray)
     assert isinstance(res_desc, list)
-    assert all(isinstance(step, primap2.ProcessingStepDescription) for step in res_desc)
+    assert all(isinstance(step, primap2.csg.StrategyStep) for step in res_desc)
+    assert all(isinstance(step.function, str) for step in res_desc)
 
 
 def test_substitution_strategy():
@@ -49,8 +64,8 @@ def test_substitution_strategy():
     assert result_ts[0] == 2.0
     assert (result_ts[1:] == 1.0).all()
     assert len(result_descriptions) == 1
-    assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
-    assert result_descriptions[0].description == "substituted with corresponding values from B"
+    assert_times(result_descriptions[0], years(1850, 1850))
+    assert result_descriptions[0].description == ("substituted with corresponding values from B")
     assert "source" not in result_ts.coords
 
 
@@ -64,7 +79,7 @@ def test_globalLS_strategy():
     )
     xr.testing.assert_allclose(ts, result_ts)
     assert len(result_descriptions) == 1
-    assert len(result_descriptions[0].time) == 0  # comparison of results fails
+    assert_times(result_descriptions[0], [])
     assert result_descriptions[0].description == "no additional data in B"
 
     # allow_shift = False
@@ -74,7 +89,8 @@ def test_globalLS_strategy():
     )
     xr.testing.assert_allclose(get_single_ts(data=1.0), result_ts)
     assert len(result_descriptions) == 1
-    assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
+    # the fit uses the overlap of ts and fill_ts
+    assert_times(result_descriptions[0], years(1850, 1850), years(1851, 2022), years(1851, 2022))
     assert (
         result_descriptions[0].description
         == "filled with least squares matched data from B. Factor=0.500"
@@ -91,10 +107,10 @@ def test_globalLS_strategy():
     expected_ts[0] = 0.5
     xr.testing.assert_allclose(expected_ts, result_ts)
     assert len(result_descriptions) == 1
-    assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
+    assert_times(result_descriptions[0], years(1850, 1850), years(1851, 2022), years(1851, 2022))
     assert (
-        result_descriptions[0].description == "filled with least squares matched data from B. "
-        "a*x+b with a=1.000, b=-1.000"
+        result_descriptions[0].description
+        == "filled with least squares matched data from B. a*x+b with a=1.000, b=-1.000"
     )
 
     # error for negative emissions
@@ -136,7 +152,7 @@ def test_localTrends_strategy():
     )
     xr.testing.assert_allclose(ts, result_ts)
     assert len(result_descriptions) == 1
-    assert len(result_descriptions[0].time) == 0  # comparison of results fails
+    assert_times(result_descriptions[0], [])
     assert result_descriptions[0].description == "no additional data in B"
 
     # fill a gap at the start
@@ -146,10 +162,10 @@ def test_localTrends_strategy():
     )
     xr.testing.assert_allclose(get_single_ts(data=1.0), result_ts)
     assert len(result_descriptions) == 1
-    assert result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64)
+    # the window of the trend is the 10 years after the gap
+    assert_times(result_descriptions[0], years(1850, 1850), years(1851, 1860), years(1851, 1860))
     assert (
         result_descriptions[0].description == "filled with local trend matched data from B. "
-        "The following gaps have been filled: "
         "gap 1850-01-01T00 - 1850-01-01T00: filled for "
         "times ['1850-01-01T00'] using factor 0.50;"
     )
@@ -159,15 +175,17 @@ def test_localTrends_strategy():
         ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
     )
     xr.testing.assert_allclose(get_single_ts(data=1.0), result_ts)
-    assert len(result_descriptions) == 1
-    assert all(
-        result_descriptions[0].time == np.array(["1850", "1870", "1871"], dtype=np.datetime64)
+    # one step per gap, each with its own windows
+    assert len(result_descriptions) == 2
+    assert_times(result_descriptions[0], years(1850, 1850), years(1851, 1860), years(1851, 1860))
+    window = np.concatenate([years(1860, 1869), years(1872, 1881)])
+    assert_times(result_descriptions[1], years(1870, 1871), window, window)
+    assert result_descriptions[0].description == (
+        "filled with local trend matched data from B. "
+        "gap 1850-01-01T00 - 1850-01-01T00: filled for times ['1850-01-01T00'] using factor 0.50;"
     )
-    assert (
-        result_descriptions[0].description == "filled with local trend matched data from B. "
-        "The following gaps have been filled: "
-        "gap 1850-01-01T00 - 1850-01-01T00: filled for "
-        "times ['1850-01-01T00'] using factor 0.50; "
+    assert result_descriptions[1].description == (
+        "filled with local trend matched data from B. "
         "gap 1870-01-01T00 - 1871-01-01T00: filled for "
         "times ['1870-01-01T00' '1871-01-01T00'] using factor 0.50;"
     )
@@ -179,12 +197,12 @@ def test_localTrends_strategy():
     expected_ts = ts.copy()
     expected_ts[0] = 1
     xr.testing.assert_allclose(expected_ts, result_ts)
-    assert all(result_descriptions[0].time == np.array(["1850"], dtype=np.datetime64))
-    assert (
-        result_descriptions[0].description == "filled with local trend matched data from B. "
-        "The following gaps have been filled: "
-        "gap 1850-01-01T00 - 1850-01-01T00: filled for "
-        "times ['1850-01-01T00'] using factor 0.50; "
+    # the failed gap changes no data, it only has a description for the log
+    assert len(result_descriptions) == 2
+    assert_times(result_descriptions[0], years(1850, 1850), years(1851, 1860), years(1851, 1860))
+    assert_times(result_descriptions[1], [])
+    assert result_descriptions[1].description == (
+        "not filled with local trend matched data from B. "
         "gap 1870-01-01T00 - 1871-01-01T00: negative scaling factor - "
         "use fallback degree 0 negative scaling after fallback - "
         "failed to fill gap;"
@@ -198,15 +216,35 @@ def test_localTrends_strategy():
         ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
     )
     expected_ts = ts.copy()
-    expected_ts[20] = 1
-    expected_ts[21] = 3
+    # factors 0.5 (1869) and 1.5 (1872), fill_ts = 2: factor 0.5 + k / 3 for k = 1, 2
+    expected_ts[20] = 2 * (0.5 + 1 / 3)
+    expected_ts[21] = 2 * (0.5 + 2 / 3)
     xr.testing.assert_allclose(expected_ts, result_ts)
-    assert all(result_descriptions[0].time == np.array(["1870", "1871"], dtype=np.datetime64))
+    window = np.concatenate([years(1860, 1869), years(1872, 1881)])
+    assert len(result_descriptions) == 1
+    assert_times(result_descriptions[0], years(1870, 1871), window, window)
     assert (
         result_descriptions[0].description == "filled with local trend matched data from B. "
-        "The following gaps have been filled: "
         "gap 1870-01-01T00 - 1871-01-01T00: filled for "
         "times ['1870-01-01T00' '1871-01-01T00'] using factors 0.50 and 1.50;"
+    )
+
+    # single point gap with differing left and right factors
+    ts = get_single_ts(data=1.0)
+    fill_ts = get_single_ts(data=2.0)
+    ts[:] = 1.0
+    ts[20:] = ts[20:] * 3
+    ts[20] = np.nan
+    result_ts, result_descriptions = primap2.csg.LocalTrendsStrategy(fit_params=fit_params).fill(
+        ts=ts, fill_ts=fill_ts, fill_ts_repr="B"
+    )
+    assert result_ts[20].item() == pytest.approx(2.0)
+    assert not result_ts.isnull().any()
+    assert_times(
+        result_descriptions[0],
+        years(1870, 1870),
+        result_descriptions[0].ts_time,
+        result_descriptions[0].fill_ts_time,
     )
 
     ts[0:5] = np.nan

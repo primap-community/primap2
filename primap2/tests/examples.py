@@ -6,7 +6,6 @@ import xarray as xr
 
 import primap2
 from primap2 import ureg
-from primap2._dim_names import dim_names
 from primap2._processing_info import processing_variable_name
 
 
@@ -191,36 +190,9 @@ def opulent_processing_ds() -> xr.Dataset:
     """Like the opulent dataset, but additionally with processing information data
     variables.
     """
-    opulent = opulent_ds()
-
-    new_vars = {}
-    for var in opulent:
-        dims = [dim for dim in dim_names(opulent) if dim != "time"]
-        shape = tuple(len(opulent[x]) for x in dims)
-        new_vars[processing_variable_name(var)] = xr.DataArray(
-            data=np.full(
-                shape=shape,
-                fill_value=primap2.TimeseriesProcessingDescription(
-                    steps=[
-                        primap2.ProcessingStepDescription(
-                            time="all",
-                            function="random",
-                            description="Values created randomly.",
-                        )
-                    ]
-                ),
-            ),
-            coords=opulent[dims],
-            dims=dims,
-            attrs={
-                "entity": processing_variable_name(var),
-                "described_variable": var,
-            },
-        )
-
-    opulent.update(new_vars)
-
-    return opulent
+    return opulent_ds().pr.with_creation_step(
+        function="random", description="Values created randomly."
+    )
 
 
 def empty_ds() -> xr.Dataset:
@@ -258,6 +230,66 @@ def empty_ds() -> xr.Dataset:
     ).pr.quantify()
 
     return empty
+
+
+def basket_processing_ds() -> xr.Dataset:
+    """A dataset with processing information in which totals are known for all years,
+    but their contents only for 2000 and 2004.
+
+    The region "CAMB" is the sum of the countries, and "KYOTOGHG (AR4GWP100)" is the sum
+    of the gases. Every timeseries has its own processing step.
+    """
+    time = pd.date_range("2000-01-01", "2004-01-01", freq="YS")
+    countries = ["COL", "ARG", "MEX", "BOL"]
+    areas = [*countries, "CAMB"]
+    coords = {"time": time, "area (ISO3)": areas, "source": ["RAND2020"]}
+    dims = ["time", "area (ISO3)", "source"]
+
+    first = np.array([1.0, 2.0, 3.0, 4.0])
+    # each country doubles its emissions, the region contains all years
+    interpolated = np.linspace(first, 2 * first, len(time))
+    with_region = np.concatenate([interpolated, interpolated.sum(axis=1, keepdims=True)], axis=1)
+    gas = with_region.copy()
+    gas[1:-1, : len(countries)] = np.nan
+    # CO2 + SF6 + CH4 in AR4GWP100, as every gas has the same mass
+    basket = with_region * (1 + 22_800 + 25)
+
+    ds = xr.Dataset(
+        {
+            ent: xr.DataArray(
+                gas[..., np.newaxis],
+                coords=coords,
+                dims=dims,
+                attrs={"units": f"{ent} Gg / year", "entity": ent},
+            )
+            for ent in ("CO2", "SF6", "CH4")
+        },
+        attrs={"area": "area (ISO3)"},
+    )
+    ds["KYOTOGHG (AR4GWP100)"] = xr.DataArray(
+        basket[..., np.newaxis],
+        coords=coords,
+        dims=dims,
+        attrs={"units": "CO2 Gg / year", "entity": "KYOTOGHG", "gwp_context": "AR4GWP100"},
+    )
+    for var in list(ds.data_vars):
+        has_data = ds[var].notnull().values
+        nodes = np.full(has_data.shape, None, dtype=object)
+        for i, area in enumerate(areas):
+            description = primap2.ProcessingStepDescription(
+                function="created", description=f"{var} for {area}"
+            )
+            for t in np.flatnonzero(has_data[:, i, 0]):
+                nodes[t, i, 0] = primap2.ProcessingStep(description, time.values[t])
+        name = processing_variable_name(var)
+        ds[name] = xr.DataArray(
+            nodes,
+            coords=coords,
+            dims=dims,
+            attrs={"entity": name, "described_variable": var},
+        )
+
+    return ds.pr.quantify()
 
 
 def realistic_ds() -> xr.Dataset:
@@ -315,4 +347,5 @@ _cached_opulent_ds = opulent_ds()
 _cached_opulent_str_ds = opulent_str_ds()
 _cached_opulent_processing_ds = opulent_processing_ds()
 _cached_empty_ds = empty_ds()
+_cached_basket_processing_ds = basket_processing_ds()
 _cached_realistic_ds = realistic_ds()
