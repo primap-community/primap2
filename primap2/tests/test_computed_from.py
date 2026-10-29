@@ -85,9 +85,9 @@ def test_forward_fill_equals_manual_parents():
     last = infos.copy(
         data=pd.DataFrame(infos.values.reshape(6, -1)).ffill().values.reshape(infos.shape)
     )
-    manual = primap2._processing_info.record_step(
+    manual = primap2._processing_info._record_step(
         step.ds["CO2"],
-        previous=[(ds["CO2"], ds["Processing of CO2"])],
+        previous=[ds],
         parents=[last],
         function="ffill",
         description="filled",

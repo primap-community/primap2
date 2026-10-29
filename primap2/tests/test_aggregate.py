@@ -79,8 +79,8 @@ def test_fill_all_na_processing_info():
         name="CO2",
     )
     ds = xr.Dataset({"CO2": data}, attrs={"area": "area (ISO3)"})
-    ds["Processing of CO2"] = primap2._processing_info.record_step(
-        data, function="random", description="Values created randomly.", _creation=True
+    ds["Processing of CO2"] = primap2._processing_info._record_step(
+        data, function="random", description="Values created randomly.", creation=True
     )
 
     filled = ds.pr.fill_all_na(dim="time", value=0)

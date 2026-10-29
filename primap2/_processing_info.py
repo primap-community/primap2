@@ -578,20 +578,6 @@ def _nodes_on_template(da: xr.DataArray, template: xr.DataArray) -> np.ndarray:
     return _nodes_or_none(_on_template(da, template, fill_value=None))
 
 
-def _processing_infos_on_template(
-    data: xr.DataArray, processing_infos: xr.DataArray, template: xr.DataArray
-) -> np.ndarray:
-    """The processing information for each data point of ``template``."""
-    try:
-        xr.align(data, processing_infos, join="exact", copy=False)
-    except ValueError as err:
-        raise ValueError(
-            f"Processing information {processing_infos.name!r} doesn't match the data it "
-            f"describes: {err}"
-        ) from err
-    return _nodes_on_template(processing_infos, template)
-
-
 def combine_histories(
     processing_infos: xr.DataArray,
     dim: typing.Hashable | list[typing.Hashable],
@@ -644,26 +630,38 @@ def combine_histories(
     )
 
 
-def record_step(
+@define
+class _ComputedFrom:
+    """A declaration of the data points which changed values were computed from."""
+
+    var: typing.Hashable
+    at: typing.Mapping[typing.Hashable, typing.Any]
+    variable: typing.Hashable
+    dataset: xr.Dataset
+
+
+def _record_step(
     new_da: xr.DataArray,
     *,
-    previous: typing.Sequence[tuple[xr.DataArray, xr.DataArray]] = (),
-    parents: typing.Sequence[xr.DataArray | typing.Callable[[np.ndarray], np.ndarray]] = (),
+    previous: typing.Sequence[xr.Dataset] = (),
+    parents: typing.Sequence[xr.DataArray] = (),
+    computed_from: typing.Sequence[_ComputedFrom] = (),
     replaces: bool = False,
     function: str,
     description: str,
     source: str | None = None,
-    _creation: bool = False,
+    creation: bool = False,
 ) -> xr.DataArray:
     """Processing information of ``new_da`` after a processing step.
 
-    The previous state of each timeseries of ``new_da`` is taken from the first entry of
-    ``previous`` which contains it. The processing information of a data point is:
+    The previous state of each timeseries of ``new_da`` is taken from the first dataset
+    in ``previous`` which contains it. The processing information of a data point is:
 
     * the previous step, if the value is unchanged.
     * None, if the value was changed to a missing value.
     * a new step otherwise. Its parents are the previous step of the same data point,
-      unless ``replaces``, and the values of ``parents`` for the data point.
+      unless ``replaces``, the values of ``parents`` for the data point and the data
+      points declared in ``computed_from``.
 
     All new steps of a timeseries share one description. Timeseries which did not exist
     before and contain no data have no processing information. Previous timeseries
@@ -674,17 +672,17 @@ def record_step(
     new_da
         The data after the processing step.
     previous
-        Pairs of data before the processing step and its processing information, e.g.
-        ``[(old_da, old_processing)]``. Values are compared with ``new_da`` to find the
-        changed data points. The data may lack dimensions of ``new_da``, it is broadcast
-        along them.
+        Datasets with the data before the processing step and its processing
+        information. Values are compared with ``new_da`` to find the changed data
+        points. Datasets in which the variable of ``new_da`` is missing or has other
+        dimensions are skipped, their values can't be matched.
     parents
         Additional parents of the new steps. Each value is a step, None, or a tuple of
         steps like returned by combine_histories, which can be steps of other time
         points. They may lack dimensions (also "time") or coordinates of ``new_da``.
-        Instead of a DataArray, an entry can be a function which gets the changed data
-        points with data (boolean, in the layout of _layout) and returns their parents
-        in the same layout.
+    computed_from
+        Declarations of parents at other data points, see
+        ProcessingStepRecorder.computed_from.
     replaces
         If True, the changed values replace the previous values instead of being
         computed from them, so the previous steps are not parents of the new steps.
@@ -695,6 +693,9 @@ def record_step(
     source
         Optional: a short identifier for untracked data which entered in the
         processing.
+    creation
+        If True, the step creates the data, so new steps need neither parents nor a
+        source.
 
     Returns
     -------
@@ -705,21 +706,25 @@ def record_step(
     Raises
     ------
     ValueError
-        If processing information doesn't match the data it describes, or if changed
-        values have neither parents nor a source.
+        If changed values have neither parents nor a source, or if a declaration in
+        ``computed_from`` is invalid.
     """
     dims, template = _layout(new_da)
     ts_template = _described(template)
     shape = template.shape
     n_times = shape[-1]
+    var = new_da.name
 
     found = np.zeros(ts_template.shape, dtype=bool)
     nodes = np.full(shape, None, dtype=object)
     has_value = template.notnull().values
     # without a previous state, all data points with data are changed
     changed = has_value.copy()
-    for data, processing_infos in previous:
-        previous_nodes = _processing_infos_on_template(data, processing_infos, template)
+    for ds in previous:
+        if var not in ds or set(ds[var].dims) != set(new_da.dims):
+            continue
+        data = ds[var]
+        previous_nodes = _nodes_on_template(ds[processing_variable_name(var)], template)
         has_data = _on_template(data.notnull().any("time"), ts_template, fill_value=False)
         has_node = (~pd.isnull(previous_nodes)).any(axis=-1)
         # timeseries without data and processing information, e.g. added as padding when
@@ -735,19 +740,20 @@ def record_step(
     nodes[changed_missing] = None
     changed &= has_value
 
+    parent_nodes = [_nodes_on_template(x, template) for x in parents]
+    for declaration in computed_from:
+        parent_infos = declaration.dataset[processing_variable_name(declaration.variable)]
+        parent_nodes.append(_parents_at(new_da, changed, declaration.at, parent_infos))
     flat_nodes = nodes.reshape(-1, n_times)
     _create_nodes(
         flat_nodes,
         changed.reshape(-1, n_times),
-        [
-            (x(changed) if callable(x) else _nodes_on_template(x, template)).reshape(-1, n_times)
-            for x in parents
-        ],
+        [x.reshape(-1, n_times) for x in parent_nodes],
         describe=lambda coords: ProcessingStepDescription(
             function=function,
             description=description,
             source=source,
-            variable=new_da.name,
+            variable=var,
             coords=coords,
         ),
         dims=dims,
@@ -755,7 +761,7 @@ def record_step(
         shape=shape[:-1],
         times=template["time"].values,
         replaces=replaces,
-        leaves_allowed=_creation,
+        leaves_allowed=creation,
     )
     layout = [*dims, "time"]
     return _new_processing_infos(new_da, nodes.transpose([layout.index(d) for d in new_da.dims]))
@@ -975,25 +981,15 @@ class DataArrayProcessingInfoAccessor(BaseDataArrayAccessor):
         return xr.Dataset(
             {
                 self._da.name: self._da,
-                processing_variable_name(self._da.name): record_step(
+                processing_variable_name(self._da.name): _record_step(
                     self._da,
                     function=function,
                     description=description,
                     source=source,
-                    _creation=True,
+                    creation=True,
                 ),
             }
         )
-
-
-@define
-class _ComputedFrom:
-    """A declaration of the data points which changed values were computed from."""
-
-    var: typing.Hashable
-    at: typing.Mapping[typing.Hashable, typing.Any]
-    variable: typing.Hashable
-    dataset: xr.Dataset | None
 
 
 def _parent_labels_error(dim: typing.Hashable, labels: np.ndarray) -> ValueError:
@@ -1115,57 +1111,6 @@ def _parents_at(
     return out
 
 
-def _processing_infos_on_change(
-    *,
-    var: typing.Hashable,
-    old_ds: xr.Dataset,
-    new_da: xr.DataArray,
-    other_ds: xr.Dataset | None,
-    replaces: bool,
-    function: str,
-    description: str,
-    source: str | None,
-    computed_from: typing.Sequence[_ComputedFrom] = (),
-) -> xr.DataArray:
-    """The processing information of ``new_da``, see add_processing_step_on_change_ds."""
-    name = processing_variable_name(var)
-    previous = []
-    parents = []
-    # with other dimensions, the values can't be matched to the old ones, so all are new
-    matched = var in old_ds and set(old_ds[var].dims) == set(new_da.dims)
-    if var in old_ds and not matched and not computed_from:
-        raise ValueError(
-            f"Dimensions of {var!r} changed from {_dims_repr(old_ds[var].dims)} to "
-            f"{_dims_repr(new_da.dims)}, which needs declaring the parents with "
-            f"computed_from."
-        )
-    if matched:
-        previous.append((old_ds[var], old_ds[name]))
-    if other_ds is not None and name in other_ds:
-        # timeseries which only exist in other_ds were taken from it, unless it lacks
-        # dimensions: then they were broadcast to new coordinates, which is a change
-        if set(other_ds[var].dims) == set(new_da.dims):
-            previous.append((other_ds[var], other_ds[name]))
-        parents.append(other_ds[name])
-    for declaration in computed_from:
-        # computed_from checked that the parent dataset has processing information
-        parent_ds = old_ds if declaration.dataset is None else declaration.dataset
-        parent_infos = parent_ds[processing_variable_name(declaration.variable)]
-        # record_step determines the changed values, which get the parents
-        parents.append(
-            functools.partial(_parents_at, new_da, at=declaration.at, parent_infos=parent_infos)
-        )
-    return record_step(
-        new_da,
-        previous=previous,
-        parents=parents,
-        replaces=replaces,
-        function=function,
-        description=description,
-        source=source,
-    )
-
-
 def _add_processing_step_on_change_ds(
     *,
     old_ds: xr.Dataset,
@@ -1225,9 +1170,8 @@ def _add_processing_step_on_change_ds(
     Raises
     ------
     ValueError
-        If the dimensions of a data variable changed without declared parents, if the
-        processing information doesn't match the data it describes, or if a declaration
-        is invalid.
+        If the dimensions of a data variable changed without declared parents, or if a
+        declaration is invalid.
     """
     new_ds = _without_processing_info(new_ds)
     result = new_ds.copy()
@@ -1239,17 +1183,28 @@ def _add_processing_step_on_change_ds(
                 f"computed_from refers to {declaration.var!r}, which is not a variable "
                 f"of the processed dataset."
             )
+    # timeseries which only exist in other_ds were taken from it, unless it lacks
+    # dimensions: then they were broadcast to new coordinates, which is a change
+    previous = [old_ds] if other_ds is None else [old_ds, other_ds]
     for var in new_ds.data_vars:
-        result[processing_variable_name(var)] = _processing_infos_on_change(
-            var=var,
-            old_ds=old_ds,
-            new_da=new_ds[var],
-            other_ds=other_ds,
+        name = processing_variable_name(var)
+        new_da = new_ds[var]
+        var_computed_from = [d for d in computed_from if d.var == var]
+        if var in old_ds and set(old_ds[var].dims) != set(new_da.dims) and not var_computed_from:
+            raise ValueError(
+                f"Dimensions of {var!r} changed from {_dims_repr(old_ds[var].dims)} to "
+                f"{_dims_repr(new_da.dims)}, which needs declaring the parents with "
+                f"computed_from."
+            )
+        result[name] = _record_step(
+            new_da,
+            previous=previous,
+            parents=[other_ds[name]] if other_ds is not None and name in other_ds else [],
+            computed_from=var_computed_from,
             replaces=replaces,
             function=function,
             description=description,
             source=source,
-            computed_from=[d for d in computed_from if d.var == var],
         )
 
     return result
@@ -1387,7 +1342,7 @@ class ProcessingStepRecorder:
                     f"The parent dataset has no processing information for {parent!r}."
                 )
         for parent in variables:
-            self._computed_from.append(_ComputedFrom(var, dict(at or {}), parent, dataset))
+            self._computed_from.append(_ComputedFrom(var, dict(at or {}), parent, parent_ds))
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         self._closed = True

@@ -13,11 +13,11 @@ from ._data_format import split_var_name
 from ._dim_names import dim_names
 from ._processing_info import (
     ProcessingStepRecorder,
+    _record_step,
     combine_histories,
     ensure_complete_processing_info,
     has_processing_info,
     processing_variable_name,
-    record_step,
     records_processing_step,
 )
 from ._selection import alias_dims
@@ -1158,8 +1158,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                         min_count=min_count,
                     )
 
-                before = ds_out[basket] if basket in ds_out.data_vars else None
-                if before is not None:
+                if basket in ds_out.data_vars:
                     ds_out[basket] = ds_out[basket].pr.merge(
                         basket_da,
                         tolerance=tolerance_basket,
@@ -1169,11 +1168,11 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 variables_present.add(basket)
                 if tracked:
                     self._record_basket(
+                        old_ds=self._ds,
                         ds_out=ds_out,
                         processing_infos=processing_infos,
                         basket=basket,
                         basket_contents=basket_contents_present,
-                        before=before,
                     )
             else:
                 logger.info(f"{basket} not created. No input data present.")
@@ -1185,22 +1184,22 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
     @staticmethod
     def _record_basket(
         *,
+        old_ds: xr.Dataset,
         ds_out: xr.Dataset,
         processing_infos: dict[Hashable, xr.DataArray],
         basket: str,
         basket_contents: Sequence[str],
-        before: xr.DataArray | None,
     ) -> None:
         """Update the processing information of the basket after it was aggregated from
-        its contents."""
+        its contents. ``old_ds`` is the dataset before the aggregation."""
         contents = combine_histories(
             xr.concat([processing_infos[var] for var in basket_contents], "variable"),
             "variable",
             data=xr.concat([ds_out[var].pr.dequantify() for var in basket_contents], "variable"),
         )
-        processing_infos[basket] = record_step(
+        processing_infos[basket] = _record_step(
             ds_out[basket],
-            previous=[] if before is None else [(before, processing_infos[basket])],
+            previous=[old_ds],
             parents=[contents],
             replaces=True,
             function="add_aggregates_variables",

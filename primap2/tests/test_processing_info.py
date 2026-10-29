@@ -13,10 +13,10 @@ from primap2._processing_info import (
     ProcessingStepDescription,
     _format_time,
     _label,
+    _record_step,
     add_processing_step,
     combine_histories,
     ensure_complete_processing_info,
-    record_step,
     used_sources,
 )
 
@@ -331,7 +331,7 @@ def test_record_step_creation():
         name="CO2",
     )
 
-    result = record_step(da, function="estimate", description="estimated", source="expert")
+    result = _record_step(da, function="estimate", description="estimated", source="expert")
 
     assert result.name == "Processing of CO2"
     assert result.dims == da.dims
@@ -358,7 +358,7 @@ def test_record_step_dimension_order_kept():
         name="CO2",
     )
 
-    result = record_step(da, function="f", description="d", source="s")
+    result = _record_step(da, function="f", description="d", source="s")
 
     assert result.dims == ("time", "area")
     assert result.loc["2001", "ARG"].item().time == np.datetime64("2001")
@@ -368,10 +368,10 @@ def test_record_step_dimension_order_kept():
 def test_record_step_requires_time():
     da = xr.DataArray([1.0], dims=["area"], coords={"area": ["COL"]}, name="CO2")
     with pytest.raises(ValueError, match="no 'time' dimension"):
-        record_step(da, function="f", description="d")
+        _record_step(da, function="f", description="d")
 
 
-def previous_state():
+def previous_state() -> xr.Dataset:
     """Old data of COL and ARG for 2000 and 2001 with nodes."""
     old = xr.DataArray(
         [[1.0, 2.0], [3.0, 4.0]],
@@ -379,17 +379,18 @@ def previous_state():
         coords={"area": ["COL", "ARG"], "time": TIME[:2]},
         name="CO2",
     )
-    return old, leaves(old, {"COL": "a", "ARG": "b"}, area_dim="area")
+    return xr.Dataset(
+        {"CO2": old, "Processing of CO2": leaves(old, {"COL": "a", "ARG": "b"}, area_dim="area")}
+    )
 
 
 def test_record_step_unchanged_and_changed():
-    old, old_infos = previous_state()
-    new = old.copy()
+    old_ds = previous_state()
+    old_infos = old_ds["Processing of CO2"]
+    new = old_ds["CO2"].copy()
     new.loc[{"area": "COL", "time": TIME[1]}] = 5.0
 
-    result = record_step(
-        new, previous=[(old, old_infos)], function="f", description="d", source="s"
-    )
+    result = _record_step(new, previous=[old_ds], function="f", description="d", source="s")
 
     # unchanged data points keep the old node object
     for area, year in [("COL", 0), ("ARG", 0), ("ARG", 1)]:
@@ -404,12 +405,13 @@ def test_record_step_unchanged_and_changed():
 
 
 def test_record_step_replaces():
-    old, old_infos = previous_state()
-    new = old * 2
+    old_ds = previous_state()
+    old_infos = old_ds["Processing of CO2"]
+    new = old_ds["CO2"] * 2
 
-    kept = record_step(new, previous=[(old, old_infos)], function="f", description="d")
-    replaced = record_step(
-        new, previous=[(old, old_infos)], replaces=True, function="f", description="d", source="s"
+    kept = _record_step(new, previous=[old_ds], function="f", description="d")
+    replaced = _record_step(
+        new, previous=[old_ds], replaces=True, function="f", description="d", source="s"
     )
 
     assert kept.loc["COL"].values[0].parents == (old_infos.loc["COL"].values[0],)
@@ -417,11 +419,12 @@ def test_record_step_replaces():
 
 
 def test_record_step_nan_removes_node():
-    old, old_infos = previous_state()
-    new = old.copy()
+    old_ds = previous_state()
+    old_infos = old_ds["Processing of CO2"]
+    new = old_ds["CO2"].copy()
     new.loc[{"area": "COL", "time": TIME[0]}] = np.nan
 
-    result = record_step(new, previous=[(old, old_infos)], function="f", description="d")
+    result = _record_step(new, previous=[old_ds], function="f", description="d")
 
     assert result.loc["COL"].values[0] is None
     assert result.loc["COL"].values[1] is old_infos.loc["COL"].values[1]
@@ -429,14 +432,13 @@ def test_record_step_nan_removes_node():
 
 
 def test_record_step_new_timeseries_and_padding():
-    old, old_infos = previous_state()
+    old_ds = previous_state()
+    old_infos = old_ds["Processing of CO2"]
     areas = ["COL", "ARG", "MEX", "BOL"]
-    new = old.reindex(area=areas)
+    new = old_ds["CO2"].reindex(area=areas)
     new.loc[{"area": "MEX"}] = 7.0
 
-    result = record_step(
-        new, previous=[(old, old_infos)], function="f", description="d", source="s"
-    )
+    result = _record_step(new, previous=[old_ds], function="f", description="d", source="s")
 
     mex = result.loc["MEX"].values
     assert [x.parents for x in mex] == [(), ()]
@@ -446,31 +448,35 @@ def test_record_step_new_timeseries_and_padding():
 
 
 def test_record_step_first_previous_wins():
-    old, old_infos = previous_state()
-    other = old.copy()
-    other_infos = leaves(other, {"COL": "x", "ARG": "y"}, area_dim="area")
-    new = old.copy()
+    old_ds = previous_state()
+    old_infos = old_ds["Processing of CO2"]
+    other_infos = leaves(old_ds["CO2"], {"COL": "x", "ARG": "y"}, area_dim="area")
+    other_ds = old_ds.assign({"Processing of CO2": other_infos})
+    new = old_ds["CO2"].copy()
     new.loc[{"area": "COL", "time": TIME[0]}] = 9.0
     new = new.reindex(area=["COL", "ARG", "MEX"])
     new.loc[{"area": "MEX"}] = 1.0
-    both = [(old.sel(area=["COL"]), old_infos.sel(area=["COL"])), (other, other_infos)]
+    both = [old_ds.sel(area=["COL"]), other_ds]
 
-    result = record_step(new, previous=both, function="f", description="d", source="s")
+    result = _record_step(new, previous=both, function="f", description="d", source="s")
 
     # COL is found in the first entry, ARG only in the second
     assert result.loc["COL"].values[0].parents == (old_infos.loc["COL"].values[0],)
     assert result.loc["ARG"].values[0] is other_infos.loc["ARG"].values[0]
 
 
-def test_record_step_mismatching_processing_info():
-    old, old_infos = previous_state()
-    with pytest.raises(ValueError, match="doesn't match the data it describes"):
-        record_step(old, previous=[(old, old_infos.isel(time=[0]))], function="f", description="d")
+def test_record_step_skips_previous_with_other_dimensions():
+    old_ds = previous_state()
+    new = old_ds["CO2"].expand_dims(source=["A"])
+
+    result = _record_step(new, previous=[old_ds], function="f", description="d", source="s")
+
+    assert result.loc["A", "COL"].values[0].parents == ()
 
 
 def test_record_step_parents_broadcast():
-    old, old_infos = previous_state()
-    new = old * 2
+    old_ds = previous_state()
+    new = old_ds["CO2"] * 2
     c = step("c")
     # lacks the time dimension and the area ARG
     by_area = xr.DataArray(np.array([c], dtype=object), dims=["area"], coords={"area": ["COL"]})
@@ -481,9 +487,9 @@ def test_record_step_parents_broadcast():
     # lacks everything
     scalar = xr.DataArray(step("s"))
 
-    result = record_step(
+    result = _record_step(
         new,
-        previous=[(old, old_infos)],
+        previous=[old_ds],
         parents=[by_area, by_time, scalar],
         function="f",
         description="d",
@@ -505,7 +511,7 @@ def test_record_step_tuple_parents_for_other_time_points():
     cells[-1] = early
     parents = xr.DataArray(cells, dims=["time"], coords={"time": time})
 
-    result = record_step(new, parents=[parents], function="extrapolate", description="d")
+    result = _record_step(new, parents=[parents], function="extrapolate", description="d")
 
     node = result.values[-1]
     assert node.time == np.datetime64("2005")
@@ -515,14 +521,14 @@ def test_record_step_tuple_parents_for_other_time_points():
 
 
 def test_record_step_parents_deduplicated():
-    old, old_infos = previous_state()
-    shared = old_infos.loc["COL"].values[0]
+    old_ds = previous_state()
+    shared = old_ds["Processing of CO2"].loc["COL"].values[0]
     cells = np.empty(1, dtype=object)
     cells[0] = (shared, step("n"), shared)
     parents = xr.DataArray(cells, dims=["area"], coords={"area": ["COL"]})
 
-    result = record_step(
-        old * 2, previous=[(old, old_infos)], parents=[parents], function="f", description="d"
+    result = _record_step(
+        old_ds["CO2"] * 2, previous=[old_ds], parents=[parents], function="f", description="d"
     )
 
     node = result.loc["COL"].values[0]
@@ -532,21 +538,22 @@ def test_record_step_parents_deduplicated():
 
 
 def test_record_step_nan_parents_ignored():
-    old, _ = previous_state()
+    old = previous_state()["CO2"]
     parents = xr.DataArray(
         np.array([np.nan, step("p")], dtype=object), dims=["area"], coords={"area": ["COL", "ARG"]}
     )
 
-    result = record_step(old, parents=[parents], function="f", description="d", source="s")
+    result = _record_step(old, parents=[parents], function="f", description="d", source="s")
 
     assert result.loc["COL"].values[0].parents == ()
     assert result.loc["ARG"].values[0].parents[0].description.function == "p"
 
 
 def test_record_step_does_not_modify_inputs():
-    old, old_infos = previous_state()
+    old_ds = previous_state()
+    old_infos = old_ds["Processing of CO2"]
     before = old_infos.values.copy()
-    record_step(old * 2, previous=[(old, old_infos)], function="f", description="d")
+    _record_step(old_ds["CO2"] * 2, previous=[old_ds], function="f", description="d")
     assert all(a is b for a, b in zip(old_infos.values.flat, before.flat, strict=True))
 
 
@@ -740,16 +747,16 @@ def test_ensure_valid_checks_processing_info(opulent_processing_ds):
 def modified_ds(ds: xr.Dataset) -> xr.Dataset:
     """Double CO2 and let SF6 depend on the new CO2, so that nodes are shared between
     variables."""
+    old = ds
     ds = ds.copy()
-    previous = [(ds["CO2"], ds["Processing of CO2"])]
     ds["CO2"] = (ds["CO2"] * 2).assign_attrs(ds["CO2"].attrs)
-    ds["Processing of CO2"] = record_step(
-        ds["CO2"], previous=previous, function="double", description="doubled"
+    ds["Processing of CO2"] = _record_step(
+        ds["CO2"], previous=[old], function="double", description="doubled"
     )
     ds["SF6"] = (ds["SF6"] * 3).assign_attrs(ds["SF6"].attrs)
-    ds["Processing of SF6"] = record_step(
+    ds["Processing of SF6"] = _record_step(
         ds["SF6"],
-        previous=[(ds["SF6"] / 3, ds["Processing of SF6"])],
+        previous=[old],
         parents=[ds["Processing of CO2"]],
         function="triple",
         description="tripled from CO2",
@@ -1316,16 +1323,17 @@ def test_records_processing_step_without_inputs():
 
 
 def test_record_step_without_inputs():
-    old, old_infos = previous_state()
-    new = old * 2
+    old_ds = previous_state()
+    old_infos = old_ds["Processing of CO2"]
+    new = old_ds["CO2"] * 2
 
     with pytest.raises(ValueError, match="4 values of 'CO2' were set without inputs"):
-        record_step(new, previous=[(old, old_infos)], replaces=True, function="f", description="d")
+        _record_step(new, previous=[old_ds], replaces=True, function="f", description="d")
     with pytest.raises(ValueError, match=re.escape("e.g. area='COL', time='2000'")):
-        record_step(new, function="f", description="d")
+        _record_step(new, function="f", description="d")
     # a source or a parent is enough
-    record_step(new, function="f", description="d", source="s")
-    record_step(new, parents=[old_infos.isel(time=0, drop=True)], function="f", description="d")
+    _record_step(new, function="f", description="d", source="s")
+    _record_step(new, parents=[old_infos.isel(time=0, drop=True)], function="f", description="d")
 
 
 def test_with_creation_step_without_source():

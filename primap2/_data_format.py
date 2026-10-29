@@ -14,6 +14,7 @@ from . import _accessor_base, pm2io
 from ._processing_info import (
     ProcessingStepRecorder,
     _dims_repr,
+    _record_step,
     decode_processing_info,
     encode_processing_info,
     ensure_complete_processing_info,
@@ -21,7 +22,6 @@ from ._processing_info import (
     is_processing_variable,
     is_table_variable,
     processing_variable_name,
-    record_step,
     used_sources,
 )
 from ._selection import translations_from_dims
@@ -516,12 +516,12 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             raise ValueError("The dataset already has processing information.")
         result = self._ds.copy()
         for var in self._ds.data_vars:
-            result[processing_variable_name(var)] = record_step(
+            result[processing_variable_name(var)] = _record_step(
                 self._ds[var],
                 function=function,
                 description=description,
                 source=source,
-                _creation=True,
+                creation=True,
             )
         return result
 
