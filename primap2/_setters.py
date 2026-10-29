@@ -22,7 +22,7 @@ class DataArraySettersAccessor(_accessor_base.BaseDataArrayAccessor):
             ) from None
 
     @alias_dims(["dim", "value_dims"])
-    def set(
+    def set(  # noqa: C901
         self,
         dim: typing.Hashable,
         key: typing.Any,

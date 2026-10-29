@@ -92,36 +92,18 @@ def nir_add_unit_information(
     else:
         values_for_entities = values_for_units
 
-    if regexp_unit is not None:
-        re_unit = re.compile(regexp_unit)
-    re_entity = re.compile(regexp_entity)
-
-    units = values_for_units.copy()
-    entities = values_for_entities.copy()
-
-    for idx, value in enumerate(values_for_units):
-        if str(value) in manual_repl_unit:
-            units[idx] = manual_repl_unit[str(value)]
-        else:
-            if regexp_unit is not None:
-                unit = re_unit.findall(str(value))
-            else:
-                unit = False
-
-            if unit:
-                units[idx] = unit[0]
-            else:
-                units[idx] = default_unit
-
-    for idx, value in enumerate(values_for_entities):
-        if str(value) in manual_repl_entity:
-            entities[idx] = manual_repl_entity[str(value)]
-        else:
-            entity = re_entity.findall(str(value))
-            if entity:
-                entities[idx] = entity[0]
-            else:
-                entities[idx] = value
+    units = [
+        default_unit if unit is None else unit
+        for unit in _extract_from_values(values_for_units, manual_repl_unit, regexp_unit)
+    ]
+    entities = [
+        value if entity is None else entity
+        for value, entity in zip(
+            values_for_entities,
+            _extract_from_values(values_for_entities, manual_repl_entity, regexp_entity),
+            strict=True,
+        )
+    ]
 
     new_header = [entities, units]
 
@@ -131,6 +113,22 @@ def nir_add_unit_information(
         df_out = df_out.drop(df_out.index[cols_to_drop])
 
     return df_out
+
+
+def _extract_from_values(
+    values: list, manual_repl: dict[str, str], regexp: str | None
+) -> list[str | None]:
+    """For each value, its manual replacement, else the first match of ``regexp``, else
+    None."""
+    compiled = re.compile(regexp) if regexp is not None else None
+    result: list[str | None] = []
+    for value in values:
+        if str(value) in manual_repl:
+            result.append(manual_repl[str(value)])
+            continue
+        matches = compiled.findall(str(value)) if compiled is not None else []
+        result.append(matches[0] if matches else None)
+    return result
 
 
 def nir_convert_df_to_long(

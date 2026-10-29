@@ -233,7 +233,7 @@ def read_interchange_format(
     return data
 
 
-def from_interchange_format(
+def from_interchange_format(  # noqa: C901
     data: pd.DataFrame,
     attrs: dict | None = None,
     max_array_size: int = 1024 * 1024 * 1024,

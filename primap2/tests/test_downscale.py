@@ -557,7 +557,7 @@ def test_with_realistic_dataset(caplog):
 
     # only what's available in reference
     # can be converted
-    assert sorted([i for i in downscaled.data_vars]) == [
+    assert sorted(downscaled.data_vars) == [
         "CH4",
         "CO2",
         "KYOTOGHG (AR6GWP100)",

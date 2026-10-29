@@ -261,7 +261,7 @@ class DatasetDataFormatAccessor(_accessor_base.BaseDatasetAccessor):
             # 0 (no compression) - larger files, shorter processing
             # 9 (maximum compression) - smaller files, longer processing
             compression = {"zlib": True, "complevel": 9}
-            encoding = {var: compression for var in ds.data_vars}
+            encoding = dict.fromkeys(ds.data_vars, compression)
         else:
             # always compress the internal tables, whatever the caller passes
             compression = {"zlib": True, "complevel": 9}
