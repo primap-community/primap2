@@ -150,9 +150,6 @@ class DataArrayMergeAccessor(BaseDataArrayAccessor):
         error_on_discrepancy: (optional), default = True
             If true throw an exception if false a warning and return values from
             the calling object in cases of conflict.
-        combine_attrs (optional), default = "drop_conflicts"
-            Governs how to combine conflicting attrs. Is passed on to the xr merge
-            functions.
 
         Returns
         -------

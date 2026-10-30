@@ -29,6 +29,12 @@ def minimal_ds() -> xr.Dataset:
 
 
 @pytest.fixture
+def minimal_ds_in_gwp() -> xr.Dataset:
+    """Like the minimal dataset, but with all gases given as a global warming potential."""
+    return examples._cached_minimal_ds_in_gwp.copy(deep=True)
+
+
+@pytest.fixture
 def opulent_ds() -> xr.Dataset:
     """A valid dataset using lots of features."""
     return examples._cached_opulent_ds.copy(deep=True)

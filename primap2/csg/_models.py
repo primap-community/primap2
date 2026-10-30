@@ -80,7 +80,7 @@ class PriorityDefinition:
             [{"area (ISO3)": ["MEX", "COL"], "source": "A"}, {"source": "B"}]
 
         would select source "A" as highest-priority source and source "B" as
-        lower-priority source for Columbia and Mexico, but source "B" as
+        lower-priority source for Colombia and Mexico, but source "B" as
         highest-priority (and only) source for all other
         countries.
     """
@@ -247,7 +247,13 @@ class StrategyDefinition:
         List of mappings from a timeseries selector to a filling strategy. When a
         timeseries will be used to fill missing data, the list will be checked from the
         start, and the first matching TimeseriesSelector determines the FillingStrategy.
-        Example: [({"source": ["FAOSTAT", "UNFCCC]}, StraightStrategy()), ({}, GlobalStrategy())]
+        Example::
+
+            [
+                ({"source": ["FAOSTAT", "UNFCCC"]}, SubstitutionStrategy()),
+                ({}, GlobalLSStrategy()),
+            ]
+
         Note that the strategy can depend on fixed dimensions as well as priority
         dimensions.
         In practice, it is usually a good idea to include a default strategy using the

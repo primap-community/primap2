@@ -22,24 +22,24 @@ def test_roundtrip_quantify(opulent_ds: xr.Dataset):
     xarray.testing.assert_identical(roundtrip, opulent_ds)
 
 
-def test_roundtrip_quantify_da(opulent_ds: xr.Dataset):
-    da: xr.DataArray = opulent_ds["SF6 (SARGWP100)"]
+def test_roundtrip_quantify_da(minimal_ds_in_gwp: xr.Dataset):
+    da: xr.DataArray = minimal_ds_in_gwp["SF6 (SARGWP100)"]
     roundtrip = da.pr.dequantify().pr.quantify()
     assert_equal(roundtrip, da)
 
 
-def test_convert_to_gwp(opulent_ds: xr.Dataset):
-    da: xr.DataArray = opulent_ds["SF6"]
+def test_convert_to_gwp(minimal_ds: xr.Dataset, minimal_ds_in_gwp: xr.Dataset):
+    da: xr.DataArray = minimal_ds["SF6"]
     da_converted = da.pr.convert_to_gwp("SARGWP100", "CO2 Gg / year")
-    da_expected = opulent_ds["SF6 (SARGWP100)"]
+    da_expected = minimal_ds_in_gwp["SF6 (SARGWP100)"]
     assert_equal(da_converted, da_expected)
 
     da_converted_like = da.pr.convert_to_gwp_like(da_expected)
     assert_equal(da_converted_like, da_expected)
 
 
-def test_convert_to_gwp_like_missing(opulent_ds: xr.Dataset):
-    da: xr.DataArray = opulent_ds["SF6"]
+def test_convert_to_gwp_like_missing(minimal_ds: xr.Dataset):
+    da: xr.DataArray = minimal_ds["SF6"]
     da_gwp = da.pr.convert_to_gwp("SARGWP100", "CO2 Gg / year")
 
     del da_gwp.attrs["gwp_context"]
@@ -52,12 +52,12 @@ def test_convert_to_gwp_like_missing(opulent_ds: xr.Dataset):
         da.pr.convert_to_gwp_like(da_gwp)
 
 
-def test_convert_to_gwp_other_context(opulent_ds: xr.Dataset):
+def test_convert_to_gwp_other_context(minimal_ds: xr.Dataset, minimal_ds_in_gwp: xr.Dataset):
     """A single gas in another metric is converted back to mass automatically."""
-    da: xr.DataArray = opulent_ds["SF6 (SARGWP100)"]
+    da: xr.DataArray = minimal_ds_in_gwp["SF6 (SARGWP100)"]
     da_converted = da.pr.convert_to_gwp("AR4GWP100", "CO2 Gg / year")
 
-    da_expected = opulent_ds["SF6"].pr.convert_to_gwp("AR4GWP100", "CO2 Gg / year")
+    da_expected = minimal_ds["SF6"].pr.convert_to_gwp("AR4GWP100", "CO2 Gg / year")
     assert_equal(da_converted, da_expected)
     # the input is not modified by the detour via the mass
     assert da.attrs["gwp_context"] == "SARGWP100"
@@ -70,10 +70,10 @@ def test_convert_to_gwp_incompatible(empty_ds: xr.Dataset):
         da.pr.convert_to_gwp("AR6GWP100", "CO2 Gg / year")
 
 
-def test_convert_to_mass(opulent_ds: xr.Dataset):
-    da: xr.DataArray = opulent_ds["SF6 (SARGWP100)"]
+def test_convert_to_mass(minimal_ds: xr.Dataset, minimal_ds_in_gwp: xr.Dataset):
+    da: xr.DataArray = minimal_ds_in_gwp["SF6 (SARGWP100)"]
     da_converted = da.pr.convert_to_mass()
-    da_expected = opulent_ds["SF6"]
+    da_expected = minimal_ds["SF6"]
     assert_equal(da_converted, da_expected)
 
 
@@ -87,32 +87,23 @@ def test_convert_round_trip(opulent_ds: xr.Dataset):
     assert isinstance(da_rt.attrs["entity"], str)
 
 
-def test_convert_to_mass_missing_info(opulent_ds: xr.Dataset):
-    da: xr.DataArray = opulent_ds["SF6"]
+def test_convert_to_mass_missing_info(minimal_ds: xr.Dataset, minimal_ds_in_gwp: xr.Dataset):
+    da: xr.DataArray = minimal_ds["SF6"]
     with pytest.raises(
         ValueError,
         match="No gwp_context given and no gwp_context available in the attrs",
     ):
         da.pr.convert_to_mass()
 
-    da = opulent_ds["SF6 (SARGWP100)"]
+    da = minimal_ds_in_gwp["SF6 (SARGWP100)"]
     del da.attrs["entity"]
     with pytest.raises(ValueError, match="No entity given and no entity available in the attrs"):
         da.pr.convert_to_mass()
 
 
 class TestDatasetConvertToGWP:
-    @pytest.fixture
-    def gases_ds(self, opulent_processing_ds: xr.Dataset) -> xr.Dataset:
-        """Opulent dataset without the variable which is already a GWP.
-
-        Converting ``SF6 (SARGWP100)`` collides with the conversion of ``SF6``, which
-        is tested separately.
-        """
-        return opulent_processing_ds.drop_vars(["SF6 (SARGWP100)", "Processing of SF6 (SARGWP100)"])
-
-    def test_convert(self, gases_ds: xr.Dataset, caplog):
-        converted = gases_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
+    def test_convert(self, opulent_processing_ds: xr.Dataset, caplog):
+        converted = opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
 
         # gases are converted and renamed, everything else is kept unchanged
         assert set(converted.data_vars) == {
@@ -131,12 +122,12 @@ class TestDatasetConvertToGWP:
 
         assert_equal(
             converted["SF6 (AR4GWP100)"],
-            gases_ds["SF6"].pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year"),
+            opulent_processing_ds["SF6"].pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year"),
         )
-        assert_equal(converted["population"], gases_ds["population"])
+        assert_equal(converted["population"], opulent_processing_ds["population"])
 
-    def test_processing_info_renamed(self, gases_ds: xr.Dataset):
-        converted = gases_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
+    def test_processing_info_renamed(self, opulent_processing_ds: xr.Dataset):
+        converted = opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
 
         processing = converted["Processing of CO2 (AR4GWP100)"]
         assert processing.attrs["described_variable"] == "CO2 (AR4GWP100)"
@@ -159,16 +150,19 @@ class TestDatasetConvertToGWP:
         for variable in converted.data_vars:
             assert converted[variable].pint.units == ureg.Unit("Mt CO2 / year")
 
-    def test_other_context_converted(self, opulent_ds: xr.Dataset):
-        """A single gas in another metric is converted back to mass automatically."""
-        ds = opulent_ds.drop_vars(["SF6"])
-        converted = ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
+    def test_other_context_converted(self, minimal_ds: xr.Dataset, minimal_ds_in_gwp: xr.Dataset):
+        """Single gases in another metric are converted back to mass automatically."""
+        converted = minimal_ds_in_gwp.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
 
-        assert "SF6 (AR4GWP100)" in converted
+        assert set(converted.data_vars) == {
+            "CO2 (AR4GWP100)",
+            "SF6 (AR4GWP100)",
+            "CH4 (AR4GWP100)",
+        }
         converted.pr.ensure_valid()
         assert_equal(
             converted["SF6 (AR4GWP100)"],
-            opulent_ds["SF6"].pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year"),
+            minimal_ds["SF6"].pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year"),
         )
 
     def test_gas_basket_other_context_warns(self, empty_ds: xr.Dataset, caplog):
@@ -216,35 +210,40 @@ class TestDatasetConvertToGWP:
         assert warnings(caplog)
         assert "mixes global warming potentials" in caplog.text
 
-    def test_name_collision_raises(self, opulent_ds: xr.Dataset):
-        """Converting SF6 and SF6 (SARGWP100) both give SF6 (AR4GWP100)."""
+    def test_name_collision_raises(self, minimal_ds: xr.Dataset, minimal_ds_in_gwp: xr.Dataset):
+        """A dataset containing SF6 twice can not be converted.
+
+        ensure_valid rejects such a dataset, so this can only happen for invalid
+        input, but then it has to be an error instead of silently dropping data.
+        """
+        invalid_ds = minimal_ds.assign({"SF6 (SARGWP100)": minimal_ds_in_gwp["SF6 (SARGWP100)"]})
+        with pytest.raises(ValueError, match="'SF6' is contained more than once"):
+            invalid_ds.pr.ensure_valid()
+
         with pytest.raises(
             ValueError,
             match=r"Converting 'SF6 \(SARGWP100\)' would overwrite 'SF6 \(AR4GWP100\)'",
         ):
-            opulent_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
+            invalid_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
 
-    def test_convert_like(self, opulent_ds: xr.Dataset):
-        ds = opulent_ds.drop_vars(["SF6"])
-        converted = ds.pr.convert_to_gwp_like(opulent_ds["SF6 (SARGWP100)"])
+    def test_convert_like(self, minimal_ds: xr.Dataset, minimal_ds_in_gwp: xr.Dataset):
+        like = minimal_ds_in_gwp["SF6 (SARGWP100)"]
+        converted = minimal_ds.pr.convert_to_gwp_like(like)
 
         assert "CH4 (SARGWP100)" in converted
         converted.pr.ensure_valid()
-        assert_equal(
-            converted["CH4 (SARGWP100)"],
-            opulent_ds["CH4"].pr.convert_to_gwp_like(opulent_ds["SF6 (SARGWP100)"]),
-        )
+        assert_equal(converted["CH4 (SARGWP100)"], minimal_ds["CH4"].pr.convert_to_gwp_like(like))
 
-    def test_convert_like_missing(self, opulent_ds: xr.Dataset):
-        like = opulent_ds["SF6 (SARGWP100)"].copy()
+    def test_convert_like_missing(self, minimal_ds: xr.Dataset, minimal_ds_in_gwp: xr.Dataset):
+        like = minimal_ds_in_gwp["SF6 (SARGWP100)"].copy()
         del like.attrs["gwp_context"]
         with pytest.raises(ValueError, match="reference array has no gwp_context"):
-            opulent_ds.pr.convert_to_gwp_like(like)
+            minimal_ds.pr.convert_to_gwp_like(like)
 
-        like = xr.full_like(opulent_ds["SF6 (SARGWP100)"], np.nan)
+        like = xr.full_like(minimal_ds_in_gwp["SF6 (SARGWP100)"], np.nan)
         like.attrs["gwp_context"] = "SARGWP100"
         with pytest.raises(ValueError, match="reference array has no units attached"):
-            opulent_ds.pr.convert_to_gwp_like(like)
+            minimal_ds.pr.convert_to_gwp_like(like)
 
 
 class TestDatasetConvertToMass:
@@ -275,15 +274,16 @@ class TestDatasetConvertToMass:
         assert "HFCS (AR6GWP100)" in caplog.text
 
     def test_round_trip(self, minimal_ds: xr.Dataset):
-        ds = minimal_ds.drop_vars(["SF6 (SARGWP100)"])
-        round_trip = ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year").pr.convert_to_mass()
+        round_trip = minimal_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year").pr.convert_to_mass()
 
-        assert set(round_trip.data_vars) == set(ds.data_vars)
-        for variable in ds.data_vars:
-            assert allclose(round_trip[variable], ds[variable])
+        assert set(round_trip.data_vars) == set(minimal_ds.data_vars)
+        for variable in minimal_ds.data_vars:
+            assert allclose(round_trip[variable], minimal_ds[variable])
 
     def test_processing_info_renamed(self, opulent_processing_ds: xr.Dataset):
-        ds = opulent_processing_ds.drop_vars(["SF6", "Processing of SF6"])
+        ds = opulent_processing_ds.pr.convert_to_gwp("AR4GWP100", "Gg CO2 / year")
+        assert "Processing of SF6 (AR4GWP100)" in ds
+
         converted = ds.pr.convert_to_mass()
 
         assert "Processing of SF6" in converted
@@ -292,23 +292,42 @@ class TestDatasetConvertToMass:
         converted.pr.ensure_valid()
 
     def test_not_a_gwp_kept(self, minimal_ds: xr.Dataset, caplog):
-        ds = minimal_ds.drop_vars(["SF6 (SARGWP100)"])
-        converted = ds.pr.convert_to_mass()
+        converted = minimal_ds.pr.convert_to_mass()
 
         # nothing is a global warming potential, so the dataset is unchanged
-        xarray.testing.assert_identical(converted, ds)
+        xarray.testing.assert_identical(converted, minimal_ds)
         assert "Not converting" in caplog.text
 
-    def test_name_collision_raises(self, minimal_ds: xr.Dataset):
-        """SF6 (SARGWP100) converts to SF6, which already exists."""
+    def test_name_collision_raises(self, minimal_ds: xr.Dataset, minimal_ds_in_gwp: xr.Dataset):
+        """SF6 (SARGWP100) converts to SF6, which already exists.
+
+        ensure_valid rejects such a dataset, so this can only happen for invalid
+        input, but then it has to be an error instead of silently dropping data.
+        """
+        invalid_ds = minimal_ds.assign({"SF6 (SARGWP100)": minimal_ds_in_gwp["SF6 (SARGWP100)"]})
         with pytest.raises(
             ValueError, match=r"Converting 'SF6 \(SARGWP100\)' would overwrite 'SF6'"
         ):
-            minimal_ds.pr.convert_to_mass()
+            invalid_ds.pr.convert_to_mass()
 
 
-def test_context(opulent_ds: xr.Dataset):
-    da: xr.DataArray = opulent_ds["SF6 (SARGWP100)"]
+def test_context(minimal_ds: xr.Dataset, minimal_ds_in_gwp: xr.Dataset):
+    da: xr.DataArray = minimal_ds_in_gwp["SF6 (SARGWP100)"]
     with da.pr.gwp_context:
-        da_converted = opulent_ds["SF6"].pint.to(da.pint.units)
+        da_converted = minimal_ds["SF6"].pint.to(da.pint.units)
     assert allclose(da, da_converted)
+
+
+def test_convert_valid_ds_never_collides(any_ds: xr.Dataset):
+    """Converting a valid dataset must never produce colliding variables.
+
+    This is what ensure_valid guarantees by requiring that each single gas is
+    contained in a dataset only once.
+    """
+    any_ds.pr.ensure_valid()
+
+    converted = any_ds.pr.convert_to_gwp("AR6GWP100", "Gg CO2 / year")
+    converted.pr.ensure_valid()
+
+    back = converted.pr.convert_to_mass()
+    back.pr.ensure_valid()

@@ -47,7 +47,7 @@ class DataArrayOverviewAccessor(_accessor_base.BaseDataArrayAccessor):
 
         If the array's dtype is ``bool``, count the number of True values instead. This
         makes it possible to easily apply preprocessing. For example, to count the
-        number of valid time series use ``da.notnull().any("time").coverage(...)``.
+        number of valid time series use ``da.notnull().any("time").pr.coverage(...)``.
 
         Parameters
         ----------
@@ -84,7 +84,7 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
     ) -> pd.DataFrame:
         """Convert this dataset into a pandas.DataFrame.
 
-        It returns mostly the same as :py:meth:`xarray..Dataset.to_dataframe`, but discards
+        It returns mostly the same as :py:meth:`xarray.Dataset.to_dataframe`, but discards
         additional coordinates instead of including them in the output.
 
         Parameters
@@ -115,7 +115,7 @@ class DatasetOverviewAccessor(_accessor_base.BaseDatasetAccessor):
         If the dataset only contains boolean arrays, count the number of True values
         instead. This makes it possible to easily apply preprocessing. For example,
         to count the number of valid time series use
-        ``ds.notnull().any("time").coverage(...)``.
+        ``ds.notnull().any("time").pr.coverage(...)``.
 
         Parameters
         ----------

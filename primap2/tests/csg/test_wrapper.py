@@ -26,8 +26,8 @@ def test_set_priority_coords(minimal_ds):
 def test_create_time_index():
     start = "1990"
     end = "2000"
-    start_dt = datetime.strptime(start, "%Y")  # noqa: DTZ007
-    end_dt = datetime.strptime(end, "%Y")  # noqa: DTZ007
+    start_dt = datetime.strptime(start, "%Y")
+    end_dt = datetime.strptime(end, "%Y")
     start_ts = pd.Timestamp(start)
     end_ts = pd.Timestamp(end)
     expected = pd.date_range(start=start, end=end, freq="YS")
@@ -105,6 +105,8 @@ def test_create_composite_source(caplog):
 
     metadata = {"references": "test-data", "contact": "test@example.xx"}
 
+    # regenerate using data/generate_primap2_test_data.py, which needs the PRIMAP-hist
+    # input data that is not part of this repository
     input_data = primap2.open_dataset(DATA_PATH / "primap2_test_data_v2.5.1_final.nc")
 
     # we use source as priority dimension, everything else are fixed coordinates.

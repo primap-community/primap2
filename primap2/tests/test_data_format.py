@@ -133,6 +133,36 @@ class TestEnsureValid:
             opulent_processing_ds.pr.ensure_valid()
         assert "ERROR" in caplog.text
 
+    def test_gas_as_mass_and_gwp(self, minimal_ds, minimal_ds_in_gwp, caplog):
+        """A single gas must not be given both as a mass and as a GWP."""
+        ds = minimal_ds.assign({"SF6 (SARGWP100)": minimal_ds_in_gwp["SF6 (SARGWP100)"]})
+        with pytest.raises(ValueError, match=r"'SF6' is contained more than once"):
+            ds.pr.ensure_valid()
+        assert "ERROR" in caplog.text
+        assert "The single gas 'SF6' is contained more than once" in caplog.text
+
+    def test_gas_in_two_gwps(self, minimal_ds_in_gwp, caplog):
+        """A single gas must not be given in two different GWPs."""
+        ds = minimal_ds_in_gwp.assign(
+            {
+                "SF6 (AR4GWP100)": minimal_ds_in_gwp["SF6 (SARGWP100)"].pr.convert_to_gwp(
+                    "AR4GWP100", "CO2 Gg / year"
+                )
+            }
+        )
+        with pytest.raises(ValueError, match=r"'SF6' is contained more than once"):
+            ds.pr.ensure_valid()
+        assert "ERROR" in caplog.text
+
+    def test_gas_baskets_in_two_gwps(self, realistic_ds, caplog):
+        """Gas baskets are exempt, they can not be converted so they are given in several."""
+        caplog.set_level(logging.INFO)
+        assert "HFCS (AR5GWP100)" in realistic_ds
+        assert "HFCS (AR6GWP100)" in realistic_ds
+
+        realistic_ds.pr.ensure_valid()
+        assert not caplog.records
+
     def test_required_dimension_missing(self, caplog):
         ds = xr.Dataset(
             {
@@ -217,9 +247,9 @@ class TestEnsureValid:
         assert "ERROR" in caplog.text
         assert "'CO2' has no entity declared in attributes." in caplog.text
 
-    def test_missing_gwp_context(self, minimal_ds, caplog):
-        del minimal_ds["SF6 (SARGWP100)"].attrs["gwp_context"]
-        minimal_ds.pr.ensure_valid()
+    def test_missing_gwp_context(self, minimal_ds_in_gwp, caplog):
+        del minimal_ds_in_gwp["SF6 (SARGWP100)"].attrs["gwp_context"]
+        minimal_ds_in_gwp.pr.ensure_valid()
         assert "WARNING" in caplog.text
         assert (
             "'SF6 (SARGWP100)' has the dimension [CO2 * mass / time], but is not CO2. "
@@ -255,13 +285,13 @@ class TestEnsureValid:
         with pytest.raises(ValueError, match="Cannot parse units"):
             deq.pr.ensure_valid()
 
-    def test_invalid_gwp_context(self, minimal_ds, caplog):
-        minimal_ds["SF6 (SARGWP100)"].attrs["gwp_context"] = "i_am_not_a_gwp_context"
+    def test_invalid_gwp_context(self, minimal_ds_in_gwp, caplog):
+        minimal_ds_in_gwp["SF6 (SARGWP100)"].attrs["gwp_context"] = "i_am_not_a_gwp_context"
         with pytest.raises(
             ValueError,
             match=r"Invalid gwp_context 'i_am_not_a_gwp_context' for " r"'SF6 \(SARGWP100\)'",
         ):
-            minimal_ds.pr.ensure_valid()
+            minimal_ds_in_gwp.pr.ensure_valid()
         assert "ERROR" in caplog.text
         assert (
             "gwp_context 'i_am_not_a_gwp_context' for 'SF6 (SARGWP100)' is not valid."
@@ -290,13 +320,15 @@ class TestEnsureValid:
         caplog.set_level(logging.INFO)
         minimal_ds["weird_name"] = minimal_ds["CO2"]
         minimal_ds["weird_name"].attrs["entity"] = "CO2"
+        del minimal_ds["CO2"]
         minimal_ds.pr.ensure_valid()
         assert "INFO" in caplog.text
         assert "The name 'weird_name' is not in standard format 'CO2'." in caplog.text
 
-    def test_missing_gwp_in_variable_name(self, minimal_ds, caplog):
-        minimal_ds["SF6_gwp"] = minimal_ds["SF6 (SARGWP100)"]
-        minimal_ds.pr.ensure_valid()
+    def test_missing_gwp_in_variable_name(self, minimal_ds_in_gwp, caplog):
+        minimal_ds_in_gwp["SF6_gwp"] = minimal_ds_in_gwp["SF6 (SARGWP100)"]
+        del minimal_ds_in_gwp["SF6 (SARGWP100)"]
+        minimal_ds_in_gwp.pr.ensure_valid()
         assert "WARNING" in caplog.text
         assert "'SF6_gwp' has a gwp_context in attrs, but not in its name." in caplog.text
 

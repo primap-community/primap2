@@ -60,9 +60,9 @@ class DataArrayFillAccessor(BaseDataArrayAccessor):
     def combine_first(self: xr.DataArray, da_combine: xr.DataArray) -> xr.DataArray:
         """Combine data from multiple arrays.
 
-        Wrapper for :py:meth`xarray.DataArray.combine_first` which ensures that
+        Wrapper for :py:meth:`xarray.DataArray.combine_first` which ensures that
         additional coordinates present in the calling dataset are also present in the
-        result. The default :py:meth`xarray.DataArray.combine_first`
+        result. The default :py:meth:`xarray.DataArray.combine_first`
         implementation silently drops additional (non-indexed) coordinates if they need
         alignment (do not cover the same values in both DataArrays)
 

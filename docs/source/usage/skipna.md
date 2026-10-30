@@ -79,6 +79,23 @@ If you want all-NA sums to be zero instead, pass `min_count=0` explicitly:
 da.pr.sum(dim="time", min_count=0).pr.to_df()
 ```
 
+The `skipna`, `skipna_evaluation_dims`, and `min_count` parameters work the same in all
+primap2 functions which sum data:
+
+- {py:meth}`xarray.DataArray.pr.sum` and {py:meth}`xarray.Dataset.pr.sum`
+- {py:meth}`xarray.Dataset.pr.gas_basket_contents_sum` and
+  {py:meth}`xarray.Dataset.pr.fill_na_gas_basket_from_contents`
+- {py:meth}`xarray.DataArray.pr.add_aggregates_coordinates`,
+  {py:meth}`xarray.Dataset.pr.add_aggregates_coordinates`, and
+  {py:meth}`xarray.Dataset.pr.add_aggregates_variables`
+- {py:meth}`xarray.DataArray.pr.downscale_timeseries`,
+  {py:meth}`xarray.Dataset.pr.downscale_timeseries`, and
+  {py:meth}`xarray.Dataset.pr.downscale_gas_timeseries`, where they are used to
+  sum the basket contents
+
+In all of them, only one of `skipna` and `skipna_evaluation_dims` may be given, and
+`min_count` has no effect if `skipna=False` or `skipna_evaluation_dims` is given.
+
 ## Infilling
 
 The same functionality is available for filling in missing information using the
@@ -126,7 +143,7 @@ filtered_ds = ds_min.pr.add_aggregates_variables(
 )
 filtered_ds["test (SARGWP100)"]
 ```
-When filtering it is important to note that entities and variables are not the same thing. The difference between the `entity` and `variable` filters / selectors is that `'entity': ['SF6']` will match both variables `'SF6'` and `'SF6 (SARGWP100)'` (as both variables are for the entity `'SF6'`) while `'variable': ['SF6']` will match only the variable `'SF6'`.
+When filtering it is important to note that entities and variables are not the same thing. The difference between the `entity` and `variable` filters / selectors is that `'entity': ['SF6']` will match the variable for the entity `'SF6'` whatever its name is - for a data set given in global warming potentials that is the variable `'SF6 (SARGWP100)'` - while `'variable': ['SF6']` will match only a variable which is literally named `'SF6'`.
 
 If we recompute an existing timeseries it has to be consistent with the existing data. Here we use the simple mode to specify the aggregation rules. The example below fails because the result is inconsistent with existing data.
 
