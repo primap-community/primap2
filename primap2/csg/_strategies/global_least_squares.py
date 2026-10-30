@@ -58,20 +58,20 @@ class GlobalLSStrategy:
         of sigma = sqrt(var) for ease of use. The default value of 1 corresponds to
         an allowed residual of one sigma, where `sigma=max(sigma(ts), sigma(fill_ts))`.
         By setting `allowed_res = 0` the check can be disabled.
-    allowed_factor (2.01):
+    allowed_factor (default=2.01):
         Maximal allowed factor `a` in `fill_ts_harmo=a*fill_ts+b`. Allowed factor
         has to be larger than one as the inverse is used automatically. The default is
         slightly larget than 2 such that a factor of 2 is still allowed and not subject
         to rounding uncertainty.
         By setting `allowed_factor = 0` the check can be disabled.
-    allowed_shift (0.201):
+    allowed_shift (default=0.201):
         Defines the maximal allowed constant `b` in `fill_ts_harmo=a*fill_ts+b`.
         The allowed shift is defined relative to the mean of fill_ts in the
         period to be filled: `b_max=mean(fill_ts)*allowed_shift.` the default is
         slightly larger than 0.2 such that a shift of 0.2 is still allowed and not subject
         to rounding uncertainty.
         By setting `allowed_shift = 0` the check can be disabled.
-    min_var (0.001):
+    min_var (default=0.001):
         A minimal assumed variance for comparison with residual. This is necessary
         to avoid failing of the strategy due to rounding errors in the least squares
         matching when variance of a time-series is zero or very small
@@ -79,20 +79,20 @@ class GlobalLSStrategy:
     Note:
         Very unevenly distributed data points can lead to fit problems,
         e.g. if we use a 10 year period and have 5 data point all in one year. But as the
-        normal use case are evenly distributed data points, sometimes with gaps, it's
-        currently not relevant
+        normal use case are evenly distributed data points, sometimes with gaps, this is
+        not relevant for practical use cases.
 
 
     Attributes
     ----------
     match_params
-        Instance of the FitParameters class defining the parameters for the fits on the
-        boundaries of the time-series.
-    allow_shift: bool, default True
+        Instance of the :py:class:`primap2.csg.MatchParameters` class defining
+        the parameters for the fits on the boundaries of the time-series.
+    allow_shift: bool, default=True
         Allow the filling time series to shift up and down using the additive constant
         :math:`b \\neq 0`.
-    allow_negative: bool, default False
-        Allow the filling time series to contain negative data initially.
+    allow_negative: bool, default=False
+        Allow the filling time series to contain negative data after harmonization.
     """
 
     match_params: MatchParameters = field()
@@ -318,6 +318,7 @@ class GlobalLSStrategy:
                 data in ts is (partly) filled using scaled data from fill_ts.
                 descriptions contains information about which years were affected and
                 filled how.
+
         """
         filled_mask = ts.isnull() & ~fill_ts.isnull()
         time_filled = filled_mask["time"][filled_mask].to_numpy()
