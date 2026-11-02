@@ -356,9 +356,8 @@ def test_downscale_gas_timeseries_da_partial_zero(gas_downscaling_ds):
 
 
 def test_downscale_gas_timeseries_zero_timeseries(gas_downscaling_ds):
-    """Test if downscaling works correctly if on country contains time-series with only
-    nan and zero while the other has full coverage. This test currently fails while the
-    test with only zero data passes (next test)
+    """Test if downscaling works correctly if one country contains time-series with only
+    nan and zero while the other has full coverage.
     """
     for var in gas_downscaling_ds.data_vars:
         gas_downscaling_ds[var].pr.loc[{"area (ISO3)": ["ARG"]}] = (
@@ -390,7 +389,8 @@ def test_downscale_gas_timeseries_zero_timeseries(gas_downscaling_ds):
 def test_downscale_gas_timeseries_only_zero_timeseries(gas_downscaling_ds):
     """Test if downscaling works correctly if data are only zero and nan.
 
-    The resulting downscaled data should be zero for all times and not nan.
+    The resulting downscaled data should be zero for all times, but if all data
+    points are nan, the resulting downscaled data should be nan as well.
     """
     for var in gas_downscaling_ds.data_vars:
         gas_downscaling_ds[var].data = gas_downscaling_ds[var].data * 0
@@ -403,9 +403,12 @@ def test_downscale_gas_timeseries_only_zero_timeseries(gas_downscaling_ds):
         basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
     )
 
-    # all gases should be zero for all times and not nan
+    # all gases should be zero for all times and not nan, except for SF6, for which
+    # all data points are nan and the downscaled value should therefore be nan as well
     assert np.allclose(downscaled["CO2"].loc[{"area (ISO3)": "ARG"}].to_numpy(), 0)
-    assert np.allclose(downscaled["SF6"].loc[{"area (ISO3)": "ARG"}].to_numpy(), np.nan)
+    assert np.allclose(
+        downscaled["SF6"].loc[{"area (ISO3)": "ARG"}].to_numpy(), np.nan, equal_nan=True
+    )
     assert np.allclose(downscaled["CH4"].loc[{"area (ISO3)": "ARG"}].to_numpy(), 0)
 
 
@@ -462,7 +465,8 @@ def test_downscale_timeseries_zero_timeseries(
 def test_downscale_timeseries_only_zero_timeseries(dim_downscaling_da):
     """Test if downscaling works correctly if data are only zero and nan.
 
-    The resulting downscaled data should be zero for all times and not nan.
+    The resulting downscaled data should be zero for all times, but if all data
+    points are nan, the resulting downscaled data should be nan as well.
     """
     dim_downscaling_da = dim_downscaling_da * 0
     dim_downscaling_da.loc[{"area (ISO3)": ["ARG"]}] = (
@@ -473,9 +477,10 @@ def test_downscale_timeseries_only_zero_timeseries(dim_downscaling_da):
         dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
     )
 
-    # all values should be zero for all times and not nan except for ARG
+    # all values should be zero for all times and not nan except for ARG, for which
+    # all data points are nan and the downscaled value should therefore be nan as well
     assert np.allclose(downscaled.loc[{"area (ISO3)": ["COL", "MEX", "BOL", "CAMB"]}].to_numpy(), 0)
-    assert np.allclose(downscaled.loc[{"area (ISO3)": ["ARG"]}].to_numpy(), np.nan)
+    assert np.allclose(downscaled.loc[{"area (ISO3)": ["ARG"]}].to_numpy(), np.nan, equal_nan=True)
 
 
 def test_downscale_timeseries_by_shares(opulent_ds):
