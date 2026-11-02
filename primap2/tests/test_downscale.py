@@ -369,6 +369,17 @@ def test_downscale_gas_timeseries_zero_timeseries(gas_downscaling_ds):
         basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
     )
 
+    # check that the non-zero time-series are downscaled as expected
+    assert np.allclose(
+        downscaled["CO2"].loc[{"area (ISO3)": "COL", "time": ["2010"]}].to_numpy(), 1
+    )
+    assert np.allclose(
+        downscaled["SF6"].loc[{"area (ISO3)": "COL", "time": ["2010"]}].to_numpy(), 1
+    )
+    assert np.allclose(
+        downscaled["CH4"].loc[{"area (ISO3)": "COL", "time": ["2010"]}].to_numpy(), 1
+    )
+
     # for the second country, the KYOTOGHG data are split into CH4 and CO2, the SF6
     # timeseries is zero for all years as its data is not available
     assert np.allclose(downscaled["CO2"].loc[{"area (ISO3)": "ARG"}].to_numpy(), 0)
@@ -384,13 +395,17 @@ def test_downscale_gas_timeseries_only_zero_timeseries(gas_downscaling_ds):
     for var in gas_downscaling_ds.data_vars:
         gas_downscaling_ds[var].data = gas_downscaling_ds[var].data * 0
 
+    gas_downscaling_ds["SF6"].loc[{"area (ISO3)": ["ARG"]}] = (
+        gas_downscaling_ds["SF6"].loc[{"area (ISO3)": ["ARG"]}] * np.nan
+    )
+
     downscaled = gas_downscaling_ds.pr.downscale_gas_timeseries(
         basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
     )
 
     # all gases should be zero for all times and not nan
     assert np.allclose(downscaled["CO2"].loc[{"area (ISO3)": "ARG"}].to_numpy(), 0)
-    assert np.allclose(downscaled["SF6"].loc[{"area (ISO3)": "ARG"}].to_numpy(), 0)
+    assert np.allclose(downscaled["SF6"].loc[{"area (ISO3)": "ARG"}].to_numpy(), np.nan)
     assert np.allclose(downscaled["CH4"].loc[{"area (ISO3)": "ARG"}].to_numpy(), 0)
 
 
@@ -449,12 +464,18 @@ def test_downscale_timeseries_only_zero_timeseries(dim_downscaling_da):
 
     The resulting downscaled data should be zero for all times and not nan.
     """
+    dim_downscaling_da = dim_downscaling_da * 0
+    dim_downscaling_da.loc[{"area (ISO3)": ["ARG"]}] = (
+        dim_downscaling_da.loc[{"area (ISO3)": ["ARG"]}] * np.nan
+    )
+
     downscaled = (dim_downscaling_da * 0).pr.downscale_timeseries(
         dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
     )
 
-    # all values should be zero for all times and not nan
-    assert np.allclose(downscaled.to_numpy(), 0)
+    # all values should be zero for all times and not nan except for ARG
+    assert np.allclose(downscaled.loc[{"area (ISO3)": ["COL", "MEX", "BOL", "CAMB"]}].to_numpy(), 0)
+    assert np.allclose(downscaled.loc[{"area (ISO3)": ["ARG"]}].to_numpy(), np.nan)
 
 
 def test_downscale_timeseries_by_shares(opulent_ds):
