@@ -53,6 +53,28 @@ def test_pr_getitem_no_attrs(opulent_ds, alias, full_name):
     assert da.name == full_name
 
 
+def test_pr_getitem_list(opulent_ds):
+    ds = opulent_ds.pr.with_creation_step(function="f", description="d")
+
+    selected = ds.pr[["CO2", "SF6"]]
+
+    assert set(selected.data_vars) == {"CO2", "SF6", "Processing of CO2", "Processing of SF6"}
+    xr.testing.assert_identical(selected, ds[list(selected.data_vars)])
+    selected.pr.ensure_valid()
+
+
+def test_pr_getitem_list_with_processing_variable(opulent_ds):
+    ds = opulent_ds.pr.with_creation_step(function="f", description="d")
+
+    selected = ds.pr[["CO2", "Processing of CO2"]]
+
+    assert list(selected.data_vars) == ["CO2", "Processing of CO2"]
+
+
+def test_pr_getitem_list_without_processing_info(opulent_ds):
+    xr.testing.assert_identical(opulent_ds.pr[["CO2", "SF6"]], opulent_ds[["CO2", "SF6"]])
+
+
 @pytest.mark.parametrize(
     ["alias", "full_name"],
     [

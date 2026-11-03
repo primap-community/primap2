@@ -10,7 +10,7 @@ from primap2.csg._strategies.gaps import (
     Gap,
     calculate_boundary_trend,
     calculate_boundary_trend_inner,
-    calculate_boundary_trend_with_fallback,
+    calculate_boundary_trends_with_fallback,
     calculate_scaling_factor,
     fill_gap,
     get_gaps,
@@ -63,7 +63,9 @@ def expected_ts(test_ts: xr.DataArray) -> xr.DataArray:
     expected_ts.pr.loc[{"time": pd.date_range("1952-01-01", "1955-01-01", freq="YS")}] = (
         np.linspace(7 / 3, 2, 4)
     )
-    factor_ts = np.linspace(1 / 3, 1, 6)
+    # factors 1/3 at the last known year 1966 and 1 at the first known year 1973,
+    # interpolated linearly: 1/3 + (2/3) * k / 7 for 1967 + k - 1, k = 1..6
+    factor_ts = 1 / 3 + (2 / 3) * np.arange(1, 7) / 7
     fill_ts_gap = np.linspace(35, 15, 6)
     expected_ts.pr.loc[{"time": pd.date_range("1967-01-01", "1972-01-01", freq="YS")}] = (
         factor_ts * fill_ts_gap
@@ -355,7 +357,7 @@ def test_calculate_boundary_trend(test_ts, fit_params_linear):
     assert np.allclose(trend_gap, [expected_gap_left, expected_gap_right], rtol=1e-04)
 
 
-def test_calculate_boundary_trend_with_fallback(test_ts, fit_params_linear):
+def test_calculate_boundary_trends_with_fallback(test_ts, fit_params_linear):
     gaps = get_gaps(test_ts)
 
     # expected result linear
@@ -364,11 +366,12 @@ def test_calculate_boundary_trend_with_fallback(test_ts, fit_params_linear):
     value = np.polyval(coeff, 0)
     expected_linear = [value, value]
 
-    trend_values = calculate_boundary_trend_with_fallback(
+    trend_values = calculate_boundary_trends_with_fallback(
+        test_ts,
         test_ts,
         gap=gaps[0],
         fit_params=fit_params_linear,
-    )
+    )[0]
     assert np.allclose(trend_values, expected_linear, rtol=1e-04)
 
     # remove some data points for fallback
@@ -383,23 +386,44 @@ def test_calculate_boundary_trend_with_fallback(test_ts, fit_params_linear):
     value = np.polyval(coeff, 0)
     expected_constant = [value, value]
 
-    trend_values = calculate_boundary_trend_with_fallback(
+    trend_values = calculate_boundary_trends_with_fallback(
+        test_ts,
         test_ts,
         gap=gaps[0],
         fit_params=fit_params_linear,
-    )
+    )[0]
     assert np.allclose(trend_values, expected_constant, rtol=1e-04)
 
     # test filling of missing boundary trends for a gap
     # this can only occur when we use gap information for one time-series on another
     # time-series, so we fake a gap here
     fake_gap = Gap(left=np.datetime64("1953-01-01"), right=np.datetime64("1955-01-01"), type="gap")
-    trend_values = calculate_boundary_trend_with_fallback(
+    trend_values = calculate_boundary_trends_with_fallback(
+        test_ts,
         test_ts,
         gap=fake_gap,
         fit_params=fit_params_linear,
-    )
+    )[0]
     assert np.allclose(trend_values, expected_constant, rtol=1e-04)
+
+
+def test_calculate_scaling_factor_shared_fallback(fit_params_linear):
+    # fill_ts has too few points for the linear trend left of the gap, so the
+    # fallback (mean) has to be used for both timeseries and both sides
+    time = pd.date_range("2000-01-01", periods=21, freq="YS")
+    t = np.arange(21, dtype=float)
+    ts = xr.DataArray(2 + t, coords={"time": time}, dims="time")
+    fill_ts = xr.DataArray(1 + t**2, coords={"time": time}, dims="time")
+    ts[10:13] = np.nan
+    fill_ts[:7] = np.nan
+    gap = Gap(type="gap", left=time[10].to_datetime64(), right=time[12].to_datetime64())
+
+    factor = calculate_scaling_factor(ts=ts, fill_ts=fill_ts, fit_params=fit_params_linear, gap=gap)
+
+    # trend windows: indices 0-9 left of the gap and 13-20 right of it
+    expected_left = np.mean(2 + t[0:10]) / np.mean(1 + t[7:10] ** 2)
+    expected_right = np.mean(2 + t[13:21]) / np.mean(1 + t[13:21] ** 2)
+    assert np.allclose(factor, [expected_left, expected_right])
 
 
 def test_calculate_scaling_factor(test_ts, fill_ts, fit_params_linear, caplog):
@@ -449,6 +473,17 @@ def test_fill_gap(test_ts, fill_ts, expected_ts, fit_params_linear):
     filled_ts = fill_gap(ts=filled_ts, fill_ts=fill_ts, gap=gaps[2], factor=factor)
 
     assert_aligned_equal(expected_ts, filled_ts, rtol=1e-03, equal_nan=True)
+
+
+def test_fill_gap_single_point():
+    time = pd.date_range("2000-01-01", "2006-01-01", freq="YS")
+    ts = xr.DataArray(np.ones(len(time)), coords={"time": time}, dims="time")
+    ts[3] = np.nan
+    fill_ts = xr.full_like(ts, 10.0)
+    gap = Gap(type="gap", left=time[3].to_datetime64(), right=time[3].to_datetime64())
+    filled = fill_gap(ts=ts, fill_ts=fill_ts, gap=gap, factor=np.array([0.286, 0.455]))
+    assert filled[3].item() == pytest.approx(10 * (0.286 + 0.455) / 2)
+    assert not filled.isnull().any()
 
 
 def test_timeseries_coords_repr(test_ts):

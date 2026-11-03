@@ -4,7 +4,7 @@ from attrs import frozen
 from scipy.linalg import lstsq
 from scipy.optimize import least_squares
 
-import primap2
+from primap2.csg._models import StrategyStep
 
 from .exceptions import StrategyUnableToProcess
 
@@ -62,7 +62,7 @@ class GlobalLSStrategy:
         ts: xr.DataArray,
         fill_ts: xr.DataArray,
         fill_ts_repr: str,
-    ) -> tuple[xr.DataArray, list[primap2.ProcessingStepDescription]]:
+    ) -> tuple[xr.DataArray, list[StrategyStep]]:
         """Fill missing data by global least square matching.
 
         For a description of the algorithm, see the documentation of this class.
@@ -82,20 +82,23 @@ class GlobalLSStrategy:
 
         Returns
         -------
-            filled_ts, descriptions.
+            filled_ts, steps.
                 filled_ts contains the result, where missing
                 data in ts is (partly) filled using scaled data from fill_ts.
-                descriptions contains information about which years were affected and
-                filled how.
+                steps contains information about which years were affected and
+                filled how. The filled values are computed from fill_ts at the same
+                time point and from ts and fill_ts at the overlap used for the fit.
         """
         filled_mask = ts.isnull() & ~fill_ts.isnull()
         time_filled = filled_mask["time"][filled_mask].to_numpy()
+        time_overlap = np.array([], dtype="datetime64[ns]")
 
         if time_filled.any():
             # check if we have overlap. If not raise error so users can define a fallback
             # strategy
             overlap = ts.notnull() & fill_ts.notnull()
             if overlap.any():
+                time_overlap = overlap["time"][overlap].to_numpy()
                 if self.allow_shift:
                     e = fill_ts[overlap.data].data
                     A = np.vstack((e, np.ones_like(e))).transpose()
@@ -111,16 +114,10 @@ class GlobalLSStrategy:
                         ts_aligned, fill_ts_aligned = xr.align(ts, fill_ts_harmo, join="exact")
                         filled_ts = ts_aligned.fillna(fill_ts_aligned)
 
-                        descriptions = [
-                            primap2.ProcessingStepDescription(
-                                time=time_filled,
-                                description=f"filled with least squares matched data from "
-                                f"{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, "
-                                f"b={x[1]:0.3f}",
-                                function=self.type,
-                                source=fill_ts_repr,
-                            )
-                        ]
+                        description = (
+                            f"filled with least squares matched data from "
+                            f"{fill_ts_repr}. a*x+b with a={x[0]:0.3f}, b={x[1]:0.3f}"
+                        )
                 else:
                     e = fill_ts[overlap.data].data
                     e_ref = ts[overlap.data].data
@@ -132,28 +129,23 @@ class GlobalLSStrategy:
                     ts_aligned, fill_ts_aligned = xr.align(ts, fill_ts_h, join="exact")
                     filled_ts = ts_aligned.fillna(fill_ts_aligned)
 
-                    descriptions = [
-                        primap2.ProcessingStepDescription(
-                            time=time_filled,
-                            description="filled with least squares matched data from "
-                            f"{fill_ts_repr}. Factor={res['x'][0]:0.3f}",
-                            function=self.type,
-                            source=fill_ts_repr,
-                        )
-                    ]
+                    description = (
+                        "filled with least squares matched data from "
+                        f"{fill_ts_repr}. Factor={res['x'][0]:0.3f}"
+                    )
             else:
                 raise StrategyUnableToProcess(reason="No overlap between timeseries, can't match")
 
         else:
             # if we don't have anything to fill we don't need to calculate anything
             filled_ts = ts
-            descriptions = [
-                primap2.ProcessingStepDescription(
-                    time=time_filled,
-                    description=f"no additional data in {fill_ts_repr}",
-                    function=self.type,
-                    source=fill_ts_repr,
-                )
-            ]
+            description = f"no additional data in {fill_ts_repr}"
 
-        return filled_ts, descriptions
+        step = StrategyStep(
+            function=self.type,
+            description=description,
+            time=time_filled,
+            ts_time=time_overlap,
+            fill_ts_time=time_overlap,
+        )
+        return filled_ts, [step]

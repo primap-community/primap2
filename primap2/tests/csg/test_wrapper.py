@@ -4,9 +4,11 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 import primap2.csg
+from primap2._processing_info import ensure_complete_processing_info
 from primap2.csg import create_composite_source
 from primap2.csg._wrapper import create_time_index, set_priority_coords
 from primap2.tests.utils import assert_ds_aligned_equal
@@ -193,7 +195,7 @@ def test_create_composite_source(caplog):
     assert not [record for record in caplog.records if record.levelno >= logging.WARNING]
 
     # remove processing info, the comparison data was created without it
-    result = result.pr.remove_processing_info()
+    result = result.pr.without_processing_info()
 
     # assert results
     # load comparison data
@@ -202,3 +204,45 @@ def test_create_composite_source(caplog):
     data_comp = primap2.open_dataset(file_to_load)
 
     assert_ds_aligned_equal(data_comp, result, equal_nan=True)
+
+
+def test_create_composite_source_processing_info(opulent_processing_ds):
+    result = create_composite_source(
+        opulent_processing_ds,
+        priority_definition=primap2.csg.PriorityDefinition(
+            priority_dimensions=["source", "scenario (FAOSTAT)"],
+            priorities=[{"source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}],
+        ),
+        strategy_definition=primap2.csg.StrategyDefinition(
+            strategies=[({}, primap2.csg.SubstitutionStrategy())]
+        ),
+        result_prio_coords={"source": {"value": "composed"}},
+        limit_coords={"variable": "CO2", "category": ["0", "1"]},
+        time_range=("2002", "2010"),
+        progress_bar=None,
+    )
+
+    assert set(result.data_vars) == {"CO2", "Processing of CO2"}
+    ensure_complete_processing_info(result)
+    processing = result["Processing of CO2"]
+    assert processing.dims == result["CO2"].dims
+    assert processing["time"].equals(result["CO2"]["time"])
+    assert len(processing["time"]) == 9
+
+    # the parent is the step of the input data point with the same coordinates
+    coords = {
+        dim: result[dim].values[0].item()
+        for dim in processing.dims
+        if dim not in ("source", "time")
+    }
+    step = processing.loc[{**coords, "source": "composed"}].sel(time="2005").item()
+    input_step = (
+        opulent_processing_ds["Processing of CO2"]
+        .loc[{**coords, "source": "RAND2020", "scenario (FAOSTAT)": "lowpop"}]
+        .sel(time="2005")
+        .item()
+    )
+    assert step.time == np.datetime64("2005-01-01")
+    assert len(step.parents) == 1
+    assert step.parents[0].description == input_step.description
+    assert step.parents[0].time == input_step.time

@@ -1,4 +1,5 @@
-from collections.abc import Hashable, Iterable, Mapping, Sequence
+import functools
+from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from copy import deepcopy
 from typing import Any
 
@@ -10,6 +11,15 @@ from loguru import logger
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._data_format import split_var_name
 from ._dim_names import dim_names
+from ._processing_info import (
+    ProcessingStepRecorder,
+    _record_step,
+    combine_histories,
+    ensure_complete_processing_info,
+    has_processing_info,
+    processing_variable_name,
+    records_processing_step,
+)
 from ._selection import alias_dims
 from ._types import DatasetOrDataArray, DimOrDimsT
 from ._units import ureg
@@ -339,6 +349,30 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                 specified in the agg_info dict
 
         """
+        return self._add_aggregates_coordinates(
+            agg_info=agg_info,
+            tolerance=tolerance,
+            skipna=skipna,
+            skipna_evaluation_dims=skipna_evaluation_dims,
+            min_count=min_count,
+        )
+
+    def _add_aggregates_coordinates(
+        self,
+        *,
+        agg_info,
+        tolerance: float | None,
+        skipna: bool | None,
+        skipna_evaluation_dims: DimOrDimsT | None,
+        min_count: int | None,
+        on_rule: Callable[..., None] | None = None,
+    ) -> xr.DataArray:
+        """Implementation of add_aggregates_coordinates.
+
+        ``on_rule`` is called after each applied rule with the keyword arguments
+        ``after`` (the dequantified data), ``dim`` and ``sources`` (the summed values
+        along ``dim``).
+        """
         # dequantify for improved speed. Unit handling is not necessary as we
         # work with one DataArray and thus the unit is the same for all
         # timeseries that are aggregated
@@ -423,6 +457,10 @@ class DataArrayAggregationAccessor(BaseDataArrayAccessor):
                                         f"present in data"
                                     )
                         da_out = da_out.pr.merge(data_agg, tolerance=rule_tolerance)
+                        if on_rule is not None:
+                            on_rule(
+                                after=da_out, dim=full_coord_name, sources=source_values_present
+                            )
                     else:
                         logger.info(
                             f"All input data nan for '{value_to_aggregate}' in "
@@ -456,18 +494,24 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         ).all()
 
     @alias_dims(["dim"])
+    @records_processing_step(
+        "self",
+        function="fill_all_na",
+        description="all values along {dim!r} were NA, filled with {value}",
+        source="constant({value})",
+    )
     def fill_all_na(self, dim: DimOrDimsT, value=0) -> xr.Dataset:
         """Fill NA values only where all values along the specified dimension(s) are NA.
 
-        Example: if you have a Dataset with dimensions ``time`` and ``positions``,
-        filling it along ``time`` will only fill those values where all time-points are
-        NA in each DataArray.
+        Example: if you have a Dataset with dimensions ``time``, ``positions`` and ``sector``,
+        filling it along ``time`` will only fill those combinations of ``positions`` and
+        ``sector`` for which all values along ``time`` are NA.
 
         Parameters
         ----------
         dim: str or list of str
-          Dimension(s) to evaluate. NA values are only filled if all values along these
-          dimension(s) are also NA.
+          Dimension(s) to evaluate. NA values are only filled if all values whose coordinates only
+          differ in these dimension(s) are also NA.
         value: optional
           Fill value to use. Default: 0.
 
@@ -475,12 +519,6 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         filled : xr.Dataset
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
-
         return self._ds.map(self._apply_fill_all_na, dim=dim, value=value, keep_attrs=True)
 
     def _reduce_dim(
@@ -503,7 +541,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
     @alias_dims(["dim"], wraps=xr.Dataset.any)
     def any(self, *args, **kwargs):
-        return self._ds.any(*args, **kwargs)
+        return self._ds.pr.without_processing_info().any(*args, **kwargs)
 
     @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
     def count(
@@ -524,6 +562,8 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
            `count` will be applied along all other dimensions (including ``entity``).
         3. If you specify ``entity`` in "dim", the Dataset is converted to a DataArray
            and counted along the data variables.
+
+        Processing information is ignored.
 
         Parameters
         ----------
@@ -551,11 +591,12 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             counted : xr.Dataset or xr.DataArray if "entity" in dims.
         """
         dim = self._reduce_dim(dim, reduce_to_dim)
+        ds = self._ds.pr.without_processing_info()
 
         if dim is not None and "entity" in dim:
             ndim = set(dim) - {"entity"}
 
-            ds = self._ds.count(dim=ndim, keep_attrs=keep_attrs, **kwargs)
+            ds = ds.count(dim=ndim, keep_attrs=keep_attrs, **kwargs)
 
             if not ds.pr._all_vars_all_dimensions():
                 raise NotImplementedError(
@@ -565,7 +606,7 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
 
             return ds.to_array("entity").sum(dim="entity", keep_attrs=True)
         else:
-            return self._ds.count(dim=dim, keep_attrs=keep_attrs, **kwargs)
+            return ds.count(dim=dim, keep_attrs=keep_attrs, **kwargs)
 
     @alias_dims(["dim", "reduce_to_dim"], additional_allowed_values=["entity"])
     def sum(
@@ -600,6 +641,10 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         defaults to 1, so that summing only NA values gives NA instead of zero. This
         reproduces the behaviour of primap1. Pass ``min_count=0`` explicitly to get
         xarray's behaviour of summing only NA values to zero.
+
+        Each summed timeseries gets a processing step whose parents are the histories of
+        the summed timeseries which contain data. Summing along "time" or "entity" is not
+        supported for datasets with processing information.
 
         Parameters
         ----------
@@ -648,17 +693,20 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         -------
         summed : xr.DataArray | xr.Dataset
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
-
         dim = self._reduce_dim(dim, reduce_to_dim)
 
-        ds, skipna, min_count = resolve_skipna(self._ds, skipna, skipna_evaluation_dims, min_count)
+        ds, skipna, min_count = resolve_skipna(
+            self._ds.pr.without_processing_info(), skipna, skipna_evaluation_dims, min_count
+        )
 
         if dim is not None and "entity" in dim:
+            if self._ds.pr.has_processing_info():
+                raise NotImplementedError(
+                    "Summing along the entity dimension gives a DataArray, which can not "
+                    "carry processing information. Consider wrapping the call in a "
+                    "ds.pr.processing_step() block and assigning the result to a variable of "
+                    "the block's dataset, or use ds.pr.without_processing_info() first."
+                )
             ndim = set(dim) - {"entity"}
 
             ds = ds.sum(dim=ndim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count)
@@ -671,8 +719,26 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             return ds.to_array("entity").sum(
                 dim="entity", skipna=skipna, keep_attrs=keep_attrs, min_count=min_count
             )
-        else:
-            return ds.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count)
+        summed = ds.sum(dim=dim, skipna=skipna, keep_attrs=keep_attrs, min_count=min_count)
+        if not has_processing_info(self._ds):
+            return summed
+        # the dimensions summed along in any variable, in the order of the dataset
+        summed_dims = [x for x in self._ds.dims if dim is None or x in dim]
+        if "time" in summed_dims:
+            raise NotImplementedError(
+                "Summing along 'time' gives values which are not timeseries, so they "
+                "can not carry processing information. Use "
+                "ds.pr.without_processing_info() first."
+            )
+        with self._ds.pr.processing_step(
+            function="sum", description=f"sum along {summed_dims!r}"
+        ) as step:
+            step.ds = summed
+            for var in summed.data_vars:
+                at = {x: self._ds[x].values for x in summed_dims if x in self._ds[var].dims}
+                if at:
+                    step.computed_from(var, at=at)
+        return step.result
 
     def gas_basket_contents_sum(
         self,
@@ -730,8 +796,10 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         """
         if self._ds.pr.has_processing_info():
             raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
+                "The result is a DataArray, which can not carry processing information. "
+                "Consider using ds.pr.add_aggregates_variables() instead, or wrapping the "
+                "call in a ds.pr.processing_step() block and assigning the result to a "
+                "variable of the block's dataset."
             )
 
         basket_contents_converted = xr.Dataset()
@@ -822,8 +890,10 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
         """
         if self._ds.pr.has_processing_info():
             raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
+                "The result is a DataArray, which can not carry processing information. "
+                "Consider using ds.pr.add_aggregates_variables() instead, or wrapping the "
+                "call in a ds.pr.processing_step() block and assigning the result to a "
+                "variable of the block's dataset."
             )
 
         ds_sel = select_no_scalar_dimension(self._ds, sel)
@@ -918,17 +988,47 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 Input with added aggregated values for coordinates / dimensions as
                 specified in the agg_info dict
         """
-        ds_out = self._ds.copy(deep=True)
-        for var in ds_out.data_vars:
+        data = self._ds.pr.without_processing_info()
+        ds_out = data.copy(deep=True)
+        tracked = has_processing_info(self._ds)
+        ensure_complete_processing_info(self._ds)
+        # each variable with its processing information after the last applied rule
+        results: dict[Hashable, xr.Dataset] = {}
+
+        def record_rule(var, *, after, dim, sources):
+            # later rules can aggregate the aggregates of earlier rules, so each rule
+            # is a step of its own
+            with ProcessingStepRecorder(
+                results[var],
+                function="add_aggregates_coordinates",
+                description=f"aggregated from {dim}={list(sources)!r}",
+                replaces=True,
+                # checked above, and the result of a block is complete
+                _skip_completeness_check=True,
+            ) as step:
+                step.ds = after.pr.quantify().to_dataset(name=var)
+                step.computed_from(var, at={dim: list(sources)})
+            results[var] = step.result
+
+        for var in data.data_vars:
+            if tracked:
+                results[var] = self._ds.pr[[var]]
             ds_out = ds_out.pr.merge(
-                ds_out[var].pr.add_aggregates_coordinates(
+                data[var].pr._add_aggregates_coordinates(
                     agg_info=agg_info,
                     tolerance=tolerance,
                     skipna=skipna,
                     skipna_evaluation_dims=skipna_evaluation_dims,
                     min_count=min_count,
+                    on_rule=functools.partial(record_rule, var) if tracked else None,
                 )
             )
+
+        # assigning aligns the processing information with coordinates added by merging
+        # other variables
+        for var, result in results.items():
+            name = processing_variable_name(var)
+            ds_out[name] = result[name]
 
         return ds_out
 
@@ -1007,7 +1107,14 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
             xr.Dataset
                 Input with aggregated gas baskets added
         """
-        ds_out = self._ds.copy(deep=True)
+        tracked = has_processing_info(self._ds)
+        ensure_complete_processing_info(self._ds)
+        ds_out = self._ds.pr.without_processing_info().copy(deep=True)
+        processing_infos = {
+            var: self._ds[processing_variable_name(var)]
+            for var in ds_out.data_vars
+            if processing_variable_name(var) in self._ds
+        }
         variables_present = set(ds_out.data_vars)
         for basket, current_basket_config in gas_baskets.items():
             if isinstance(current_basket_config, dict):
@@ -1059,7 +1166,42 @@ class DatasetAggregationAccessor(BaseDatasetAccessor):
                 else:
                     ds_out[basket] = basket_da
                 variables_present.add(basket)
+                if tracked:
+                    self._record_basket(
+                        old_ds=self._ds,
+                        ds_out=ds_out,
+                        processing_infos=processing_infos,
+                        basket=basket,
+                        basket_contents=basket_contents_present,
+                    )
             else:
                 logger.info(f"{basket} not created. No input data present.")
 
+        for var, var_processing_infos in processing_infos.items():
+            ds_out[processing_variable_name(var)] = var_processing_infos
         return ds_out
+
+    @staticmethod
+    def _record_basket(
+        *,
+        old_ds: xr.Dataset,
+        ds_out: xr.Dataset,
+        processing_infos: dict[Hashable, xr.DataArray],
+        basket: str,
+        basket_contents: Sequence[str],
+    ) -> None:
+        """Update the processing information of the basket after it was aggregated from
+        its contents. ``old_ds`` is the dataset before the aggregation."""
+        contents = combine_histories(
+            xr.concat([processing_infos[var] for var in basket_contents], "variable"),
+            "variable",
+            data=xr.concat([ds_out[var].pr.dequantify() for var in basket_contents], "variable"),
+        )
+        processing_infos[basket] = _record_step(
+            ds_out[basket],
+            previous=[old_ds],
+            parents=[contents],
+            replaces=True,
+            function="add_aggregates_variables",
+            description=f"aggregated {basket} from {list(basket_contents)!r}",
+        )

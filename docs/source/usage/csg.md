@@ -132,9 +132,12 @@ result_ds = primap2.csg.compose(
 result_ds
 ```
 
-In the result, you can see that the priority dimensions have been removed, and there are
-new data variables "Processing of $entity" added which contain detailed information for
-each timeseries how it was derived.
+In the result, you can see that the priority dimensions have been removed, and that
+processing information was added which describes how each data point was derived.
+If the input data has processing information, the histories of the input data points
+are the parents of the composed data points, otherwise their history starts with the
+composition. Use {py:meth}`xarray.Dataset.pr.processing_info` to select it, see
+[processing information](processing_info.md).
 
 ```{code-cell}
 sel = {
@@ -149,13 +152,14 @@ result_ds["CH4"].pr.loc[sel]
 
 ```{code-cell}
 del sel["time"]
-result_ds["Processing of CH4"].pr.loc[sel]
+processing = result_ds.pr.processing_info()["CH4"].pr.loc[sel]
+processing
 ```
 
 ```{code-cell}
-for tpd in result_ds["Processing of CH4"].pr.loc[sel]:
-    print(f"category={tpd['category (IPCC 2006)'].item()}")
-    print(str(tpd.item()))
+for category in ["0", "1"]:
+    ts = processing.pr.loc[{"category": category}].squeeze()
+    print(primap2.format_timeseries_history(ts))
     print()
 ```
 
@@ -225,3 +229,11 @@ Currently the following filling strategies are implemented
 * Global least square matching: {py:class}`primap2.csg.GlobalLSStrategy`
 * Straight substitution: {py:class}`primap2.csg.SubstitutionStrategy`
 * Local trend matching: {py:class}`primap2.csg.LocalTrendsStrategy`
+
+The `fill` method of a filling strategy returns the filled timeseries and a list of
+{py:class}`primap2.csg.StrategyStep`s, which describe how the data was processed: each
+step lists the time points whose values it changed, and the time points of the base
+timeseries (`ts_time`) and the fill timeseries (`fill_ts_time`) its new values were
+computed from, in addition to the fill timeseries at the changed time points
+themselves. These links are recorded in the processing information, e.g. a fit
+links the filled values to all time points of the overlap which it used.

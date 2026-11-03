@@ -8,6 +8,10 @@ from loguru import logger
 
 from ._accessor_base import BaseDataArrayAccessor, BaseDatasetAccessor
 from ._aggregate import select_no_scalar_dimension
+from ._processing_info import (
+    ensure_complete_processing_info,
+    ensure_complete_processing_info_of_other,
+)
 from ._types import DimOrDimsT
 from ._units import ureg
 
@@ -33,6 +37,25 @@ def _deprecated_skipna_false_with_evaluation_dims(
         )
         return None
     return skipna
+
+
+def _nearest_defined(defined: xr.DataArray) -> xr.DataArray:
+    """Labels for computed_from: for each time point, the nearest time points before and
+    after where ``defined``, or the time point itself if it is defined, along a new
+    dimension "nearest"."""
+    defined = defined.transpose(..., "time")
+    values = defined.values
+    n = values.shape[-1]
+    positions = np.arange(n)
+    before = np.maximum.accumulate(np.where(values, positions, -1), axis=-1)
+    after = np.minimum.accumulate(np.where(values, positions, n)[..., ::-1], axis=-1)[..., ::-1]
+    # positions -1 and n, i.e. no defined time point before or after, are NaT
+    times = np.append(defined["time"].values, np.array("NaT", dtype=defined["time"].dtype))
+    return xr.DataArray(
+        np.stack([times[before], times[after]], axis=-1),
+        dims=[*defined.dims, "nearest"],
+        coords=defined.coords,
+    )
 
 
 class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
@@ -119,6 +142,32 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         -------
         downscaled: xr.DataArray
         """
+        return self._downscale_timeseries(
+            dim=dim,
+            basket=basket,
+            basket_contents=basket_contents,
+            check_consistency=check_consistency,
+            sel=sel,
+            skipna_evaluation_dims=skipna_evaluation_dims,
+            skipna=skipna,
+            min_count=min_count,
+            tolerance=tolerance,
+        )[0]
+
+    def _downscale_timeseries(
+        self,
+        *,
+        dim: Hashable,
+        basket: Hashable,
+        basket_contents: Sequence[Hashable],
+        check_consistency: bool,
+        sel: dict[Hashable, Sequence] | None,
+        skipna_evaluation_dims: DimOrDimsT | None,
+        skipna: bool | None,
+        min_count: int | None,
+        tolerance: float,
+    ) -> tuple[xr.DataArray, xr.DataArray]:
+        """Downscale, also returns where shares were determined from the data."""
         da_sel = select_no_scalar_dimension(self._da, sel)
 
         basket_contents_da = da_sel.loc[{dim: basket_contents}]
@@ -174,11 +223,10 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
             )
 
         # inter- and extrapolate
+        raw_shares = (basket_contents_da / basket_sum).pint.to("").pint.dequantify()
+        defined = raw_shares.notnull()
         shares: xr.DataArray = (
-            (basket_contents_da / basket_sum)
-            .pint.to("")
-            .pint.dequantify()
-            .interpolate_na(dim="time", method="linear")
+            raw_shares.interpolate_na(dim="time", method="linear")
             .ffill(dim="time")
             .bfill(dim="time")
         )
@@ -190,7 +238,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
 
         downscaled: xr.DataArray = basket_da * shares
 
-        return self._da.fillna(downscaled)
+        return self._da.fillna(downscaled), defined
 
     def downscale_timeseries_by_shares(
         self,
@@ -340,29 +388,35 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         -------
         downscaled: xr.Dataset
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
-
         skipna = _deprecated_skipna_false_with_evaluation_dims(skipna, skipna_evaluation_dims)
 
-        downscaled = self._ds.copy()
-        for var in self._ds.data_vars:
-            downscaled[var] = downscaled[var].pr.downscale_timeseries(
-                dim=dim,
-                basket=basket,
-                basket_contents=basket_contents,
-                check_consistency=check_consistency,
-                sel=sel,
-                skipna_evaluation_dims=skipna_evaluation_dims,
-                skipna=skipna,
-                min_count=min_count,
-                tolerance=tolerance,
-            )
-
-        return downscaled
+        with self._ds.pr.processing_step(
+            function="downscale_timeseries",
+            description=f"downscaled from {dim}={basket!r}",
+            replaces=True,
+        ) as step:
+            data = self._ds.pr.without_processing_info()
+            downscaled = data.copy()
+            for var in data.data_vars:
+                downscaled[var], defined = data[var].pr._downscale_timeseries(
+                    dim=dim,
+                    basket=basket,
+                    basket_contents=basket_contents,
+                    check_consistency=check_consistency,
+                    sel=sel,
+                    skipna_evaluation_dims=skipna_evaluation_dims,
+                    skipna=skipna,
+                    min_count=min_count,
+                    tolerance=tolerance,
+                )
+                # the basket at the same time, and all basket contents at the nearest time
+                # points where the shares were defined
+                step.computed_from(var, at={dim: basket})
+                step.computed_from(
+                    var, at={dim: list(basket_contents), "time": _nearest_defined(defined)}
+                )
+            step.ds = downscaled
+        return step.result
 
     def downscale_gas_timeseries(
         self,
@@ -444,13 +498,8 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         -------
         downscaled: xr.Dataset
         """
-        if self._ds.pr.has_processing_info():
-            raise NotImplementedError(
-                "Dataset contains processing information, this is not supported yet. "
-                "Use ds.pr.remove_processing_info()."
-            )
-
-        ds_sel = select_no_scalar_dimension(self._ds, sel)
+        data = self._ds.pr.without_processing_info()
+        ds_sel = select_no_scalar_dimension(data, sel)
 
         basket_contents_converted = xr.Dataset()
         basket_da = ds_sel[basket]
@@ -506,11 +555,14 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
             )
 
         # inter- and extrapolate
-        shares = (
+        raw_shares = (
             (basket_contents_converted / basket_sum)
             .pint.to({x: "" for x in basket_contents_converted})
             .pint.dequantify()
-            .interpolate_na(dim="time", method="linear")
+        )
+        defined = raw_shares.notnull()
+        shares = (
+            raw_shares.interpolate_na(dim="time", method="linear")
             .ffill(dim="time")
             .bfill(dim="time")
         )
@@ -530,7 +582,22 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                     downscaled[var].pint.to(ds_sel[var].pint.units)
                 )
 
-        return self._ds.pr.fillna(downscaled_converted)
+        with self._ds.pr.processing_step(
+            function="downscale_gas_timeseries",
+            description=f"downscaled from {basket!r}",
+            replaces=True,
+        ) as step:
+            step.ds = data.pr.fillna(downscaled_converted)
+            for var in basket_contents:
+                # the basket at the same coordinates, and all basket contents at the nearest
+                # time points where the shares were defined
+                step.computed_from(var, variable=basket)
+                step.computed_from(
+                    var,
+                    at={"time": _nearest_defined(defined[var])},
+                    variable=list(basket_contents),
+                )
+        return step.result
 
     def downscale_timeseries_by_shares(
         self,
@@ -566,9 +633,11 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         xr.Dataset
             A new dataset with variables downscaled along `dim` using the provided shares.
         """
-        ds = self._ds.copy()
+        ensure_complete_processing_info(self._ds)
+        ensure_complete_processing_info_of_other(self._ds, basket_contents_shares)
+        ds = self._ds.pr.without_processing_info()
         downscaled_dict = {}
-        for var in self._ds.data_vars:
+        for var in ds.data_vars:
             if isinstance(basket_contents_shares, xr.Dataset):
                 # if the reference does not specify shares for this variable, skip it
                 if var not in basket_contents_shares.data_vars:
@@ -584,7 +653,20 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                 basket_contents_shares=basket_contents_shares_arr,
             )
 
-        return xr.Dataset(downscaled_dict).assign_attrs(ds.attrs)
+        with self._ds.pr.processing_step(
+            function="downscale_timeseries_by_shares",
+            description=f"downscaled from {dim}={basket!r} using shares",
+            replaces=True,
+        ) as step:
+            step.ds = xr.Dataset(downscaled_dict).assign_attrs(ds.attrs)
+            for var in downscaled_dict:
+                # the basket, and the shares of all basket contents, as the shares are
+                # normalised over them
+                step.computed_from(var, at={dim: basket})
+                step.computed_from(
+                    var, at={dim: list(basket_contents)}, dataset=basket_contents_shares
+                )
+        return step.result
 
 
 def generate_error_message(da_error: xr.DataArray) -> str:
