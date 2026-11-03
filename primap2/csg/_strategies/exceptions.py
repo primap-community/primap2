@@ -6,3 +6,6 @@ class StrategyUnableToProcess(Exception):
     def __init__(self, reason: str):
         """Specify the reason why the filling strategy is unable to process the data."""
         self.reason = reason
+
+    def __str__(self):
+        return f"{self.reason}"

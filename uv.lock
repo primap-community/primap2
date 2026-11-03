@@ -17,7 +17,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer = "2026-09-30T08:35:03.830772605Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -852,7 +852,7 @@ name = "cryptography"
 version = "50.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "platform_python_implementation != 'PyPy'" },
+    { name = "cffi", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/bb/ad/5d6702db60b1e40b41ef513b6967ff5848f307d50f8449baf1634f5908f1/cryptography-50.0.1.tar.gz", hash = "sha256:5dd9bda1c12b4162f6ff568eeb5e0ff956c28d14406e875cfe8a63a2d414ff20", size = 880381, upload-time = "2026-08-25T19:45:45.499Z" }
 wheels = [
@@ -2734,6 +2734,18 @@ wheels = [
 ]
 
 [[package]]
+name = "numpy-typing-compat"
+version = "20260602.2.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/08/db/5cd1d99caea4bf39fd477686ded4b9b70dff3c7673b5d84ef2d96a4f5aab/numpy_typing_compat-20260602.2.5.tar.gz", hash = "sha256:1885a678e9a24564839ed5d1711c0031735fb7de7f0b5ed88d550e5d45a8d4f9", size = 4593, upload-time = "2026-06-02T15:52:39.331Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b1/a4/9376b38b7387a0296b1f626b966e5503578625c9673777db1b45bf70acb0/numpy_typing_compat-20260602.2.5-py3-none-any.whl", hash = "sha256:21ba7757c8924d359a9ed3ab2163c282a70983ae64498fdba6d1892a6641c8b1", size = 5881, upload-time = "2026-06-02T15:52:34.167Z" },
+]
+
+[[package]]
 name = "numpydoc"
 version = "1.10.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2770,6 +2782,24 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/64/94/5adeb33bad2b6529f6535a29c95b62b39aacaa8164661da6d85871145df0/openscm_units-0.6.3.tar.gz", hash = "sha256:36f4e62b7622498df82895fbb89a63e19e2e686a74ad28e0679dd8f46d3c59b9", size = 19514, upload-time = "2024-10-17T11:13:10.323Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b2/9f/f48e406b4f92741f50350abeb054ed960bb2b1265bd4d21c3eb4906600c9/openscm_units-0.6.3-py3-none-any.whl", hash = "sha256:3837e2d6fe2f641e63c731787fcaad8e6e3baabb62d673f2903bfcc863e8fce8", size = 14308, upload-time = "2024-10-17T11:13:08.839Z" },
+]
+
+[[package]]
+name = "optype"
+version = "0.18.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/99/51/51dc9b1009e020f44703933d4d1ee3429c647c026ce7806b37ee2b257998/optype-0.18.0.tar.gz", hash = "sha256:ea10dee61b15ca299ed0d97025d362585c4dfc5481159bb999a1d0d414bbcb04", size = 59967, upload-time = "2026-06-07T22:13:17.534Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5b/91/2b064a117cb2593bc3eb04ee994134ca2a6bf2162c92961769947e3258cc/optype-0.18.0-py3-none-any.whl", hash = "sha256:91822ed8516e7a4f225ba53d30f291776c35f31553fb952d7cda98286679c5a6", size = 73410, upload-time = "2026-06-07T22:13:16.324Z" },
+]
+
+[package.optional-dependencies]
+numpy = [
+    { name = "numpy" },
+    { name = "numpy-typing-compat" },
 ]
 
 [[package]]
@@ -2828,6 +2858,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pandas-stubs"
+version = "3.0.5.260914"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c1/93/8948ae6c1e1e3d6833596fd266f7be2d27c1451b8be094975ad42c5e842e/pandas_stubs-3.0.5.260914.tar.gz", hash = "sha256:3f6fc1f147f68fd89c007105e7c94a948acb4ecd7eb20dc1c02e153c4ed5c250", size = 117622, upload-time = "2026-09-14T16:42:35.065Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9a/cb/5ad79e02a556cc23fed5816de0109fa8af660c66cfa5f4af74c3e8d4cd26/pandas_stubs-3.0.5.260914-py3-none-any.whl", hash = "sha256:39a1300c5c5c55fdf609e3476805decce5d5015539a4dcb683449f8feaeee2fb", size = 177344, upload-time = "2026-09-14T16:42:33.771Z" },
+]
+
+[[package]]
 name = "pandocfilters"
 version = "1.5.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2868,7 +2910,7 @@ name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ptyprocess" },
+    { name = "ptyprocess", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
@@ -3026,10 +3068,12 @@ dependencies = [
     { name = "openpyxl" },
     { name = "openscm-units" },
     { name = "pandas" },
+    { name = "pandas-stubs" },
     { name = "pint" },
     { name = "pint-xarray" },
     { name = "ruamel-yaml" },
     { name = "scipy" },
+    { name = "scipy-stubs" },
     { name = "strictyaml" },
     { name = "tqdm" },
     { name = "xarray" },
@@ -3095,12 +3139,14 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1" },
     { name = "openscm-units", specifier = ">=0.6" },
     { name = "pandas", specifier = ">=2.3.0" },
+    { name = "pandas-stubs", specifier = "~=3.0.5" },
     { name = "pint", specifier = ">=0.24.4" },
     { name = "pint-xarray", specifier = ">=0.4" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4" },
     { name = "ruamel-yaml", specifier = ">=0.18" },
     { name = "scipy", specifier = ">=1.14.0" },
+    { name = "scipy-stubs", specifier = "~=1.18.1" },
     { name = "strictyaml", specifier = ">=1.7.3" },
     { name = "tqdm", specifier = ">=4.66" },
     { name = "xarray", specifier = ">=2025.8.0" },
@@ -3844,12 +3890,24 @@ wheels = [
 ]
 
 [[package]]
+name = "scipy-stubs"
+version = "1.18.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "optype", extra = ["numpy"] },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/dc/76/13f1b922b32ec866389b6f359cf6c29bdb74726df130f0a23a95c72486c1/scipy_stubs-1.18.1.1.tar.gz", hash = "sha256:87995ba945f04a3c3fb9cdb5c06d093cf3637ca1271ae6799eb8030b63fb2263", size = 460131, upload-time = "2026-09-20T22:37:38.617Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/27/53/9b6dff8225ef3dbc203b1c2329d9efb2b66dfd51d5c2bf048c0676f47731/scipy_stubs-1.18.1.1-py3-none-any.whl", hash = "sha256:1a48be1702cad1ae9aa850c62ed157c988d990305880511d0e38994d502664f4", size = 665244, upload-time = "2026-09-20T22:37:37.029Z" },
+]
+
+[[package]]
 name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography" },
-    { name = "jeepney" },
+    { name = "cryptography", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "jeepney", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [

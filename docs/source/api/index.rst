@@ -59,7 +59,9 @@ source priorities and matching algorithms.
 
     csg.FitParameters
     csg.GlobalLSStrategy
+    csg.LocalLSStrategy
     csg.LocalTrendsStrategy
+    csg.MatchParameters
     csg.PriorityDefinition
     csg.StrategyDefinition
     csg.StrategyUnableToProcess
