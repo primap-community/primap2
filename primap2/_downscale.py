@@ -159,12 +159,15 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         # treat the case where all data is zero or NaN
         if (not basket_both_zero.isnull().all()) & (not any_nonzero):
             # create fake basket_contents_da and basket_sum which contain
-            # 1 for all data points where NaNs are either in the sum or the basket
-            # this will later lead to equal shares for the NaNs.
+            # 1 for all data points where the basket and the content are zero; this
+            # will later lead to equal shares for those points. Explicit zeros are
+            # replaced by one to avoid division by zero, while NaNs are kept, so
+            # that contents which are all NaN result in NaN downscaled values.
             units = basket_contents_da.pint.units
             basket_da_squeeze = basket_da.drop_vars(dim)
             basket_contents_da = basket_contents_da.where(
-                (basket_da_squeeze != 0) | (basket_sum != 0), 1 * units
+                (basket_da_squeeze != 0) | (basket_contents_da != 0),
+                1 * units,
             )
             basket_sum = basket_contents_da.pr.sum(
                 dim=dim,
@@ -278,10 +281,11 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         used to downscale the basket to its contents, which is used to fill gaps in the
         timeseries of the basket contents.
 
-        If the data to downscale contains only 0 an NaN the result will be all
-        zero timeseries. If the data is only for individual basket and basket_content
-        values, the resulting downscaled data points are zero but the shares for other years
-        are not influenced
+        If the data to downscale contains only 0 and NaN, the result will be all
+        zero timeseries, unless all data points of a basket content are NaN, in which
+        case the resulting downscaled time series will be NaN as well. If the data are 0
+        only for individual basket and basket_content values, the resulting downscaled
+        data points are zero but the shares for other years are not influenced
 
         Parameters
         ----------
@@ -391,10 +395,11 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         converted back afterwards; for both conversions the gwp conversions of the
         basket are used.
 
-        If the data to downscale contains only 0 an NaN the result will be all
-        zero timeseries. If the data is only for individual basket and basket_content
-        values, the resulting downscaled data points are zero but the shares for other years
-        are not influenced
+        If the data to downscale contains only 0 and NaN, the result will be all
+        zero timeseries, unless all data points of a basket content are NaN, in which
+        case the resulting downscaled time series will be NaN as well. If the data are 0
+        only for individual basket and basket_content values, the resulting downscaled
+        data points are zero but the shares for other years are not influenced
 
         Parameters
         ----------
@@ -495,9 +500,14 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         # treat the case where all data is zero or NaN
         if (not basket_both_zero.isnull().all()) & (not any_nonzero):
             unit_content = str(basket_da.pint.units)
-            basket_contents_converted = basket_contents_converted.where(
-                (basket_da != 0) | (basket_sum != 0), 1 * ureg(unit_content)
-            )
+            for var in basket_contents:
+                # replace explicit zeros by one to avoid division by zero, while
+                # keeping NaNs, so that contents which are all NaN result in NaN
+                # downscaled values.
+                basket_contents_converted[var] = basket_contents_converted[var].where(
+                    (basket_da != 0) | (basket_contents_converted[var] != 0),
+                    1 * ureg(unit_content),
+                )
             basket_sum = basket_contents_converted.pr.sum(
                 dim="entity",
                 skipna=skipna,
@@ -519,6 +529,9 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
         # non-zero data
         if (not basket_both_zero.isnull().all()) & any_nonzero:
             shares = shares.where((basket_da != 0) | (basket_sum != 0), 0)
+            # a basket value of zero means that the downscaled values are zero as well,
+            # even if the individual basket contents are nan for most of the timeseries
+            shares = shares.where(basket_da != 0, 0)
 
         downscaled = basket_da * shares
 
