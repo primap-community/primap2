@@ -136,15 +136,12 @@ data variables' names and `entity` attributes.
 In `entity_terminology`, the name of the used terminology is stored and the
 terminology is defined elsewhere.
 
-## Timeseries-Level Processing Information
+## Processing Information
 
-To record processing information, rich processing information can be stored in
-special data variables.
-These store processing information for a specific normal data variable.
-For each timeseries in the normal data variable, a list of processing steps is kept.
-The name of these variables is `Processing of {var}` where `{var}` is the
-full name of the data variable which is described. Additionally, the following
-attributes are defined:
+How each data point was derived can be recorded as processing information. It is stored
+in separate `DataArray`s (entities `Processing of {var}`) of the `DataSet`, one per
+described variable.
+The following attributes are defined for each processing information `DataArray`:
 
 | attribute          | content                                           | required |
 |--------------------|---------------------------------------------------|----------|
@@ -153,21 +150,76 @@ attributes are defined:
 
 The `gwp_context` and `units` attributes must not be given.
 
-`time` must not be a dimension of the array, all other dimensions must be the same
-as the data variable which is described.
-The data array contains processing information as rich metadata types.
-Therefore, the data type is `object` and it contains
-`primap2.TimeseriesProcessingDescription` objects.
-Processing information can be missing for individual timeseries, for example if a
-dataset uses different categories for different variables. Missing processing
-information is marked by a null value (`None` or NaN) and is read back as `None`.
-Each `TimeseriesProcessingDescription` object comprises multiple
-`primap2.ProcessingStepDescription` objects.
-Each `ProcessingStepDescription` contains the following information:
+The array has the same dimensions as the data variable which is described.
+It contains processing information as rich metadata types.
+Therefore, the data type is `object` and it contains `primap2.ProcessingStep` objects,
+the nodes of the processing history. A data point has a node if and only if it has data.
+Data points without data are marked by a null value (`None` or NaN), which is read
+back as `None`.
+If a dataset contains processing information, every data variable must have processing
+information.
 
-| attribute   | type                            | description                                                                            |
-|-------------|---------------------------------|----------------------------------------------------------------------------------------|
-| time        | `np.datetime64` or string "all" | Time points affected by the operation, or "all" for operations on the whole timeseries |
-| function    | str                             | Name of the function which did the operation                                           |
-| description | str                             | Long-form description of the operation which was performed                             |
-| source      | str or `None`                   | If applicable, identifier for the data source which was used in the operation          |
+Each `ProcessingStep` contains the following information:
+
+| attribute   | type                        | description                                                                                           |
+|-------------|-----------------------------|-------------------------------------------------------------------------------------------------------|
+| description | `ProcessingStepDescription` | What the step did, shared by the nodes of a timeseries which the step set                             |
+| time        | `numpy.datetime64`          | The time point of the data point which the step set                                                   |
+| parents     | tuple of `ProcessingStep`   | The steps which set the values this value was computed from, empty for a step which created the value |
+
+The parents can be at other time points than the node, e.g. the data points which were
+used for a least-squares fit.
+A `ProcessingStepDescription` contains the following information:
+
+| attribute   | type          | description                                                                                 |
+|-------------|---------------|---------------------------------------------------------------------------------------------|
+| function    | str           | Name of the function which did the operation                                                |
+| description | str           | Long-form description of the operation which was performed                                  |
+| source      | str or `None` | If applicable, identifier for untracked data which entered in the operation                 |
+| variable    | str or `None` | The name of the data variable of the processed timeseries                                   |
+| coords      | dict or `None`| The coordinates of the processed timeseries at the time of the operation, apart from "time" |
+
+Operations which combine several data points, like sums, have several parents, so the
+processing history of a data point is a directed acyclic graph.
+Nodes are shared: the node of a data point can be a parent of the nodes of several
+other data points, also in other variables.
+
+### Storage of processing information in netCDF files
+
+netCDF files can't hold Python objects, so `to_netcdf` writes the processing information
+as tables of integers and strings, which `open_dataset` converts back.
+The global attribute `processing_info_format` holds the version of the format, currently
+`2`. The tables are one-dimensional variables with their own dimension, and only the
+steps which are reachable from a data point are stored.
+
+* `Processing of {var}` has the same dimensions as `{var}` and holds, for each data
+  point, the index of its node in the table of nodes, or -1 if the data point has no
+  node.
+  The indices are `int32` (`int64` for more than 2**31-1 nodes), as are the integer
+  columns of the tables below, which `to_netcdf` always compresses.
+* Table of descriptions, dimension `processing step`, one entry per
+  `ProcessingStepDescription`:
+
+  | variable                           | content                                                       |
+  |------------------------------------|---------------------------------------------------------------|
+  | `processing step function`         | `function`                                                    |
+  | `processing step description`      | `description`                                                 |
+  | `processing step source`           | `source`, empty for `None`                                    |
+  | `processing step source is null`   | 1 if `source` is `None`, else 0                               |
+  | `processing step variable`         | `variable`, empty for `None`                                  |
+  | `processing step variable is null` | 1 if `variable` is `None`, else 0                             |
+  | `processing step coords`           | `coords` as a JSON object                                     |
+
+* Table of nodes, dimension `processing node`, one entry per `ProcessingStep`. A node
+  comes after its parents.
+
+  | variable                 | content                                                         |
+  |--------------------------|-----------------------------------------------------------------|
+  | `processing node step`   | index of the node's description in the table of descriptions    |
+  | `processing node time`   | `time`                                                          |
+  | `processing node parents`| number of parents                                               |
+
+* Table of parents, dimension `processing parent`: `processing parent node` holds the
+  indices of the parents in the table of nodes. The parents of all nodes are stored one
+  after the other in the order of the nodes, as many for each node as given by its
+  `processing node parents`.

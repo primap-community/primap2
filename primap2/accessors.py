@@ -10,6 +10,7 @@ from ._fill_combine import DataArrayFillAccessor, DatasetFillAccessor
 from ._merge import DataArrayMergeAccessor, DatasetMergeAccessor
 from ._metadata import DatasetMetadataAccessor
 from ._overview import DataArrayOverviewAccessor, DatasetOverviewAccessor
+from ._processing_info import DataArrayProcessingInfoAccessor
 from ._selection import (
     DataArrayAliasSelectionAccessor,
     DatasetAliasSelectionAccessor,
@@ -45,6 +46,7 @@ class PRIMAP2DataArrayAccessor(
     DataArraySettersAccessor,
     DataArrayUnitAccessor,
     DataArrayFillAccessor,
+    DataArrayProcessingInfoAccessor,
 ):
     """Collection of methods useful for climate policy analysis."""
 

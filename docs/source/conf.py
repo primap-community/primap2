@@ -52,6 +52,19 @@ templates_path = ["_templates", sphinx_autosummary_accessors.templates_path]
 # Stop sphinx doing funny things with byte order markers
 source_encoding = "utf-8"
 
+# sphinx-tippy settings
+# our DOIs are Zenodo DOIs, which are registered with DataCite, not Crossref
+tippy_doi_api = "https://api.datacite.org/dois/"
+tippy_doi_template = """\
+{% set attrs = data.data.attributes %}
+<div>
+    <h3>{{ attrs.titles[0].title }}</h3>
+    <p><b>Authors:</b> {{ attrs.creators | map(attribute='name') | join(', ') }}</p>
+    <p><b>Publisher:</b> {{ attrs.publisher }}</p>
+    <p><b>Published:</b> {{ attrs.publicationYear }}</p>
+</div>
+"""
+
 # autodoc type hints settings
 # https://github.com/tox-dev/sphinx-autodoc-typehints
 # include full name of classes when expanding type hints?
