@@ -75,3 +75,54 @@ da.pr.downscale_timeseries(
 For the downscaling, shares for the countries at the points in time where data for
 all countries is available are determined, the shares are inter- and extrapolated where
 data is missing, and then the regional data is downscaled using these shares.
+
+
+You can also downscale data using more detailed data from an additional source. In this case there is no consistency check as data from an additional source are unlikely to be consistent with the data to be downscaled.
+```{code-cell} ipython3
+da_basket = da.pr.loc[{'area (ISO3)': ["LATAM"]}]
+da_key = da.pr.loc[{'area (ISO3)': ["BOL", "MEX", "COL", "ARG"]}] * 2
+
+# Do the downscaling to fill in country-level data from regional data
+da_basket.pr.downscale_timeseries_with_external_key(
+    basket="LATAM",
+    basket_contents=["BOL", "MEX", "COL", "ARG"],
+    da_key=da_key,
+    dim="area (ISO3)",
+)
+```
+
+It's also possible to downscale gas basket timeseries to individual gases.
+```{code-cell} ipython3
+ds = primap2.open_dataset("../minimal_ds.nc")
+
+ds_with_basket = ds.pr.add_aggregates_variables(
+    gas_baskets={
+        "test (SARGWP100)": {
+            "sources": ["CO2", "SF6", "CH4"],
+        },
+    },
+)
+
+# remove detailed data for 2020
+for var in ["CO2", "SF6", "CH4"]:
+    ds_with_basket[var].pr.loc[{'time': ["2020"]}] = ds_with_basket[var].pr.loc[{'time': ["2020"]}] * np.nan
+
+# Downscale the data again
+ds_with_basket.pr.downscale_gas_timeseries(
+    basket="test (SARGWP100)",
+    basket_contents=["CO2", "SF6", "CH4"],
+)
+```
+
+And of course this also works with an external key dataset:
+```{code-cell} ipython3
+ds_basket = ds_with_basket[["test (SARGWP100)"]]
+ds_key=ds_with_basket[["CO2", "SF6", "CH4"]]
+
+# Downscale the data again
+ds_basket.pr.downscale_gas_timeseries_with_external_key(
+    basket="test (SARGWP100)",
+    basket_contents=["CO2", "SF6", "CH4"],
+    ds_key=ds_key,
+)
+```

@@ -117,6 +117,47 @@ def test_downscale_gas_timeseries(gas_downscaling_ds):
         )
 
 
+def test_downscale_gas_timeseries_with_external_key(gas_downscaling_ds):
+    basket = "KYOTOGHG (AR4GWP100)"
+    basket_contents = ["CO2", "SF6", "CH4"]
+    basket_ds = gas_downscaling_ds[[basket]]
+    key_ds = gas_downscaling_ds[basket_contents]
+
+    downscaled = basket_ds.pr.downscale_gas_timeseries_with_external_key(
+        basket=basket, basket_contents=basket_contents, ds_key=key_ds
+    )
+    expected = gas_downscaling_ds.copy()
+    expected["CO2"][:] = 1 * ureg("Gg CO2 / year")
+    expected["SF6"][:] = 1 * ureg("Gg SF6 / year")
+    expected["CH4"][:] = 1 * ureg("Gg CH4 / year")
+    expected["CO2"].loc[{"time": "2020"}] = 2 * ureg("Gg CO2 / year")
+    expected["SF6"].loc[{"time": "2020"}] = 2 * ureg("Gg SF6 / year")
+    expected["CH4"].loc[{"time": "2020"}] = 2 * ureg("Gg CH4 / year")
+
+    xr.testing.assert_identical(downscaled, expected)
+
+    with pytest.raises(
+        ValueError,
+        match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both",
+    ):
+        basket_ds.pr.downscale_gas_timeseries_with_external_key(
+            basket=basket,
+            basket_contents=basket_contents,
+            ds_key=key_ds,
+            skipna_evaluation_dims=["time"],
+            skipna=True,
+        )
+
+    basket_ds = basket_ds.pr.loc[{"time": ["2015"]}]
+    key_ds = key_ds.pr.loc[{"time": ["2020"]}]
+    with pytest.raises(ValueError, match="No overlap found"):
+        downscaled = basket_ds.pr.downscale_gas_timeseries_with_external_key(
+            basket=basket,
+            basket_contents=basket_contents,
+            ds_key=key_ds,
+        )
+
+
 def test_downscale_timeseries(dim_downscaling_ds, dim_downscaling_da, dim_downscaling_expected_da):
     downscaled = dim_downscaling_da.pr.downscale_timeseries(
         dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
@@ -282,7 +323,7 @@ def test_downscale_timeseries_da_zero_sum_error(dim_downscaling_da):
 
     with pytest.raises(
         ValueError,
-        match=r"pr.downscale_timeseries error: found zero basket content sum for "
+        match=r"_downscale_timeseries_core error: found zero basket content sum for "
         r"non-zero basket data for source=RAND2020:",
     ):
         dim_downscaling_da.pr.downscale_timeseries(
@@ -355,7 +396,135 @@ def test_downscale_gas_timeseries_da_partial_zero(gas_downscaling_ds):
     xr.testing.assert_identical(downscaled, expected)
 
 
-def test_downscale_timeseries_by_shares(opulent_ds):
+def test_downscale_gas_timeseries_zero_timeseries(gas_downscaling_ds):
+    """Test if downscaling works correctly if one country contains time-series with only
+    nan and zero while the other has full coverage.
+    """
+    for var in gas_downscaling_ds.data_vars:
+        gas_downscaling_ds[var].pr.loc[{"area (ISO3)": ["ARG"]}] = (
+            0 * gas_downscaling_ds[var].pr.loc[{"area (ISO3)": ["ARG"]}]
+        )
+
+    downscaled = gas_downscaling_ds.pr.downscale_gas_timeseries(
+        basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
+    )
+
+    # check that the non-zero time-series are downscaled as expected
+    assert np.allclose(
+        downscaled["CO2"].loc[{"area (ISO3)": "COL", "time": ["2010"]}].to_numpy(), 1
+    )
+    assert np.allclose(
+        downscaled["SF6"].loc[{"area (ISO3)": "COL", "time": ["2010"]}].to_numpy(), 1
+    )
+    assert np.allclose(
+        downscaled["CH4"].loc[{"area (ISO3)": "COL", "time": ["2010"]}].to_numpy(), 1
+    )
+
+    # for the second country, the KYOTOGHG data are split into CH4 and CO2, the SF6
+    # timeseries is zero for all years as its data is not available
+    assert np.allclose(downscaled["CO2"].loc[{"area (ISO3)": "ARG"}].to_numpy(), 0)
+    assert np.allclose(downscaled["SF6"].loc[{"area (ISO3)": "ARG"}].to_numpy(), 0)
+    assert np.allclose(downscaled["CH4"].loc[{"area (ISO3)": "ARG"}].to_numpy(), 0)
+
+
+def test_downscale_gas_timeseries_only_zero_timeseries(gas_downscaling_ds):
+    """Test if downscaling works correctly if data are only zero and nan.
+
+    The resulting downscaled data should be zero for all times, but if all data
+    points are nan, the resulting downscaled data should be nan as well.
+    """
+    for var in gas_downscaling_ds.data_vars:
+        gas_downscaling_ds[var].data = gas_downscaling_ds[var].data * 0
+
+    gas_downscaling_ds["SF6"].loc[{"area (ISO3)": ["ARG"]}] = (
+        gas_downscaling_ds["SF6"].loc[{"area (ISO3)": ["ARG"]}] * np.nan
+    )
+
+    downscaled = gas_downscaling_ds.pr.downscale_gas_timeseries(
+        basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
+    )
+
+    # all gases should be zero for all times and not nan, except for SF6, for which
+    # all data points are nan and the downscaled value should therefore be nan as well
+    assert np.allclose(downscaled["CO2"].loc[{"area (ISO3)": "ARG"}].to_numpy(), 0)
+    assert np.allclose(
+        downscaled["SF6"].loc[{"area (ISO3)": "ARG"}].to_numpy(), np.nan, equal_nan=True
+    )
+    assert np.allclose(downscaled["CH4"].loc[{"area (ISO3)": "ARG"}].to_numpy(), 0)
+
+
+def test_downscale_gas_timeseries_da_full_zero(gas_downscaling_ds):
+    for var in ["CO2", "SF6", "CH4"]:
+        gas_downscaling_ds[var].data = 0 * gas_downscaling_ds[var].data
+    gas_downscaling_ds["KYOTOGHG (AR4GWP100)"].data = (
+        0 * gas_downscaling_ds["KYOTOGHG (AR4GWP100)"].data
+    )
+
+    downscaled = gas_downscaling_ds.pr.downscale_gas_timeseries(
+        basket="KYOTOGHG (AR4GWP100)", basket_contents=["CO2", "SF6", "CH4"]
+    )
+
+    expected = gas_downscaling_ds.copy()
+    expected["CO2"][:] = 0 * ureg("Gg CO2 / year")
+    expected["SF6"][:] = 0 * ureg("Gg SF6 / year")
+    expected["CH4"][:] = 0 * ureg("Gg CH4 / year")
+
+    xr.testing.assert_identical(downscaled, expected)
+
+
+def test_downscale_timeseries_zero_timeseries(
+    dim_downscaling_ds, dim_downscaling_da, dim_downscaling_expected_da
+):
+    """Test if downscaling works correctly if one area contains time-series with only
+    nan and zero while the other areas have full coverage.
+
+    The individual areas are only known for the year 2020, the basket is known for all
+    years. For one area all basket contents are known and sum up to the basket, for
+    another area the value for the year 2020 is set to zero, so its time series only
+    contains nan and zero values.
+    """
+
+    dim_downscaling_da.loc[
+        {"area (ISO3)": "BOL", "source": "RAND2020", "time": ["2002", "2012"]}
+    ] = 0 * ureg("Gg CO2 / year")
+    dim_downscaling_da.loc[{"area (ISO3)": ["ARG", "MEX"], "time": ["2002", "2012"]}] = 1 * ureg(
+        "Gg CO2 / year"
+    )
+    dim_downscaling_da.loc[{"area (ISO3)": "COL", "time": ["2002", "2012"]}] = 3 * ureg(
+        "Gg CO2 / year"
+    )
+    dim_downscaling_da.loc[{"area (ISO3)": "CAMB"}] = 5 * ureg("Gg CO2 / year")
+
+    downscaled = dim_downscaling_da.pr.downscale_timeseries(
+        dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
+    )
+
+    assert np.allclose(downscaled.loc[{"area (ISO3)": "BOL"}].to_numpy(), 0)
+    assert np.allclose(downscaled.loc[{"area (ISO3)": "COL"}].to_numpy(), 3)
+
+
+def test_downscale_timeseries_only_zero_timeseries(dim_downscaling_da):
+    """Test if downscaling works correctly if data are only zero and nan.
+
+    The resulting downscaled data should be zero for all times, but if all data
+    points are nan, the resulting downscaled data should be nan as well.
+    """
+    dim_downscaling_da = dim_downscaling_da * 0
+    dim_downscaling_da.loc[{"area (ISO3)": ["ARG"]}] = (
+        dim_downscaling_da.loc[{"area (ISO3)": ["ARG"]}] * np.nan
+    )
+
+    downscaled = (dim_downscaling_da * 0).pr.downscale_timeseries(
+        dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
+    )
+
+    # all values should be zero for all times and not nan except for ARG, for which
+    # all data points are nan and the downscaled value should therefore be nan as well
+    assert np.allclose(downscaled.loc[{"area (ISO3)": ["COL", "MEX", "BOL", "CAMB"]}].to_numpy(), 0)
+    assert np.allclose(downscaled.loc[{"area (ISO3)": ["ARG"]}].to_numpy(), np.nan, equal_nan=True)
+
+
+def test_downscale_timeseries_with_external_key(opulent_ds):
     # build a reference data array with the shares of the basket contents
     time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
     area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
@@ -364,6 +533,11 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         "1.A.2",
         "1.A.3",
     ]
+    # cat_names_higher_resolution = [
+    #     "Energy Industries",
+    #     "Manufacturing Industries and Construction",
+    #     "Transport",
+    # ]
     rng = np.random.default_rng(42)
 
     reference = xr.Dataset(
@@ -417,6 +591,7 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         }
     ]
     ds = ds.drop_vars("population")
+    ds = ds.drop_vars("category_names")
 
     # look at one specific value
     assert (
@@ -426,11 +601,11 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         == 0.8660848254275575
     )
 
-    downscaled = ds.pr.downscale_timeseries_by_shares(
+    downscaled = ds.pr.downscale_timeseries_with_external_key(
         dim="category (IPCC 2006)",
         basket="1.A",
         basket_contents=category_higher_resolution,
-        basket_contents_shares=reference,
+        ds_key=reference,
     )
 
     # check if basket contents add up to basket (sum over all years and countries)
@@ -532,11 +707,11 @@ def test_with_realistic_dataset(caplog):
     basket_contents = ["1.A.1", "1.A.2", "1.A.3", "1.A.4", "1.A.5"]
 
     with pytest.raises(ValueError, match="No overlap found"):
-        downscaled = original.pr.downscale_timeseries_by_shares(
+        downscaled = original.pr.downscale_timeseries_with_external_key(
             dim="category (IPCC2006_PRIMAP)",
             basket=basket,
             basket_contents=basket_contents,
-            basket_contents_shares=reference,
+            ds_key=reference,
         )
 
     # need to select source explicitly so it won't be used
@@ -545,24 +720,21 @@ def test_with_realistic_dataset(caplog):
 
     # check if warnings are shown
     with caplog.at_level(logging.WARNING):
-        downscaled = original.pr.downscale_timeseries_by_shares(
+        downscaled = original.pr.downscale_timeseries_with_external_key(
             dim="category (IPCC2006_PRIMAP)",
             basket=basket,
             basket_contents=basket_contents,
-            basket_contents_shares=reference,
+            ds_key=reference,
         )
 
     # FGASES, HFCS etc. are not in original
     assert any("is not in reference data. Skipping it" in message for message in caplog.messages)
 
-    # only what's available in reference
-    # can be converted
-    assert sorted([i for i in downscaled.data_vars]) == [
-        "CH4",
-        "CO2",
-        "KYOTOGHG (AR6GWP100)",
-        "N2O",
-    ]
+    extra_var_original = [var for var in original.data_vars if var not in downscaled.data_vars]
+    assert len(extra_var_original) == 0
+
+    extra_var_downscaled = [var for var in downscaled.data_vars if var not in original.data_vars]
+    assert len(extra_var_downscaled) == 0
 
     assert (
         downscaled[entity_example]

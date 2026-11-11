@@ -107,7 +107,7 @@ Methods
     DataArray.pr.coverage
     DataArray.pr.dequantify
     DataArray.pr.downscale_timeseries
-    DataArray.pr.downscale_timeseries_by_shares
+    DataArray.pr.downscale_timeseries_with_external_key
     DataArray.pr.fill_all_na
     DataArray.pr.fillna
     DataArray.pr.merge
@@ -161,8 +161,9 @@ Methods
     Dataset.pr.coverage
     Dataset.pr.dequantify
     Dataset.pr.downscale_gas_timeseries
+    Dataset.pr.downscale_gas_timeseries_with_external_key
     Dataset.pr.downscale_timeseries
-    Dataset.pr.downscale_timeseries_by_shares
+    Dataset.pr.downscale_timeseries_with_external_key
     Dataset.pr.ensure_valid
     Dataset.pr.expand_dims
     Dataset.pr.fill_all_na
