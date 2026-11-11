@@ -558,16 +558,6 @@ def test_downscale_timeseries_with_external_key(opulent_ds):
         }
     ).pr.quantify()
 
-    # reference = reference.assign_coords(
-    #     {
-    #         "category_names": xr.DataArray(
-    #             data=cat_names_higher_resolution,
-    #             coords={"category (IPCC 2006)": category_higher_resolution},
-    #             dims=["category (IPCC 2006)"],
-    #         )
-    #     }
-    # )
-
     assert (
         reference["CO2"]
         .pr.loc[{"category (IPCC 2006)": "1.A.1", "area (ISO3)": "COL", "time": "2020"}]
@@ -758,90 +748,3 @@ def test_with_realistic_dataset(caplog):
         .to_numpy()
         == (2.8372828 / 6.187519093) * 6190.0
     )
-
-
-# TODO: remove before merging, just for testing purposes
-@pytest.mark.xfail
-def test_additional_coordinate_multiplication(opulent_ds):
-    # build a reference data array with the shares of the basket contents
-    time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
-    area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
-    category_higher_resolution = [
-        "1.A.1",
-        "1.A.2",
-        "1.A.3",
-    ]
-    cat_names_higher_resolution = [
-        "Energy Industries",
-        "Manufacturing Industries and Construction",
-        "Transport",
-    ]
-    rng = np.random.default_rng(42)
-
-    reference = xr.Dataset(
-        {
-            ent: xr.DataArray(
-                data=rng.integers(
-                    10, size=(len(time), len(area_iso3), len(category_higher_resolution))
-                ),
-                coords={
-                    "time": time,
-                    "area (ISO3)": area_iso3,
-                    "category (IPCC 2006)": category_higher_resolution,
-                },
-                dims=["time", "area (ISO3)", "category (IPCC 2006)"],
-                attrs={"units": f"{ent} Gg / year", "entity": ent},
-            )
-            for ent in ("CO2", "N2O", "CH4")
-        }
-    ).pr.quantify()
-
-    reference = reference.assign_coords(
-        {
-            "category_names": xr.DataArray(
-                data=cat_names_higher_resolution,
-                coords={"category (IPCC 2006)": category_higher_resolution},
-                dims=["category (IPCC 2006)"],
-            )
-        }
-    )
-
-    # The dataset to be downscaled
-    ds = opulent_ds.pr.loc[
-        {
-            "provenance": "projected",
-            "scenario": "highpop",
-            "product": "milk",
-            "animal": "cow",
-            "model": "FANCYFAO",
-            "source": "RAND2020",
-        }
-    ]
-    ds = ds.drop_vars("population")
-
-    ds_result: xr.Dataset = ds * ds
-
-    assert "category_names" in ds_result.coords  # passes
-    assert len(ds_result.coords["category_names"]) > 0  # passes
-
-    # the following test can not produce meaningful values for category and category name
-    # "category (IPCC 2006)" is empty as well
-    ds_result: xr.Dataset = (
-        ds.loc[{"category (IPCC 2006)": ["1.A"]}]
-        * reference.loc[{"category (IPCC 2006)": category_higher_resolution}]
-    )
-
-    assert "category_names" in ds_result.coords  # passes
-    assert len(ds_result.coords["category (IPCC 2006)"]) > 0  # fails
-    assert len(ds_result.coords["category_names"]) > 0  # fails
-
-    ds_result: xr.Dataset = (
-        ds.loc[{"category (IPCC 2006)": "1.A"}]
-        * reference.loc[{"category (IPCC 2006)": category_higher_resolution}]
-    )
-
-    assert "category_names" in ds_result.coords  # fails
-
-    da_result = xr.DataArray = ds["CO2"] * reference["CO2"]
-
-    assert "category_names" in da_result.coords  # fails

@@ -212,7 +212,7 @@ def _downscale_gas_timeseries_core(
     check_alignment: bool = False,
 ) -> xr.Dataset:
     """Downscale a gas basket defined on a broader timeseries to its contents
-    known on fewer time points.
+    given in basket_contents_ds
 
     This is useful if you have data for many points in time for a gas basket, for
     example KYOTOGHG, and higher-resolution data (e.g. the individual green house
@@ -495,7 +495,7 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
     ) -> xr.DataArray:
         """
         Downscale timeseries along a dimension using a basket defined on a
-        broader timeseries.
+        broader timeseries given in an external key source.
 
         This is useful if you have data for many points in time for a total, for example
         the entire Energy sector, and higher-resolution data (e.g. fossil and non-fossil
@@ -923,7 +923,7 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
     ) -> xr.Dataset:
         """
         Downscale timeseries along a dimension using a basket defined on a
-        broader timeseries.
+        broader timeseries given in an external key data source.
 
         This is useful if you have data for many points in time for a total, for example
         the entire Energy sector, and higher-resolution data (e.g. fossil and non-fossil
