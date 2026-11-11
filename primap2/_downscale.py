@@ -307,12 +307,13 @@ def _downscale_gas_timeseries_core(
             )
 
     if check_alignment:
-        aligned = xr.align(basket_da, basket_contents_ds, join="inner")
-        if all(i.size == 0 for i in aligned):
-            raise ValueError(
-                "No overlap found between the input data and the provided shares."
-                "Check coordinate alignment"
-            )
+        for var in basket_contents_ds.data_vars:
+            aligned = xr.align(basket_da, basket_contents_ds[var], join="inner")
+            if all(i.size == 0 for i in aligned):
+                raise ValueError(
+                    "No overlap found between the input data and the provided shares."
+                    f"Check coordinate alignment for {var}"
+                )
 
     # treat zeros
     basket_both_zero = basket_da.where((basket_da == 0) & (basket_sum == 0))

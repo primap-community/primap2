@@ -148,6 +148,15 @@ def test_downscale_gas_timeseries_with_external_key(gas_downscaling_ds):
             skipna=True,
         )
 
+    basket_ds = basket_ds.pr.loc[{"time": ["2015"]}]
+    key_ds = key_ds.pr.loc[{"time": ["2020"]}]
+    with pytest.raises(ValueError, match="No overlap found"):
+        downscaled = basket_ds.pr.downscale_gas_timeseries_with_external_key(
+            basket=basket,
+            basket_contents=basket_contents,
+            ds_key=key_ds,
+        )
+
 
 def test_downscale_timeseries(dim_downscaling_ds, dim_downscaling_da, dim_downscaling_expected_da):
     downscaled = dim_downscaling_da.pr.downscale_timeseries(
