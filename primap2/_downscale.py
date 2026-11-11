@@ -35,6 +35,346 @@ def _deprecated_skipna_false_with_evaluation_dims(
     return skipna
 
 
+def _downscale_timeseries_core(
+    basket_da: xr.DataArray,
+    basket_contents_da: xr.DataArray,
+    dim: Hashable,
+    basket: Hashable,
+    basket_contents: Sequence[Hashable],
+    skipna_evaluation_dims: DimOrDimsT | None = None,
+    skipna: bool | None = None,
+    min_count: int | None = None,
+    check_consistency: bool = True,
+    tolerance: float = 0.01,
+    check_alignment: bool = False,
+) -> xr.DataArray:
+    """Downscale timeseries along a dimension using a basket defined on a broader timeseries.
+
+    This is useful if you have data for many points in time for a total, for example
+    the entire Energy sector, and higher-resolution data (e.g. fossil and non-fossil
+    energies separately) for only a few points in time. In the example, the Energy
+    sector is the ``basket`` and fossil and non-fossil energies are the basket
+    contents.
+
+    From any time points where all the basket contents are known, the
+    relative shares of the basket contents are determined, and then interpolated
+    linearly and extrapolated constantly to the full timeseries. The shares are then
+    used to downscale the basket to its contents, which is used to fill gaps in the
+    timeseries of the basket contents.
+
+    If the data to downscale contains only 0 and NaN the result will be all
+    zero timeseries. If the data is only for individual basket and basket_content
+    values, the resulting downscaled data points are zero but the shares for other years
+    are not influenced
+
+    Parameters
+    ----------
+    basket_da: xr.DataArray
+      The data for the basket that will be downscaled
+    basket_contents_da: xr.DataArray
+      Data for individual
+    dim: str
+      The name of the dimension which contains the basket and its contents, has to
+      be one of the dimensions in ``da.dims``.
+    basket: str
+      The name of the super-category for which values are known at higher temporal
+      resolution and/or for a wider range. A value from ``da[dimension]``.
+    basket_contents: list of str
+      The name of the sub-categories. The sum of all sub-categories equals the
+      basket. Values from ``da[dimension]``.
+    skipna_evaluation_dims: str or list of str, optional
+      Dimension(s) to evaluate along to determine if values should be skipped.
+      Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
+      If all values along the specified dimensions are NA, the values are skipped,
+      other NA values are not skipped and will lead to NA in the corresponding
+      result.
+    skipna: bool, optional
+      If ``True``, skip missing values (as marked by NaN) when summing. If ``False``,
+      missing values lead to NA in the sum. By default (``None``), missing values are
+      skipped for float dtypes; other dtypes either do not have a sentinel missing value
+      (int) or ``skipna=True`` has not been implemented (``object``, ``datetime64`` or
+      ``timedelta64``). Only one of ``skipna`` and ``skipna_evaluation_dims`` can be
+      supplied.
+    min_count: int, optional
+      The minimal number of non-NA values in a sum that is necessary for a non-NA
+      result. This only has an effect if NA values are skipped, i.e. it has no effect
+      if ``skipna=False`` or ``skipna_evaluation_dims`` is given. Defaults to 1 if NA
+      values are skipped, so that summing only NA values gives NA. As an example: you
+      sum data for a region for a certain sector, gas and year. If ``skipna=False``,
+      all countries in the region need to have non-NA data for that sector, gas,
+      year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+      non-NA data is enough for a non-NA result. All NA values will be treated as
+      zero. If ``min_count=0`` all NA values will be treated as zero
+      also if there is no single non-NA value in the data that is to be summed.
+    check_consistency: bool, default True
+      If for all points where the basket and all basket_contents are defined,
+      it should be checked if the sum of the basket_contents actually equals
+      the basket. A ``ValueError`` is raised if the consistency check fails.
+    tolerance: float
+      If given it overrides the default tolerance for deviations of sums of
+      individual timeseries to given aggregate timeseries. Default is 0.01 (1%)
+    check_alignment: bool default = False
+      Check if there is overlap between the basket data and the basket contents.
+      (e.g. if there are time points where both are defined.)
+
+    Returns
+    -------
+    downscaled: xr.DataArray
+    """
+    skipna = _deprecated_skipna_false_with_evaluation_dims(skipna, skipna_evaluation_dims)
+
+    basket_sum = basket_contents_da.pr.sum(
+        dim=dim,
+        skipna=skipna,
+        min_count=min_count,
+        skipna_evaluation_dims=skipna_evaluation_dims,
+    )
+
+    if check_consistency:
+        deviation: xr.DataArray = abs(basket_da / basket_sum - 1)
+        devmax = float(deviation.max().pint.dequantify().data)
+        if devmax > tolerance:
+            raise ValueError(
+                f"Sum of the basket_contents {basket_contents!r} deviates"
+                f" {devmax * 100} % from the basket"
+                f" {basket!r}, which is more than the allowed {tolerance * 100}%. "
+                "To continue regardless, set check_consistency=False."
+            )
+
+    if check_alignment:
+        aligned = xr.align(basket_da, basket_contents_da, join="inner")
+        if all(i.size == 0 for i in aligned):
+            raise ValueError(
+                "No overlap found between the input data and the provided shares."
+                "Check coordinate alignment"
+            )
+
+    # treat zeros
+    basket_both_zero = basket_da.where((basket_da == 0) & (basket_sum == 0))
+    basket_sum_zero = basket_da.where((basket_da != 0) & (basket_sum == 0))
+    if not basket_sum_zero.isnull().all():
+        # this can only happen if check consistency = False,
+        error_message = generate_error_message(basket_sum_zero)
+        raise ValueError(f"_downscale_timeseries_core {error_message}")
+
+    any_nonzero = basket_sum.where(basket_sum != 0).notnull().any()
+
+    # treat the case where all data is zero or NaN
+    if (not basket_both_zero.isnull().all()) & (not any_nonzero):
+        # create fake basket_contents_da and basket_sum which contain
+        # 1 for all data points where the basket and the content are zero; this
+        # will later lead to equal shares for those points. Explicit zeros are
+        # replaced by one to avoid division by zero, while NaNs are kept, so
+        # that contents which are all NaN result in NaN downscaled values.
+        units = basket_contents_da.pint.units
+        basket_da_squeeze = basket_da.drop_vars(dim)
+        basket_contents_da = basket_contents_da.where(
+            (basket_da_squeeze != 0) | (basket_contents_da != 0),
+            1 * units,
+        )
+        basket_sum = basket_contents_da.pr.sum(
+            dim=dim,
+            skipna=skipna,
+            min_count=min_count,
+            skipna_evaluation_dims=skipna_evaluation_dims,
+        )
+
+    # inter- and extrapolate
+    shares: xr.DataArray = (
+        (basket_contents_da / basket_sum)
+        .pint.to("")
+        .pint.dequantify()
+        .interpolate_na(dim="time", method="linear")
+        .ffill(dim="time")
+        .bfill(dim="time")
+    )
+
+    # treat the case where there are zero values in basket_sum and basket_da but also
+    # non-zero data
+    if (not basket_both_zero.isnull().all()) & any_nonzero:
+        shares = shares.where((basket_da != 0) | (basket_sum != 0), 0)
+
+    downscaled: xr.DataArray = basket_da * shares
+
+    return downscaled
+
+
+def _downscale_gas_timeseries_core(
+    basket_da: xr.DataArray,
+    basket_contents_ds: xr.Dataset,
+    basket: Hashable,
+    basket_contents: Sequence[Hashable],
+    check_consistency: bool = True,
+    skipna_evaluation_dims: DimOrDimsT | None = None,
+    skipna: bool | None = None,
+    min_count: int | None = None,
+    tolerance: float = 0.01,
+    check_alignment: bool = False,
+) -> xr.Dataset:
+    """Downscale a gas basket defined on a broader timeseries to its contents
+    known on fewer time points.
+
+    This is useful if you have data for many points in time for a gas basket, for
+    example KYOTOGHG, and higher-resolution data (e.g. the individual green house
+    gases included in KYOTOGHG) for only a few points in time.
+    From any time points where all the basket contents are known, the relative
+    shares of the basket contents are determined, and then interpolated linearly
+    and extrapolated constantly to the full timeseries. The shares are then
+    used to downscale the basket to its contents, which is used to fill gaps in the
+    timeseries of the basket contents.
+    Basket contents are converted to the units of the basket for downscaling, and
+    converted back afterwards; for both conversions the gwp conversions of the
+    basket are used.
+
+    If the data to downscale contains only 0 and NaN, the result will be all
+    zero timeseries, unless all data points of a basket content are NaN, in which
+    case the resulting downscaled time series will be NaN as well. If the data are 0
+    only for individual basket and basket_content values, the resulting downscaled
+    data points are zero but the shares for other years are not influenced
+
+    Parameters
+    ----------
+    basket: str
+      The name of the gas basket for which values are known at higher temporal
+      resolution and/or for a wider range. A value from ``ds.keys()``.
+    basket_contents: list of str
+      The name of the gases in the gas basket. The sum of all basket_contents
+      equals the basket. Values from ``ds.keys()``.
+    check_consistency: bool, default True
+      If for all points where the basket and all basket_contents are defined,
+      it should be checked if the sum of the basket_contents actually equals
+      the basket. A ``ValueError`` is raised if the consistency check fails.
+    skipna_evaluation_dims: str or list of str, optional
+      Dimension(s) to evaluate along to determine if values should be skipped.
+      Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
+      If all values along the specified dimensions are NA, the values are skipped,
+      other NA values are not skipped and will lead to NA in the corresponding
+      result.
+    skipna: bool, optional
+      If ``True``, skip missing values (as marked by NaN) when summing. If ``False``,
+      missing values lead to NA in the sum. By default (``None``), missing values are
+      skipped for float dtypes; other dtypes either do not have a sentinel missing value
+      (int) or ``skipna=True`` has not been implemented (``object``, ``datetime64`` or
+      ``timedelta64``). Only one of ``skipna`` and ``skipna_evaluation_dims`` can be
+      supplied.
+    min_count: int, optional
+      The minimal number of non-NA values in a sum that is necessary for a non-NA
+      result. This only has an effect if NA values are skipped, i.e. it has no effect
+      if ``skipna=False`` or ``skipna_evaluation_dims`` is given. Defaults to 1 if NA
+      values are skipped, so that summing only NA values gives NA. As an example: you
+      sum data for a region for a certain sector, gas and year. If ``skipna=False``,
+      all countries in the region need to have non-NA data for that sector, gas,
+      year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+      non-NA data is enough for a non-NA result. All NA values will be treated as
+      zero. If ``min_count=0`` all NA values will be treated as zero
+      also if there is no single non-NA value in the data that is to be summed.
+    tolerance: float
+      If given it overrides the default tolerance for deviations of sums of
+      individual timeseries to given aggregate timeseries. Default is 0.01 (1%)
+    check_alignment: bool default = False
+      Check if there is overlap between the basket data and the basket contents.
+      (e.g. if there are time points where both are defined.)
+
+    Returns
+    -------
+    downscaled: xr.Dataset
+    """
+
+    basket_contents_converted = xr.Dataset()
+
+    for var in basket_contents:
+        da: xr.DataArray = basket_contents_ds[var]
+        basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=basket_da)
+
+    basket_sum = basket_contents_converted.pr.sum(
+        dim="entity",
+        skipna=skipna,
+        min_count=min_count,
+        skipna_evaluation_dims=skipna_evaluation_dims,
+    )
+
+    if check_consistency:
+        deviation = abs(basket_da / basket_sum - 1)
+        devmax = deviation.max().item()
+        if devmax > tolerance:
+            raise ValueError(
+                f"Sum of the basket_contents {basket_contents!r} deviates"
+                f" {devmax * 100} % from the basket"
+                f" {basket!r}, which is more than the allowed "
+                f"{tolerance * 100}%. "
+                f" {deviation}"
+                "To continue regardless, set check_consistency=False."
+            )
+
+    if check_alignment:
+        aligned = xr.align(basket_da, basket_contents_ds, join="inner")
+        if all(i.size == 0 for i in aligned):
+            raise ValueError(
+                "No overlap found between the input data and the provided shares."
+                "Check coordinate alignment"
+            )
+
+    # treat zeros
+    basket_both_zero = basket_da.where((basket_da == 0) & (basket_sum == 0))
+    basket_sum_zero = basket_da.where((basket_da != 0) & (basket_sum == 0))
+    if not basket_sum_zero.isnull().all():
+        # this can only happen if check consistency = False,
+        # so we could also remove it and say whoever switches it of has
+        # to deal with the consequences
+        error_message = generate_error_message(basket_sum_zero)
+        raise ValueError(f"pr.downscale_gas_timeseries {error_message}")
+
+    any_nonzero = basket_sum.where(basket_sum != 0).notnull().any()
+
+    # treat the case where all data is zero or NaN
+    if (not basket_both_zero.isnull().all()) & (not any_nonzero):
+        unit_content = str(basket_da.pint.units)
+        for var in basket_contents:
+            # replace explicit zeros by one to avoid division by zero, while
+            # keeping NaNs, so that contents which are all NaN result in NaN
+            # downscaled values.
+            basket_contents_converted[var] = basket_contents_converted[var].where(
+                (basket_da != 0) | (basket_contents_converted[var] != 0),
+                1 * ureg(unit_content),
+            )
+        basket_sum = basket_contents_converted.pr.sum(
+            dim="entity",
+            skipna=skipna,
+            min_count=min_count,
+            skipna_evaluation_dims=skipna_evaluation_dims,
+        )
+
+    # inter- and extrapolate
+    shares = (
+        (basket_contents_converted / basket_sum)
+        .pint.to({x: "" for x in basket_contents_converted})
+        .pint.dequantify()
+        .interpolate_na(dim="time", method="linear")
+        .ffill(dim="time")
+        .bfill(dim="time")
+    )
+
+    # treat the case where there are zero values in basket_sum and basket_da but also
+    # non-zero data
+    if (not basket_both_zero.isnull().all()) & any_nonzero:
+        shares = shares.where((basket_da != 0) | (basket_sum != 0), 0)
+        # a basket value of zero means that the downscaled values are zero as well,
+        # even if the individual basket contents are nan for most of the timeseries
+        shares = shares.where(basket_da != 0, 0)
+
+    downscaled = basket_da * shares
+
+    downscaled_converted = xr.Dataset()
+
+    with ureg.context(basket_da.attrs["gwp_context"]):
+        for var in basket_contents:
+            downscaled_converted[var] = basket_contents_ds[var].fillna(
+                downscaled[var].pint.to(basket_contents_ds[var].pint.units)
+            )
+
+    return downscaled_converted
+
+
 class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
     def downscale_timeseries(
         self,
@@ -124,133 +464,126 @@ class DataArrayDownscalingAccessor(BaseDataArrayAccessor):
         basket_contents_da = da_sel.loc[{dim: basket_contents}]
         basket_da = da_sel.loc[{dim: basket}]
 
-        skipna = _deprecated_skipna_false_with_evaluation_dims(skipna, skipna_evaluation_dims)
-
-        basket_sum = basket_contents_da.pr.sum(
+        downscaled = _downscale_timeseries_core(
             dim=dim,
+            basket=basket,
+            basket_contents=basket_contents,
+            basket_da=basket_da,
+            basket_contents_da=basket_contents_da,
+            skipna_evaluation_dims=skipna_evaluation_dims,
             skipna=skipna,
             min_count=min_count,
-            skipna_evaluation_dims=skipna_evaluation_dims,
+            check_consistency=check_consistency,
+            tolerance=tolerance,
         )
-
-        if check_consistency:
-            deviation: xr.DataArray = abs(basket_da / basket_sum - 1)
-            devmax = float(deviation.max().pint.dequantify().data)
-            if devmax > tolerance:
-                raise ValueError(
-                    f"Sum of the basket_contents {basket_contents!r} deviates"
-                    f" {devmax * 100} % from the basket"
-                    f" {basket!r}, which is more than the allowed {tolerance * 100}%. "
-                    "To continue regardless, set check_consistency=False."
-                )
-
-        # treat zeros
-        basket_both_zero = basket_da.where((basket_da == 0) & (basket_sum == 0))
-        basket_sum_zero = basket_da.where((basket_da != 0) & (basket_sum == 0))
-        if not basket_sum_zero.isnull().all():
-            # this can only happen if check consistency = False,
-            # so we could also remove it and say whoever switches it of has
-            # to deal with the consequences
-            error_message = generate_error_message(basket_sum_zero)
-            raise ValueError(f"pr.downscale_timeseries {error_message}")
-
-        any_nonzero = basket_sum.where(basket_sum != 0).notnull().any()
-
-        # treat the case where all data is zero or NaN
-        if (not basket_both_zero.isnull().all()) & (not any_nonzero):
-            # create fake basket_contents_da and basket_sum which contain
-            # 1 for all data points where the basket and the content are zero; this
-            # will later lead to equal shares for those points. Explicit zeros are
-            # replaced by one to avoid division by zero, while NaNs are kept, so
-            # that contents which are all NaN result in NaN downscaled values.
-            units = basket_contents_da.pint.units
-            basket_da_squeeze = basket_da.drop_vars(dim)
-            basket_contents_da = basket_contents_da.where(
-                (basket_da_squeeze != 0) | (basket_contents_da != 0),
-                1 * units,
-            )
-            basket_sum = basket_contents_da.pr.sum(
-                dim=dim,
-                skipna=skipna,
-                min_count=min_count,
-                skipna_evaluation_dims=skipna_evaluation_dims,
-            )
-
-        # inter- and extrapolate
-        shares: xr.DataArray = (
-            (basket_contents_da / basket_sum)
-            .pint.to("")
-            .pint.dequantify()
-            .interpolate_na(dim="time", method="linear")
-            .ffill(dim="time")
-            .bfill(dim="time")
-        )
-
-        # treat the case where there are zero values in basket_sum and basket_da but also
-        # non-zero data
-        if (not basket_both_zero.isnull().all()) & any_nonzero:
-            shares = shares.where((basket_da != 0) | (basket_sum != 0), 0)
-
-        downscaled: xr.DataArray = basket_da * shares
 
         return self._da.fillna(downscaled)
 
-    def downscale_timeseries_by_shares(
+    def downscale_timeseries_with_external_key(
         self,
         *,
         dim: Hashable,
         basket: Hashable,
         basket_contents: Sequence[Hashable],
-        basket_contents_shares: xr.DataArray,
+        da_key: xr.DataArray,
+        sel: dict[Hashable, Sequence] | None = None,
+        skipna_evaluation_dims: DimOrDimsT | None = None,
+        skipna: bool | None = None,
+        min_count: int | None = None,
+        tolerance: float = 0.01,
     ) -> xr.DataArray:
-        """Downscale timeseries along a dimension using defined shares for each timestep.
+        """
+        Downscale timeseries along a dimension using a basket defined on a
+        broader timeseries.
 
-        This is useful if you have data points for a total, and you don't have any
-        data for the higher resolution, but you do have the shares for the higher
-        resolution from another source. For example, you have the total energy, and
-        you know the shares of the sub-sectors 1.A and 1.B for each year from another
-        source.
+        This is useful if you have data for many points in time for a total, for example
+        the entire Energy sector, and higher-resolution data (e.g. fossil and non-fossil
+        energies separately) for only a few points in time. In the example, the Energy
+        sector is the ``basket`` and fossil and non-fossil energies are the basket
+        contents.
+
+        From any time points where all the basket contents are known, the
+        relative shares of the basket contents are determined, and then interpolated
+        linearly and extrapolated constantly to the full timeseries. The shares are then
+        used to downscale the basket to its contents, which is used to fill gaps in the
+        timeseries of the basket contents.
+
+        If the data to downscale contains only 0 and NaN the result will be all
+        zero timeseries. If the data is only for individual basket and basket_content
+        values, the resulting downscaled data points are zero but the shares for other years
+        are not influenced
 
         Parameters
         ----------
-        dim : Hashable
-            The dimension along which to perform the downscaling (e.g., "category" or "area").
-        basket : Hashable
-            The label of the aggregate group (e.g., "1.A" for a category) whose value will be
-            redistributed.
-        basket_contents : Sequence of Hashable
-            The labels of the subgroups (e.g., ["1.A.1", "1.A.2", "1.A.3"])
-            that make up the `basket`.
-        basket_contents_shares : xr.DataArray
-            The shares to use for downscaling.
+        dim: str
+          The name of the dimension which contains the basket and its contents, has to
+          be one of the dimensions in ``da.dims``.
+        basket: str
+          The name of the super-category for which values are known at higher temporal
+          resolution and/or for a wider range. A value from ``da[dimension]``.
+        basket_contents: list of str
+          The name of the sub-categories. The sum of all sub-categories equals the
+          basket. Values from ``da[dimension]``.
+        da_key: xr.DataArray
+          Dataset with the downscaling key. Only variables present in seld._da and
+          da_key will be downscaled.
+        sel: Selection dict, optional
+          If the downscaling should only be done on a subset of the Dataset while
+          retaining all other values unchanged, give a selection dictionary. The
+          downscaling will be done on ``da.loc[sel]``.
+        skipna_evaluation_dims: str or list of str, optional
+          Dimension(s) to evaluate along to determine if values should be skipped.
+          Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
+          If all values along the specified dimensions are NA, the values are skipped,
+          other NA values are not skipped and will lead to NA in the corresponding
+          result.
+        skipna: bool, optional
+          If ``True``, skip missing values (as marked by NaN) when summing. If ``False``,
+          missing values lead to NA in the sum. By default (``None``), missing values are
+          skipped for float dtypes; other dtypes either do not have a sentinel missing value
+          (int) or ``skipna=True`` has not been implemented (``object``, ``datetime64`` or
+          ``timedelta64``). Only one of ``skipna`` and ``skipna_evaluation_dims`` can be
+          supplied.
+        min_count: int, optional
+          The minimal number of non-NA values in a sum that is necessary for a non-NA
+          result. This only has an effect if NA values are skipped, i.e. it has no effect
+          if ``skipna=False`` or ``skipna_evaluation_dims`` is given. Defaults to 1 if NA
+          values are skipped, so that summing only NA values gives NA. As an example: you
+          sum data for a region for a certain sector, gas and year. If ``skipna=False``,
+          all countries in the region need to have non-NA data for that sector, gas,
+          year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+          non-NA data is enough for a non-NA result. All NA values will be treated as
+          zero. If ``min_count=0`` all NA values will be treated as zero
+          also if there is no single non-NA value in the data that is to be summed.
+        tolerance: float
+          If given it overrides the default tolerance for deviations of sums of
+          individual timeseries to given aggregate timeseries. Default is 0.01 (1%)
 
         Returns
         -------
-        xr.DataArray
-            A new DataArray with values downscaled along `dim` using the provided shares.
+        downscaled: xr.DataArray
         """
+        da_sel = select_no_scalar_dimension(self._da, sel)
 
-        basket_contents_shares = basket_contents_shares.pr.loc[{dim: basket_contents}]
+        da_key_sel = select_no_scalar_dimension(da_key, sel)
+        basket_contents_da = da_key_sel.loc[{dim: basket_contents}]
+        basket_da = da_sel.loc[{dim: basket}]
 
-        # normalise shares
-        basket_contents_shares = basket_contents_shares / basket_contents_shares.sum(dim=dim)
+        downscaled = _downscale_timeseries_core(
+            dim=dim,
+            basket=basket,
+            basket_contents=basket_contents,
+            basket_da=basket_da,
+            basket_contents_da=basket_contents_da,
+            skipna_evaluation_dims=skipna_evaluation_dims,
+            skipna=skipna,
+            min_count=min_count,
+            check_consistency=False,
+            tolerance=tolerance,
+            check_alignment=True,
+        )
 
-        # Make sure the result won't be empty.
-        # xarray will try to match every indexed coordinate (coordinates with *)
-        # if they don't match the result will be empty
-        array_to_downscale = self._da.pr.loc[{dim: basket}]
-
-        # aligned is a tuple of datarray with aligned coordinates
-        aligned = xr.align(array_to_downscale, basket_contents_shares, join="inner")
-        if all(i.size == 0 for i in aligned):
-            raise ValueError(
-                "No overlap found between the input data and the provided shares."
-                "Check coordinate alignment"
-            )
-
-        downscaled = array_to_downscale * basket_contents_shares
-
-        return self._da.pr.set(dim=dim, key=basket_contents, value=downscaled)
+        return self._da.pr.merge(downscaled, error_on_discrepancy=True)
 
 
 class DatasetDownscalingAccessor(BaseDatasetAccessor):
@@ -455,149 +788,240 @@ class DatasetDownscalingAccessor(BaseDatasetAccessor):
                 "Use ds.pr.remove_processing_info()."
             )
 
+        skipna = _deprecated_skipna_false_with_evaluation_dims(skipna, skipna_evaluation_dims)
+
         ds_sel = select_no_scalar_dimension(self._ds, sel)
 
-        basket_contents_converted = xr.Dataset()
-        basket_da = ds_sel[basket]
-        for var in basket_contents:
-            da: xr.DataArray = ds_sel[var]
-            basket_contents_converted[var] = da.pr.convert_to_gwp_like(like=basket_da)
+        downscaled = _downscale_gas_timeseries_core(
+            basket_da=ds_sel[basket],
+            basket_contents_ds=ds_sel[basket_contents],
+            basket=basket,
+            basket_contents=basket_contents,
+            check_consistency=check_consistency,
+            skipna_evaluation_dims=skipna_evaluation_dims,
+            skipna=skipna,
+            min_count=min_count,
+            tolerance=tolerance,
+        )
+
+        return self._ds.pr.fillna(downscaled)
+
+    def downscale_gas_timeseries_with_external_key(
+        self,
+        *,
+        basket: Hashable,
+        basket_contents: Sequence[Hashable],
+        ds_key: xr.Dataset,
+        sel: dict[Hashable, Sequence] | None = None,
+        skipna_evaluation_dims: DimOrDimsT | None = None,
+        skipna: bool | None = None,
+        min_count: int | None = None,
+    ) -> xr.Dataset:
+        """Downscale a gas basket defined on a broader timeseries to its contents
+        known only in an additional key timeseries.
+
+        This is useful if you have data for many points in time for a gas basket, for
+        example KYOTOGHG, and higher-resolution data (e.g. the individual green house
+        gases included in KYOTOGHG) for only a few points in time.
+        From any time points where all the basket contents are known, the relative
+        shares of the basket contents are determined, and then interpolated linearly
+        and extrapolated constantly to the full timeseries. The shares are then
+        used to downscale the basket to its contents, which is used to fill gaps in the
+        timeseries of the basket contents.
+        Basket contents are converted to the units of the basket for downscaling, and
+        converted back afterwards; for both conversions the gwp conversions of the
+        basket are used.
+
+        If the data to downscale contains only 0 and NaN, the result will be all
+        zero timeseries, unless all data points of a basket content are NaN, in which
+        case the resulting downscaled time series will be NaN as well. If the data are 0
+        only for individual basket and basket_content values, the resulting downscaled
+        data points are zero but the shares for other years are not influenced
+
+        Parameters
+        ----------
+        basket: str
+          The name of the gas basket for which values are known at higher temporal
+          resolution and/or for a wider range. A value from ``ds.keys()``.
+        basket_contents: list of str
+          The name of the gases in the gas basket. The sum of all basket_contents
+          equals the basket. Values from ``ds.keys()``.
+        ds_key: xr.Dataset
+          Dataset with the time-series for individual gases used to calculate shares to
+          downscale the basket time-series
+        sel: Selection dict, optional
+          If the downscaling should only be done on a subset of the Dataset while
+          retaining all other values unchanged, give a selection dictionary. The
+          downscaling will be done on ``ds.loc[sel]``.
+        skipna_evaluation_dims: str or list of str, optional
+          Dimension(s) to evaluate along to determine if values should be skipped.
+          Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
+          If all values along the specified dimensions are NA, the values are skipped,
+          other NA values are not skipped and will lead to NA in the corresponding
+          result.
+        skipna: bool, optional
+          If ``True``, skip missing values (as marked by NaN) when summing. If ``False``,
+          missing values lead to NA in the sum. By default (``None``), missing values are
+          skipped for float dtypes; other dtypes either do not have a sentinel missing value
+          (int) or ``skipna=True`` has not been implemented (``object``, ``datetime64`` or
+          ``timedelta64``). Only one of ``skipna`` and ``skipna_evaluation_dims`` can be
+          supplied.
+        min_count: int, optional
+          The minimal number of non-NA values in a sum that is necessary for a non-NA
+          result. This only has an effect if NA values are skipped, i.e. it has no effect
+          if ``skipna=False`` or ``skipna_evaluation_dims`` is given. Defaults to 1 if NA
+          values are skipped, so that summing only NA values gives NA. As an example: you
+          sum data for a region for a certain sector, gas and year. If ``skipna=False``,
+          all countries in the region need to have non-NA data for that sector, gas,
+          year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+          non-NA data is enough for a non-NA result. All NA values will be treated as
+          zero. If ``min_count=0`` all NA values will be treated as zero
+          also if there is no single non-NA value in the data that is to be summed.
+
+        Returns
+        -------
+        downscaled: xr.Dataset
+        """
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
+            )
 
         skipna = _deprecated_skipna_false_with_evaluation_dims(skipna, skipna_evaluation_dims)
 
-        basket_sum = basket_contents_converted.pr.sum(
-            dim="entity",
+        ds_in_sel = select_no_scalar_dimension(self._ds, sel)
+
+        ds_key_sel = select_no_scalar_dimension(ds_key, sel)
+
+        downscaled = _downscale_gas_timeseries_core(
+            basket_da=ds_in_sel[basket],
+            basket_contents_ds=ds_key_sel[basket_contents],
+            basket=basket,
+            basket_contents=basket_contents,
+            check_consistency=False,
+            skipna_evaluation_dims=skipna_evaluation_dims,
             skipna=skipna,
             min_count=min_count,
-            skipna_evaluation_dims=skipna_evaluation_dims,
+            check_alignment=True,
         )
 
-        if check_consistency:
-            deviation = abs(basket_da / basket_sum - 1)
-            devmax = deviation.max().item()
-            if devmax > tolerance:
-                raise ValueError(
-                    f"Sum of the basket_contents {basket_contents!r} deviates"
-                    f" {devmax * 100} % from the basket"
-                    f" {basket!r}, which is more than the allowed "
-                    f"{tolerance * 100}%. "
-                    f" {deviation}"
-                    "To continue regardless, set check_consistency=False."
-                )
+        return self._ds.pr.merge(downscaled, error_on_discrepancy=False)
 
-        # treat zeros
-        basket_both_zero = basket_da.where((basket_da == 0) & (basket_sum == 0))
-        basket_sum_zero = basket_da.where((basket_da != 0) & (basket_sum == 0))
-        if not basket_sum_zero.isnull().all():
-            # this can only happen if check consistency = False,
-            # so we could also remove it and say whoever switches it of has
-            # to deal with the consequences
-            error_message = generate_error_message(basket_sum_zero)
-            raise ValueError(f"pr.downscale_gas_timeseries {error_message}")
-
-        any_nonzero = basket_sum.where(basket_sum != 0).notnull().any()
-
-        # treat the case where all data is zero or NaN
-        if (not basket_both_zero.isnull().all()) & (not any_nonzero):
-            unit_content = str(basket_da.pint.units)
-            for var in basket_contents:
-                # replace explicit zeros by one to avoid division by zero, while
-                # keeping NaNs, so that contents which are all NaN result in NaN
-                # downscaled values.
-                basket_contents_converted[var] = basket_contents_converted[var].where(
-                    (basket_da != 0) | (basket_contents_converted[var] != 0),
-                    1 * ureg(unit_content),
-                )
-            basket_sum = basket_contents_converted.pr.sum(
-                dim="entity",
-                skipna=skipna,
-                min_count=min_count,
-                skipna_evaluation_dims=skipna_evaluation_dims,
-            )
-
-        # inter- and extrapolate
-        shares = (
-            (basket_contents_converted / basket_sum)
-            .pint.to({x: "" for x in basket_contents_converted})
-            .pint.dequantify()
-            .interpolate_na(dim="time", method="linear")
-            .ffill(dim="time")
-            .bfill(dim="time")
-        )
-
-        # treat the case where there are zero values in basket_sum and basket_da but also
-        # non-zero data
-        if (not basket_both_zero.isnull().all()) & any_nonzero:
-            shares = shares.where((basket_da != 0) | (basket_sum != 0), 0)
-            # a basket value of zero means that the downscaled values are zero as well,
-            # even if the individual basket contents are nan for most of the timeseries
-            shares = shares.where(basket_da != 0, 0)
-
-        downscaled = basket_da * shares
-
-        downscaled_converted = xr.Dataset()
-
-        with ureg.context(basket_da.attrs["gwp_context"]):
-            for var in basket_contents:
-                downscaled_converted[var] = ds_sel[var].fillna(
-                    downscaled[var].pint.to(ds_sel[var].pint.units)
-                )
-
-        return self._ds.pr.fillna(downscaled_converted)
-
-    def downscale_timeseries_by_shares(
+    def downscale_timeseries_with_external_key(
         self,
         *,
         dim: Hashable,
         basket: Hashable,
         basket_contents: Sequence[Hashable],
-        basket_contents_shares: xr.DataArray | xr.Dataset,
+        ds_key: xr.Dataset,
+        sel: dict[Hashable, Sequence] | None = None,
+        skipna_evaluation_dims: DimOrDimsT | None = None,
+        skipna: bool | None = None,
+        min_count: int | None = None,
     ) -> xr.Dataset:
-        """Downscale timeseries along a dimension using defined shares for each timestep.
+        """
+        Downscale timeseries along a dimension using a basket defined on a
+        broader timeseries.
 
-        This is useful if you have data points for a total, and you don't have any
-        data for the higher resolution, but you do have the shares for the higher
-        resolution from another source. For example, you have the total energy, and
-        you know the shares of the sub-sectors 1.A and 1.B for each year from another
-        source.
+        This is useful if you have data for many points in time for a total, for example
+        the entire Energy sector, and higher-resolution data (e.g. fossil and non-fossil
+        energies separately) for only a few points in time. In the example, the Energy
+        sector is the ``basket`` and fossil and non-fossil energies are the basket
+        contents.
+
+        From any time points where all the basket contents are known, the
+        relative shares of the basket contents are determined, and then interpolated
+        linearly and extrapolated constantly to the full timeseries. The shares are then
+        used to downscale the basket to its contents, which is used to fill gaps in the
+        timeseries of the basket contents.
+
+        If the data to downscale contains only 0 and NaN, the result will be all
+        zero timeseries, unless all data points of a basket content are NaN, in which
+        case the resulting downscaled time series will be NaN as well. If the data are 0
+        only for individual basket and basket_content values, the resulting downscaled
+        data points are zero but the shares for other years are not influenced
 
         Parameters
         ----------
-        dim : Hashable
-            The dimension along which to perform the downscaling (e.g., "category" or "area").
-        basket : Hashable
-            The label of the aggregate group (e.g., "1.A" for a category) whose value will be
-            redistributed.
-        basket_contents : Sequence of Hashable
-            The labels of the subgroups (e.g., ["1.A.1", "1.A.2", "1.A.3"])
-            that make up the `basket`.
-        basket_contents_shares : xr.DataArray or xr.Dataset
-            The shares to use for downscaling.
+        dim: str
+          The name of the dimension which contains the basket and its contents, has to
+          be one of the dimensions in ``ds.dims``.
+        basket: str
+          The name of the super-category for which values are known at higher temporal
+          resolution and/or for a wider range. A value from ``ds[dimension]``.
+        basket_contents: list of str
+          The name of the sub-categories. The sum of all sub-categories equals the
+          basket. Values from ``ds[dimension]``.
+        ds_key: xr.Dataset
+          Dataset with the downscaling key. Only variables present in self._ds and
+          ds_key will be downscaled.
+        sel: Selection dict, optional
+          If the downscaling should only be done on a subset of the Dataset while
+          retaining all other values unchanged, give a selection dictionary. The
+          downscaling will be done on ``ds.loc[sel]``.
+        skipna_evaluation_dims: str or list of str, optional
+          Dimension(s) to evaluate along to determine if values should be skipped.
+          Only one of ``skipna`` and ``skipna_evaluation_dims`` can be supplied.
+          If all values along the specified dimensions are NA, the values are skipped,
+          other NA values are not skipped and will lead to NA in the corresponding
+          result.
+        skipna: bool, optional
+          If ``True``, skip missing values (as marked by NaN) when summing. If ``False``,
+          missing values lead to NA in the sum. By default (``None``), missing values are
+          skipped for float dtypes; other dtypes either do not have a sentinel missing value
+          (int) or ``skipna=True`` has not been implemented (``object``, ``datetime64`` or
+          ``timedelta64``). Only one of ``skipna`` and ``skipna_evaluation_dims`` can be
+          supplied.
+        min_count: int, optional
+          The minimal number of non-NA values in a sum that is necessary for a non-NA
+          result. This only has an effect if NA values are skipped, i.e. it has no effect
+          if ``skipna=False`` or ``skipna_evaluation_dims`` is given. Defaults to 1 if NA
+          values are skipped, so that summing only NA values gives NA. As an example: you
+          sum data for a region for a certain sector, gas and year. If ``skipna=False``,
+          all countries in the region need to have non-NA data for that sector, gas,
+          year combination. If ``skipna=True`` and ``min_count=1`` then one country with
+          non-NA data is enough for a non-NA result. All NA values will be treated as
+          zero. If ``min_count=0`` all NA values will be treated as zero
+          also if there is no single non-NA value in the data that is to be summed.
+
+        Notes
+        -----
+        To downscale along the entity dimension, i.e. to downscale gases, see
+        :py:meth:`downscale_gas_timeseries`, which handles gwp conversions
+        appropriately.
 
         Returns
         -------
-        xr.Dataset
-            A new dataset with variables downscaled along `dim` using the provided shares.
+        downscaled: xr.Dataset
         """
-        ds = self._ds.copy()
-        downscaled_dict = {}
-        for var in self._ds.data_vars:
-            if isinstance(basket_contents_shares, xr.Dataset):
-                # if the reference does not specify shares for this variable, skip it
-                if var not in basket_contents_shares.data_vars:
-                    logger.warning(f"{var} is not in reference data. Skipping it")
-                    continue
-                basket_contents_shares_arr = basket_contents_shares[var]
-            else:
-                basket_contents_shares_arr = basket_contents_shares
-            downscaled_dict[var] = ds[var].pr.downscale_timeseries_by_shares(
-                dim=dim,
-                basket=basket,
-                basket_contents=basket_contents,
-                basket_contents_shares=basket_contents_shares_arr,
+        if self._ds.pr.has_processing_info():
+            raise NotImplementedError(
+                "Dataset contains processing information, this is not supported yet. "
+                "Use ds.pr.remove_processing_info()."
             )
 
-        return xr.Dataset(downscaled_dict).assign_attrs(ds.attrs)
+        skipna = _deprecated_skipna_false_with_evaluation_dims(skipna, skipna_evaluation_dims)
+        downscaled = self._ds.copy()
+        for var in self._ds.data_vars:
+            if var in ds_key.data_vars:
+                downscaled = downscaled.pr.merge(
+                    downscaled[var].pr.downscale_timeseries_with_external_key(
+                        dim=dim,
+                        basket=basket,
+                        basket_contents=basket_contents,
+                        da_key=ds_key[var],
+                        sel=sel,
+                        skipna_evaluation_dims=skipna_evaluation_dims,
+                        skipna=skipna,
+                        min_count=min_count,
+                    )
+                )
+            else:
+                logger.warning(f"{var} is not in reference data. Skipping it")
+                continue
+
+        return downscaled
 
 
 def generate_error_message(da_error: xr.DataArray) -> str:

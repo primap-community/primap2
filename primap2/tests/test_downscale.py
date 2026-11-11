@@ -117,6 +117,38 @@ def test_downscale_gas_timeseries(gas_downscaling_ds):
         )
 
 
+def test_downscale_gas_timeseries_with_external_key(gas_downscaling_ds):
+    basket = "KYOTOGHG (AR4GWP100)"
+    basket_contents = ["CO2", "SF6", "CH4"]
+    basket_ds = gas_downscaling_ds[[basket]]
+    key_ds = gas_downscaling_ds[basket_contents]
+
+    downscaled = basket_ds.pr.downscale_gas_timeseries_with_external_key(
+        basket=basket, basket_contents=basket_contents, ds_key=key_ds
+    )
+    expected = gas_downscaling_ds.copy()
+    expected["CO2"][:] = 1 * ureg("Gg CO2 / year")
+    expected["SF6"][:] = 1 * ureg("Gg SF6 / year")
+    expected["CH4"][:] = 1 * ureg("Gg CH4 / year")
+    expected["CO2"].loc[{"time": "2020"}] = 2 * ureg("Gg CO2 / year")
+    expected["SF6"].loc[{"time": "2020"}] = 2 * ureg("Gg SF6 / year")
+    expected["CH4"].loc[{"time": "2020"}] = 2 * ureg("Gg CH4 / year")
+
+    xr.testing.assert_identical(downscaled, expected)
+
+    with pytest.raises(
+        ValueError,
+        match="Only one of 'skipna' and 'skipna_evaluation_dims' may be supplied, not both",
+    ):
+        basket_ds.pr.downscale_gas_timeseries_with_external_key(
+            basket=basket,
+            basket_contents=basket_contents,
+            ds_key=key_ds,
+            skipna_evaluation_dims=["time"],
+            skipna=True,
+        )
+
+
 def test_downscale_timeseries(dim_downscaling_ds, dim_downscaling_da, dim_downscaling_expected_da):
     downscaled = dim_downscaling_da.pr.downscale_timeseries(
         dim="area (ISO3)", basket="CAMB", basket_contents=["COL", "ARG", "MEX", "BOL"]
@@ -282,7 +314,7 @@ def test_downscale_timeseries_da_zero_sum_error(dim_downscaling_da):
 
     with pytest.raises(
         ValueError,
-        match=r"pr.downscale_timeseries error: found zero basket content sum for "
+        match=r"_downscale_timeseries_core error: found zero basket content sum for "
         r"non-zero basket data for source=RAND2020:",
     ):
         dim_downscaling_da.pr.downscale_timeseries(
@@ -483,7 +515,7 @@ def test_downscale_timeseries_only_zero_timeseries(dim_downscaling_da):
     assert np.allclose(downscaled.loc[{"area (ISO3)": ["ARG"]}].to_numpy(), np.nan, equal_nan=True)
 
 
-def test_downscale_timeseries_by_shares(opulent_ds):
+def test_downscale_timeseries_with_external_key(opulent_ds):
     # build a reference data array with the shares of the basket contents
     time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
     area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
@@ -492,6 +524,11 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         "1.A.2",
         "1.A.3",
     ]
+    # cat_names_higher_resolution = [
+    #     "Energy Industries",
+    #     "Manufacturing Industries and Construction",
+    #     "Transport",
+    # ]
     rng = np.random.default_rng(42)
 
     reference = xr.Dataset(
@@ -511,6 +548,16 @@ def test_downscale_timeseries_by_shares(opulent_ds):
             for ent in ("CO2", "N2O", "CH4")
         }
     ).pr.quantify()
+
+    # reference = reference.assign_coords(
+    #     {
+    #         "category_names": xr.DataArray(
+    #             data=cat_names_higher_resolution,
+    #             coords={"category (IPCC 2006)": category_higher_resolution},
+    #             dims=["category (IPCC 2006)"],
+    #         )
+    #     }
+    # )
 
     assert (
         reference["CO2"]
@@ -545,6 +592,7 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         }
     ]
     ds = ds.drop_vars("population")
+    ds = ds.drop_vars("category_names")
 
     # look at one specific value
     assert (
@@ -554,11 +602,11 @@ def test_downscale_timeseries_by_shares(opulent_ds):
         == 0.8660848254275575
     )
 
-    downscaled = ds.pr.downscale_timeseries_by_shares(
+    downscaled = ds.pr.downscale_timeseries_with_external_key(
         dim="category (IPCC 2006)",
         basket="1.A",
         basket_contents=category_higher_resolution,
-        basket_contents_shares=reference,
+        ds_key=reference,
     )
 
     # check if basket contents add up to basket (sum over all years and countries)
@@ -660,11 +708,11 @@ def test_with_realistic_dataset(caplog):
     basket_contents = ["1.A.1", "1.A.2", "1.A.3", "1.A.4", "1.A.5"]
 
     with pytest.raises(ValueError, match="No overlap found"):
-        downscaled = original.pr.downscale_timeseries_by_shares(
+        downscaled = original.pr.downscale_timeseries_with_external_key(
             dim="category (IPCC2006_PRIMAP)",
             basket=basket,
             basket_contents=basket_contents,
-            basket_contents_shares=reference,
+            ds_key=reference,
         )
 
     # need to select source explicitly so it won't be used
@@ -673,24 +721,21 @@ def test_with_realistic_dataset(caplog):
 
     # check if warnings are shown
     with caplog.at_level(logging.WARNING):
-        downscaled = original.pr.downscale_timeseries_by_shares(
+        downscaled = original.pr.downscale_timeseries_with_external_key(
             dim="category (IPCC2006_PRIMAP)",
             basket=basket,
             basket_contents=basket_contents,
-            basket_contents_shares=reference,
+            ds_key=reference,
         )
 
     # FGASES, HFCS etc. are not in original
     assert any("is not in reference data. Skipping it" in message for message in caplog.messages)
 
-    # only what's available in reference
-    # can be converted
-    assert sorted([i for i in downscaled.data_vars]) == [
-        "CH4",
-        "CO2",
-        "KYOTOGHG (AR6GWP100)",
-        "N2O",
-    ]
+    extra_var_original = [var for var in original.data_vars if var not in downscaled.data_vars]
+    assert len(extra_var_original) == 0
+
+    extra_var_downscaled = [var for var in downscaled.data_vars if var not in original.data_vars]
+    assert len(extra_var_downscaled) == 0
 
     assert (
         downscaled[entity_example]
@@ -704,3 +749,90 @@ def test_with_realistic_dataset(caplog):
         .to_numpy()
         == (2.8372828 / 6.187519093) * 6190.0
     )
+
+
+# TODO: remove before merging, just for testing purposes
+@pytest.mark.xfail
+def test_additional_coordinate_multiplication(opulent_ds):
+    # build a reference data array with the shares of the basket contents
+    time = pd.date_range("2000-01-01", "2020-01-01", freq="YS")
+    area_iso3 = np.array(["COL", "ARG", "MEX", "BOL"])
+    category_higher_resolution = [
+        "1.A.1",
+        "1.A.2",
+        "1.A.3",
+    ]
+    cat_names_higher_resolution = [
+        "Energy Industries",
+        "Manufacturing Industries and Construction",
+        "Transport",
+    ]
+    rng = np.random.default_rng(42)
+
+    reference = xr.Dataset(
+        {
+            ent: xr.DataArray(
+                data=rng.integers(
+                    10, size=(len(time), len(area_iso3), len(category_higher_resolution))
+                ),
+                coords={
+                    "time": time,
+                    "area (ISO3)": area_iso3,
+                    "category (IPCC 2006)": category_higher_resolution,
+                },
+                dims=["time", "area (ISO3)", "category (IPCC 2006)"],
+                attrs={"units": f"{ent} Gg / year", "entity": ent},
+            )
+            for ent in ("CO2", "N2O", "CH4")
+        }
+    ).pr.quantify()
+
+    reference = reference.assign_coords(
+        {
+            "category_names": xr.DataArray(
+                data=cat_names_higher_resolution,
+                coords={"category (IPCC 2006)": category_higher_resolution},
+                dims=["category (IPCC 2006)"],
+            )
+        }
+    )
+
+    # The dataset to be downscaled
+    ds = opulent_ds.pr.loc[
+        {
+            "provenance": "projected",
+            "scenario": "highpop",
+            "product": "milk",
+            "animal": "cow",
+            "model": "FANCYFAO",
+            "source": "RAND2020",
+        }
+    ]
+    ds = ds.drop_vars("population")
+
+    ds_result: xr.Dataset = ds * ds
+
+    assert "category_names" in ds_result.coords  # passes
+    assert len(ds_result.coords["category_names"]) > 0  # passes
+
+    # the following test can not produce meaningful values for category and category name
+    # "category (IPCC 2006)" is empty as well
+    ds_result: xr.Dataset = (
+        ds.loc[{"category (IPCC 2006)": ["1.A"]}]
+        * reference.loc[{"category (IPCC 2006)": category_higher_resolution}]
+    )
+
+    assert "category_names" in ds_result.coords  # passes
+    assert len(ds_result.coords["category (IPCC 2006)"]) > 0  # fails
+    assert len(ds_result.coords["category_names"]) > 0  # fails
+
+    ds_result: xr.Dataset = (
+        ds.loc[{"category (IPCC 2006)": "1.A"}]
+        * reference.loc[{"category (IPCC 2006)": category_higher_resolution}]
+    )
+
+    assert "category_names" in ds_result.coords  # fails
+
+    da_result = xr.DataArray = ds["CO2"] * reference["CO2"]
+
+    assert "category_names" in da_result.coords  # fails
