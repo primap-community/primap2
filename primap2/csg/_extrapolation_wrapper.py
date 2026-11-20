@@ -135,9 +135,9 @@ def _csg_extrapolation_prepare_data(
             loc = prio.copy()
             # process loc. All selections have to be lists because
             # else data will be broadcasted along the whole dimension
-            for dim in extrap_priority_definition.priority_dimensions:
-                if (dim != "mapping") and (isinstance(loc[dim], str)):
-                    loc[dim] = [loc[dim]]
+            # for dim in extrap_priority_definition.priority_dimensions:
+            #     if (dim != "mapping") and (isinstance(loc[dim], str)):
+            #         loc[dim] = [loc[dim]]
             if "variable" in loc:
                 variables = loc.pop("variable")
             elif "entity" in loc:
@@ -148,6 +148,9 @@ def _csg_extrapolation_prepare_data(
                         variables.append(var)
             else:
                 variables = list(data.data_vars)
+            for dim in loc:
+                if isinstance(loc[dim], str):
+                    loc[dim] = [loc[dim]]
             for dim in mapping:
                 mapping_dim = mapping[dim]
                 for key, value in mapping_dim.items():
@@ -155,15 +158,30 @@ def _csg_extrapolation_prepare_data(
                     this_loc[dim] = key
                     data_to_copy = data[variables].pr.loc[this_loc]
                     # next: add dim with the same data for all values
-                    for var in variables:
-                        if isinstance(value, str):
-                            data[var] = data[var].pr.set(
-                                dim, value, data_to_copy[var], existing="fillna"
-                            )
-                        else:
-                            for val in value:
-                                data[var] = data[var].pr.set(
-                                    dim, val, data_to_copy[var], existing="fillna"
-                                )
+                    # if isinstance(value, str):
+                    data_to_add = data_to_copy.expand_dims(dim={dim: value})
+                    data = data.pr.merge(data_to_add)
+                    # data[var] = data[var].pr.set(
+                    #     dim, value, data_to_copy[var], existing="fillna"
+                    # )
+                    #     else:
+                    #         for val in value:
+                    #             data_to_add = data_to_copy.expand_dims(
+                    #                 dim = {dim: val}
+                    #             )
+                    #             data = data.pr.merge(data_to_add)
+                    #             # data[var] = data[var].pr.set(
+                    #             #     dim, val, data_to_copy[var], existing="fillna"
+                    #             # )
+                    # for var in variables:
+                    #     if isinstance(value, str):
+                    #         data[var] = data[var].pr.set(
+                    #             dim, value, data_to_copy[var], existing="fillna"
+                    #         )
+                    #     else:
+                    #         for val in value:
+                    #             data[var] = data[var].pr.set(
+                    #                 dim, val, data_to_copy[var], existing="fillna"
+                    #             )
 
     return data

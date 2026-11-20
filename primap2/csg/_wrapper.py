@@ -111,6 +111,10 @@ def create_composite_source(
     """
     # limit input data to these values
     if limit_coords is not None:
+        # make sure there are no duplicates in limit_coords
+        for key, value in limit_coords.items():
+            limit_coords[key] = list(set(value))
+
         if "variable" in limit_coords:
             variable = limit_coords.pop("variable")
             input_ds = input_ds[variable].pr.loc[limit_coords]
