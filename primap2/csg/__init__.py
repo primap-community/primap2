@@ -6,6 +6,7 @@ source priorities and matching algorithms.
 """
 
 from ._compose import compose
+from ._extrapolation_wrapper import create_extrapolated_source
 from ._models import (
     ExtrapPriorityDefinition,
     PriorityDefinition,
@@ -29,4 +30,5 @@ __all__ = [
     "SubstitutionStrategy",
     "compose",
     "create_composite_source",
+    "create_extrapolated_source",
 ]

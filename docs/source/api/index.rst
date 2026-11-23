@@ -57,6 +57,7 @@ source priorities and matching algorithms.
 .. autosummary::
     :toctree: generated_csg/
 
+    csg.ExtrapPriorityDefinition
     csg.FitParameters
     csg.GlobalLSStrategy
     csg.LocalTrendsStrategy
@@ -66,6 +67,7 @@ source priorities and matching algorithms.
     csg.SubstitutionStrategy
     csg.compose
     csg.create_composite_source
+    csg.create_extrapolated_source
 
 
 .. currentmodule:: xarray

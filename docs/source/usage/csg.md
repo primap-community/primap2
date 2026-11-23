@@ -219,9 +219,83 @@ complete_result_ds = primap2.csg.create_composite_source(
 complete_result_ds
 ```
 
+## The `create_extrapolated_source` wrapper function
+
+The {py:func}`primap2.csg.create_extrpolated_source` function extends the functionality of
+{py:func}`primap2.csg.create_composite_source` to also allow the use of data for different coordinate
+values. We call this "extrapolation" as it is often used to extand time-series far into the past where
+only low resolution datasets exist. {py:func}`primap2.csg.create_extrpolated_source` takes an extended
+priority definition {py.class}`primap2.csg.ExtrapPriorityDefinition` which allows to specify a "mapping" field in each priority step which defines coordinate value mappings for individual coordinates and priority steps.
+
+The function uses the mapping information to copy time-series to the according coordinate values to enable their use in the csg.
+
+The function takes the same inputs as {py:func}`primap2.csg.create_composite_source` with the exception
+of the priority definition which is an instance of {py:class}`primap2.csg.ExtrapPriorityDefinition`.
+
+```{code-cell} ipython3
+extrap_priority_definition = primap2.csg.ExtrapPriorityDefinition(
+    priority_dimensions=["source", "scenario (FAOSTAT)"],
+    priorities=[
+        # only applies to category 0: prefer highpop
+        {
+            "category (IPCC 2006)": "0",
+            "source": "RAND2020",
+            "scenario (FAOSTAT)": "highpop",
+        },
+        {
+            "source": "RAND2020",
+            "scenario (FAOSTAT)": "lowpop",
+            "mapping": {
+                "category (IPCC 2006)":
+                    {
+                        "1.A": ["1.A.1", "1.A.2"],
+                    },  # use 1.A also for 1.A.1 and 1.A.2
+            },
+        },
+        {"source": "RAND2020", "scenario (FAOSTAT)": "highpop"},
+        {"source": "RAND2021", "scenario (FAOSTAT)": "lowpop"},
+        # the RAND2021, highpop combination is not used at all - you don't have to use all source timeseries
+    ],
+    # category 5 is not defined for CH4 in this example, so we skip processing it
+    # altogether
+    exclude_result=[{"entity": "CH4", "category (IPCC 2006)": "5"}],
+    # in this example, we know that COL has reported wrong data in the RAND2020 source
+    # for SF6 category 1, so we exclude it from processing, it will be skipped and the
+    # other data sources will be used as configured in the priorities instead.
+    exclude_input=[
+        {
+            "entity": "SF6",
+            "category (IPCC 2006)": "1",
+            "area (ISO3)": "COL",
+            "source": "RAND2020",
+        }
+    ],
+)
+```
+
+
+```{code-cell} ipython3
+
+input_ds = input_ds.drop("category_names")
+
+complete_result_ds = primap2.csg.create_extrapolated_source(
+    input_ds,
+    extrap_priority_definition=extrap_priority_definition,
+    strategy_definition=strategy_definition,
+    result_prio_coords=result_prio_coords,
+    limit_coords=limit_coords,
+    time_range=time_range,
+    metadata=metadata,
+    progress_bar=None,
+)
+
+complete_result_ds
+```
+#################################
 
 ## Filling strategies
 Currently the following filling strategies are implemented
 * Global least square matching: {py:class}`primap2.csg.GlobalLSStrategy`
+* Local least square matching: {py:class}`primap2.csg.LocalLSStrategy`
 * Straight substitution: {py:class}`primap2.csg.SubstitutionStrategy`
 * Local trend matching: {py:class}`primap2.csg.LocalTrendsStrategy`
