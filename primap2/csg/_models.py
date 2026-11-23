@@ -155,6 +155,103 @@ class PriorityDefinition:
                     )
 
 
+@define(frozen=True)
+class ExtrapPriorityDefinition(PriorityDefinition):
+    """
+    Defines source priorities for the csg including extrapolation.
+
+    The only difference to 'PriorityDefinition' is that the priorities type also
+    allows to define a mapping for coordinate values which will be used in
+    pre-processing to enable to use of data for different coordinate values,
+    e.g. regions or parent categories. The class has a method to convert an instance
+    to an instance of 'PriorityDefiniton' and remove the mapping information.
+
+    Attributes
+    ----------
+    priority_dimensions
+        List of dimensions from which source timeseries are selected. Each priority has
+        to specify all priority dimensions.
+    priorities
+        List of priority selections. Higher priority selections come first. Each
+        selection consists of a dict which maps dimension names to values. Each
+        selection has to specify all priority_dimensions, but may specify additional
+        dimensions (fixed dimensions) to limit the selection to specific cases.
+        You can use primap2.Not as a value for fixed dimensions to easily specify
+        negative selections in the priorities. This should generally only be used if you
+        want to change the priority of a source in specific circumstances. If you want
+        to avoid using a source completely in specific cases, use exclude_input
+        instead.
+        The priority definition also defines the mappings for priorities where
+        data from other coordinate values should be used, e.g. regional data or parent
+        sector data. The mappings are defined for each priority individually through
+        the 'mapping' dict in the priority step.
+        Coordinates are the keys and the values are dict[str, str | list],
+        where the key is the coordinate value of the data to be used in the current step and
+        the value is either a single value or a list of values which define the timeseries
+        to be extended.
+    exclude_input
+        Set of selections from the input dataset to exclude from processing. Each
+        selection consists of a dict which maps dimension names to values. Each
+        selection can specify any number of priority dimensions or additional dimensions
+        (fixed dimensions) to limit the selection.
+        All input timeseries which match any selection will be skipped in processing.
+        Note that after the exclusions, there still must be at least one applicable
+        source for each result timeseries, otherwise errors will be raised. If you want
+        to exclude timeseries from the result without raising errors, use
+        exclude_result instead.
+    exclude_result
+        Set of selections from the result to exclude from all processing. Each selection
+        consists of a dict which maps dimension names to values. Each selection can
+        specify any number of additional dimensions (fixed dimensions) to limit the
+        selection. Because it excludes timeseries from the result not from the input,
+        it may not contain priority_dimensions.
+        All timeseries which match any selection will be excluded entirely from
+        processing and will be all-NaN in the result.
+
+    Examples
+    --------
+        priorities::
+
+            [
+                {"source": "A"},
+                {"source": "B", "mapping": {"category": {"1": ["1.A", "1.B", "1.C"]}}},
+            ]
+
+
+        would select source "A" as highest-priority source and source "B" as
+        lower-priority source. As data for categories "1.X" are missing in
+        source "B" data for category "1" are used instead.
+    """
+
+    priorities: list[
+        dict[Hashable, str | list[str] | primap2.Not | dict[str, dict[str, str | list[str]]]]
+    ]
+
+    def to_priority_definition(self) -> PriorityDefinition:
+        """
+        Remove all extrapolation relevant parts from the priority definition
+
+        Returns
+        -------
+            PriorityDefinition without the extrapolation specific bits.
+        """
+
+        priorities = self.priorities
+
+        for prio in priorities:
+            if "mapping" in prio:
+                prio.pop("mapping")
+
+        priority_def = PriorityDefinition(
+            priority_dimensions=self.priority_dimensions,
+            priorities=priorities,
+            exclude_input=self.exclude_input,
+            exclude_result=self.exclude_result,
+        )
+
+        return priority_def
+
+
 class FillingStrategyModel(typing.Protocol, Hashable):
     """
     Fill missing data in a timeseries using another timeseries.

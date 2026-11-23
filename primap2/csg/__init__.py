@@ -6,7 +6,9 @@ source priorities and matching algorithms.
 """
 
 from ._compose import compose
+from ._extrapolation_wrapper import create_extrapolated_source
 from ._models import (
+    ExtrapPriorityDefinition,
     PriorityDefinition,
     StrategyDefinition,
 )
@@ -18,6 +20,7 @@ from ._strategies.substitution import SubstitutionStrategy
 from ._wrapper import create_composite_source
 
 __all__ = [
+    "ExtrapPriorityDefinition",
     "FitParameters",
     "GlobalLSStrategy",
     "LocalTrendsStrategy",
@@ -27,4 +30,5 @@ __all__ = [
     "SubstitutionStrategy",
     "compose",
     "create_composite_source",
+    "create_extrapolated_source",
 ]
