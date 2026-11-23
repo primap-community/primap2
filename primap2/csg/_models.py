@@ -163,7 +163,8 @@ class ExtrapPriorityDefinition(PriorityDefinition):
     The only difference to 'PriorityDefinition' is that the priorities type also
     allows to define a mapping for coordinate values which will be used in
     pre-processing to enable to use of data for different coordinate values,
-    e.g. regions or parent categories,
+    e.g. regions or parent categories. The class has a method to convert an instance
+    to an instance of 'PriorityDefiniton' and remove the mapping information.
 
     Attributes
     ----------
@@ -229,7 +230,9 @@ class ExtrapPriorityDefinition(PriorityDefinition):
     def to_priority_definition(self) -> PriorityDefinition:
         """
         Remove all extrapolation relevant parts from the priority definition
-        :return:
+
+        Returns
+        -------
             PriorityDefinition without the extrapolation specific bits.
         """
 

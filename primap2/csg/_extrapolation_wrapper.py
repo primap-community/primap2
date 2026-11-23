@@ -6,18 +6,6 @@ import xarray as xr
 from ._models import ExtrapPriorityDefinition, StrategyDefinition
 from ._wrapper import create_composite_source
 
-# scenario:
-#  we extrapolate different sectors with different data sources and sectors or regions
-# this can be mixed. for one source and priority we use parent sector data for the
-# next regional data different sectors or countries can have different sources
-
-
-# TODO:
-# * real world example
-# * maybe type checks for "entities" etc or own strategy definition with whitelist
-# for allowed strategies and configurations?
-# finish docstrings
-
 
 def create_extrapolated_source(
     input_ds: xr.Dataset,
@@ -123,11 +111,27 @@ def _csg_extrapolation_prepare_data(
     data: xr.Dataset,
     extrap_priority_definition: ExtrapPriorityDefinition,
 ) -> xr.Dataset:
-    # copy time-series for the mapping categories
+    """
+    copy time-series to target values for the mapping categories
 
-    # TODO: add processing info after new proc info functionality has been merged
-    #  type checking for "entity" has to be a list. if str is allowed in csg
-    #  we have to convert to list here before selecting variables
+    Parameters
+    ----------
+    data
+        Dataset for the operation. The dataset will not be changed. An altered version
+        wil be returned.
+    extrap_priority_definition
+        Extrapolation priority definitions. The definitions are used to extract the
+        information which time-series have to be copied to different coordinate values
+        using the "mapping" dict which can be present for each priority step.
+
+        TODO: add processing info after new proc info functionality has been merged
+         type checking for "entity" has to be a list. if str is allowed in csg
+         we have to convert to list here before selecting variables
+
+    Returns
+    -------
+        xr.Dataset with input data as well as the copied time-series.
+    """
 
     for prio in extrap_priority_definition.priorities:
         if "mapping" in prio:
@@ -136,8 +140,6 @@ def _csg_extrapolation_prepare_data(
             # process loc. All selections have to be lists because
             # else data will be broadcasted along the whole dimension
             # for dim in extrap_priority_definition.priority_dimensions:
-            #     if (dim != "mapping") and (isinstance(loc[dim], str)):
-            #         loc[dim] = [loc[dim]]
             if "variable" in loc:
                 variables = loc.pop("variable")
             elif "entity" in loc:
@@ -157,31 +159,6 @@ def _csg_extrapolation_prepare_data(
                     this_loc = loc.copy()
                     this_loc[dim] = key
                     data_to_copy = data[variables].pr.loc[this_loc]
-                    # next: add dim with the same data for all values
-                    # if isinstance(value, str):
                     data_to_add = data_to_copy.expand_dims(dim={dim: value})
                     data = data.pr.merge(data_to_add)
-                    # data[var] = data[var].pr.set(
-                    #     dim, value, data_to_copy[var], existing="fillna"
-                    # )
-                    #     else:
-                    #         for val in value:
-                    #             data_to_add = data_to_copy.expand_dims(
-                    #                 dim = {dim: val}
-                    #             )
-                    #             data = data.pr.merge(data_to_add)
-                    #             # data[var] = data[var].pr.set(
-                    #             #     dim, val, data_to_copy[var], existing="fillna"
-                    #             # )
-                    # for var in variables:
-                    #     if isinstance(value, str):
-                    #         data[var] = data[var].pr.set(
-                    #             dim, value, data_to_copy[var], existing="fillna"
-                    #         )
-                    #     else:
-                    #         for val in value:
-                    #             data[var] = data[var].pr.set(
-                    #                 dim, val, data_to_copy[var], existing="fillna"
-                    #             )
-
     return data
